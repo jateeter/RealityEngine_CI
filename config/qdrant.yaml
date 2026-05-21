@@ -1,0 +1,9 @@
+service:
+  host: 0.0.0.0
+  http_port: 6333
+  grpc_port: 6334
+  enable_tls: true
+
+tls:
+  cert: /etc/qdrant/certs/server.crt
+  key:  /etc/qdrant/certs/server.key

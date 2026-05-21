@@ -1,0 +1,157 @@
+{
+  "_comment": "CES-as-observability-DSL — Grafana versions of the queries that scripts/ces-query.mjs surfaces from /examples/contracts.json. PromQL covers the aggregate questions (top-K, rates, per-team rollups). The structural queries (provenance contains, chain length, evidence-skip detection) live in the CLI because they need stable-id joins that PromQL can't express.",
+  "title": "Reality Engine — CES Activation Queries",
+  "uid": "ces-trace-queries",
+  "schemaVersion": 38,
+  "version": 1,
+  "refresh": "10s",
+  "time": { "from": "now-1h", "to": "now" },
+  "tags": ["reality-engine", "ces", "observability", "queries"],
+  "templating": {
+    "list": [
+      {
+        "name": "machine", "label": "Machine",
+        "type": "query",
+        "datasource": { "type": "prometheus", "uid": "prometheus" },
+        "query": "label_values(ces_machine_sequence_count, machine)",
+        "refresh": 2, "multi": true, "includeAll": true,
+        "current": { "selected": true, "text": "All", "value": "$__all" }
+      }
+    ]
+  },
+  "panels": [
+    {
+      "id": 1,
+      "title": "Q2 — Top-10 most-fired terminal vectors",
+      "description": "PromQL form of the CLI's Q2: ranks (machine, sequence, vector) by rate of vector matches over the last 5 minutes. The CLI version groups on lastVector — here we sum the underlying ces_vector_matched_total counter, then top-K.",
+      "type": "table",
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "gridPos": { "x": 0, "y": 0, "w": 12, "h": 12 },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "topk(10, sum by (machine, sequence, vector) (rate(ces_vector_matched_total{machine=~\"$machine\"}[5m])))",
+          "format": "table",
+          "instant": true
+        }
+      ],
+      "transformations": [
+        { "id": "organize", "options": { "excludeByName": { "Time": true, "__name__": true, "instance": true, "job": true, "machine_id": true }, "renameByName": { "Value": "matches/s" } } }
+      ]
+    },
+    {
+      "id": 2,
+      "title": "Q3 — Time-of-day heatmap of RED fires",
+      "description": "Operational rhythm of life-safety paging.  Heatmap by hour of day; the CLI grouping by hour rolls up the same data.",
+      "type": "heatmap",
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "gridPos": { "x": 12, "y": 0, "w": 12, "h": 12 },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "sum by (machine) (increase(ces_paging_decisions_total{rag_status_code=\"RED\", machine=~\"$machine\"}[5m]))",
+          "legendFormat": "{{machine}}",
+          "format": "time_series"
+        }
+      ]
+    },
+    {
+      "id": 3,
+      "title": "Q6 — Paging concentration by owner team",
+      "description": "Which on-call team carries the most load.  Sum across all severities, grouped by owner_team.",
+      "type": "bargauge",
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "gridPos": { "x": 0, "y": 12, "w": 12, "h": 10 },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "sum by (owner_team) (ces_paging_decisions_total)",
+          "legendFormat": "{{owner_team}}",
+          "instant": true
+        }
+      ],
+      "options": { "displayMode": "gradient", "orientation": "horizontal", "showUnfilled": true }
+    },
+    {
+      "id": 4,
+      "title": "Q7 — RED rate per machine",
+      "description": "Fraction of each machine's outputs that hit RED severity.  Identifies machines that page hot — operationally hot is fine if expected, problematic when not.",
+      "type": "table",
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "gridPos": { "x": 12, "y": 12, "w": 12, "h": 10 },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "sum by (machine) (ces_paging_decisions_total{rag_status_code=\"RED\", machine=~\"$machine\"}) / clamp_min(sum by (machine) (ces_paging_decisions_total{machine=~\"$machine\"}), 1)",
+          "legendFormat": "{{machine}}",
+          "format": "table",
+          "instant": true
+        }
+      ],
+      "transformations": [
+        { "id": "organize", "options": { "excludeByName": { "Time": true, "__name__": true, "instance": true, "job": true }, "renameByName": { "Value": "RED rate" } } }
+      ],
+      "fieldConfig": {
+        "overrides": [
+          {
+            "matcher": { "id": "byName", "options": "RED rate" },
+            "properties": [
+              { "id": "unit", "value": "percentunit" },
+              { "id": "thresholds", "value": { "mode": "absolute", "steps": [{ "color": "green", "value": null }, { "color": "orange", "value": 0.25 }, { "color": "red", "value": 0.5 }] } },
+              { "id": "custom.cellOptions", "value": { "type": "color-background", "mode": "gradient" } }
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "id": 5,
+      "title": "Q9 — Cross-machine escalation rate (compose candidates)",
+      "description": "Sequences emitting RED or AMBER outputs at a steady rate are candidates for meta-CES subscriptions (step 5).  Pair the top entries here with the meta-CES wiring spec.",
+      "type": "timeseries",
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "gridPos": { "x": 0, "y": 22, "w": 24, "h": 9 },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "topk(8, sum by (machine, sequence) (rate(ces_paging_decisions_total{rag_status_code=~\"RED|AMBER\", machine=~\"$machine\"}[1m])))",
+          "legendFormat": "{{machine}} :: {{sequence}}"
+        }
+      ],
+      "fieldConfig": { "defaults": { "unit": "ops" } }
+    },
+    {
+      "id": 6,
+      "title": "Q-runtime — Dimension / required dimension / mapping version",
+      "description": "Sanity rail.  When dimension < required, machines are silently inactive — exactly the failure mode the dimension-bound skip caused on the Scala side, and the failure mode contract tests prevent from regressing.",
+      "type": "stat",
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "gridPos": { "x": 0, "y": 31, "w": 12, "h": 5 },
+      "targets": [
+        { "refId": "A", "expr": "max by (runtime) (re_runtime_dimension)",          "legendFormat": "dimension {{runtime}}" },
+        { "refId": "B", "expr": "max by (runtime) (re_runtime_required_dimension)", "legendFormat": "required {{runtime}}" },
+        { "refId": "C", "expr": "max by (runtime) (re_runtime_mapping_version)",    "legendFormat": "version {{runtime}}" }
+      ],
+      "options": { "reduceOptions": { "calcs": ["last"] }, "colorMode": "value" }
+    },
+    {
+      "id": 7,
+      "title": "Q-deprecation — Stale CES burn-down",
+      "description": "Pairs with step 9.  Any non-zero counter is a sequence past its deprecation date that's still firing — drive to zero by routing producers to the replacedBy successor.",
+      "type": "table",
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "gridPos": { "x": 12, "y": 31, "w": 12, "h": 5 },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "sum by (machine, sequence, replaced_by) (ces_deprecated_fires_total)",
+          "format": "table",
+          "instant": true
+        }
+      ],
+      "transformations": [
+        { "id": "organize", "options": { "excludeByName": { "Time": true, "__name__": true, "instance": true, "job": true, "machine_id": true } } }
+      ]
+    }
+  ]
+}

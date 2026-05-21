@@ -1,0 +1,250 @@
+{
+  "_comment": "CES coverage dashboard — surfaces which Critical Event Sequences are actually being exercised at runtime. Provisioned via config/grafana-dashboards.yml; scraped from /api/metrics on each runtime by Prometheus (see config/prometheus.yml).",
+  "title": "Reality Engine — CES Coverage",
+  "uid": "ces-coverage",
+  "schemaVersion": 38,
+  "version": 1,
+  "refresh": "10s",
+  "timezone": "browser",
+  "time": { "from": "now-15m", "to": "now" },
+  "tags": ["reality-engine", "ces", "coverage"],
+  "templating": {
+    "list": [
+      {
+        "name": "runtime",
+        "label": "Runtime",
+        "type": "query",
+        "datasource": { "type": "prometheus", "uid": "prometheus" },
+        "query": "label_values(re_runtime_dimension, runtime)",
+        "refresh": 2,
+        "multi": true,
+        "includeAll": true,
+        "current": { "selected": true, "text": "All", "value": "$__all" }
+      },
+      {
+        "name": "machine",
+        "label": "Machine",
+        "type": "query",
+        "datasource": { "type": "prometheus", "uid": "prometheus" },
+        "query": "label_values(ces_machine_sequence_count, machine)",
+        "refresh": 2,
+        "multi": true,
+        "includeAll": true,
+        "current": { "selected": true, "text": "All", "value": "$__all" }
+      }
+    ]
+  },
+  "panels": [
+    {
+      "id": 1,
+      "title": "Total machines",
+      "type": "stat",
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "gridPos": { "x": 0, "y": 0, "w": 4, "h": 4 },
+      "targets": [{ "refId": "A", "expr": "max(ces_machines_total{runtime=~\"$runtime\"})" }],
+      "options": { "reduceOptions": { "calcs": ["last"], "fields": "", "values": false }, "colorMode": "value" }
+    },
+    {
+      "id": 2,
+      "title": "Total sequences",
+      "type": "stat",
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "gridPos": { "x": 4, "y": 0, "w": 4, "h": 4 },
+      "targets": [{ "refId": "A", "expr": "max(ces_sequences_total{runtime=~\"$runtime\"})" }],
+      "options": { "reduceOptions": { "calcs": ["last"] }, "colorMode": "value" }
+    },
+    {
+      "id": 3,
+      "title": "Total vectors",
+      "type": "stat",
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "gridPos": { "x": 8, "y": 0, "w": 4, "h": 4 },
+      "targets": [{ "refId": "A", "expr": "max(ces_vectors_total{runtime=~\"$runtime\"})" }],
+      "options": { "reduceOptions": { "calcs": ["last"] }, "colorMode": "value" }
+    },
+    {
+      "id": 4,
+      "title": "Unfired sequences (global)",
+      "description": "Sequences that have never emitted output since process start.\nGoal: drive this to zero in a healthy production deployment.\nRed when above zero.",
+      "type": "gauge",
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "gridPos": { "x": 12, "y": 0, "w": 6, "h": 4 },
+      "targets": [{ "refId": "A", "expr": "sum(ces_unfired_sequences{runtime=~\"$runtime\", machine=~\"$machine\"})" }],
+      "fieldConfig": {
+        "defaults": {
+          "min": 0,
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              { "color": "green", "value": null },
+              { "color": "orange", "value": 1 },
+              { "color": "red", "value": 100 }
+            ]
+          }
+        }
+      },
+      "options": { "reduceOptions": { "calcs": ["last"] }, "showThresholdLabels": false, "showThresholdMarkers": true }
+    },
+    {
+      "id": 5,
+      "title": "Unfired vectors (global)",
+      "description": "Event vectors that have never matched or been activated.\nDistinct from unfired-sequences: a sequence can have outputs from one vector while other vectors in the same sequence remain dormant.",
+      "type": "gauge",
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "gridPos": { "x": 18, "y": 0, "w": 6, "h": 4 },
+      "targets": [{ "refId": "A", "expr": "sum(ces_unfired_vectors{runtime=~\"$runtime\", machine=~\"$machine\"})" }],
+      "fieldConfig": {
+        "defaults": {
+          "min": 0,
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              { "color": "green", "value": null },
+              { "color": "orange", "value": 1 },
+              { "color": "red", "value": 100 }
+            ]
+          }
+        }
+      },
+      "options": { "reduceOptions": { "calcs": ["last"] }, "showThresholdMarkers": true }
+    },
+
+    {
+      "id": 6,
+      "title": "Transition rate (matches/sec)",
+      "type": "timeseries",
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "gridPos": { "x": 0, "y": 4, "w": 12, "h": 8 },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "sum(rate(ces_vector_matched_total{runtime=~\"$runtime\", machine=~\"$machine\"}[1m])) by (runtime)",
+          "legendFormat": "{{runtime}}"
+        }
+      ],
+      "fieldConfig": { "defaults": { "unit": "ops" } }
+    },
+    {
+      "id": 7,
+      "title": "Output emission rate (outputs/sec)",
+      "type": "timeseries",
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "gridPos": { "x": 12, "y": 4, "w": 12, "h": 8 },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "sum(rate(ces_sequence_outputs_total{runtime=~\"$runtime\", machine=~\"$machine\"}[1m])) by (runtime)",
+          "legendFormat": "{{runtime}}"
+        }
+      ],
+      "fieldConfig": { "defaults": { "unit": "ops" } }
+    },
+
+    {
+      "id": 8,
+      "title": "Unfired sequences by machine (top 25)",
+      "description": "Machines whose sequences are most underexercised.\nThese are the 'over-specified or unreachable' candidates from the operational-coverage spec.",
+      "type": "table",
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "gridPos": { "x": 0, "y": 12, "w": 12, "h": 10 },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "topk(25, ces_unfired_sequences{runtime=~\"$runtime\", machine=~\"$machine\"})",
+          "format": "table",
+          "instant": true
+        }
+      ],
+      "transformations": [
+        { "id": "organize", "options": { "excludeByName": { "Time": true, "__name__": true, "job": true, "instance": true }, "renameByName": { "Value": "Unfired sequences" } } }
+      ]
+    },
+    {
+      "id": 9,
+      "title": "Most-fired vectors (top 25)",
+      "description": "Hot path of the corpus — vectors firing most often.\nUseful for ranking which CESs carry production signal.",
+      "type": "table",
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "gridPos": { "x": 12, "y": 12, "w": 12, "h": 10 },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "topk(25, sum by (machine, sequence, vector) (rate(ces_vector_matched_total{runtime=~\"$runtime\", machine=~\"$machine\"}[5m])))",
+          "format": "table",
+          "instant": true
+        }
+      ],
+      "transformations": [
+        { "id": "organize", "options": { "excludeByName": { "Time": true, "__name__": true, "job": true, "instance": true }, "renameByName": { "Value": "Match rate (/s)" } } }
+      ]
+    },
+
+    {
+      "id": 10,
+      "title": "Coverage % per machine",
+      "description": "Fraction of declared sequences that have emitted output since startup.\nGreen → all sequences exercised; red → some sequences never fired.",
+      "type": "bargauge",
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "gridPos": { "x": 0, "y": 22, "w": 24, "h": 10 },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "(ces_machine_sequence_count{runtime=~\"$runtime\", machine=~\"$machine\"} - ces_unfired_sequences{runtime=~\"$runtime\", machine=~\"$machine\"}) / clamp_min(ces_machine_sequence_count{runtime=~\"$runtime\", machine=~\"$machine\"}, 1)",
+          "legendFormat": "{{machine}}",
+          "instant": true
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "min": 0,
+          "max": 1,
+          "unit": "percentunit",
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              { "color": "red", "value": null },
+              { "color": "orange", "value": 0.5 },
+              { "color": "green", "value": 0.99 }
+            ]
+          }
+        }
+      },
+      "options": { "displayMode": "gradient", "orientation": "horizontal", "showUnfilled": true }
+    },
+
+    {
+      "id": 11,
+      "title": "Perceptual-space dimension by runtime",
+      "description": "Sanity check: AI and C++ should report the same dimension once the same machine set is loaded.",
+      "type": "stat",
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "gridPos": { "x": 0, "y": 32, "w": 8, "h": 5 },
+      "targets": [
+        { "refId": "A", "expr": "max by (runtime) (re_runtime_dimension)", "legendFormat": "{{runtime}}" }
+      ],
+      "options": { "reduceOptions": { "calcs": ["last"] }, "colorMode": "value", "graphMode": "area" }
+    },
+    {
+      "id": 12,
+      "title": "Required dimension by runtime",
+      "type": "stat",
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "gridPos": { "x": 8, "y": 32, "w": 8, "h": 5 },
+      "targets": [
+        { "refId": "A", "expr": "max by (runtime) (re_runtime_required_dimension)", "legendFormat": "{{runtime}}" }
+      ],
+      "options": { "reduceOptions": { "calcs": ["last"] }, "colorMode": "value" }
+    },
+    {
+      "id": 13,
+      "title": "Mapping version by runtime",
+      "type": "stat",
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "gridPos": { "x": 16, "y": 32, "w": 8, "h": 5 },
+      "targets": [
+        { "refId": "A", "expr": "max by (runtime) (re_runtime_mapping_version)", "legendFormat": "{{runtime}}" }
+      ],
+      "options": { "reduceOptions": { "calcs": ["last"] }, "colorMode": "value" }
+    }
+  ]
+}

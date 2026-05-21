@@ -1,0 +1,6 @@
+# Ignore generated certificate files — track only the generation script
+*.key
+*.crt
+*.pem
+*.p12
+*.pfx

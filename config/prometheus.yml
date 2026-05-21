@@ -1,0 +1,93 @@
+# Prometheus scrape config for the Reality Engine CES coverage telemetry.
+#
+# All three runtimes (AI / TypeScript-Scala, C++, Common Lisp) expose
+# /api/metrics in identical Prometheus text format.  Every metric line
+# carries a `runtime="ai"|"cpp"|"lsp"` label so a single Grafana dashboard
+# can pivot by source runtime without scrape-time relabels.
+#
+# Targets are split between:
+#   • compose-internal — services reachable on the reality-network bridge
+#     (reality-engine:3000 over HTTPS, perception-engine-backend:3004
+#     over HTTPS).  These use the project's self-signed CA mounted at
+#     /etc/prometheus/certs/ca.crt and reference the service by its
+#     compose hostname so SAN validation succeeds.
+#   • host-dev — host-side `npm run start` / `bin/reality_engine_server`
+#     workflows.  Kept enabled with `honor_labels: true` so when the
+#     compose stack is down a developer running the engines on the host
+#     still gets metrics in the same Grafana.  Scrapes fail silently
+#     when those host processes aren't listening.
+
+global:
+  scrape_interval:     5s
+  evaluation_interval: 5s
+  external_labels:
+    cluster:     reality-engine
+    environment: dev
+
+scrape_configs:
+  # ── Compose-internal (HTTPS via bridge network, TLS to self-signed CA) ──
+
+  # AI Reality Engine — Scala runtime inside the compose network.
+  - job_name:     reality-engine-ai-compose
+    metrics_path: /api/metrics
+    scheme:       https
+    # The runtime= label is emitted by the engine itself; preserve it instead of
+    # letting Prometheus rename it to exported_runtime (which breaks the
+    # dashboards' {runtime=~"$runtime"} queries).
+    honor_labels: true
+    tls_config:
+      ca_file:     /etc/prometheus/certs/ca.crt
+      server_name: reality-engine
+    static_configs:
+      - targets:
+          - reality-engine:3000
+        labels:
+          runtime: ai
+          source:  compose
+
+  # AI Perception Engine — TypeScript backend inside compose.
+  - job_name:     perception-engine-ai-compose
+    metrics_path: /api/metrics
+    scheme:       https
+    # The runtime= label is emitted by the engine itself; preserve it instead of
+    # letting Prometheus rename it to exported_runtime (which breaks the
+    # dashboards' {runtime=~"$runtime"} queries).
+    honor_labels: true
+    tls_config:
+      ca_file:     /etc/prometheus/certs/ca.crt
+      server_name: perception-engine-backend
+    static_configs:
+      - targets:
+          - perception-engine-backend:3004
+        labels:
+          runtime:   ai
+          component: perception-engine
+          source:    compose
+
+  # ── Host-dev workflows (kept for the developer running engines on the host) ──
+
+  - job_name:     reality-engine-cpp-host
+    metrics_path: /api/metrics
+    honor_labels: true
+    static_configs:
+      - targets:
+          - host.docker.internal:3299
+        labels:
+          runtime: cpp
+          source:  host
+
+  - job_name:     reality-engine-lsp-host
+    metrics_path: /api/metrics
+    honor_labels: true
+    static_configs:
+      - targets:
+          - host.docker.internal:3199
+        labels:
+          runtime: lsp
+          source:  host
+
+  # Prometheus itself — confirms the scrape stack is healthy.
+  - job_name: prometheus
+    static_configs:
+      - targets:
+          - localhost:9090

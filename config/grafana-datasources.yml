@@ -1,0 +1,28 @@
+apiVersion: 1
+
+datasources:
+  - name: Loki
+    type: loki
+    uid: loki
+    access: proxy
+    url: https://loki:3100
+    isDefault: true
+    editable: true
+    jsonData:
+      maxLines: 1000
+      tlsSkipVerify: true
+      derivedFields:
+        - datasourceUid: loki
+          matcherRegex: "traceID=(\\w+)"
+          name: TraceID
+          url: "$${__value.raw}"
+
+  # Prometheus — scrapes /api/metrics from the AI and C++ Reality Engines.
+  # Provided by the `prometheus` service in docker-compose.yml.
+  - name: Prometheus
+    type: prometheus
+    uid: prometheus
+    access: proxy
+    url: http://prometheus:9090
+    isDefault: false
+    editable: true

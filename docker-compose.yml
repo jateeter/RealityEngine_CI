@@ -1,0 +1,340 @@
+version: '3.8'
+
+services:
+  # Loki - Log Aggregation (TLS enabled)
+  # Port 3100 kept bound to host: the Docker logging driver runs on the host
+  # daemon and needs localhost:3100 to push logs into the container network.
+  loki:
+    image: grafana/loki:2.9.3
+    container_name: reality-engine-loki
+    ports:
+      - "3100:3100"
+    volumes:
+      - ./config/loki-config.yml:/etc/loki/local-config.yaml
+      - ./certs:/etc/loki/certs:ro
+      - loki_data:/loki
+    command: -config.file=/etc/loki/local-config.yaml
+    restart: unless-stopped
+    networks:
+      - reality-network
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "--no-check-certificate", "https://localhost:3100/ready"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # Prometheus — scrapes /api/metrics from each runtime for CES coverage gauges.
+  # Reaches host-side `npm run start` (TS) on host.docker.internal:3000 and
+  # `bin/reality_engine_server` (C++) on host.docker.internal:3299.  Both
+  # runtimes emit identical metric names so a single dashboard covers either.
+  prometheus:
+    image: prom/prometheus:v2.51.2
+    container_name: reality-engine-prometheus
+    command:
+      - --config.file=/etc/prometheus/prometheus.yml
+      - --storage.tsdb.retention.time=7d
+      - --web.listen-address=:9090
+    volumes:
+      - ./config/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - ./certs:/etc/prometheus/certs:ro
+      - prometheus_data:/prometheus
+    restart: unless-stopped
+    networks:
+      - reality-network
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    healthcheck:
+      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:9090/-/ready"]
+      interval: 15s
+      timeout: 5s
+      retries: 3
+
+  # Grafana - accessed via TLS proxy at https://localhost:3002
+  grafana:
+    image: grafana/grafana:10.2.3
+    container_name: reality-engine-grafana
+    environment:
+      - GF_AUTH_ANONYMOUS_ENABLED=true
+      - GF_AUTH_ANONYMOUS_ORG_ROLE=Admin
+      - GF_SECURITY_ADMIN_PASSWORD=admin
+      - GF_SECURITY_ADMIN_USER=admin
+      - GF_INSTALL_PLUGINS=grafana-clock-panel
+      - GF_SERVER_ROOT_URL=https://localhost:3002
+    volumes:
+      - grafana_data:/var/lib/grafana
+      - ./config/grafana-datasources.yml:/etc/grafana/provisioning/datasources/datasources.yml
+      - ./config/grafana-dashboards.yml:/etc/grafana/provisioning/dashboards/dashboards.yml
+      - ./config/dashboards:/var/lib/grafana/dashboards
+    depends_on:
+      loki:
+        condition: service_healthy
+      prometheus:
+        condition: service_healthy
+    restart: unless-stopped
+    networks:
+      - reality-network
+    healthcheck:
+      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:3000/api/health"]
+      interval: 15s
+      timeout: 5s
+      retries: 3
+
+  # Reality Engine API (Scala/Akka HTTP) - accessed via TLS proxy at https://localhost:3000
+  # NOTE: Qdrant is NOT a service in this compose stack.  The Reality Engine connects
+  # to the unified Qdrant instance managed by localAIStack (host port 4333).
+  # Start localAIStack first:  cd ../localAIStack && ./scripts/start.sh
+  reality-engine:
+    build:
+      context: .
+      dockerfile: scala/Dockerfile
+    container_name: reality-engine-app
+    environment:
+      # Unified Qdrant: localAIStack exposes Qdrant on host port 4333.
+      # host.docker.internal resolves to the host from within this Docker network.
+      - QDRANT_URL=http://host.docker.internal:4333
+      - COLLECTION_NAME=reality-vectors
+      - VECTOR_DIMENSION=${VECTOR_DIMENSION:-768}
+      - PORT=3000
+      - MACHINES_DIR=/app/examples/machines
+      - KEYSTORE_PATH=/etc/certs/keystore.p12
+      - KEYSTORE_PASSWORD=realityengine
+      - CA_CERT_PATH=/etc/certs/ca.crt
+      - AUDIT_LOG_ENABLED=true
+      - AUDIT_LOG_LEVEL=2
+      - AUDIT_LOG_SERVICE=reality-engine
+    depends_on:
+      loki:
+        condition: service_healthy
+    restart: unless-stopped
+    networks:
+      - reality-network
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    volumes:
+      - ./examples/machines:/app/examples/machines
+      - ./certs:/etc/certs:ro
+    logging:
+      driver: loki
+      options:
+        loki-url: "https://localhost:3100/loki/api/v1/push"
+        loki-tls-insecure-skip-verify: "true"
+        loki-batch-size: "400"
+        loki-retries: "2"
+        loki-max-backoff: "1000ms"
+        loki-external-labels: "service=reality-engine,environment=production,app=reality-engine"
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "--no-check-certificate", "https://127.0.0.1:3000/api/health"]
+      interval: 15s
+      timeout: 10s
+      retries: 5
+      start_period: 30s
+
+  # Visualizer Backend (Node.js/Express) - accessed via TLS proxy at https://localhost:3001
+  visualizer-backend:
+    build:
+      context: ./visualizer/backend
+      dockerfile: Dockerfile
+    container_name: reality-engine-visualizer-backend
+    environment:
+      - VIZ_PORT=3001
+      - REALITY_ENGINE_URL=https://reality-engine:3000
+      - PERCEPTION_ENGINE_URL=https://perception-engine-backend:3004
+      - TLS_CERT_PATH=/etc/certs/server.crt
+      - TLS_KEY_PATH=/etc/certs/server.key
+      - NODE_EXTRA_CA_CERTS=/etc/certs/ca.crt
+      - ALLOWED_ORIGINS=https://localhost:5173,https://localhost:3001
+      - AUDIT_LOG_ENABLED=true
+      - AUDIT_LOG_LEVEL=2
+      - AUDIT_LOG_SERVICE=visualizer-backend
+    depends_on:
+      reality-engine:
+        condition: service_healthy
+      loki:
+        condition: service_healthy
+    restart: unless-stopped
+    networks:
+      - reality-network
+    volumes:
+      - ./certs:/etc/certs:ro
+    logging:
+      driver: loki
+      options:
+        loki-url: "https://localhost:3100/loki/api/v1/push"
+        loki-tls-insecure-skip-verify: "true"
+        loki-batch-size: "400"
+        loki-retries: "2"
+        loki-max-backoff: "1000ms"
+        loki-external-labels: "service=visualizer-backend,environment=production,app=reality-engine"
+    healthcheck:
+      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "--no-check-certificate", "https://localhost:3001/health"]
+      interval: 15s
+      timeout: 5s
+      retries: 3
+
+  # Visualizer Frontend (React App) - accessed via TLS proxy at https://localhost:5173
+  visualizer-frontend:
+    build:
+      context: ./visualizer/frontend
+      dockerfile: Dockerfile
+    container_name: reality-engine-visualizer-frontend
+    depends_on:
+      - visualizer-backend
+      - loki
+    restart: unless-stopped
+    networks:
+      - reality-network
+    logging:
+      driver: loki
+      options:
+        loki-url: "https://localhost:3100/loki/api/v1/push"
+        loki-tls-insecure-skip-verify: "true"
+        loki-batch-size: "400"
+        loki-retries: "2"
+        loki-max-backoff: "1000ms"
+        loki-external-labels: "service=visualizer-frontend,environment=production,app=reality-engine"
+    healthcheck:
+      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://127.0.0.1:80/"]
+      interval: 15s
+      timeout: 5s
+      retries: 3
+
+  # Perception Engine Backend (Scala/Akka) - accessed via TLS proxy at https://localhost:3004
+  perception-engine-backend:
+    build:
+      context: ./perception-engine/backend
+      dockerfile: Dockerfile
+    container_name: reality-engine-perception-backend
+    environment:
+      - PORT=3004
+      - REALITY_ENGINE_URL=https://reality-engine:3000
+      - DATA_PATH=/app/data
+      - TLS_CERT_PATH=/etc/certs/server.crt
+      - TLS_KEY_PATH=/etc/certs/server.key
+      - CA_CERT_PATH=/etc/certs/ca.crt
+      # MQTT bridge — propagated from host shell.  When the operator runs
+      # ./startUniverse.sh --mqtt-broker-url=... --mqtt-mappings=... the
+      # script exports MQTT_BROKER_URL + MQTT_MAPPINGS_JSON (read from the
+      # given file) and Docker passes them through here.  Default broker
+      # (when env is empty but not unset) is mqtt://yuma.lateraledge.cloud:1883;
+      # bridge still requires mappings before it actually boots.
+      - MQTT_BROKER_URL
+      - MQTT_BROKER_PORT
+      - MQTT_CLIENT_ID
+      - MQTT_USERNAME
+      - MQTT_PASSWORD
+      - MQTT_KEEPALIVE
+      - MQTT_MAPPINGS_FILE
+      - MQTT_MAPPINGS_JSON
+      - MQTT_ALLOW_REGION_OVERLAP
+      - MQTT_DISABLED
+      - AUDIT_LOG_ENABLED=true
+      - AUDIT_LOG_LEVEL=2
+      - AUDIT_LOG_SERVICE=perception-engine
+    volumes:
+      - perception_sources_data:/app/data
+      - ./certs:/etc/certs:ro
+    depends_on:
+      reality-engine:
+        condition: service_healthy
+      loki:
+        condition: service_healthy
+    restart: unless-stopped
+    networks:
+      - reality-network
+    logging:
+      driver: loki
+      options:
+        loki-url: "https://localhost:3100/loki/api/v1/push"
+        loki-tls-insecure-skip-verify: "true"
+        loki-batch-size: "400"
+        loki-retries: "2"
+        loki-max-backoff: "1000ms"
+        loki-external-labels: "service=perception-engine-backend,environment=production,app=reality-engine"
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "--no-check-certificate", "https://localhost:3004/api/health"]
+      interval: 15s
+      timeout: 5s
+      retries: 3
+
+  # Perception Engine Frontend - accessed via TLS proxy at https://localhost:3005
+  perception-engine-frontend:
+    build:
+      context: ./perception-engine/frontend
+      dockerfile: Dockerfile
+    container_name: reality-engine-perception-frontend
+    depends_on:
+      - perception-engine-backend
+    restart: unless-stopped
+    networks:
+      - reality-network
+    logging:
+      driver: loki
+      options:
+        loki-url: "https://localhost:3100/loki/api/v1/push"
+        loki-tls-insecure-skip-verify: "true"
+        loki-batch-size: "400"
+        loki-retries: "2"
+        loki-max-backoff: "1000ms"
+        loki-external-labels: "service=perception-engine-frontend,environment=production,app=reality-engine"
+    healthcheck:
+      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://127.0.0.1:80/"]
+      interval: 15s
+      timeout: 5s
+      retries: 3
+
+  # TLS Termination Proxy — the only service that binds external ports.
+  # Terminates HTTPS/WSS from clients and re-encrypts to internal HTTPS backends.
+  # Requires: run bash certs/generate-dev-certs.sh first.
+  tls-proxy:
+    image: nginx:alpine
+    container_name: reality-engine-tls-proxy
+    ports:
+      - "3000:3000"
+      - "3001:3001"
+      - "3002:3002"
+      - "3004:3004"
+      - "3005:3005"
+      - "5173:5173"
+    volumes:
+      - ./nginx/tls-proxy.conf:/etc/nginx/nginx.conf:ro
+      - ./certs:/etc/nginx/certs:ro
+    depends_on:
+      reality-engine:
+        condition: service_healthy
+      visualizer-backend:
+        condition: service_healthy
+      visualizer-frontend:
+        condition: service_healthy
+      grafana:
+        condition: service_healthy
+    restart: unless-stopped
+    networks:
+      - reality-network
+    logging:
+      driver: loki
+      options:
+        loki-url: "https://localhost:3100/loki/api/v1/push"
+        loki-tls-insecure-skip-verify: "true"
+        loki-batch-size: "400"
+        loki-retries: "2"
+        loki-max-backoff: "1000ms"
+        loki-external-labels: "service=tls-proxy,environment=production,app=reality-engine"
+    healthcheck:
+      test: ["CMD", "nginx", "-t"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+volumes:
+  loki_data:
+    driver: local
+  grafana_data:
+    driver: local
+  prometheus_data:
+    driver: local
+  perception_sources_data:
+    driver: local
+
+networks:
+  reality-network:
+    driver: bridge

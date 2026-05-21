@@ -1,0 +1,62 @@
+auth_enabled: false
+
+server:
+  http_listen_port: 3100
+  grpc_listen_port: 9096
+  http_tls_config:
+    cert_file: /etc/loki/certs/server.crt
+    key_file:  /etc/loki/certs/server.key
+
+common:
+  path_prefix: /loki
+  storage:
+    filesystem:
+      chunks_directory: /loki/chunks
+      rules_directory: /loki/rules
+  replication_factor: 1
+  ring:
+    instance_addr: 127.0.0.1
+    kvstore:
+      store: inmemory
+
+schema_config:
+  configs:
+    - from: 2020-10-24
+      store: boltdb-shipper
+      object_store: filesystem
+      schema: v11
+      index:
+        prefix: index_
+        period: 24h
+
+ruler:
+  alertmanager_url: http://localhost:9093
+
+# Limits configuration
+limits_config:
+  # Reject logs older than 24 hours
+  reject_old_samples: true
+  reject_old_samples_max_age: 168h
+  # Max query lookback period
+  max_query_lookback: 720h
+  # Ingestion rate limits
+  ingestion_rate_mb: 16
+  ingestion_burst_size_mb: 32
+  # Max number of active streams per user
+  max_streams_per_user: 10000
+  # Max line size
+  max_line_size: 256KB
+
+# Compactor configuration
+compactor:
+  working_directory: /loki/compactor
+  shared_store: filesystem
+  compaction_interval: 10m
+  retention_enabled: true
+  retention_delete_delay: 2h
+  retention_delete_worker_count: 150
+
+# Table manager for retention
+table_manager:
+  retention_deletes_enabled: true
+  retention_period: 720h

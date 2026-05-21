@@ -1,0 +1,144 @@
+{
+  "_comment": "Cross-runtime parity dashboard — side-by-side comparison of CES coverage telemetry across the AI (TypeScript), CPP, and LSP (Common Lisp) Reality Engine implementations.  Useful for verifying that the same machine corpus produces equivalent fire counts, paging decisions, and deprecated-fire rates under each runtime.  Each panel groups by the `runtime` label so divergence shows up as visual separation between the lines.  Provisioned via config/grafana-dashboards.yml; data from /api/metrics on each runtime via config/prometheus.yml.",
+  "title": "Reality Engine — Cross-Runtime Parity",
+  "uid": "re-cross-runtime",
+  "schemaVersion": 38,
+  "version": 1,
+  "refresh": "10s",
+  "timezone": "browser",
+  "time": { "from": "now-30m", "to": "now" },
+  "tags": ["reality-engine", "ces", "parity", "cross-runtime"],
+  "templating": {
+    "list": [
+      {
+        "name": "runtime",
+        "label": "Runtime",
+        "type": "query",
+        "datasource": { "type": "prometheus", "uid": "prometheus" },
+        "query": "label_values(re_runtime_dimension, runtime)",
+        "refresh": 2,
+        "multi": true,
+        "includeAll": true,
+        "current": { "selected": true, "text": "All", "value": "$__all" }
+      }
+    ]
+  },
+  "panels": [
+    {
+      "id": 1,
+      "type": "stat",
+      "title": "Machines registered",
+      "gridPos": { "h": 4, "w": 8, "x": 0, "y": 0 },
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "targets": [
+        { "expr": "ces_machines_total{runtime=~\"$runtime\"}", "legendFormat": "{{runtime}}", "refId": "A" }
+      ],
+      "options": { "reduceOptions": { "calcs": ["lastNotNull"] }, "graphMode": "none", "textMode": "value_and_name" }
+    },
+    {
+      "id": 2,
+      "type": "stat",
+      "title": "Sequences total",
+      "gridPos": { "h": 4, "w": 8, "x": 8, "y": 0 },
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "targets": [
+        { "expr": "ces_sequences_total{runtime=~\"$runtime\"}", "legendFormat": "{{runtime}}", "refId": "A" }
+      ],
+      "options": { "reduceOptions": { "calcs": ["lastNotNull"] }, "graphMode": "none", "textMode": "value_and_name" }
+    },
+    {
+      "id": 3,
+      "type": "stat",
+      "title": "Vectors total",
+      "gridPos": { "h": 4, "w": 8, "x": 16, "y": 0 },
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "targets": [
+        { "expr": "ces_vectors_total{runtime=~\"$runtime\"}", "legendFormat": "{{runtime}}", "refId": "A" }
+      ],
+      "options": { "reduceOptions": { "calcs": ["lastNotNull"] }, "graphMode": "none", "textMode": "value_and_name" }
+    },
+    {
+      "id": 4,
+      "type": "timeseries",
+      "title": "Vector match rate by runtime",
+      "gridPos": { "h": 9, "w": 12, "x": 0, "y": 4 },
+      "description": "rate(ces_vector_matched_total) — should be near-identical across runtimes for the same input workload.  Visible divergence flags a semantic drift.",
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "targets": [
+        { "expr": "sum by (runtime) (rate(ces_vector_matched_total{runtime=~\"$runtime\"}[1m]))", "legendFormat": "{{runtime}}", "refId": "A" }
+      ],
+      "fieldConfig": { "defaults": { "unit": "ops" } }
+    },
+    {
+      "id": 5,
+      "type": "timeseries",
+      "title": "Sequence output rate by runtime",
+      "gridPos": { "h": 9, "w": 12, "x": 12, "y": 4 },
+      "description": "rate(ces_sequence_outputs_total) — output emission rate.  AI / CPP / LSP should track each other when fed identical inputs through the perception engine.",
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "targets": [
+        { "expr": "sum by (runtime) (rate(ces_sequence_outputs_total{runtime=~\"$runtime\"}[1m]))", "legendFormat": "{{runtime}}", "refId": "A" }
+      ],
+      "fieldConfig": { "defaults": { "unit": "ops" } }
+    },
+    {
+      "id": 6,
+      "type": "timeseries",
+      "title": "Paging decisions per minute by runtime",
+      "gridPos": { "h": 9, "w": 12, "x": 0, "y": 13 },
+      "description": "rate(ces_paging_decisions_total) — governance-resolved paging rate.  This is the load on the on-call rotation; identical workloads should produce identical rates across runtimes.",
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "targets": [
+        { "expr": "sum by (runtime) (rate(ces_paging_decisions_total{runtime=~\"$runtime\"}[1m]) * 60)", "legendFormat": "{{runtime}}", "refId": "A" }
+      ],
+      "fieldConfig": { "defaults": { "unit": "short" } }
+    },
+    {
+      "id": 7,
+      "type": "timeseries",
+      "title": "Deprecated-sequence fires per minute by runtime",
+      "gridPos": { "h": 9, "w": 12, "x": 12, "y": 13 },
+      "description": "rate(ces_deprecated_fires_total) — any non-zero rate means a sequence past its deprecation date is still emitting outputs.  Use this to drive the stale-CES burn-down.",
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "targets": [
+        { "expr": "sum by (runtime) (rate(ces_deprecated_fires_total{runtime=~\"$runtime\"}[1m]) * 60)", "legendFormat": "{{runtime}}", "refId": "A" }
+      ],
+      "fieldConfig": { "defaults": { "unit": "short" } }
+    },
+    {
+      "id": 8,
+      "type": "timeseries",
+      "title": "Unfired sequences by runtime",
+      "gridPos": { "h": 9, "w": 12, "x": 0, "y": 22 },
+      "description": "Sequences that have never emitted output, summed per runtime.  Should converge across runtimes; persistent divergence means one runtime is failing to fire something the others can.",
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "targets": [
+        { "expr": "sum by (runtime) (ces_unfired_sequences{runtime=~\"$runtime\"})", "legendFormat": "{{runtime}}", "refId": "A" }
+      ],
+      "fieldConfig": { "defaults": { "unit": "short" } }
+    },
+    {
+      "id": 9,
+      "type": "timeseries",
+      "title": "Perceptual space dimension by runtime",
+      "gridPos": { "h": 9, "w": 12, "x": 12, "y": 22 },
+      "description": "re_runtime_dimension — current shape of the shared perceptual vector.  All runtimes loading the same corpus should auto-grow to the same value.",
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "targets": [
+        { "expr": "re_runtime_dimension{runtime=~\"$runtime\"}", "legendFormat": "{{runtime}}", "refId": "A" }
+      ],
+      "fieldConfig": { "defaults": { "unit": "short" } }
+    },
+    {
+      "id": 10,
+      "type": "table",
+      "title": "Paging decisions by team × runtime (last 5m)",
+      "gridPos": { "h": 9, "w": 24, "x": 0, "y": 31 },
+      "description": "Cross-runtime breakdown of which on-call teams have been paged.  Ratios should be stable; a runtime appearing in one row but not another flags missing governance routing for that team.",
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "targets": [
+        { "expr": "sum by (owner_team, rag_status_code, runtime) (increase(ces_paging_decisions_total{runtime=~\"$runtime\"}[5m]))", "format": "table", "instant": true, "refId": "A" }
+      ]
+    }
+  ]
+}

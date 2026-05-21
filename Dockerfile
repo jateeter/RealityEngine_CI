@@ -1,0 +1,39 @@
+FROM node:25.5-alpine AS build
+
+WORKDIR /app
+
+# Copy package files
+COPY package*.json .npmrc ./
+
+# Install all dependencies (including devDependencies for build)
+RUN npm install
+
+# Copy source code
+COPY . .
+
+# Build the application
+RUN npm run build
+
+# Production stage
+FROM node:25.5-alpine
+
+WORKDIR /app
+
+# Copy package files
+COPY package*.json .npmrc ./
+
+# Install production dependencies only
+RUN npm install --production
+
+# Copy built files from build stage
+COPY --from=build /app/dist ./dist
+
+# Copy necessary configuration files
+COPY --from=build /app/tsconfig.json ./
+
+# Copy examples directory for machine JSON files
+COPY --from=build /app/examples ./examples
+
+EXPOSE 3000
+
+CMD ["npm", "start"]

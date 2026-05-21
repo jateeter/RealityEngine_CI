@@ -1,0 +1,119 @@
+name: E2E Tests
+
+on:
+  push:
+    branches: [main, develop]
+  pull_request:
+    branches: [main, develop]
+  workflow_dispatch:
+
+jobs:
+  e2e-tests:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '25.5'
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Install Playwright browsers
+        run: npx playwright install --with-deps
+
+      - name: Install Loki Docker logging plugin
+        run: docker plugin install grafana/loki-docker-driver:latest --alias loki --grant-all-permissions
+
+      - name: Generate development TLS certificates
+        run: bash certs/generate-dev-certs.sh
+
+      - name: Start Docker services
+        run: |
+          docker compose up -d loki grafana reality-engine visualizer-backend visualizer-frontend tls-proxy
+          echo "Waiting for services to be healthy..."
+          sleep 20
+
+      - name: Wait for services
+        run: |
+          # Wait for Reality Engine
+          timeout 120 bash -c 'until curl -kf https://localhost:3000/api/engine/stats; do sleep 2; done'
+
+          # Wait for Visualizer
+          timeout 120 bash -c 'until curl -kf https://localhost:5173/; do sleep 2; done'
+
+          echo "All services are ready!"
+
+      - name: Run E2E tests
+        env:
+          REUSE_SERVICES: 'true'
+        run: npm run test:e2e
+
+      - name: Upload test results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: playwright-report
+          path: |
+            e2e-report/
+            e2e-results.json
+            test-results/
+          retention-days: 30
+
+      - name: Upload screenshots on failure
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: test-screenshots
+          path: test-results/**/screenshots/
+          retention-days: 7
+
+      - name: Show logs on failure
+        if: failure()
+        run: |
+          echo "=== Reality Engine Logs ==="
+          docker compose logs reality-engine
+          echo "=== Visualizer Backend Logs ==="
+          docker compose logs visualizer-backend
+          echo "=== Visualizer Frontend Logs ==="
+          docker compose logs visualizer-frontend
+
+      - name: Stop Docker services
+        if: always()
+        run: docker compose down -v
+
+  test-summary:
+    runs-on: ubuntu-latest
+    needs: e2e-tests
+    if: always()
+
+    steps:
+      - name: Download test results
+        uses: actions/download-artifact@v4
+        with:
+          name: playwright-report
+
+      - name: Publish test summary
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const fs = require('fs');
+            if (fs.existsSync('e2e-results.json')) {
+              const results = JSON.parse(fs.readFileSync('e2e-results.json', 'utf8'));
+              const summary = `
+              ## E2E Test Results
+
+              - **Total Tests**: ${results.suites.reduce((acc, s) => acc + s.specs.length, 0)}
+              - **Passed**: ${results.suites.reduce((acc, s) => acc + s.specs.filter(spec => spec.ok).length, 0)}
+              - **Failed**: ${results.suites.reduce((acc, s) => acc + s.specs.filter(spec => !spec.ok).length, 0)}
+              - **Duration**: ${(results.stats.duration / 1000).toFixed(2)}s
+              `;
+
+              core.summary.addRaw(summary).write();
+            }
