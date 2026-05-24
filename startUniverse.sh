@@ -1264,8 +1264,8 @@ manifest = {
     "host_ip":                 "$HOST_IP",
     "registry_url":            "http://$HOST_IP:${REGISTRY_PORT}/re-registry.json" if "$MULTI_ENGINE_MODE" == "true" else "",
     "docker_services":         [s for s in "$_docker_svcs".split(",") if s],
-    "ollama_started_by_universe": $_ollama_started,
-    "openclaw_started":        $OCS_STARTED,
+    "ollama_started_by_universe": "$_ollama_started" == "true",
+    "openclaw_started":        "$OCS_STARTED" == "true",
     "warns":                   ${#WARNS[@]},
 }
 with open("/tmp/universe-manifest.json", "w") as f:
