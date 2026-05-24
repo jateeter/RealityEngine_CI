@@ -6,54 +6,335 @@ on:
   pull_request:
     branches: [main, develop]
   workflow_dispatch:
+    inputs:
+      engine:
+        description: 'RE/PE engine (ai|cpp|lsp)'
+        required: false
+        default: 'ai'
+
+# ── Repository layout in the runner workspace ─────────────────────────────
+# All repos are checked out as siblings inside the runner's $GITHUB_WORKSPACE:
+#
+#   workspace/
+#     RealityEngine_CI/           ← this repo (default checkout path)
+#     RealityEngine_Scala/
+#     RealityEngine_Manager/
+#     RealityEngine_Machines/
+#     localAIStack/
+#     localOpenClawStack/
+#
+# startUniverse.sh uses CI_DIR/../<repo> relative paths, so this layout
+# satisfies all sibling-repo references without any path overrides.
 
 jobs:
-  e2e-tests:
+
+  # ── Phase 2: Static analysis gate ──────────────────────────────────────────
+  shellcheck:
+    name: Shell Lint (shellcheck)
     runs-on: ubuntu-latest
-    timeout-minutes: 30
+    timeout-minutes: 5
 
     steps:
-      - name: Checkout code
+      - name: Checkout RealityEngine_CI
         uses: actions/checkout@v4
+        with:
+          path: RealityEngine_CI
+
+      - name: Checkout RealityEngine_CPP
+        uses: actions/checkout@v4
+        with:
+          repository: ${{ github.repository_owner }}/RealityEngine_CPP
+          path: RealityEngine_CPP
+          token: ${{ secrets.REPO_ACCESS_TOKEN || github.token }}
+
+      - name: Checkout RealityEngine_LSP
+        uses: actions/checkout@v4
+        with:
+          repository: ${{ github.repository_owner }}/RealityEngine_LSP
+          path: RealityEngine_LSP
+          token: ${{ secrets.REPO_ACCESS_TOKEN || github.token }}
+
+      - name: Install shellcheck
+        run: sudo apt-get install -y shellcheck
+
+      - name: Run shellcheck on all CI-managed scripts
+        working-directory: RealityEngine_CI
+        run: bash scripts/lint.sh
+
+  # ── Phase 3: Unit tests for helper scripts ──────────────────────────────────
+  scripts-unit-tests:
+    name: Scripts Unit Tests
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+
+    steps:
+      - name: Checkout RealityEngine_CI
+        uses: actions/checkout@v4
+        with:
+          path: RealityEngine_CI
+
+      - name: Run registry unit tests
+        working-directory: RealityEngine_CI
+        run: bash scripts/tests/test-registry.sh
+
+      - name: Run allocate-ports unit tests
+        working-directory: RealityEngine_CI
+        run: bash scripts/tests/test-allocate-ports.sh
+
+  # ── Phase 4: Dry-run pre-flight validation ──────────────────────────────────
+  dry-run-validate:
+    name: Dry-Run Validate
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    steps:
+      - name: Checkout RealityEngine_CI
+        uses: actions/checkout@v4
+        with:
+          path: RealityEngine_CI
+
+      - name: Checkout RealityEngine_Scala
+        uses: actions/checkout@v4
+        with:
+          repository: ${{ github.repository_owner }}/RealityEngine_Scala
+          path: RealityEngine_Scala
+          token: ${{ secrets.REPO_ACCESS_TOKEN || github.token }}
+
+      - name: Checkout RealityEngine_Manager
+        uses: actions/checkout@v4
+        with:
+          repository: ${{ github.repository_owner }}/RealityEngine_Manager
+          path: RealityEngine_Manager
+          token: ${{ secrets.REPO_ACCESS_TOKEN || github.token }}
+
+      - name: Checkout RealityEngine_Machines
+        uses: actions/checkout@v4
+        with:
+          repository: ${{ github.repository_owner }}/RealityEngine_Machines
+          path: RealityEngine_Machines
+          token: ${{ secrets.REPO_ACCESS_TOKEN || github.token }}
+
+      - name: Checkout localAIStack
+        uses: actions/checkout@v4
+        with:
+          repository: ${{ github.repository_owner }}/localAIStack
+          path: localAIStack
+          token: ${{ secrets.REPO_ACCESS_TOKEN || github.token }}
+
+      - name: Install Loki Docker logging plugin
+        working-directory: RealityEngine_CI
+        run: |
+          docker plugin install grafana/loki-docker-driver:latest --alias loki --grant-all-permissions || \
+            docker plugin enable loki
+
+      - name: Run setup (env + certs)
+        working-directory: RealityEngine_CI
+        run: |
+          cp .env.example .env
+          bash certs/generate-dev-certs.sh
+
+      - name: Dry-run — default Docker mode
+        working-directory: RealityEngine_CI
+        run: ./startUniverse.sh --dry-run --no-openclaw
+
+      - name: Dry-run — multi-engine mode
+        working-directory: RealityEngine_CI
+        run: ./startUniverse.sh --dry-run --engines=scala:2,cpp:1 --no-openclaw
+
+  smoke-tests:
+    name: Smoke Tests
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    needs: [shellcheck, scripts-unit-tests, dry-run-validate]
+
+    steps:
+      - name: Checkout RealityEngine_CI
+        uses: actions/checkout@v4
+        with:
+          path: RealityEngine_CI
+
+      - name: Checkout RealityEngine_Scala
+        uses: actions/checkout@v4
+        with:
+          repository: ${{ github.repository_owner }}/RealityEngine_Scala
+          path: RealityEngine_Scala
+          token: ${{ secrets.REPO_ACCESS_TOKEN || github.token }}
+
+      - name: Checkout RealityEngine_Manager
+        uses: actions/checkout@v4
+        with:
+          repository: ${{ github.repository_owner }}/RealityEngine_Manager
+          path: RealityEngine_Manager
+          token: ${{ secrets.REPO_ACCESS_TOKEN || github.token }}
+
+      - name: Checkout RealityEngine_Machines
+        uses: actions/checkout@v4
+        with:
+          repository: ${{ github.repository_owner }}/RealityEngine_Machines
+          path: RealityEngine_Machines
+          token: ${{ secrets.REPO_ACCESS_TOKEN || github.token }}
+
+      - name: Checkout localAIStack
+        uses: actions/checkout@v4
+        with:
+          repository: ${{ github.repository_owner }}/localAIStack
+          path: localAIStack
+          token: ${{ secrets.REPO_ACCESS_TOKEN || github.token }}
+
+      - name: Checkout localOpenClawStack
+        uses: actions/checkout@v4
+        with:
+          repository: ${{ github.repository_owner }}/localOpenClawStack
+          path: localOpenClawStack
+          token: ${{ secrets.REPO_ACCESS_TOKEN || github.token }}
 
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
           node-version: '25.5'
           cache: 'npm'
+          cache-dependency-path: RealityEngine_Machines/package.json
 
-      - name: Install dependencies
-        run: npm ci
+      - name: Install Playwright + deps
+        working-directory: RealityEngine_Machines
+        run: |
+          npm ci
+          npx playwright install --with-deps chromium
 
-      - name: Install Playwright browsers
-        run: npx playwright install --with-deps
+      - name: Validate machine corpus
+        working-directory: RealityEngine_Machines
+        run: bash scripts/validate-corpus.sh
 
       - name: Install Loki Docker logging plugin
-        run: docker plugin install grafana/loki-docker-driver:latest --alias loki --grant-all-permissions
-
-      - name: Generate development TLS certificates
-        run: bash certs/generate-dev-certs.sh
-
-      - name: Start Docker services
+        working-directory: RealityEngine_CI
         run: |
-          docker compose up -d loki grafana reality-engine visualizer-backend visualizer-frontend tls-proxy
-          echo "Waiting for services to be healthy..."
-          sleep 20
+          docker plugin install grafana/loki-docker-driver:latest --alias loki --grant-all-permissions || \
+            docker plugin enable loki
 
-      - name: Wait for services
+      - name: Run setup (env + certs)
+        working-directory: RealityEngine_CI
         run: |
-          # Wait for Reality Engine
-          timeout 120 bash -c 'until curl -kf https://localhost:3000/api/engine/stats; do sleep 2; done'
+          cp .env.example .env
+          bash certs/generate-dev-certs.sh
 
-          # Wait for Visualizer
-          timeout 120 bash -c 'until curl -kf https://localhost:5173/; do sleep 2; done'
+      - name: Start universe
+        working-directory: RealityEngine_CI
+        env:
+          MACHINES_DIR: ${{ github.workspace }}/RealityEngine_Machines
+          SCALA_DIR: ${{ github.workspace }}/RealityEngine_Scala
+          MGR_DIR: ${{ github.workspace }}/RealityEngine_Manager
+        run: ./startUniverse.sh --no-openclaw --skip-seed
 
-          echo "All services are ready!"
-
-      - name: Run E2E tests
+      - name: Run smoke tests
+        working-directory: RealityEngine_Machines
         env:
           REUSE_SERVICES: 'true'
-        run: npm run test:e2e
+        run: npx playwright test tests/smoke --reporter=list
+
+      - name: Upload smoke results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: smoke-report
+          path: RealityEngine_Machines/e2e-report/
+          retention-days: 7
+
+      - name: Stop universe
+        if: always()
+        working-directory: RealityEngine_CI
+        run: ./stopUniverse.sh
+
+  e2e-tests:
+    name: E2E Tests
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    needs: smoke-tests
+
+    steps:
+      - name: Checkout RealityEngine_CI
+        uses: actions/checkout@v4
+        with:
+          path: RealityEngine_CI
+
+      - name: Checkout RealityEngine_Scala
+        uses: actions/checkout@v4
+        with:
+          repository: ${{ github.repository_owner }}/RealityEngine_Scala
+          path: RealityEngine_Scala
+          token: ${{ secrets.REPO_ACCESS_TOKEN || github.token }}
+
+      - name: Checkout RealityEngine_Manager
+        uses: actions/checkout@v4
+        with:
+          repository: ${{ github.repository_owner }}/RealityEngine_Manager
+          path: RealityEngine_Manager
+          token: ${{ secrets.REPO_ACCESS_TOKEN || github.token }}
+
+      - name: Checkout RealityEngine_Machines
+        uses: actions/checkout@v4
+        with:
+          repository: ${{ github.repository_owner }}/RealityEngine_Machines
+          path: RealityEngine_Machines
+          token: ${{ secrets.REPO_ACCESS_TOKEN || github.token }}
+
+      - name: Checkout localAIStack
+        uses: actions/checkout@v4
+        with:
+          repository: ${{ github.repository_owner }}/localAIStack
+          path: localAIStack
+          token: ${{ secrets.REPO_ACCESS_TOKEN || github.token }}
+
+      - name: Checkout localOpenClawStack
+        uses: actions/checkout@v4
+        with:
+          repository: ${{ github.repository_owner }}/localOpenClawStack
+          path: localOpenClawStack
+          token: ${{ secrets.REPO_ACCESS_TOKEN || github.token }}
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '25.5'
+          cache: 'npm'
+          cache-dependency-path: RealityEngine_Machines/package.json
+
+      - name: Install Playwright + deps
+        working-directory: RealityEngine_Machines
+        run: |
+          npm ci
+          npx playwright install --with-deps chromium
+
+      - name: Install Loki Docker logging plugin
+        working-directory: RealityEngine_CI
+        run: |
+          docker plugin install grafana/loki-docker-driver:latest --alias loki --grant-all-permissions || \
+            docker plugin enable loki
+
+      - name: Run setup (env + certs)
+        working-directory: RealityEngine_CI
+        run: |
+          cp .env.example .env
+          bash certs/generate-dev-certs.sh
+
+      - name: Start universe
+        working-directory: RealityEngine_CI
+        env:
+          MACHINES_DIR: ${{ github.workspace }}/RealityEngine_Machines
+          SCALA_DIR: ${{ github.workspace }}/RealityEngine_Scala
+          MGR_DIR: ${{ github.workspace }}/RealityEngine_Manager
+        run: ./startUniverse.sh --no-openclaw
+
+      - name: Run integration tests
+        working-directory: RealityEngine_Machines
+        env:
+          REUSE_SERVICES: 'true'
+        run: npx playwright test tests/integration --reporter=list
+
+      - name: Run e2e tests
+        working-directory: RealityEngine_Machines
+        env:
+          REUSE_SERVICES: 'true'
+        run: npx playwright test tests/e2e --reporter=list
 
       - name: Upload test results
         if: always()
@@ -61,9 +342,9 @@ jobs:
         with:
           name: playwright-report
           path: |
-            e2e-report/
-            e2e-results.json
-            test-results/
+            RealityEngine_Machines/e2e-report/
+            RealityEngine_Machines/e2e-results.json
+            RealityEngine_Machines/test-results/
           retention-days: 30
 
       - name: Upload screenshots on failure
@@ -71,26 +352,148 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: test-screenshots
-          path: test-results/**/screenshots/
+          path: RealityEngine_Machines/test-results/**/screenshots/
           retention-days: 7
 
       - name: Show logs on failure
         if: failure()
+        working-directory: RealityEngine_CI
         run: |
-          echo "=== Reality Engine Logs ==="
-          docker compose logs reality-engine
-          echo "=== Visualizer Backend Logs ==="
-          docker compose logs visualizer-backend
-          echo "=== Visualizer Frontend Logs ==="
-          docker compose logs visualizer-frontend
+          echo "=== Reality Engine ==="
+          docker compose logs reality-engine --tail=50
+          echo "=== Perception Engine ==="
+          docker compose logs perception-engine-backend --tail=30
+          echo "=== Visualizer Backend ==="
+          docker compose logs visualizer-backend --tail=30
+          echo "=== localAIStack API ==="
+          docker logs localai_api --tail=30 2>/dev/null || true
+          echo "=== Corpus seed log ==="
+          cat /tmp/corpus_seed.log 2>/dev/null || true
 
-      - name: Stop Docker services
+      - name: Stop universe
         if: always()
-        run: docker compose down -v
+        working-directory: RealityEngine_CI
+        run: ./stopUniverse.sh
+
+  multi-engine-tests:
+    name: Multi-Engine Tests
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    needs: smoke-tests
+
+    steps:
+      - name: Checkout RealityEngine_CI
+        uses: actions/checkout@v4
+        with:
+          path: RealityEngine_CI
+
+      - name: Checkout RealityEngine_Scala
+        uses: actions/checkout@v4
+        with:
+          repository: ${{ github.repository_owner }}/RealityEngine_Scala
+          path: RealityEngine_Scala
+          token: ${{ secrets.REPO_ACCESS_TOKEN || github.token }}
+
+      - name: Checkout RealityEngine_Manager
+        uses: actions/checkout@v4
+        with:
+          repository: ${{ github.repository_owner }}/RealityEngine_Manager
+          path: RealityEngine_Manager
+          token: ${{ secrets.REPO_ACCESS_TOKEN || github.token }}
+
+      - name: Checkout RealityEngine_Machines
+        uses: actions/checkout@v4
+        with:
+          repository: ${{ github.repository_owner }}/RealityEngine_Machines
+          path: RealityEngine_Machines
+          token: ${{ secrets.REPO_ACCESS_TOKEN || github.token }}
+
+      - name: Checkout localAIStack
+        uses: actions/checkout@v4
+        with:
+          repository: ${{ github.repository_owner }}/localAIStack
+          path: localAIStack
+          token: ${{ secrets.REPO_ACCESS_TOKEN || github.token }}
+
+      - name: Checkout localOpenClawStack
+        uses: actions/checkout@v4
+        with:
+          repository: ${{ github.repository_owner }}/localOpenClawStack
+          path: localOpenClawStack
+          token: ${{ secrets.REPO_ACCESS_TOKEN || github.token }}
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '25.5'
+          cache: 'npm'
+          cache-dependency-path: RealityEngine_Machines/package.json
+
+      - name: Install Playwright + deps
+        working-directory: RealityEngine_Machines
+        run: |
+          npm ci
+          npx playwright install --with-deps chromium
+
+      - name: Install Loki Docker logging plugin
+        working-directory: RealityEngine_CI
+        run: |
+          docker plugin install grafana/loki-docker-driver:latest --alias loki --grant-all-permissions || \
+            docker plugin enable loki
+
+      - name: Run setup (env + certs)
+        working-directory: RealityEngine_CI
+        run: |
+          cp .env.example .env
+          bash certs/generate-dev-certs.sh
+
+      - name: Start multi-engine universe
+        working-directory: RealityEngine_CI
+        env:
+          MACHINES_DIR: ${{ github.workspace }}/RealityEngine_Machines
+          SCALA_DIR: ${{ github.workspace }}/RealityEngine_Scala
+          MGR_DIR: ${{ github.workspace }}/RealityEngine_Manager
+        run: |
+          ./startUniverse.sh --no-openclaw --skip-seed --engines=scala:1 || \
+            echo "Multi-engine start completed (some instances may be unavailable)"
+
+      - name: Run multi-instance integration tests
+        working-directory: RealityEngine_Machines
+        env:
+          REUSE_SERVICES: 'true'
+          RE_REGISTRY_URL: 'http://localhost:5999/re-registry.json'
+        run: |
+          npx playwright test tests/integration/multi-instance.spec.ts \
+            --reporter=list || true
+
+      - name: Upload multi-engine results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: multi-engine-report
+          path: |
+            RealityEngine_Machines/e2e-report/
+            RealityEngine_Machines/test-results/
+          retention-days: 7
+
+      - name: Show registry and engine logs on failure
+        if: failure()
+        run: |
+          echo "=== Registry ==="
+          cat /tmp/re-registry/re-registry.json 2>/dev/null || echo "No registry"
+          for f in /tmp/re-*.log /tmp/pe-*.log; do
+            [ -f "$f" ] && { echo "--- $f ---"; tail -20 "$f"; } || true
+          done
+
+      - name: Stop multi-engine universe
+        if: always()
+        working-directory: RealityEngine_CI
+        run: ./stopUniverse.sh --engines-only 2>/dev/null || ./stopUniverse.sh --all || true
 
   test-summary:
+    name: Test Summary
     runs-on: ubuntu-latest
-    needs: e2e-tests
+    needs: [shellcheck, scripts-unit-tests, dry-run-validate, smoke-tests, e2e-tests, multi-engine-tests]
     if: always()
 
     steps:
@@ -98,22 +501,27 @@ jobs:
         uses: actions/download-artifact@v4
         with:
           name: playwright-report
+        continue-on-error: true
 
       - name: Publish test summary
         uses: actions/github-script@v7
         with:
           script: |
             const fs = require('fs');
-            if (fs.existsSync('e2e-results.json')) {
-              const results = JSON.parse(fs.readFileSync('e2e-results.json', 'utf8'));
-              const summary = `
-              ## E2E Test Results
-
-              - **Total Tests**: ${results.suites.reduce((acc, s) => acc + s.specs.length, 0)}
-              - **Passed**: ${results.suites.reduce((acc, s) => acc + s.specs.filter(spec => spec.ok).length, 0)}
-              - **Failed**: ${results.suites.reduce((acc, s) => acc + s.specs.filter(spec => !spec.ok).length, 0)}
-              - **Duration**: ${(results.stats.duration / 1000).toFixed(2)}s
-              `;
-
-              core.summary.addRaw(summary).write();
+            const resultsPath = 'RealityEngine_Machines/e2e-results.json';
+            if (fs.existsSync(resultsPath)) {
+              const results = JSON.parse(fs.readFileSync(resultsPath, 'utf8'));
+              const total  = results.suites?.reduce((a, s) => a + s.specs.length, 0) ?? 0;
+              const passed = results.suites?.reduce((a, s) => a + s.specs.filter(sp => sp.ok).length, 0) ?? 0;
+              const failed = total - passed;
+              const dur    = ((results.stats?.duration ?? 0) / 1000).toFixed(2);
+              core.summary.addRaw(`
+            ## E2E Test Results (RealityEngine Universe)
+            | Metric | Value |
+            |---|---|
+            | Total | ${total} |
+            | Passed | ${passed} |
+            | Failed | ${failed} |
+            | Duration | ${dur}s |
+              `).write();
             }

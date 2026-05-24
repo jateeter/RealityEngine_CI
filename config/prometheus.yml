@@ -86,7 +86,34 @@ scrape_configs:
           runtime: lsp
           source:  host
 
-  # Prometheus itself — confirms the scrape stack is healthy.
+  # ── localAIStack FastAPI — RAG orchestration metrics ─────────────────────
+  # FastAPI exposes /metrics via prometheus-fastapi-instrumentator.
+  # Host-dev path: localai_api runs on the host (not in compose network)
+  # so we reach it via host.docker.internal.
+  - job_name:     localaistack-api
+    metrics_path: /metrics
+    honor_labels: true
+    static_configs:
+      - targets:
+          - host.docker.internal:4000
+        labels:
+          component: localaistack-api
+          source:    host
+
+  # ── Qdrant — vector DB metrics ───────────────────────────────────────────
+  # Qdrant exposes Prometheus metrics at /metrics (REST port 6334 by default;
+  # localAIStack maps it to host port 4333 with metrics on 4334 if enabled).
+  - job_name:     qdrant
+    metrics_path: /metrics
+    honor_labels: true
+    static_configs:
+      - targets:
+          - host.docker.internal:4334
+        labels:
+          component: qdrant
+          source:    host
+
+  # ── Prometheus itself — confirms the scrape stack is healthy ──────────────
   - job_name: prometheus
     static_configs:
       - targets:

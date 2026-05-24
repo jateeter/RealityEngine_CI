@@ -80,13 +80,12 @@ services:
       retries: 3
 
   # Reality Engine API (Scala/Akka HTTP) - accessed via TLS proxy at https://localhost:3000
-  # NOTE: Qdrant is NOT a service in this compose stack.  The Reality Engine connects
-  # to the unified Qdrant instance managed by localAIStack (host port 4333).
-  # Start localAIStack first:  cd ../localAIStack && ./scripts/start.sh
+  # Source: ../RealityEngine_Scala  (context set below; Dockerfile in CI docker/scala/)
+  # Machines: volume-mounted from ${MACHINES_DIR}/machines (RealityEngine_Machines repo)
   reality-engine:
     build:
-      context: .
-      dockerfile: scala/Dockerfile
+      context: ../RealityEngine_Scala
+      dockerfile: ../RealityEngine_CI/docker/scala/Dockerfile
     container_name: reality-engine-app
     environment:
       # Unified Qdrant: localAIStack exposes Qdrant on host port 4333.
@@ -111,7 +110,7 @@ services:
     extra_hosts:
       - "host.docker.internal:host-gateway"
     volumes:
-      - ./examples/machines:/app/examples/machines
+      - ${MACHINES_DIR:?MACHINES_DIR must be set — run via startUniverse.sh}/machines:/app/machines:ro
       - ./certs:/etc/certs:ro
     logging:
       driver: loki
@@ -130,9 +129,10 @@ services:
       start_period: 30s
 
   # Visualizer Backend (Node.js/Express) - accessed via TLS proxy at https://localhost:3001
+  # Source: ../RealityEngine_Manager/visualizer/backend
   visualizer-backend:
     build:
-      context: ./visualizer/backend
+      context: ../RealityEngine_Manager/visualizer/backend
       dockerfile: Dockerfile
     container_name: reality-engine-visualizer-backend
     environment:
@@ -172,9 +172,10 @@ services:
       retries: 3
 
   # Visualizer Frontend (React App) - accessed via TLS proxy at https://localhost:5173
+  # Source: ../RealityEngine_Manager/visualizer/frontend
   visualizer-frontend:
     build:
-      context: ./visualizer/frontend
+      context: ../RealityEngine_Manager/visualizer/frontend
       dockerfile: Dockerfile
     container_name: reality-engine-visualizer-frontend
     depends_on:
@@ -198,10 +199,11 @@ services:
       timeout: 5s
       retries: 3
 
-  # Perception Engine Backend (Scala/Akka) - accessed via TLS proxy at https://localhost:3004
+  # Perception Engine Backend (Node.js) - accessed via TLS proxy at https://localhost:3004
+  # Source: ../RealityEngine_Manager/perception-engine/backend
   perception-engine-backend:
     build:
-      context: ./perception-engine/backend
+      context: ../RealityEngine_Manager/perception-engine/backend
       dockerfile: Dockerfile
     container_name: reality-engine-perception-backend
     environment:
@@ -257,9 +259,10 @@ services:
       retries: 3
 
   # Perception Engine Frontend - accessed via TLS proxy at https://localhost:3005
+  # Source: ../RealityEngine_Manager/perception-engine/frontend
   perception-engine-frontend:
     build:
-      context: ./perception-engine/frontend
+      context: ../RealityEngine_Manager/perception-engine/frontend
       dockerfile: Dockerfile
     container_name: reality-engine-perception-frontend
     depends_on:
