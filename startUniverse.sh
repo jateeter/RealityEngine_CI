@@ -702,11 +702,14 @@ if [ "$MULTI_ENGINE_MODE" = true ]; then
     if [ "$SKIP_SEED" = false ] && [ -x "$MACHINES_DIR/scripts/seed-machines.sh" ]; then
         if bash "$MACHINES_DIR/scripts/validate-corpus.sh" > /tmp/corpus_validate.log 2>&1; then
             while IFS= read -r _inst_id; do
-                _re_url=$(registry_get "$_inst_id" 2>/dev/null \
+                _inst_entry=$(registry_get "$_inst_id" 2>/dev/null || true)
+                _re_url=$(echo "$_inst_entry" \
                     | python3 -c "import json,sys; print(json.load(sys.stdin).get('re_url',''))" 2>/dev/null || true)
+                _pe_url=$(echo "$_inst_entry" \
+                    | python3 -c "import json,sys; print(json.load(sys.stdin).get('pe_url',''))" 2>/dev/null || true)
                 [ -z "$_re_url" ] && continue
                 info "Seeding machines → $_inst_id ($_re_url)..."
-                bash "$MACHINES_DIR/scripts/seed-machines.sh" "$_re_url" \
+                bash "$MACHINES_DIR/scripts/seed-machines.sh" "$_re_url" "${_pe_url:-}" \
                     > "/tmp/corpus_seed_${_inst_id}.log" 2>&1 || \
                     add_warn "Seed to $_inst_id completed with errors"
             done < <(registry_ids 2>/dev/null)
@@ -811,10 +814,11 @@ elif [ -x "$MACHINES_DIR/scripts/seed-machines.sh" ]; then
     if bash "$MACHINES_DIR/scripts/validate-corpus.sh" > /tmp/corpus_validate.log 2>&1; then
         ok "Machine corpus valid"
         info "Seeding machines from RealityEngine_Machines..."
-        if bash "$MACHINES_DIR/scripts/seed-machines.sh" "https://localhost:3000" \
+        if bash "$MACHINES_DIR/scripts/seed-machines.sh" \
+                "https://localhost:3000" "https://localhost:3004" \
                 > /tmp/corpus_seed.log 2>&1; then
             SEEDED_COUNT=$(grep -c "^." /tmp/corpus_seed.log 2>/dev/null || echo "?")
-            ok "Machine corpus seeded (see /tmp/corpus_seed.log)"
+            ok "Machine corpus seeded + PE test sources bound (see /tmp/corpus_seed.log)"
         else
             add_warn "Machine seeding completed with errors — check /tmp/corpus_seed.log"
             warn "Some machines failed to seed"
