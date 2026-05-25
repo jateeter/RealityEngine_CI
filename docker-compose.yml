@@ -92,7 +92,7 @@ services:
       # host.docker.internal resolves to the host from within this Docker network.
       - QDRANT_URL=http://host.docker.internal:4333
       - COLLECTION_NAME=reality-vectors
-      - VECTOR_DIMENSION=${VECTOR_DIMENSION:-768}
+      - VECTOR_DIMENSION=${VECTOR_DIMENSION:-7680}
       - PORT=3000
       - MACHINES_DIR=/app/examples/machines
       - KEYSTORE_PATH=/etc/certs/keystore.p12

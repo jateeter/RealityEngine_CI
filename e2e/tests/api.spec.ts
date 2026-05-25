@@ -15,7 +15,7 @@ test.describe('Reality Engine API - Configuration', () => {
     const config = await response.json();
     expect(config).toHaveProperty('vectorDimension');
     expect(config).toHaveProperty('matchThreshold');
-    expect(config.vectorDimension).toBe(768);
+    expect(config.vectorDimension).toBe(7680);
   });
 });
 

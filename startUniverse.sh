@@ -1058,7 +1058,7 @@ fi
 hdr "7 · Operability  (smoke tests)"
 # =============================================================================
 
-SMOKE_DIM="${VECTOR_DIMENSION:-768}"
+SMOKE_DIM="${VECTOR_DIMENSION:-7680}"
 if [ "$MULTI_ENGINE_MODE" = false ]; then
 set +e
 info "RE perceive smoke-test (${SMOKE_DIM}-element zero vector)..."
