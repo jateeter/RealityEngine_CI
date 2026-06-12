@@ -416,14 +416,17 @@ elif [ "$LOKI_ENABLED" = "false" ]; then
 fi
 ok "Loki Docker logging driver ready"
 
-# Block local node processes that would conflict with Docker port bindings
+# Block any process that would conflict with Docker port bindings
 CONFLICTS=""
 for port in 3000 3001 3004 3005 5173; do
-    proc=$(lsof -i ":$port" 2>/dev/null | awk '/LISTEN/{print $1}' | head -1 || true)
-    [ "$proc" = "node" ] && CONFLICTS="$CONFLICTS ${port}(node)"
+    pid=$(lsof -ti ":$port" -sTCP:LISTEN 2>/dev/null | head -1 || true)
+    if [ -n "$pid" ]; then
+        proc=$(ps -p "$pid" -o comm= 2>/dev/null || echo "pid:$pid")
+        CONFLICTS="$CONFLICTS ${port}(${proc})"
+    fi
 done
 [ -n "$CONFLICTS" ] && \
-    die "Local node processes on RE ports:$CONFLICTS\n  Stop them first (see RealityEngine_Manager/stop.sh)"
+    die "Processes already listening on RE ports:$CONFLICTS\n  Stop them first (see RealityEngine_Manager/stop.sh)"
 ok "No port conflicts"
 
 # Pre-check all native engine ports before spawning begins — fail fast before partial starts
