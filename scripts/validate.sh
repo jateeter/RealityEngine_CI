@@ -37,22 +37,22 @@ WARNINGS=0
 
 # Test 1: Check Qdrant
 print_test "Qdrant Vector Database"
-if curl -s -f http://localhost:6333/ > /dev/null 2>&1; then
-    RESPONSE=$(curl -s http://localhost:6333/)
+if curl -s -f http://localhost:4333/ > /dev/null 2>&1; then
+    RESPONSE=$(curl -s http://localhost:4333/)
     print_success "Qdrant is running and healthy"
     echo "  Response: $RESPONSE"
     PASSED=$((PASSED + 1))
 else
     print_error "Qdrant is not responding"
-    echo "  Expected: http://localhost:6333/"
-    echo "  Fix: docker-compose up -d qdrant"
+    echo "  Expected: http://localhost:4333/"
+    echo "  Fix: cd ../localAIStack && docker compose up -d qdrant"
     FAILED=$((FAILED + 1))
 fi
 echo ""
 
 # Test 2: Check Reality Engine Backend
 print_test "Reality Engine Backend API"
-if curl -s -f http://localhost:3000/api/health > /dev/null 2>&1; then
+if curl -s -k -f https://localhost:3000/api/health > /dev/null 2>&1; then
     print_success "Backend API is running"
 
     # Check if PID file exists
@@ -68,7 +68,7 @@ if curl -s -f http://localhost:3000/api/health > /dev/null 2>&1; then
     PASSED=$((PASSED + 1))
 else
     print_error "Backend API is not responding"
-    echo "  Expected: http://localhost:3000/api/health"
+    echo "  Expected: https://localhost:3000/api/health"
     echo "  Check logs: tail -f logs/api.log"
     FAILED=$((FAILED + 1))
 fi
@@ -76,7 +76,7 @@ echo ""
 
 # Test 3: Check Machine JSON Files Access
 print_test "Machine JSON Files API"
-if RESPONSE=$(curl -s http://localhost:3000/api/machines/json/list 2>&1); then
+if RESPONSE=$(curl -s -k https://localhost:3000/api/machines/json/list 2>&1); then
     if echo "$RESPONSE" | grep -q '"machines"'; then
         MACHINE_COUNT=$(echo "$RESPONSE" | grep -o '"filename"' | wc -l | tr -d ' ')
         print_success "Machine JSON API is working"
@@ -128,7 +128,7 @@ echo ""
 
 # Test 5: Check Visualizer Backend
 print_test "Visualizer Backend"
-if curl -s -f http://localhost:3001/health > /dev/null 2>&1; then
+if curl -s -k -f https://localhost:3001/health > /dev/null 2>&1; then
     print_success "Visualizer backend is running"
 
     # Check if PID file exists
@@ -144,7 +144,7 @@ if curl -s -f http://localhost:3001/health > /dev/null 2>&1; then
     PASSED=$((PASSED + 1))
 else
     print_error "Visualizer backend is not responding"
-    echo "  Expected: http://localhost:3001/health"
+    echo "  Expected: https://localhost:3001/health"
     echo "  Check logs: tail -f logs/viz-backend.log"
     FAILED=$((FAILED + 1))
 fi
@@ -176,7 +176,7 @@ echo ""
 
 # Test 7: Test Visualizer Proxy to Backend
 print_test "Visualizer Proxy to Reality Engine"
-if curl -s -f http://localhost:3001/api/machines/json/list > /dev/null 2>&1; then
+if curl -s -k -f https://localhost:3001/api/machines/json/list > /dev/null 2>&1; then
     print_success "Visualizer can proxy requests to Reality Engine"
     PASSED=$((PASSED + 1))
 else
@@ -234,13 +234,13 @@ echo ""
 
 # Test 10: Check Perception Engine Backend
 print_test "Perception Engine Backend"
-if curl -s -f http://localhost:3004/api/health > /dev/null 2>&1; then
+if curl -s -k -f https://localhost:3004/api/health > /dev/null 2>&1; then
     print_success "Perception Engine Backend is running"
     PASSED=$((PASSED + 1))
 else
     print_error "Perception Engine Backend is not responding"
-    echo "  Expected: http://localhost:3004/api/health"
-    echo "  Fix: docker-compose up -d perception-engine-backend"
+    echo "  Expected: https://localhost:3004/api/health"
+    echo "  Fix: docker compose up -d perception-engine-backend"
     FAILED=$((FAILED + 1))
 fi
 echo ""
@@ -249,7 +249,7 @@ echo ""
 print_test "Reality Engine /api/perceive Endpoint"
 # Build a 256-element zero vector for the test
 ZERO_VEC=$(printf '0.0,%.0s' {1..255})0.0
-PERCEIVE_RESPONSE=$(curl -s -X POST http://localhost:3000/api/perceive \
+PERCEIVE_RESPONSE=$(curl -s -k -X POST https://localhost:3000/api/perceive \
     -H "Content-Type: application/json" \
     -d "{\"vector\": [$ZERO_VEC]}" 2>/dev/null)
 if echo "$PERCEIVE_RESPONSE" | grep -q '"success"'; then
@@ -299,11 +299,11 @@ if [ $FAILED -eq 0 ]; then
     echo -e "${GREEN}✓ All critical tests passed!${NC}"
     echo ""
     echo "System is operational. Services available at:"
-    echo "  - Reality Engine:         http://localhost:3000"
-    echo "  - Visualizer:             http://localhost:5173"
-    echo "  - Qdrant:                 http://localhost:6333"
-    echo "  - Perception Engine:      http://localhost:3004"
-    echo "  - Perception Engine UI:   http://localhost:3005"
+    echo "  - Reality Engine:         https://localhost:3000"
+    echo "  - Visualizer:             https://localhost:5173"
+    echo "  - Qdrant:                 http://localhost:4333"
+    echo "  - Perception Engine:      https://localhost:3004"
+    echo "  - Perception Engine UI:   https://localhost:3005"
     echo ""
     exit 0
 else

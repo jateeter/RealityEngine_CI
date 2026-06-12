@@ -84,5 +84,5 @@ echo "Both local and Docker deployments will access the same machine.json files.
 echo ""
 echo "Next steps:"
 echo "  - Local: npm start"
-echo "  - Docker: docker-compose up -d --build"
-echo "  - Verify: curl http://localhost:3000/api/machines/json/list"
+echo "  - Docker: docker compose up -d --build"
+echo "  - Verify: curl -k https://localhost:3000/api/machines/json/list"

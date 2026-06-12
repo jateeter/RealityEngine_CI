@@ -19,7 +19,7 @@ fi
 
 echo ""
 echo "Stopping and removing all containers..."
-docker-compose down -v
+docker compose down -v
 
 echo ""
 echo "Removing dangling images..."

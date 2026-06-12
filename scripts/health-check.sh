@@ -19,7 +19,7 @@ if [ -f .env ]; then
 fi
 
 PORT=${PORT:-3000}
-QDRANT_URL=${QDRANT_URL:-http://localhost:6333}
+QDRANT_URL=${QDRANT_URL:-http://localhost:4333}
 
 PASS_COUNT=0
 FAIL_COUNT=0
@@ -54,7 +54,7 @@ echo ""
 
 # 2. Check Qdrant Container
 echo "[2/14] Qdrant Container"
-if docker-compose ps qdrant 2>/dev/null | grep -q "Up"; then
+if docker compose ps qdrant 2>/dev/null | grep -q "Up"; then
     check_pass "Qdrant container is running"
 else
     check_fail "Qdrant container is not running"
@@ -63,7 +63,7 @@ echo ""
 
 # 3. Check Qdrant HTTP
 echo "[3/14] Qdrant HTTP Endpoint"
-if curl -s -o /dev/null -w "%{http_code}" $QDRANT_URL/health | grep -q "200"; then
+if curl -s -o /dev/null -w "%{http_code}" $QDRANT_URL/healthz | grep -q "200" || curl -s -o /dev/null -w "%{http_code}" $QDRANT_URL/collections | grep -q "200"; then
     check_pass "Qdrant HTTP endpoint responding"
 else
     check_fail "Qdrant HTTP endpoint not responding"
@@ -145,7 +145,7 @@ echo ""
 
 # 10. Check Visualizer Backend
 echo "[10/14] Visualizer Backend"
-if docker-compose ps visualizer-backend 2>/dev/null | grep -q "Up"; then
+if docker compose ps visualizer-backend 2>/dev/null | grep -q "Up"; then
     check_pass "Visualizer Backend container is running"
     if curl -s http://localhost:3001/health > /dev/null 2>&1; then
         check_pass "Visualizer Backend endpoint responding"
@@ -159,7 +159,7 @@ echo ""
 
 # 11. Check Visualizer Frontend
 echo "[11/14] Visualizer Frontend"
-if docker-compose ps visualizer-frontend 2>/dev/null | grep -q "Up"; then
+if docker compose ps visualizer-frontend 2>/dev/null | grep -q "Up"; then
     check_pass "Visualizer Frontend container is running"
 else
     check_warn "Visualizer Frontend container is not running"
@@ -168,9 +168,9 @@ echo ""
 
 # 12. Check Perception Engine Backend
 echo "[12/14] Perception Engine Backend"
-if docker-compose ps perception-engine-backend 2>/dev/null | grep -q "Up"; then
+if docker compose ps perception-engine-backend 2>/dev/null | grep -q "Up"; then
     check_pass "Perception Engine Backend container is running"
-    if curl -s http://localhost:3004/api/health > /dev/null 2>&1; then
+    if curl -skf https://localhost:3004/api/health > /dev/null 2>&1; then
         check_pass "Perception Engine Backend endpoint responding"
     else
         check_warn "Perception Engine Backend endpoint not responding"
@@ -182,7 +182,7 @@ echo ""
 
 # 13. Check Perception Engine Frontend
 echo "[13/14] Perception Engine Frontend"
-if docker-compose ps perception-engine-frontend 2>/dev/null | grep -q "Up"; then
+if docker compose ps perception-engine-frontend 2>/dev/null | grep -q "Up"; then
     check_pass "Perception Engine Frontend container is running"
 else
     check_warn "Perception Engine Frontend container is not running"

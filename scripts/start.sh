@@ -187,9 +187,9 @@ if [ "$EXISTING_CONTAINERS" -gt 0 ]; then
 
     # Gracefully stop remaining services, then tear down the network.
     # Do NOT pass -v — named volumes (perception sources, Grafana) are preserved.
-    docker-compose down 2>/dev/null || true
+    docker compose down 2>/dev/null || true
 
-    # Force-remove any containers that docker-compose down could not reach
+    # Force-remove any containers that docker compose down could not reach
     # (does not affect volumes).
     docker rm -f reality-engine-app reality-engine-visualizer-backend reality-engine-visualizer-frontend reality-engine-perception-backend reality-engine-perception-frontend reality-engine-tls-proxy 2>/dev/null || true
 
@@ -215,7 +215,7 @@ if [ "$FRESH_START" = true ]; then
 fi
 
 # Use an isolated docker-container buildx builder to avoid VirtioFS deadlocks
-# on macOS Docker Desktop. The embedded BuildKit daemon (used by docker-compose v1
+# on macOS Docker Desktop. The embedded BuildKit daemon (used by docker compose v1
 # with DOCKER_BUILDKIT=1) deadlocks under VirtioFS, hanging indefinitely at
 # "load .dockerignore" / "load build definition from Dockerfile".
 # A docker-container builder runs buildkitd in its own container, bypassing
@@ -254,10 +254,10 @@ if [ $? -ne 0 ]; then
     echo ""
     echo "Troubleshooting steps:"
     echo "  1. Run: ./scripts/cleanup.sh"
-    echo "  2. Or manually: docker-compose down -v && docker system prune -f"
+    echo "  2. Or manually: docker compose down -v && docker system prune -f"
     echo "  3. Then try: ./scripts/start.sh again"
     echo ""
-    echo "Check logs with: docker-compose logs"
+    echo "Check logs with: docker compose logs"
     exit 1
 fi
 

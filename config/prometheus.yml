@@ -71,7 +71,7 @@ scrape_configs:
     honor_labels: true
     static_configs:
       - targets:
-          - host.docker.internal:3299
+          - host.docker.internal:5301
         labels:
           runtime: cpp
           source:  host
@@ -81,7 +81,7 @@ scrape_configs:
     honor_labels: true
     static_configs:
       - targets:
-          - host.docker.internal:3199
+          - host.docker.internal:5601
         labels:
           runtime: lsp
           source:  host

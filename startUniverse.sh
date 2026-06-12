@@ -77,7 +77,7 @@ startUniverse.sh — engine-selectable CI orchestrator
   --fresh                       Wipe perception sources volume; rebuild images no-cache
   --skip-seed                   Skip seeding machines from RealityEngine_Machines
   --manager-native              Start Visualizer+PE via RealityEngine_Manager/start.sh
-                                instead of Docker (uses Scala port presets: RE :5001, PE :5000)
+                                instead of Docker (points to Docker public endpoints: RE :3000, PE :3004)
   --engines=SPEC                Multi-engine native mode.  SPEC is a comma-separated list of
                                 <runtime>:<count> pairs, e.g. --engines=scala:2,cpp:1
                                 Spawns N native instances of each runtime on distinct ports.
@@ -725,14 +725,14 @@ hdr "4 · RealityEngine  (Scala/Akka built from RealityEngine_Scala)"
 
 # ── manager-native: delegate Visualizer + PE to RealityEngine_Manager ─────
 # When --manager-native is set the Docker compose stack runs only the RE API
-# (Scala), Loki, Grafana, and the tls-proxy.  Visualizer and PE start natively
-# via RealityEngine_Manager/start.sh using the Scala port preset (RE :5001, PE :5000).
+# (Scala), Loki, Grafana, and the tls-proxy. Visualizer starts natively
+# via RealityEngine_Manager/start.sh and points at the Docker public RE/PE endpoints.
 # This mode is useful for frontend/PE development without Docker rebuilds.
 if [ "$MANAGER_NATIVE" = true ]; then
     [ -d "$MGR_DIR" ] || die "--manager-native requires RealityEngine_Manager at $MGR_DIR"
     [ -x "$MGR_DIR/start.sh" ] || die "$MGR_DIR/start.sh missing or not executable"
     info "--manager-native: Visualizer + PE will be started via RealityEngine_Manager/start.sh"
-    info "  RE API: https://localhost:5001  PE: http://localhost:5000"
+    info "  RE API: https://localhost:3000  PE: https://localhost:3004"
 fi
 
 if [ "$MULTI_ENGINE_MODE" = true ]; then
@@ -773,20 +773,20 @@ ok "All RE services healthy"
 info "Confirming RE external endpoints..."
 if [ "$MANAGER_NATIVE" = true ]; then
     echo -n "  API "
-    poll_http "https://localhost:5001/api/health" "RE API reachable (:5001)" 15 "-skf" || \
-        add_warn "RE API not reachable on https://localhost:5001 (Scala native port)"
+    poll_http "https://localhost:3000/api/health" "RE API reachable (:3000)" 15 "-skf" || \
+        add_warn "RE API not reachable on https://localhost:3000"
     # Start Manager (Visualizer + PE) natively — Scala preset
     info "Starting RealityEngine_Manager natively (--scala)..."
     echo "" >> /tmp/manager_universe.log 2>&1 || true
-    "$MGR_DIR/start.sh" --scala > /tmp/manager_universe.log 2>&1 &
+    "$MGR_DIR/start.sh" --re https://localhost:3000 --pe https://localhost:3004 > /tmp/manager_universe.log 2>&1 &
     MANAGER_PID=$!
     echo "$MANAGER_PID" > /tmp/manager_universe.pid
     echo -n "  VIZ "
     poll_http "http://localhost:3001/health" "Visualizer backend ready" 30 "-sf" || \
         add_warn "Visualizer backend not reachable on :3001"
     echo -n "  PE  "
-    poll_http "http://localhost:5000/api/health" "PE backend ready (:5000)" 30 "-sf" || \
-        add_warn "PE backend not reachable on :5000 (Scala native port)"
+    poll_http "https://localhost:3004/api/health" "PE backend ready (:3004)" 30 "-skf" || \
+        add_warn "PE backend not reachable on https://localhost:3004"
 else
     echo -n "  API "
     poll_http "https://localhost:3000/api/health" "RE API reachable" 15 "-skf" || \

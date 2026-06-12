@@ -53,13 +53,13 @@ fi
 echo ""
 
 # Stop and remove Docker services
-# NOTE: docker-compose down WITHOUT -v intentionally preserves named volumes:
+# NOTE: docker compose down WITHOUT -v intentionally preserves named volumes:
 #   perception_sources_data  — perception engine sources
 #   grafana_data             — Grafana dashboards/config
 # NOTE: Qdrant is NOT a service in this stack — it is the unified localAIStack instance.
 #   Stopping the RE does NOT stop Qdrant.  Use localAIStack's stop.sh to stop Qdrant.
 print_info "Stopping and removing Docker services (TLS proxy, Reality Engine, Visualizer, Perception Engine)..."
-docker-compose down
+docker compose down
 
 if [ $? -eq 0 ]; then
     print_success "All Docker services stopped and removed"

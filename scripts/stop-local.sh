@@ -98,7 +98,7 @@ fi
 
 echo ""
 
-# Stop Qdrant (if managed by docker-compose)
+# Stop Qdrant (if managed by docker compose)
 print_info "Stopping Qdrant..."
 if command -v docker &> /dev/null && docker info > /dev/null 2>&1; then
     if docker ps --filter "name=reality-engine-qdrant" --format "{{.Names}}" | grep -q "reality-engine-qdrant"; then

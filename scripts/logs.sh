@@ -25,37 +25,37 @@ case $SERVICE in
     qdrant)
         echo "Showing Qdrant logs (last $LINES lines):"
         echo ""
-        docker-compose logs --tail=$LINES qdrant
+        docker compose logs --tail=$LINES qdrant
         ;;
 
     visualizer-backend|viz-backend)
         echo "Showing Visualizer Backend logs (last $LINES lines):"
         echo ""
-        docker-compose logs --tail=$LINES visualizer-backend
+        docker compose logs --tail=$LINES visualizer-backend
         ;;
 
     visualizer-frontend|viz-frontend)
         echo "Showing Visualizer Frontend logs (last $LINES lines):"
         echo ""
-        docker-compose logs --tail=$LINES visualizer-frontend
+        docker compose logs --tail=$LINES visualizer-frontend
         ;;
 
     perception-backend|perception)
         echo "Showing Perception Engine Backend logs (last $LINES lines):"
         echo ""
-        docker-compose logs --tail=$LINES perception-engine-backend
+        docker compose logs --tail=$LINES perception-engine-backend
         ;;
 
     perception-frontend)
         echo "Showing Perception Engine Frontend logs (last $LINES lines):"
         echo ""
-        docker-compose logs --tail=$LINES perception-engine-frontend
+        docker compose logs --tail=$LINES perception-engine-frontend
         ;;
 
     docker)
         echo "Showing all Docker service logs (last $LINES lines):"
         echo ""
-        docker-compose logs --tail=$LINES
+        docker compose logs --tail=$LINES
         ;;
 
     all)
@@ -71,31 +71,31 @@ case $SERVICE in
         echo ""
         echo "=== Qdrant Logs ==="
         echo ""
-        docker-compose logs --tail=15 qdrant
+        docker compose logs --tail=15 qdrant
 
         echo ""
         echo ""
         echo "=== Visualizer Backend Logs ==="
         echo ""
-        docker-compose logs --tail=15 visualizer-backend
+        docker compose logs --tail=15 visualizer-backend
 
         echo ""
         echo ""
         echo "=== Visualizer Frontend Logs ==="
         echo ""
-        docker-compose logs --tail=15 visualizer-frontend
+        docker compose logs --tail=15 visualizer-frontend
 
         echo ""
         echo ""
         echo "=== Perception Engine Backend Logs ==="
         echo ""
-        docker-compose logs --tail=15 perception-engine-backend
+        docker compose logs --tail=15 perception-engine-backend
 
         echo ""
         echo ""
         echo "=== Perception Engine Frontend Logs ==="
         echo ""
-        docker-compose logs --tail=15 perception-engine-frontend
+        docker compose logs --tail=15 perception-engine-frontend
         ;;
 
     follow)
@@ -105,7 +105,7 @@ case $SERVICE in
             tail -f logs/api.log &
             API_TAIL_PID=$!
         fi
-        docker-compose logs -f &
+        docker compose logs -f &
         DOCKER_TAIL_PID=$!
 
         trap "kill $API_TAIL_PID $DOCKER_TAIL_PID 2>/dev/null; exit 0" INT

@@ -76,8 +76,8 @@ echo ""
 print_info "Checking service health endpoints..."
 
 # Qdrant
-if curl -s http://localhost:6333/ > /dev/null 2>&1; then
-    print_success "Qdrant responsive on port 6333"
+if curl -s http://localhost:4333/ > /dev/null 2>&1; then
+    print_success "Qdrant responsive on port 4333"
 else
     print_error "Qdrant not responsive"
     echo "Check logs: docker logs reality-engine-qdrant"
@@ -85,7 +85,7 @@ else
 fi
 
 # Reality Engine API
-if curl -s http://localhost:3000/api/health > /dev/null 2>&1; then
+if curl -sk https://localhost:3000/api/health > /dev/null 2>&1; then
     print_success "Reality Engine API responsive on port 3000"
 else
     print_error "Reality Engine API not responsive"
@@ -112,7 +112,7 @@ else
 fi
 
 # Perception Engine Backend
-if curl -s http://localhost:3004/api/health > /dev/null 2>&1; then
+if curl -sk https://localhost:3004/api/health > /dev/null 2>&1; then
     print_success "Perception Engine Backend responsive on port 3004"
 else
     print_error "Perception Engine Backend not responsive"
@@ -141,7 +141,7 @@ if echo "$FRONTEND_ASSETS" | grep -q "index.*\.css"; then
         print_success "Frontend build includes new styles (CSS: ${CSS_SIZE} bytes)"
     else
         print_warning "Frontend CSS may be outdated (${CSS_SIZE} bytes, expected >15KB)"
-        echo "Consider rebuilding: docker-compose build --no-cache visualizer-frontend"
+        echo "Consider rebuilding: docker compose build --no-cache visualizer-frontend"
     fi
 else
     print_error "Frontend assets not found"
@@ -151,7 +151,7 @@ echo ""
 
 # Step 5: Check API has machines loaded
 print_info "Checking loaded machines..."
-MACHINES_RESPONSE=$(curl -s http://localhost:3000/api/machines)
+MACHINES_RESPONSE=$(curl -sk https://localhost:3000/api/machines)
 MACHINE_COUNT=$(echo "$MACHINES_RESPONSE" | grep -o '"id"' | wc -l | tr -d ' ')
 
 if [ "$MACHINE_COUNT" -gt 0 ]; then
@@ -180,11 +180,11 @@ echo "Verification Complete!"
 echo "=================================================="
 echo ""
 echo "All Services Running:"
-echo "  ✓ Qdrant Vector DB:           http://localhost:6333"
-echo "  ✓ Reality Engine API:         http://localhost:3000"
+echo "  ✓ Qdrant Vector DB:           http://localhost:4333"
+echo "  ✓ Reality Engine API:         https://localhost:3000"
 echo "  ✓ Visualizer Backend:         http://localhost:3001"
 echo "  ✓ Visualizer Frontend:        http://localhost:5173"
-echo "  ✓ Perception Engine Backend:  http://localhost:3004"
+echo "  ✓ Perception Engine Backend:  https://localhost:3004"
 echo "  ✓ Perception Engine Frontend: http://localhost:3005"
 echo ""
 echo "To access the visualizer:"

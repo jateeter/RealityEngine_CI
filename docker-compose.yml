@@ -25,8 +25,8 @@ services:
 
   # Prometheus — scrapes /api/metrics from each runtime for CES coverage gauges.
   # Reaches host-side `npm run start` (TS) on host.docker.internal:3000 and
-  # `bin/reality_engine_server` (C++) on host.docker.internal:3299.  Both
-  # runtimes emit identical metric names so a single dashboard covers either.
+  # native runtimes exposed through host.docker.internal when selected. All
+  # runtimes emit identical metric names so a single dashboard covers any selected engine.
   prometheus:
     image: prom/prometheus:v2.51.2
     container_name: reality-engine-prometheus
@@ -94,7 +94,7 @@ services:
       - COLLECTION_NAME=reality-vectors
       - VECTOR_DIMENSION=${VECTOR_DIMENSION:-7680}
       - PORT=3000
-      - MACHINES_DIR=/app/examples/machines
+      - MACHINES_DIR=/app/machines
       - KEYSTORE_PATH=/etc/certs/keystore.p12
       - KEYSTORE_PASSWORD=realityengine
       - CA_CERT_PATH=/etc/certs/ca.crt
@@ -210,6 +210,8 @@ services:
       - PORT=3004
       - REALITY_ENGINE_URL=https://reality-engine:3000
       - DATA_PATH=/app/data
+      - VECTOR_SIZE=${VECTOR_DIMENSION:-7680}
+      - LOCAL_AI_BASE_URL=http://host.docker.internal:4000
       - TLS_CERT_PATH=/etc/certs/server.crt
       - TLS_KEY_PATH=/etc/certs/server.key
       - CA_CERT_PATH=/etc/certs/ca.crt
@@ -229,6 +231,15 @@ services:
       - MQTT_MAPPINGS_JSON
       - MQTT_ALLOW_REGION_OVERLAP
       - MQTT_DISABLED
+      - ACP_ENABLED
+      - ACP_PLATFORM
+      - ACP_SURFACE
+      - ACP_GATEWAY_URL
+      - OPENCLAW_GATEWAY_URL
+      - ACP_SESSION_KEY
+      - OPENCLAW_ACP_SESSION
+      - ACP_TARGET_AGENT
+      - ACP_COMPLETION_SOURCE_MAPPING_ID
       - AUDIT_LOG_ENABLED=true
       - AUDIT_LOG_LEVEL=2
       - AUDIT_LOG_SERVICE=perception-engine

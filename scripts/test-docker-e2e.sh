@@ -34,7 +34,7 @@ echo -e "${GREEN}✓ Playwright is installed${NC}"
 
 echo ""
 echo "🚀 Starting Docker services..."
-docker-compose up -d
+docker compose up -d
 
 echo ""
 echo "⏳ Waiting for services to be healthy..."
@@ -48,7 +48,7 @@ check_service() {
     local attempt=1
 
     while [ $attempt -le $max_attempts ]; do
-        if curl -f -s -o /dev/null "$url" 2>/dev/null; then
+        if curl -k -f -s -o /dev/null "$url" 2>/dev/null; then
             echo -e "${GREEN}✓ $name is ready${NC}"
             return 0
         fi
@@ -61,10 +61,10 @@ check_service() {
     return 1
 }
 
-check_service "Qdrant" "http://localhost:6333/"
-check_service "Reality Engine" "http://localhost:3000/api/engine/stats"
-check_service "Visualizer Backend" "http://localhost:3001/health"
-check_service "Visualizer Frontend" "http://localhost:5173/"
+check_service "Qdrant" "http://localhost:4333/"
+check_service "Reality Engine" "https://localhost:3000/api/engine/stats"
+check_service "Visualizer Backend" "https://localhost:3001/health"
+check_service "Visualizer Frontend" "https://localhost:5173/"
 
 echo ""
 echo "✅ All services are healthy!"
@@ -96,9 +96,9 @@ echo ""
 # Optionally stop services
 if [ "$CI" = "true" ] || [ "$STOP_SERVICES" = "true" ]; then
     echo "🛑 Stopping Docker services..."
-    docker-compose down
+    docker compose down
 else
-    echo "💡 Services are still running. Stop with: docker-compose down"
+    echo "💡 Services are still running. Stop with: docker compose down"
 fi
 
 echo ""

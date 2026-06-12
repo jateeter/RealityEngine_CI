@@ -22,13 +22,13 @@ PORT=${PORT:-3000}
 
 # Check Qdrant
 echo "Qdrant Vector Database:"
-if docker-compose ps qdrant 2>/dev/null | grep -q "Up"; then
+if docker compose ps qdrant 2>/dev/null | grep -q "Up"; then
     echo -e "  Status: ${GREEN}RUNNING${NC}"
 
-    if curl -s http://localhost:6333/health > /dev/null 2>&1; then
+    if curl -s http://localhost:4333/healthz > /dev/null 2>&1 || curl -s http://localhost:4333/collections > /dev/null 2>&1; then
         echo -e "  Health: ${GREEN}HEALTHY${NC}"
-        echo "  URL:    http://localhost:6333"
-        echo "  UI:     http://localhost:6333/dashboard"
+        echo "  URL:    http://localhost:4333"
+        echo "  UI:     http://localhost:4333/dashboard"
     else
         echo -e "  Health: ${RED}UNHEALTHY${NC}"
     fi
@@ -75,7 +75,7 @@ echo ""
 
 # Check Visualizer Backend
 echo "Visualizer Backend:"
-if docker-compose ps visualizer-backend 2>/dev/null | grep -q "Up"; then
+if docker compose ps visualizer-backend 2>/dev/null | grep -q "Up"; then
     echo -e "  Status: ${GREEN}RUNNING${NC}"
 
     if curl -s http://localhost:3001/health > /dev/null 2>&1; then
@@ -92,7 +92,7 @@ echo ""
 
 # Check Visualizer Frontend
 echo "Visualizer Frontend:"
-if docker-compose ps visualizer-frontend 2>/dev/null | grep -q "Up"; then
+if docker compose ps visualizer-frontend 2>/dev/null | grep -q "Up"; then
     echo -e "  Status: ${GREEN}RUNNING${NC}"
     echo "  URL:    http://localhost:5173"
 else
@@ -103,12 +103,12 @@ echo ""
 
 # Check Perception Engine Backend
 echo "Perception Engine Backend:"
-if docker-compose ps perception-engine-backend 2>/dev/null | grep -q "Up"; then
+if docker compose ps perception-engine-backend 2>/dev/null | grep -q "Up"; then
     echo -e "  Status: ${GREEN}RUNNING${NC}"
 
-    if curl -s http://localhost:3004/api/health > /dev/null 2>&1; then
+    if curl -skf https://localhost:3004/api/health > /dev/null 2>&1; then
         echo -e "  Health: ${GREEN}HEALTHY${NC}"
-        echo "  URL:    http://localhost:3004"
+        echo "  URL:    https://localhost:3004"
     else
         echo -e "  Health: ${RED}UNHEALTHY${NC}"
     fi
@@ -120,7 +120,7 @@ echo ""
 
 # Check Perception Engine Frontend
 echo "Perception Engine Frontend:"
-if docker-compose ps perception-engine-frontend 2>/dev/null | grep -q "Up"; then
+if docker compose ps perception-engine-frontend 2>/dev/null | grep -q "Up"; then
     echo -e "  Status: ${GREEN}RUNNING${NC}"
     echo "  URL:    http://localhost:3005"
 else
@@ -141,11 +141,11 @@ echo ""
 echo "=================================================="
 
 # Overall status
-QDRANT_UP=$(docker-compose ps qdrant 2>/dev/null | grep -q "Up" && echo "1" || echo "0")
-VISUALIZER_BACKEND_UP=$(docker-compose ps visualizer-backend 2>/dev/null | grep -q "Up" && echo "1" || echo "0")
-VISUALIZER_FRONTEND_UP=$(docker-compose ps visualizer-frontend 2>/dev/null | grep -q "Up" && echo "1" || echo "0")
-PERCEPTION_BACKEND_UP=$(docker-compose ps perception-engine-backend 2>/dev/null | grep -q "Up" && echo "1" || echo "0")
-PERCEPTION_FRONTEND_UP=$(docker-compose ps perception-engine-frontend 2>/dev/null | grep -q "Up" && echo "1" || echo "0")
+QDRANT_UP=$(docker compose ps qdrant 2>/dev/null | grep -q "Up" && echo "1" || echo "0")
+VISUALIZER_BACKEND_UP=$(docker compose ps visualizer-backend 2>/dev/null | grep -q "Up" && echo "1" || echo "0")
+VISUALIZER_FRONTEND_UP=$(docker compose ps visualizer-frontend 2>/dev/null | grep -q "Up" && echo "1" || echo "0")
+PERCEPTION_BACKEND_UP=$(docker compose ps perception-engine-backend 2>/dev/null | grep -q "Up" && echo "1" || echo "0")
+PERCEPTION_FRONTEND_UP=$(docker compose ps perception-engine-frontend 2>/dev/null | grep -q "Up" && echo "1" || echo "0")
 API_UP=$([ -f .api.pid ] && ps -p $(cat .api.pid) > /dev/null 2>&1 && echo "1" || echo "0")
 
 if [ "$QDRANT_UP" = "1" ] && [ "$API_UP" = "1" ] && [ "$VISUALIZER_BACKEND_UP" = "1" ] && [ "$VISUALIZER_FRONTEND_UP" = "1" ] && [ "$PERCEPTION_BACKEND_UP" = "1" ] && [ "$PERCEPTION_FRONTEND_UP" = "1" ]; then

@@ -34,7 +34,7 @@ npm install
 # Start Docker services
 echo ""
 echo "🐳 Starting Docker services..."
-docker-compose up -d
+docker compose up -d
 
 # Wait for Qdrant to be ready
 echo ""
@@ -45,7 +45,7 @@ MAX_RETRIES=30
 RETRY_COUNT=0
 
 while [ $RETRY_COUNT -lt $MAX_RETRIES ]; do
-    if curl -s http://localhost:6333/health > /dev/null; then
+    if curl -s http://localhost:4333/health > /dev/null; then
         echo "✓ Qdrant is ready"
         break
     fi
@@ -79,7 +79,7 @@ MAX_RETRIES=30
 RETRY_COUNT=0
 
 while [ $RETRY_COUNT -lt $MAX_RETRIES ]; do
-    if curl -s http://localhost:3000/api/health > /dev/null; then
+    if curl -sk https://localhost:3000/api/health > /dev/null; then
         echo "✓ Reality Engine is ready"
         break
     fi
@@ -101,11 +101,11 @@ echo "✓ Reality Engine is running!"
 echo "======================================"
 echo ""
 echo "📍 Services:"
-echo "   - Reality Engine API:         http://localhost:3000"
-echo "   - Qdrant Dashboard:           http://localhost:6333/dashboard"
+echo "   - Reality Engine API:         https://localhost:3000"
+echo "   - Qdrant Dashboard:           http://localhost:4333/dashboard"
 echo "   - Visualizer Backend:         http://localhost:3001"
 echo "   - Visualizer Frontend:        http://localhost:5173"
-echo "   - Perception Engine Backend:  http://localhost:3004"
+echo "   - Perception Engine Backend:  https://localhost:3004"
 echo "   - Perception Engine Frontend: http://localhost:3005"
 echo ""
 echo "🎯 Quick Start:"
@@ -115,9 +115,9 @@ echo "   3. Open Perception Engine UI: http://localhost:3005"
 echo "   4. Add sources and push reality vectors"
 echo ""
 echo "🔍 API Endpoints:"
-echo "   - Health:       GET  http://localhost:3000/api/health"
-echo "   - Perceive:     POST http://localhost:3000/api/perceive"
-echo "   - Process:      POST http://localhost:3000/api/engine/process"
+echo "   - Health:       GET  https://localhost:3000/api/health"
+echo "   - Perceive:     POST https://localhost:3000/api/perceive"
+echo "   - Process:      POST https://localhost:3000/api/engine/process"
 echo ""
 echo "📖 Documentation: See README.md and DEMO_STATUS.md"
 echo ""

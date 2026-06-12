@@ -58,12 +58,12 @@ else
             echo "  - $name"
         done
         print_info "Stopping Docker containers to free ports..."
-        docker-compose down
+        docker compose down
         if [ $? -eq 0 ]; then
             print_success "Docker containers stopped"
         else
             print_error "Failed to stop Docker containers"
-            echo "Manually stop with: docker-compose down"
+            echo "Manually stop with: docker compose down"
             exit 1
         fi
         echo ""
@@ -125,7 +125,7 @@ wait_for_service() {
     print_info "Waiting for $name to be ready..."
 
     while [ $retry_count -lt $max_retries ]; do
-        if curl -s -f "$url" > /dev/null 2>&1; then
+        if curl -skf "$url" > /dev/null 2>&1; then
             print_success "$name is ready"
             return 0
         fi
@@ -201,7 +201,7 @@ else
     fi
 
     print_info "Starting Qdrant via Docker..."
-    docker-compose up -d qdrant
+    docker compose up -d qdrant
 
     if [ $? -ne 0 ]; then
         print_error "Failed to start Qdrant"
@@ -224,7 +224,7 @@ else
 fi
 
 # Wait for Qdrant to be ready
-if ! wait_for_service "http://localhost:6333/" "Qdrant" 30; then
+if ! wait_for_service "http://localhost:4333/" "Qdrant" 30; then
     print_error "Qdrant health check failed"
     echo "Check logs: docker logs reality-engine-qdrant"
     exit 1
@@ -280,7 +280,7 @@ if [ ! -f .api.pid ]; then
     print_success "Backend started (PID: $API_PID)"
 
     # Wait for backend to be ready
-    if ! wait_for_service "http://localhost:3000/api/health" "Reality Engine Backend" 40; then
+    if ! wait_for_service "https://localhost:3000/api/health" "Reality Engine Backend" 40; then
         print_error "Backend failed to start"
         echo "Check logs: tail -f logs/api.log"
         kill $API_PID 2>/dev/null || true
@@ -293,7 +293,7 @@ echo ""
 # Step 5: Validate Machine JSON Files
 print_step "Step 5: Validating Machine JSON Files Access"
 
-MACHINE_COUNT=$(curl -s http://localhost:3000/api/machines/json/list | grep -o '"filename"' | wc -l | tr -d ' ')
+MACHINE_COUNT=$(curl -sk https://localhost:3000/api/machines/json/list | grep -o '"filename"' | wc -l | tr -d ' ')
 
 if [ "$MACHINE_COUNT" -eq "0" ]; then
     print_error "No machine JSON files found"
@@ -406,7 +406,7 @@ print_step "Step 8: Validating All Services"
 VALIDATION_FAILED=0
 
 # Test Qdrant
-if curl -s -f http://localhost:6333/ > /dev/null 2>&1; then
+if curl -s -f http://localhost:4333/ > /dev/null 2>&1; then
     print_success "Qdrant: OK"
 else
     print_error "Qdrant: FAILED"
@@ -414,7 +414,7 @@ else
 fi
 
 # Test Reality Engine Backend
-if curl -s -f http://localhost:3000/api/health > /dev/null 2>&1; then
+if curl -skf https://localhost:3000/api/health > /dev/null 2>&1; then
     print_success "Reality Engine Backend: OK"
 else
     print_error "Reality Engine Backend: FAILED"
@@ -422,7 +422,7 @@ else
 fi
 
 # Test Machine JSON Endpoint
-RESPONSE=$(curl -s http://localhost:3000/api/machines/json/list)
+RESPONSE=$(curl -sk https://localhost:3000/api/machines/json/list)
 if echo "$RESPONSE" | grep -q '"machines"'; then
     print_success "Machine JSON API: OK"
 else
@@ -460,10 +460,10 @@ echo "✨ Reality Engine Started Successfully! ✨"
 echo "=================================================="
 echo ""
 echo "📊 Services Status:"
-echo "  ✓ Qdrant Vector DB:      http://localhost:6333"
-echo "  ✓ Qdrant Dashboard:      http://localhost:6333/dashboard"
-echo "  ✓ Reality Engine API:    http://localhost:3000"
-echo "  ✓ API Health Check:      http://localhost:3000/api/health"
+echo "  ✓ Qdrant Vector DB:      http://localhost:4333"
+echo "  ✓ Qdrant Dashboard:      http://localhost:4333/dashboard"
+echo "  ✓ Reality Engine API:    https://localhost:3000"
+echo "  ✓ API Health Check:      https://localhost:3000/api/health"
 echo "  ✓ Visualizer Backend:    http://localhost:3001"
 echo "  ✓ Visualizer Frontend:   http://localhost:5173"
 echo ""
