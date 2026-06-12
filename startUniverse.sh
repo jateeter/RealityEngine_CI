@@ -314,10 +314,19 @@ run_native_engine() {
 
   if [ -n "$MQTT_BROKER_URL_OVERRIDE" ]; then
     export MQTT_BROKER_URL="$MQTT_BROKER_URL_OVERRIDE"
-    local stripped="${MQTT_BROKER_URL_OVERRIDE#mqtt://}"; stripped="${stripped#mqtts://}"
-    export MQTT_BROKER_HOST="${stripped%%:*}"
-    local rest="${stripped#*:}"; export MQTT_BROKER_PORT="${rest%%/*}"
-    [ "$MQTT_BROKER_PORT" = "$stripped" ] && MQTT_BROKER_PORT=1883
+    # Parse host and port via Python urlparse — handles mqtt://, mqtts://, auth tokens, paths
+    _mqtt_parsed=$(python3 - "$MQTT_BROKER_URL_OVERRIDE" <<'PYEOF' 2>/dev/null
+import sys
+from urllib.parse import urlparse
+u = urlparse(sys.argv[1])
+default_port = 8883 if u.scheme == 'mqtts' else 1883
+print(u.hostname or '')
+print(u.port or default_port)
+PYEOF
+)
+    export MQTT_BROKER_HOST=$(printf '%s\n' "$_mqtt_parsed" | sed -n '1p')
+    export MQTT_BROKER_PORT=$(printf '%s\n' "$_mqtt_parsed" | sed -n '2p')
+    [ -z "$MQTT_BROKER_PORT" ] && MQTT_BROKER_PORT=1883
   fi
   [ -n "$MQTT_MAPPINGS_OVERRIDE" ] && export MQTT_MAPPINGS_FILE="$MQTT_MAPPINGS_OVERRIDE"
 
@@ -372,9 +381,9 @@ docker compose version > /dev/null 2>&1 || \
 COMPOSE_VER=$(docker compose version --short 2>/dev/null || echo "unknown")
 ok "docker compose v$COMPOSE_VER"
 
-# Version compatibility check (warns only — does not block startup)
+# Version compatibility check — blocks startup on branch mismatch
 if [ -x "$CI_DIR/scripts/validate-versions.sh" ]; then
-    bash "$CI_DIR/scripts/validate-versions.sh" --warn-only || true
+    bash "$CI_DIR/scripts/validate-versions.sh"
 fi
 
 # Verify required sibling repos are present
@@ -403,13 +412,23 @@ openssl x509 -in "$CI_DIR/certs/server.crt" -noout -text 2>/dev/null \
     die "certs/server.crt missing SANs\n  Run:  bash $CI_DIR/certs/generate-dev-certs.sh"
 ok "TLS certificates valid"
 
+# Warn if keystore password is still the dev default
+if [ "${KEYSTORE_PASSWORD:-realityengine}" = "realityengine" ]; then
+    warn "KEYSTORE_PASSWORD is set to the default dev value — set a strong password in .env before sharing this environment"
+fi
+
 # Loki Docker logging driver
 LOKI_ENABLED=$(docker plugin inspect loki --format '{{.Enabled}}' 2>/dev/null || echo "missing")
 if [ "$LOKI_ENABLED" = "missing" ]; then
     info "Installing Loki Docker logging driver..."
-    docker plugin install grafana/loki-docker-driver:latest \
-        --alias loki --grant-all-permissions 2>/dev/null || \
-        die "Loki Docker driver install failed — run:  bash $CI_DIR/scripts/setup-loki-driver.sh"
+    if ! docker plugin install grafana/loki-docker-driver:latest \
+            --alias loki --grant-all-permissions 2>/dev/null; then
+        warn "Loki Docker driver install failed."
+        warn "Plugin installation requires elevated privileges. Install it first:"
+        warn "  sudo docker plugin install grafana/loki-docker-driver:latest --alias loki --grant-all-permissions"
+        warn "Or run:  sudo bash $CI_DIR/scripts/setup-loki-driver.sh"
+        die "Loki log driver not available"
+    fi
 elif [ "$LOKI_ENABLED" = "false" ]; then
     info "Enabling Loki Docker logging driver..."
     docker plugin enable loki 2>/dev/null || die "Could not enable loki plugin"

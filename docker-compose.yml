@@ -96,7 +96,7 @@ services:
       - PORT=3000
       - MACHINES_DIR=/app/machines
       - KEYSTORE_PATH=/etc/certs/keystore.p12
-      - KEYSTORE_PASSWORD=realityengine
+      - KEYSTORE_PASSWORD=${KEYSTORE_PASSWORD:-realityengine}
       - CA_CERT_PATH=/etc/certs/ca.crt
       - AUDIT_LOG_ENABLED=true
       - AUDIT_LOG_LEVEL=2
