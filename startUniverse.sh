@@ -65,6 +65,10 @@ DRY_RUN=false
 RE_ENGINE="${RE_ENGINE:-ai}"       # ai | cpp | lsp
 PE_ENGINE="${PE_ENGINE:-ai}"       # ai | cpp | lsp
 ENGINES=""                         # multi-engine: "scala:2,cpp:1" etc.
+# Configurable native port bases — override in .env to avoid macOS AirPlay (port 5000)
+SCALA_PE_BASE="${SCALA_PE_BASE:-5000}"
+CPP_PE_BASE="${CPP_PE_BASE:-5300}"
+LSP_PE_BASE="${LSP_PE_BASE:-5600}"
 MQTT_BROKER_URL_OVERRIDE=""
 MQTT_MAPPINGS_OVERRIDE=""
 OPENCLAW="${OPENCLAW:-auto}"       # auto | yes | no
@@ -449,9 +453,9 @@ if [ "$MULTI_ENGINE_MODE" = true ]; then
         _pf_ct=$(echo "$_pf_spec" | cut -d: -f2 | tr -d ' ')
         _pf_ct="${_pf_ct:-1}"
         case "$_pf_rt" in
-            scala) _pf_base_re=5001; _pf_base_pe=5000 ;;
-            cpp)   _pf_base_re=5301; _pf_base_pe=5300 ;;
-            lsp)   _pf_base_re=5601; _pf_base_pe=5600 ;;
+            scala) _pf_base_pe=$SCALA_PE_BASE; _pf_base_re=$(( SCALA_PE_BASE + 1 )) ;;
+            cpp)   _pf_base_pe=$CPP_PE_BASE;   _pf_base_re=$(( CPP_PE_BASE + 1 ))   ;;
+            lsp)   _pf_base_pe=$LSP_PE_BASE;   _pf_base_re=$(( LSP_PE_BASE + 1 ))   ;;
             *) continue ;;
         esac
         for (( _pf_i=1; _pf_i<=_pf_ct; _pf_i++ )); do
@@ -555,9 +559,9 @@ if [ "$DRY_RUN" = true ]; then
             _dr_ct=$(echo "$_dr_spec" | cut -d: -f2 | tr -d ' ')
             _dr_ct="${_dr_ct:-1}"
             case "$_dr_rt" in
-                scala) _dr_base_re=5001; _dr_base_pe=5000 ;;
-                cpp)   _dr_base_re=5301; _dr_base_pe=5300 ;;
-                lsp)   _dr_base_re=5601; _dr_base_pe=5600 ;;
+                scala) _dr_base_pe=$SCALA_PE_BASE; _dr_base_re=$(( SCALA_PE_BASE + 1 )) ;;
+                cpp)   _dr_base_pe=$CPP_PE_BASE;   _dr_base_re=$(( CPP_PE_BASE + 1 ))   ;;
+                lsp)   _dr_base_pe=$LSP_PE_BASE;   _dr_base_re=$(( LSP_PE_BASE + 1 ))   ;;
                 *) continue ;;
             esac
             for (( _dr_i=1; _dr_i<=_dr_ct; _dr_i++ )); do

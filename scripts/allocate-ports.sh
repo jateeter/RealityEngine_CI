@@ -16,9 +16,9 @@ allocate_ports() {
     local base_re base_pe re_port pe_port
 
     case "$runtime" in
-        scala) base_re=5001; base_pe=5000 ;;
-        cpp)   base_re=5301; base_pe=5300 ;;
-        lsp)   base_re=5601; base_pe=5600 ;;
+        scala) base_pe="${SCALA_PE_BASE:-5000}"; base_re=$(( base_pe + 1 )) ;;
+        cpp)   base_pe="${CPP_PE_BASE:-5300}";   base_re=$(( base_pe + 1 )) ;;
+        lsp)   base_pe="${LSP_PE_BASE:-5600}";   base_re=$(( base_pe + 1 )) ;;
         *)     echo "allocate_ports: unknown runtime '$runtime'" >&2; return 1 ;;
     esac
 
