@@ -26,14 +26,9 @@ bash scripts/validate-versions.sh
 bash scripts/validate-versions.sh --warn-only
 ```
 
-To pin a specific release tag once repos are tagged:
-
-```
-| RealityEngine_Scala | v2.1.0 | main |
-```
+To pin a specific release tag once repos are tagged, change the version
+field from `any` to the tag name (e.g. `v2.1.0`).
 
 ## Changelog
 
-| Date | CI Release | Scala | Manager | Machines | localAIStack | localOpenClaw |
-|---|---|---|---|---|---|---|
-| 2026-05-24 | v1.0.0 | main | main | main | main | main |
+- 2026-05-24: CI v1.0.0 — all repos on main
