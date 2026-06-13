@@ -1,17 +1,18 @@
 # Integrated RealityEngine Specification
 
 This document is the cross-repository specification index for the deployable
-RealityEngine system. `DEPLOYMENT_CONTRACT.md` remains the authoritative
-service, port, and environment contract. `SURFACE_SPEC.md` remains the
-authoritative RE/PE HTTP surface for the runtimes that carry it. This file ties
-those contracts together and records the documentation roadmap needed for a
-full integrated deployment.
+RealityEngine system. The `_CI/wiki` gitlink is the primary authoritative
+documentation surface for the deployable system. `DEPLOYMENT_CONTRACT.md`
+remains the executable service, port, and environment contract. `SURFACE_SPEC.md`
+remains the executable RE/PE HTTP surface for the runtimes that carry it. This
+file ties those contracts together and records the documentation roadmap needed
+for a full integrated deployment.
 
 ## Repository Roles
 
 | Repository | Role | Primary specification documents |
 | --- | --- | --- |
-| `RealityEngine_CI` | Deployment orchestrator, Docker public endpoints, native runtime registry, full-system gates | `DEPLOYMENT_CONTRACT.md`, this file |
+| `RealityEngine_CI` | Deployment orchestrator, Docker public endpoints, native runtime registry, full-system gates, primary wiki gitlink | `wiki/Deployable-System-Documentation.md`, `DEPLOYMENT_CONTRACT.md`, this file |
 | `RealityEngine_CPP` | Native C++ RE/PE runtime and adapter CLI | `SURFACE_SPEC.md`, `README.md`, `docs/INTEGRATION_ARCHITECTURE.md` |
 | `RealityEngine_Scala` | Scala RE/PE runtime and active reference implementation | `SURFACE_SPEC.md`, `README.md`, `perception-engine/docs/HEALTHKIT_SPEZI_BRIDGE.md` |
 | `RealityEngine_LSP` | Common Lisp RE/PE runtime | `SURFACE_SPEC.md`, `README.md`, `docs/CONFIGURATION_EQUIVALENCE.md` |
@@ -20,21 +21,25 @@ full integrated deployment.
 
 ## Authoritative Contract Stack
 
-1. `RealityEngine_CI/DEPLOYMENT_CONTRACT.md`
+1. `RealityEngine_CI/wiki/Deployable-System-Documentation.md`
+   Defines the primary published documentation surface for deployable-system
+   operations and links to the executable contract files.
+
+2. `RealityEngine_CI/DEPLOYMENT_CONTRACT.md`
    Defines service ownership, port bands, environment names, native runtime
    pairs, Docker public endpoints, localAIStack ports, OpenClaw ports, and
    normative deployment rules.
 
-2. `SURFACE_SPEC.md`
+3. `SURFACE_SPEC.md`
    Defines the canonical RE and PE API surfaces. Copies must be byte-identical
    across `RealityEngine_CPP`, `RealityEngine_LSP`, `RealityEngine_Scala`, and
    `RealityEngine_Manager`.
 
-3. `RealityEngine_Machines/docs/REALITY_PERCEPTION_OPERATIONS.md`
+4. `RealityEngine_Machines/docs/REALITY_PERCEPTION_OPERATIONS.md`
    Defines how machines, perceptual regions, RE transitions, PE sources,
    dispatch, and write-back operate as one system.
 
-4. Runtime-local README and integration docs
+5. Runtime-local README and integration docs
    Explain local build and operator usage, but must not override the documents
    above.
 
@@ -160,8 +165,9 @@ HealthKit BP/exercise/sleep bridge path is passing.
 
 ### Phase 1: Freeze Contract Sources
 
-- Treat `DEPLOYMENT_CONTRACT.md`, `SURFACE_SPEC.md`, and this file as the only
-  cross-repo deployment authorities.
+- Treat the `_CI/wiki` gitlink as the primary deployable-system documentation
+  surface, backed by `DEPLOYMENT_CONTRACT.md`, `SURFACE_SPEC.md`, and this file
+  as executable contract artifacts.
 - Add a CI check that fails when runtime `SURFACE_SPEC.md` copies differ.
 - Keep runtime README files descriptive and link back to these authorities.
 
