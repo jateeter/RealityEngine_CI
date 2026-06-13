@@ -101,6 +101,62 @@ jobs:
           ignore-unfixed: true
           trivyignores: RealityEngine_CI/.trivyignore
 
+  # ── Phase 2c: SURFACE_SPEC drift check ─────────────────────────────────────
+  surface-spec-drift:
+    name: SURFACE_SPEC Drift Check
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+
+    steps:
+      - name: Checkout RealityEngine_CI
+        uses: actions/checkout@v4
+        with:
+          path: RealityEngine_CI
+
+      - name: Checkout RealityEngine_CPP
+        uses: actions/checkout@v4
+        with:
+          repository: ${{ github.repository_owner }}/RealityEngine_CPP
+          path: RealityEngine_CPP
+          token: ${{ secrets.REPO_ACCESS_TOKEN || github.token }}
+
+      - name: Checkout RealityEngine_Scala
+        uses: actions/checkout@v4
+        with:
+          repository: ${{ github.repository_owner }}/RealityEngine_Scala
+          path: RealityEngine_Scala
+          token: ${{ secrets.REPO_ACCESS_TOKEN || github.token }}
+
+      - name: Checkout RealityEngine_LSP
+        uses: actions/checkout@v4
+        with:
+          repository: ${{ github.repository_owner }}/RealityEngine_LSP
+          path: RealityEngine_LSP
+          token: ${{ secrets.REPO_ACCESS_TOKEN || github.token }}
+
+      - name: Checkout RealityEngine_Manager
+        uses: actions/checkout@v4
+        with:
+          repository: ${{ github.repository_owner }}/RealityEngine_Manager
+          path: RealityEngine_Manager
+          token: ${{ secrets.REPO_ACCESS_TOKEN || github.token }}
+
+      - name: Check SURFACE_SPEC.md is identical across all runtimes
+        run: |
+          CANONICAL=RealityEngine_CPP/SURFACE_SPEC.md
+          FAIL=0
+          for repo in RealityEngine_Scala RealityEngine_LSP RealityEngine_Manager; do
+            TARGET="$repo/SURFACE_SPEC.md"
+            if ! diff -q "$CANONICAL" "$TARGET" > /dev/null 2>&1; then
+              echo "DRIFT: $TARGET differs from $CANONICAL"
+              diff "$CANONICAL" "$TARGET" || true
+              FAIL=1
+            else
+              echo "OK: $TARGET matches canonical"
+            fi
+          done
+          exit $FAIL
+
   # ── Phase 3: Unit tests for helper scripts ──────────────────────────────────
   scripts-unit-tests:
     name: Scripts Unit Tests
@@ -532,7 +588,7 @@ jobs:
   test-summary:
     name: Test Summary
     runs-on: ubuntu-latest
-    needs: [shellcheck, dockerfile-security, scripts-unit-tests, dry-run-validate, smoke-tests, e2e-tests, multi-engine-tests]
+    needs: [shellcheck, dockerfile-security, surface-spec-drift, scripts-unit-tests, dry-run-validate, smoke-tests, e2e-tests, multi-engine-tests]
     if: always()
 
     steps:
