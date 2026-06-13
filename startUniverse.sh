@@ -209,10 +209,11 @@ spawn_scala_instance() {
     [ -x "$SCALA_DIR/start.sh" ] || die "$id: $SCALA_DIR/start.sh not found or not executable"
 
     INSTANCE_ID="$id" \
-    HOST="$HOST_IP" \
+    HOST="0.0.0.0" \
     REALITY_ENGINE_PORT="$re_port" \
     PERCEPTION_ENGINE_PORT="$pe_port" \
-    REALITY_ENGINE_URL="http://localhost:$re_port" \
+    REALITY_ENGINE_URL="http://$HOST_IP:$re_port" \
+    MACHINES_DIR="$MACHINES_DIR/machines" \
         nohup bash "$SCALA_DIR/start.sh" \
         > "/tmp/re-${id}.log" 2>&1 &
     local pid_re=$!
@@ -246,6 +247,7 @@ spawn_cpp_instance() {
     REALITY_ENGINE_HOST="$HOST_IP" \
     REALITY_ENGINE_PORT="$re_port" \
     PERCEPTION_ENGINE_PORT="$pe_port" \
+    MACHINES_DIR="$MACHINES_DIR/machines" \
         nohup bash "$CPP_DIR/start.sh" \
         > "/tmp/re-${id}.log" 2>&1 &
     local pid_re=$!
@@ -279,6 +281,7 @@ spawn_lsp_instance() {
     REALITY_ENGINE_HOST="$HOST_IP" \
     REALITY_ENGINE_PORT="$re_port" \
     PERCEPTION_ENGINE_PORT="$pe_port" \
+    MACHINES_DIR="$MACHINES_DIR/machines" \
         nohup bash "$LSP_DIR/start.sh" \
         > "/tmp/re-${id}.log" 2>&1 &
     local pid_re=$!
@@ -477,7 +480,12 @@ fi
 
 # ── Orphan container cleanup ──────────────────────────────────────────────
 info "Checking for orphaned containers..."
-(cd "$CI_DIR" && docker compose down 2>/dev/null) || true
+# Use `rm -sf` (stop + remove) rather than `down` so stale compose state
+# (container ID exists in compose but not in Docker) doesn't block startup.
+# `down` silently fails on "No such container" and leaves the reference; `rm -sf`
+# operates on names and succeeds even when compose state is partially stale.
+(cd "$CI_DIR" && docker compose rm -sf 2>/dev/null) || true
+(cd "$CI_DIR" && docker compose down --remove-orphans 2>/dev/null) || true
 
 ORPHANS=$(docker ps -a --format "{{.ID}} {{.Image}}" 2>/dev/null \
     | awk '/realityengine_ci-|realityengine-/{print $1}' || true)
@@ -494,13 +502,22 @@ docker rm -f \
     reality-engine-grafana \
     reality-engine-prometheus > /dev/null 2>&1 || true
 
+# Prune stopped CI containers to clear any stale container IDs
+docker container prune -f --filter "label=com.docker.compose.project=realityengine_ci" \
+    > /dev/null 2>&1 || true
+
 REMAINING=$(docker ps -a --format "{{.Names}}" 2>/dev/null \
     | grep -c "reality-engine-" || true)
 [ "$REMAINING" -gt 0 ] && add_warn "$REMAINING RE container(s) still present before startup" \
     || ok "RE container state clean"
 
-(cd "$LAS_DIR" && docker compose down 2>/dev/null) || true
+# localAIStack cleanup — rm -sf clears stale compose references before down
+(cd "$LAS_DIR" && docker compose rm -sf 2>/dev/null) || true
+(cd "$LAS_DIR" && docker compose down --remove-orphans 2>/dev/null) || true
 docker rm -f localai_qdrant localai_redis localai_loki localai_grafana localai_api localai_webui \
+    > /dev/null 2>&1 || true
+# Prune stopped localai_* containers to clear stale IDs before step 3
+docker container prune -f --filter "label=com.docker.compose.project=localai" \
     > /dev/null 2>&1 || true
 LAS_REMAINING=$(docker ps -a --format "{{.Names}}" 2>/dev/null | grep -c "^localai_" || true)
 [ "$LAS_REMAINING" -gt 0 ] && add_warn "$LAS_REMAINING localai_* container(s) still present" \
@@ -639,10 +656,10 @@ if [ "$FRESH_START" = true ]; then
 fi
 
 info "Starting Loki (CI) + Qdrant + Redis..."
-(cd "$CI_DIR" && docker compose up -d loki \
+(cd "$CI_DIR" && docker compose up -d --remove-orphans loki \
     2>/tmp/infra_start_err.log) > /dev/null || \
     die "docker compose up failed for Loki\n$(tail -5 /tmp/infra_start_err.log 2>/dev/null)"
-(cd "$LAS_DIR" && docker compose up -d qdrant redis \
+(cd "$LAS_DIR" && docker compose up -d --remove-orphans qdrant redis \
     2>>/tmp/infra_start_err.log) > /dev/null || \
     die "docker compose up failed for Qdrant/Redis\n$(tail -5 /tmp/infra_start_err.log 2>/dev/null)"
 

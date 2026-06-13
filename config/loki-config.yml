@@ -32,6 +32,18 @@ schema_config:
 ruler:
   alertmanager_url: http://localhost:9093
 
+# Disable deprecated fifocache — use embedded-cache instead
+chunk_store_config:
+  chunk_cache_config:
+    embedded-cache:
+      enabled: true
+      max_size_mb: 100
+
+# Suppress "global timeout not configured" warning
+querier:
+  engine:
+    timeout: 5m
+
 # Limits configuration
 limits_config:
   # Reject logs older than 24 hours
