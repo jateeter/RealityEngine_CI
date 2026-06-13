@@ -35,6 +35,20 @@ Examples:
 | `lsp-1` | `5600` | `5601` |
 | `lsp-2` | `5700` | `5701` |
 
+### Per-Runtime Instance Limits
+
+Because each runtime's port band starts `+300` above the previous one, the maximum safe instance count per runtime **when all three runtimes are also running** is **3**.
+
+| Runtime | Band start (PE/RE) | Safe instances when all runtimes active | Reason |
+|---|---|---|---|
+| Scala | 5000/5001 | ≤ 3 | scala-4 would claim 5300/5301, colliding with cpp-1 |
+| CPP | 5300/5301 | ≤ 3 | cpp-4 would claim 5600/5601, colliding with lsp-1 |
+| LSP | 5600/5601 | ≤ 3 | lsp-4 would claim 5900/5901, exceeding the 5000–5899 range |
+
+If only one runtime type is in use the limit is the number of `+100` steps before reaching 5900 (i.e. Scala alone: max 9 instances).
+
+`startUniverse.sh` enforces these limits at pre-flight: the `--engines` spec is checked for cross-runtime collisions before any process is spawned.
+
 `3299/3300` are deprecated compatibility ports and must not be used as canonical defaults.
 `3000/3004` are reserved for the CI Docker public stack and must not be native runtime defaults.
 

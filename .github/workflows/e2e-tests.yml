@@ -61,6 +61,46 @@ jobs:
         working-directory: RealityEngine_CI
         run: bash scripts/lint.sh
 
+  # ── Phase 2b: Dockerfile security scanning ─────────────────────────────────
+  dockerfile-security:
+    name: Dockerfile Lint & Scan (hadolint + trivy)
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    steps:
+      - name: Checkout RealityEngine_CI
+        uses: actions/checkout@v4
+        with:
+          path: RealityEngine_CI
+
+      - name: Lint Dockerfiles (hadolint)
+        uses: hadolint/hadolint-action@v3.1.0
+        with:
+          recursive: true
+          config: RealityEngine_CI/.hadolint.yaml
+          # Scan all Dockerfiles in the CI repo
+          dockerfile: RealityEngine_CI/Dockerfile
+        continue-on-error: true
+
+      - name: Lint all docker/ Dockerfiles
+        run: |
+          docker run --rm -i \
+            -v "${{ github.workspace }}/RealityEngine_CI:/repo:ro" \
+            hadolint/hadolint hadolint \
+            --config /repo/.hadolint.yaml \
+            $(find /repo/docker -name 'Dockerfile*' | tr '\n' ' ')
+
+      - name: Scan for secrets and misconfigurations (trivy)
+        uses: aquasecurity/trivy-action@0.28.0
+        with:
+          scan-type: fs
+          scan-ref: RealityEngine_CI
+          scanners: misconfig,secret
+          severity: HIGH,CRITICAL
+          exit-code: '1'
+          ignore-unfixed: true
+          trivyignores: RealityEngine_CI/.trivyignore
+
   # ── Phase 3: Unit tests for helper scripts ──────────────────────────────────
   scripts-unit-tests:
     name: Scripts Unit Tests
@@ -493,7 +533,7 @@ jobs:
   test-summary:
     name: Test Summary
     runs-on: ubuntu-latest
-    needs: [shellcheck, scripts-unit-tests, dry-run-validate, smoke-tests, e2e-tests, multi-engine-tests]
+    needs: [shellcheck, dockerfile-security, scripts-unit-tests, dry-run-validate, smoke-tests, e2e-tests, multi-engine-tests]
     if: always()
 
     steps:

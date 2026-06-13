@@ -1,0 +1,8 @@
+# trivy ignore file — RealityEngine_CI
+# Entries here suppress known-acceptable findings.
+# Format: CVE-YYYY-NNNNNN or finding ID, one per line.
+#
+# .env.example contains the dev-default KEYSTORE_PASSWORD=realityengine.
+# This is intentional documentation of the dev default; the production
+# value is always injected via the shell environment (never committed).
+# trivy may flag this as a hardcoded credential; suppress it here.

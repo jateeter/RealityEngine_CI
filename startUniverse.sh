@@ -451,6 +451,7 @@ ok "No port conflicts"
 # Pre-check all native engine ports before spawning begins — fail fast before partial starts
 if [ "$MULTI_ENGINE_MODE" = true ]; then
     info "Pre-checking native engine ports (${ENGINES})..."
+    _pf_all_ports=""
     IFS=',' read -ra _pf_specs <<< "$ENGINES"
     for _pf_spec in "${_pf_specs[@]}"; do
         _pf_rt=$(echo "$_pf_spec" | cut -d: -f1 | tr -d ' ')
@@ -463,14 +464,18 @@ if [ "$MULTI_ENGINE_MODE" = true ]; then
             *) continue ;;
         esac
         for (( _pf_i=1; _pf_i<=_pf_ct; _pf_i++ )); do
-            _pf_re=$(( _pf_base_re + (_pf_i - 1) * 100 ))
-            _pf_pe=$(( _pf_base_pe + (_pf_i - 1) * 100 ))
-            for _pf_port in "$_pf_re" "$_pf_pe"; do
-                if lsof -i ":${_pf_port}" -sTCP:LISTEN >/dev/null 2>&1; then
-                    die "Native engine port ${_pf_port} (${_pf_rt} instance ${_pf_i}) already in use\n  Stop the blocking process and retry"
-                fi
-            done
+            _pf_all_ports="$_pf_all_ports $(( _pf_base_re + (_pf_i-1)*100 )) $(( _pf_base_pe + (_pf_i-1)*100 ))"
         done
+    done
+    # Detect cross-runtime band collisions before any process is spawned
+    _DUPE=$(printf '%s\n' $_pf_all_ports | sort -n | uniq -d)
+    [ -n "$_DUPE" ] && \
+        die "Cross-runtime port collision in --engines=$ENGINES — ports$(printf ' %s' $_DUPE) would be double-allocated\n  See DEPLOYMENT_CONTRACT.md § Per-Runtime Instance Limits"
+    # Check host occupancy
+    for _pf_port in $_pf_all_ports; do
+        if lsof -i ":${_pf_port}" -sTCP:LISTEN >/dev/null 2>&1; then
+            die "Native engine port ${_pf_port} already in use\n  Stop the blocking process and retry"
+        fi
     done
     ok "Native engine ports free"
 fi

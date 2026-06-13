@@ -1,0 +1,13 @@
+# hadolint configuration for RealityEngine_CI Dockerfiles
+# Only fail the pipeline on lint errors (DL1xxx); treat warnings as informational.
+# Warnings remain visible in the CI log for manual review.
+failure-threshold: error
+
+# DL3008 / DL3009: apt-get pin versions / clean up — not applicable (Alpine images only)
+# DL3016: npm pin versions — enforced by package-lock.json, not CLI flags
+# DL3018: apk --no-cache — acceptable in multi-stage builds where layer size matters less
+ignore:
+  - DL3008
+  - DL3009
+  - DL3016
+  - DL3018

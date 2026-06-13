@@ -146,6 +146,7 @@ services:
       - AUDIT_LOG_ENABLED=true
       - AUDIT_LOG_LEVEL=2
       - AUDIT_LOG_SERVICE=visualizer-backend
+      - VIZ_CACHE_TTL_MS=${VIZ_CACHE_TTL_MS:-500}
     depends_on:
       reality-engine:
         condition: service_healthy
