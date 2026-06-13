@@ -494,8 +494,7 @@ jobs:
           SCALA_DIR: ${{ github.workspace }}/RealityEngine_Scala
           MGR_DIR: ${{ github.workspace }}/RealityEngine_Manager
         run: |
-          ./startUniverse.sh --no-openclaw --skip-seed --engines=scala:1 || \
-            echo "Multi-engine start completed (some instances may be unavailable)"
+          ./startUniverse.sh --no-openclaw --skip-seed --engines=scala:1
 
       - name: Run multi-instance integration tests
         working-directory: RealityEngine_Machines
@@ -504,7 +503,7 @@ jobs:
           RE_REGISTRY_URL: 'http://localhost:5999/re-registry.json'
         run: |
           npx playwright test tests/integration/multi-instance.spec.ts \
-            --reporter=list || true
+            --reporter=list
 
       - name: Upload multi-engine results
         if: always()

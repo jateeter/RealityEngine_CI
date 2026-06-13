@@ -202,40 +202,31 @@ spawn_scala_instance() {
 
     info "Spawning $id  (RE=$HOST_IP:$re_port  PE=$HOST_IP:$pe_port)"
 
-    if [ ! -x "$SCALA_DIR/start.sh" ]; then
-        warn "$id: $SCALA_DIR/start.sh not found or not executable — skipping"
-        return 1
-    fi
-    if [ ! -x "$MGR_DIR/perception-engine/start.sh" ]; then
-        warn "$id: $MGR_DIR/perception-engine/start.sh not found — skipping PE"
-    fi
+    [ -x "$SCALA_DIR/start.sh" ] || die "$id: $SCALA_DIR/start.sh not found or not executable"
 
-    # Spawn RE (Scala)
-    INSTANCE_ID="$id" HOST="$HOST_IP" PORT="$re_port" \
+    INSTANCE_ID="$id" \
+    HOST="$HOST_IP" \
+    REALITY_ENGINE_PORT="$re_port" \
+    PERCEPTION_ENGINE_PORT="$pe_port" \
+    REALITY_ENGINE_URL="http://localhost:$re_port" \
         nohup bash "$SCALA_DIR/start.sh" \
         > "/tmp/re-${id}.log" 2>&1 &
     local pid_re=$!
 
-    # Spawn PE alongside
-    local pid_pe=""
-    if [ -x "$MGR_DIR/perception-engine/start.sh" ]; then
-        INSTANCE_ID="$id" HOST="$HOST_IP" PORT="$pe_port" \
-            nohup bash "$MGR_DIR/perception-engine/start.sh" \
-            > "/tmp/pe-${id}.log" 2>&1 &
-        pid_pe=$!
-    fi
-
     echo -n "  $id RE "
     _poll_native_health "http://$HOST_IP:$re_port/api/health" "$id RE ready"
-    if [ -n "$pid_pe" ]; then
-        echo -n "  $id PE "
-        _poll_native_health "http://$HOST_IP:$pe_port/api/health" "$id PE ready"
-    fi
+    echo -n "  $id PE "
+    _poll_native_health "http://$HOST_IP:$pe_port/api/health" "$id PE ready"
+
+    # Scala start.sh backgrounds both JVMs and exits; read actual engine PIDs from disk.
+    local pid_re_actual pid_pe_actual
+    pid_re_actual=$(cat "$SCALA_DIR/run/reality-engine-${id}.pid" 2>/dev/null || echo "")
+    pid_pe_actual=$(cat "$SCALA_DIR/run/perception-engine-${id}.pid" 2>/dev/null || echo "")
 
     registry_add "$id" "scala" \
         "http://$HOST_IP:$re_port" \
         "http://$HOST_IP:$pe_port" \
-        "$pid_re" "${pid_pe:-}"
+        "${pid_re_actual:-$pid_re}" "${pid_pe_actual:-}"
 }
 
 spawn_cpp_instance() {
@@ -245,7 +236,7 @@ spawn_cpp_instance() {
     read -r re_port pe_port <<< "$ports"
 
     info "Spawning $id  (RE=$HOST_IP:$re_port  PE=$HOST_IP:$pe_port)"
-    [ -x "$CPP_DIR/start.sh" ] || { warn "$id: $CPP_DIR/start.sh not found — skipping"; return 1; }
+    [ -x "$CPP_DIR/start.sh" ] || die "$id: $CPP_DIR/start.sh not found or not executable"
 
     INSTANCE_ID="$id" \
     REALITY_ENGINE_HOST="$HOST_IP" \
@@ -278,7 +269,7 @@ spawn_lsp_instance() {
     read -r re_port pe_port <<< "$ports"
 
     info "Spawning $id  (RE=$HOST_IP:$re_port  PE=$HOST_IP:$pe_port)"
-    [ -x "$LSP_DIR/start.sh" ] || { warn "$id: $LSP_DIR/start.sh not found — skipping"; return 1; }
+    [ -x "$LSP_DIR/start.sh" ] || die "$id: $LSP_DIR/start.sh not found or not executable"
 
     INSTANCE_ID="$id" \
     REALITY_ENGINE_HOST="$HOST_IP" \
@@ -695,27 +686,26 @@ if [ "$MULTI_ENGINE_MODE" = true ]; then
         _count=$(echo  "$_spec" | cut -d: -f2 | tr -d ' ')
         _count="${_count:-1}"
         if ! [[ "$_count" =~ ^[1-9][0-9]*$ ]]; then
-            warn "Invalid count '${_count}' for runtime '${_runtime}' — must be a positive integer; skipping"
-            continue
+            die "Invalid count '${_count}' for runtime '${_runtime}' — must be a positive integer"
         fi
         case "$_runtime" in
             scala)
                 for (( _i=1; _i<=_count; _i++ )); do
                     INSTANCE_IDX_SCALA=$(( INSTANCE_IDX_SCALA + 1 ))
-                    spawn_scala_instance "scala-${INSTANCE_IDX_SCALA}" "$INSTANCE_IDX_SCALA" || true
+                    spawn_scala_instance "scala-${INSTANCE_IDX_SCALA}" "$INSTANCE_IDX_SCALA"
                 done ;;
             cpp)
                 for (( _i=1; _i<=_count; _i++ )); do
                     INSTANCE_IDX_CPP=$(( INSTANCE_IDX_CPP + 1 ))
-                    spawn_cpp_instance "cpp-${INSTANCE_IDX_CPP}" "$INSTANCE_IDX_CPP" || true
+                    spawn_cpp_instance "cpp-${INSTANCE_IDX_CPP}" "$INSTANCE_IDX_CPP"
                 done ;;
             lsp)
                 for (( _i=1; _i<=_count; _i++ )); do
                     INSTANCE_IDX_LSP=$(( INSTANCE_IDX_LSP + 1 ))
-                    spawn_lsp_instance "lsp-${INSTANCE_IDX_LSP}" "$INSTANCE_IDX_LSP" || true
+                    spawn_lsp_instance "lsp-${INSTANCE_IDX_LSP}" "$INSTANCE_IDX_LSP"
                 done ;;
             *)
-                warn "Unknown runtime in --engines spec: '$_runtime' — skipping" ;;
+                die "Unknown runtime in --engines spec: '$_runtime'" ;;
         esac
     done
 
