@@ -775,6 +775,45 @@ fi
 
 if [ "$MULTI_ENGINE_MODE" = true ]; then
     info "Multi-engine mode — Docker RE/PE services skipped (native instances already running)"
+
+    # Start Manager (Visualizer backend + frontend) natively so port 5173 is available.
+    # The visualizer backend uses RE_REGISTRY_URL to discover and switch instances;
+    # --re/--pe provide the fallback for the first instance before the registry is polled.
+    if [ -x "$MGR_DIR/start.sh" ]; then
+        # Get first registered instance's URLs from the registry for the initial fallback
+        _first_re_url=$(python3 -c "
+import json, sys
+try:
+    with open('$REGISTRY_FILE') as f:
+        inst = json.load(f).get('instances', [])
+    print(inst[0]['re_url'] if inst else '')
+except Exception:
+    print('')
+" 2>/dev/null || true)
+        _first_pe_url=$(python3 -c "
+import json, sys
+try:
+    with open('$REGISTRY_FILE') as f:
+        inst = json.load(f).get('instances', [])
+    print(inst[0]['pe_url'] if inst else '')
+except Exception:
+    print('')
+" 2>/dev/null || true)
+        _re_arg="${_first_re_url:-http://localhost:$(( SCALA_PE_BASE + 1 ))}"
+        _pe_arg="${_first_pe_url:-http://localhost:${SCALA_PE_BASE}}"
+
+        info "Starting Manager (Visualizer) natively — RE: $_re_arg  registry: http://$HOST_IP:${REGISTRY_PORT}/re-registry.json"
+        RE_REGISTRY_URL="http://$HOST_IP:${REGISTRY_PORT}/re-registry.json" \
+            nohup "$MGR_DIR/start.sh" --re "$_re_arg" --pe "$_pe_arg" \
+            > /tmp/manager_universe.log 2>&1 &
+        MANAGER_PID=$!
+        echo "$MANAGER_PID" > /tmp/manager_universe.pid
+        echo -n "  MGR "
+        poll_http "http://localhost:3001/health" "Manager backend ready (:3001)" 30 "-sf" || \
+            add_warn "Manager backend not reachable on :3001 — check /tmp/manager_universe.log"
+    else
+        add_warn "RealityEngine_Manager/start.sh not found — port 5173 will not be available"
+    fi
 else
 
 cd "$CI_DIR"
