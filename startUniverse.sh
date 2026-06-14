@@ -822,14 +822,18 @@ except Exception:
 
         info "Starting Manager (Visualizer) natively — RE: $_re_arg  registry: http://$HOST_IP:${REGISTRY_PORT}/re-registry.json"
         RE_REGISTRY_URL="http://$HOST_IP:${REGISTRY_PORT}/re-registry.json" \
-            nohup "$MGR_DIR/start.sh" --re "$_re_arg" --pe "$_pe_arg" \
+            nohup "$MGR_DIR/start.sh" --re "$_re_arg" --pe "$_pe_arg" --no-seed \
             > /tmp/manager_universe.log 2>&1 &
         MANAGER_PID=$!
         echo "$MANAGER_PID" > /tmp/manager_universe.pid
-        echo -n "  MGR "
+        echo -n "  MGR backend "
         # 60 × 2 s = 2 min — enough for npm install --prefer-offline on a cold cache
         poll_http "http://localhost:3001/health" "Manager backend ready (:3001)" 60 "-sf" || \
             add_warn "Manager backend not reachable on :3001 — check /tmp/manager_universe.log"
+        echo -n "  MGR frontend "
+        # Vite starts after the backend; 30 × 2 s = 60 s is more than enough
+        poll_http "http://localhost:5173/" "Manager frontend ready (:5173)" 30 "-sf" || \
+            add_warn "Manager frontend not reachable on :5173 — check $(ls "$MGR_DIR"/.manager-logs/frontend.log 2>/dev/null || echo '/tmp/manager_universe.log')"
     else
         add_warn "RealityEngine_Manager/start.sh not found — port 5173 will not be available"
     fi
@@ -1300,6 +1304,8 @@ echo ""
 fi
 if [ "$MULTI_ENGINE_MODE" = true ]; then
 echo "  RealityEngine  — Multi-Engine Native Mode"
+printf "    %-30s %s\n" "Visualizer UI"             "http://localhost:5173"
+printf "    %-30s %s\n" "Visualizer Backend"        "http://localhost:3001"
 printf "    %-30s %s\n" "Instance Registry"         "http://$HOST_IP:${REGISTRY_PORT}/re-registry.json"
 echo ""
 if [ -f "$REGISTRY_FILE" ]; then
