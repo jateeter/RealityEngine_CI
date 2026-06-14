@@ -433,6 +433,20 @@ elif [ "$LOKI_ENABLED" = "false" ]; then
 fi
 ok "Loki Docker logging driver ready"
 
+# In multi-engine mode the Manager (ports 3001 + 5173) is started natively
+# by this script. Stop any previous instance before the port conflict check
+# so a restart doesn't die on its own previously-started Manager.
+if [ "$MULTI_ENGINE_MODE" = true ] && [ -x "$MGR_DIR/stop.sh" ]; then
+    if [ -f "$MGR_DIR/.manager-pids" ] || \
+       lsof -ti :3001 -sTCP:LISTEN >/dev/null 2>&1 || \
+       lsof -ti :5173 -sTCP:LISTEN >/dev/null 2>&1; then
+        info "Stopping previous Manager instance before port check..."
+        "$MGR_DIR/stop.sh" --force > /dev/null 2>&1 || true
+        rm -f "$MGR_DIR/.manager-pids"
+        sleep 1
+    fi
+fi
+
 # Block any process that would conflict with Docker port bindings
 CONFLICTS=""
 for port in 3000 3001 3004 3005 5173; do
