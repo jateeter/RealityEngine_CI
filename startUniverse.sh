@@ -59,7 +59,9 @@ OCS_DIR="$CI_DIR/../localOpenClawStack"
 
 # ── Flags ──────────────────────────────────────────────────────────────────
 FRESH_START=false
-SKIP_SEED=false
+MACHINE_LOAD="runtime"       # runtime | ci-seed | none
+PE_SOURCE_BOOTSTRAP="auto"   # auto | off
+VALIDATE_CORPUS="once"       # once | off
 MANAGER_NATIVE=false
 DRY_RUN=false
 RE_ENGINE="${RE_ENGINE:-ai}"       # ai | cpp | lsp
@@ -79,7 +81,17 @@ print_usage() {
 startUniverse.sh — engine-selectable CI orchestrator
 
   --fresh                       Wipe perception sources volume; rebuild images no-cache
-  --skip-seed                   Skip seeding machines from RealityEngine_Machines
+  --machine-load=runtime        RE loads corpus from MACHINES_DIR at boot; CI never calls seed-machines.sh
+                                  (default; sets RE_LOAD_MACHINES=1 on every native runtime wrapper)
+  --machine-load=ci-seed        RE starts empty (RE_LOAD_MACHINES=0); CI calls seed-machines.sh --re-only
+                                  once per RE instance after RE health, then triggers PE bootstrap
+  --machine-load=none           RE starts empty; no seeding, no PE bootstrap regardless of other flags
+  --pe-source-bootstrap=auto    After the machine-load phase, call POST /api/sources/bootstrap-from-machines
+                                  on each PE instance (default)
+  --pe-source-bootstrap=off     Skip PE source materialisation entirely
+  --validate-corpus=once        Validate corpus JSON before seeding in ci-seed mode (default)
+  --validate-corpus=off         Skip corpus validation in ci-seed mode
+  --skip-seed                   Legacy alias for --machine-load=runtime --pe-source-bootstrap=off
   --manager-native              Start Visualizer+PE via RealityEngine_Manager/start.sh
                                 instead of Docker (points to Docker public endpoints: RE :3000, PE :3004)
   --engines=SPEC                Multi-engine native mode.  SPEC is a comma-separated list of
@@ -107,9 +119,12 @@ USAGE
 
 for arg in "$@"; do
   case "$arg" in
-    --fresh)               FRESH_START=true ;;
-    --skip-seed)           SKIP_SEED=true ;;
-    --manager-native)      MANAGER_NATIVE=true ;;
+    --fresh)                    FRESH_START=true ;;
+    --machine-load=*)           MACHINE_LOAD="${arg#*=}" ;;
+    --pe-source-bootstrap=*)    PE_SOURCE_BOOTSTRAP="${arg#*=}" ;;
+    --validate-corpus=*)        VALIDATE_CORPUS="${arg#*=}" ;;
+    --skip-seed)                MACHINE_LOAD=runtime; PE_SOURCE_BOOTSTRAP=off ;;  # legacy alias
+    --manager-native)           MANAGER_NATIVE=true ;;
     --engines=*)           ENGINES="${arg#*=}" ;;
     --re-engine=*)         RE_ENGINE="${arg#*=}" ;;
     --pe-engine=*)         PE_ENGINE="${arg#*=}" ;;
@@ -123,8 +138,17 @@ for arg in "$@"; do
   esac
 done
 
-case "$RE_ENGINE" in ai|cpp|lsp) ;; *) echo "Bad --re-engine=$RE_ENGINE"; exit 2 ;; esac
-case "$PE_ENGINE" in ai|cpp|lsp) ;; *) echo "Bad --pe-engine=$PE_ENGINE"; exit 2 ;; esac
+case "$RE_ENGINE"          in ai|cpp|lsp)              ;; *) echo "Bad --re-engine=$RE_ENGINE"; exit 2 ;; esac
+case "$PE_ENGINE"          in ai|cpp|lsp)              ;; *) echo "Bad --pe-engine=$PE_ENGINE"; exit 2 ;; esac
+case "$MACHINE_LOAD"       in runtime|ci-seed|none)    ;; *) echo "Bad --machine-load=$MACHINE_LOAD (runtime|ci-seed|none)"; exit 2 ;; esac
+case "$PE_SOURCE_BOOTSTRAP" in auto|off)               ;; *) echo "Bad --pe-source-bootstrap=$PE_SOURCE_BOOTSTRAP (auto|off)"; exit 2 ;; esac
+case "$VALIDATE_CORPUS"    in once|off)                ;; *) echo "Bad --validate-corpus=$VALIDATE_CORPUS (once|off)"; exit 2 ;; esac
+
+# RE_LOAD_MACHINES flag passed to every native runtime wrapper
+case "$MACHINE_LOAD" in
+    runtime) _RE_LOAD_MACHINES=1 ;;
+    *)       _RE_LOAD_MACHINES=0 ;;
+esac
 
 # When --engines= is specified it supersedes --re-engine / --pe-engine
 MULTI_ENGINE_MODE=false
@@ -209,6 +233,7 @@ spawn_scala_instance() {
     [ -x "$SCALA_DIR/start.sh" ] || die "$id: $SCALA_DIR/start.sh not found or not executable"
 
     INSTANCE_ID="$id" \
+    RE_LOAD_MACHINES="$_RE_LOAD_MACHINES" \
     HOST="0.0.0.0" \
     REALITY_ENGINE_PORT="$re_port" \
     PERCEPTION_ENGINE_PORT="$pe_port" \
@@ -244,6 +269,7 @@ spawn_cpp_instance() {
     [ -x "$CPP_DIR/start.sh" ] || die "$id: $CPP_DIR/start.sh not found or not executable"
 
     INSTANCE_ID="$id" \
+    RE_LOAD_MACHINES="$_RE_LOAD_MACHINES" \
     REALITY_ENGINE_HOST="$HOST_IP" \
     REALITY_ENGINE_PORT="$re_port" \
     PERCEPTION_ENGINE_PORT="$pe_port" \
@@ -278,6 +304,7 @@ spawn_lsp_instance() {
     [ -x "$LSP_DIR/start.sh" ] || die "$id: $LSP_DIR/start.sh not found or not executable"
 
     INSTANCE_ID="$id" \
+    RE_LOAD_MACHINES="$_RE_LOAD_MACHINES" \
     REALITY_ENGINE_HOST="$HOST_IP" \
     REALITY_ENGINE_PORT="$re_port" \
     PERCEPTION_ENGINE_PORT="$pe_port" \
@@ -576,9 +603,12 @@ if [ "$DRY_RUN" = true ]; then
     printf "  %-28s %s\n" "Mode"       "${MULTI_ENGINE_MODE:+multi-engine ($ENGINES)}${MULTI_ENGINE_MODE:-false}"
     printf "  %-28s %s\n" "RE engine"  "$RE_ENGINE"
     printf "  %-28s %s\n" "PE engine"  "$PE_ENGINE"
-    printf "  %-28s %s\n" "Fresh"      "$FRESH_START"
-    printf "  %-28s %s\n" "Skip seed"  "$SKIP_SEED"
-    printf "  %-28s %s\n" "OpenClaw"   "$OPENCLAW"
+    printf "  %-28s %s\n" "Fresh"              "$FRESH_START"
+    printf "  %-28s %s\n" "Machine load"       "$MACHINE_LOAD"
+    printf "  %-28s %s\n" "PE source bootstrap" "$PE_SOURCE_BOOTSTRAP"
+    printf "  %-28s %s\n" "Validate corpus"    "$VALIDATE_CORPUS"
+    printf "  %-28s %s\n" "RE_LOAD_MACHINES"   "$_RE_LOAD_MACHINES"
+    printf "  %-28s %s\n" "OpenClaw"           "$OPENCLAW"
     printf "  %-28s %s\n" "Host IP"    "$HOST_IP"
     if [ "$MULTI_ENGINE_MODE" = true ]; then
         echo ""
@@ -615,7 +645,9 @@ if [ "$DRY_RUN" = true ]; then
         echo "    CI Loki · Qdrant · Redis · RE API (Scala) · Visualizer · PE · localAIStack API"
     fi
     echo ""
-    echo "  Seed machines: $([ "$SKIP_SEED" = true ] && echo "skipped" || echo "yes")"
+    echo "  Machine load:       $MACHINE_LOAD  (RE_LOAD_MACHINES=$_RE_LOAD_MACHINES)"
+    echo "  PE bootstrap:       $PE_SOURCE_BOOTSTRAP"
+    echo "  Validate corpus:    $VALIDATE_CORPUS"
     echo ""
     echo "  Pre-flight: PASSED — run without --dry-run to start"
     echo ""
@@ -750,25 +782,63 @@ if [ "$MULTI_ENGINE_MODE" = true ]; then
     _inst_count=$(registry_ids 2>/dev/null | wc -l | tr -d ' ')
     ok "$_inst_count instance(s) registered"
 
-    # Seed machines to each registered instance unless --skip-seed
-    if [ "$SKIP_SEED" = false ] && [ -x "$MACHINES_DIR/scripts/seed-machines.sh" ]; then
-        if bash "$MACHINES_DIR/scripts/validate-corpus.sh" > /tmp/corpus_validate.log 2>&1; then
-            while IFS= read -r _inst_id; do
-                _inst_entry=$(registry_get "$_inst_id" 2>/dev/null || true)
-                _re_url=$(echo "$_inst_entry" \
-                    | python3 -c "import json,sys; print(json.load(sys.stdin).get('re_url',''))" 2>/dev/null || true)
-                _pe_url=$(echo "$_inst_entry" \
-                    | python3 -c "import json,sys; print(json.load(sys.stdin).get('pe_url',''))" 2>/dev/null || true)
-                [ -z "$_re_url" ] && continue
-                info "Seeding machines → $_inst_id ($_re_url)..."
-                bash "$MACHINES_DIR/scripts/seed-machines.sh" "$_re_url" "${_pe_url:-}" \
-                    > "/tmp/corpus_seed_${_inst_id}.log" 2>&1 || \
-                    add_warn "Seed to $_inst_id completed with errors"
-            done < <(registry_ids 2>/dev/null)
-        else
-            add_warn "Machine corpus validation failed — seed skipped"
-        fi
-    fi
+    # ── Corpus load phase ─────────────────────────────────────────────────────
+    case "$MACHINE_LOAD" in
+        runtime)
+            # RE loaded corpus from MACHINES_DIR at boot (RE_LOAD_MACHINES=1).
+            # No CI seeding needed. Bootstrap PE sources if requested.
+            info "Machine load: runtime — corpus loaded by each RE at boot"
+            if [ "$PE_SOURCE_BOOTSTRAP" = "auto" ]; then
+                while IFS= read -r _inst_id; do
+                    _inst_entry=$(registry_get "$_inst_id" 2>/dev/null || true)
+                    _pe_url=$(echo "$_inst_entry" \
+                        | python3 -c "import json,sys; print(json.load(sys.stdin).get('pe_url',''))" 2>/dev/null || true)
+                    [ -z "$_pe_url" ] && continue
+                    info "PE source bootstrap → $_inst_id ($_pe_url)..."
+                    bash "$CI_DIR/scripts/pe-source-bootstrap.sh" "$_pe_url" \
+                        > "/tmp/pe_bootstrap_${_inst_id}.log" 2>&1 \
+                        && ok "PE sources bootstrapped ($_inst_id)" \
+                        || add_warn "PE bootstrap for $_inst_id had errors — check /tmp/pe_bootstrap_${_inst_id}.log"
+                done < <(registry_ids 2>/dev/null)
+            fi
+            ;;
+        ci-seed)
+            # RE started empty (RE_LOAD_MACHINES=0). CI seeds RE, then PE bootstrap.
+            _seed_ok=true
+            if [ "$VALIDATE_CORPUS" = "once" ] && [ -x "$MACHINES_DIR/scripts/validate-corpus.sh" ]; then
+                info "Validating machine corpus..."
+                if bash "$MACHINES_DIR/scripts/validate-corpus.sh" > /tmp/corpus_validate.log 2>&1; then
+                    ok "Machine corpus valid"
+                else
+                    add_warn "Machine corpus validation failed — seed skipped (check /tmp/corpus_validate.log)"
+                    _seed_ok=false
+                fi
+            fi
+            if [ "$_seed_ok" = true ] && [ -x "$MACHINES_DIR/scripts/seed-machines.sh" ]; then
+                while IFS= read -r _inst_id; do
+                    _inst_entry=$(registry_get "$_inst_id" 2>/dev/null || true)
+                    _re_url=$(echo "$_inst_entry" \
+                        | python3 -c "import json,sys; print(json.load(sys.stdin).get('re_url',''))" 2>/dev/null || true)
+                    _pe_url=$(echo "$_inst_entry" \
+                        | python3 -c "import json,sys; print(json.load(sys.stdin).get('pe_url',''))" 2>/dev/null || true)
+                    [ -z "$_re_url" ] && continue
+                    info "Seeding RE machines → $_inst_id ($_re_url)..."
+                    bash "$MACHINES_DIR/scripts/seed-machines.sh" --re-only "$_re_url" \
+                        > "/tmp/corpus_seed_${_inst_id}.log" 2>&1 \
+                        || add_warn "RE seed to $_inst_id completed with errors — check /tmp/corpus_seed_${_inst_id}.log"
+                    if [ "$PE_SOURCE_BOOTSTRAP" = "auto" ] && [ -n "$_pe_url" ]; then
+                        info "PE source bootstrap → $_inst_id ($_pe_url)..."
+                        bash "$CI_DIR/scripts/pe-source-bootstrap.sh" "$_pe_url" \
+                            >> "/tmp/corpus_seed_${_inst_id}.log" 2>&1 \
+                            || add_warn "PE bootstrap for $_inst_id had errors"
+                    fi
+                done < <(registry_ids 2>/dev/null)
+            fi
+            ;;
+        none)
+            info "Machine load: none — RE empty, no seeding, no PE bootstrap"
+            ;;
+    esac
 fi
 
 # =============================================================================
@@ -906,31 +976,50 @@ RE_MACHINE_COUNT=$(curl -sk https://localhost:3000/api/machines 2>/dev/null \
 set -e
 ok "RE baseline: $RE_MACHINE_COUNT machines, $PE_SRC_COUNT PE sources"
 
-# ── Machine corpus seed from RealityEngine_Machines ────────────────────────
-if [ "$SKIP_SEED" = true ]; then
-    info "Machine seeding skipped (--skip-seed)"
-elif [ -x "$MACHINES_DIR/scripts/seed-machines.sh" ]; then
-    info "Validating machine corpus..."
-    if bash "$MACHINES_DIR/scripts/validate-corpus.sh" > /tmp/corpus_validate.log 2>&1; then
-        ok "Machine corpus valid"
-        info "Seeding machines from RealityEngine_Machines..."
-        if bash "$MACHINES_DIR/scripts/seed-machines.sh" \
-                "https://localhost:3000" "https://localhost:3004" \
-                > /tmp/corpus_seed.log 2>&1; then
-            SEEDED_COUNT=$(grep -c "^." /tmp/corpus_seed.log 2>/dev/null || echo "?")
-            ok "Machine corpus seeded + PE test sources bound (see /tmp/corpus_seed.log)"
-        else
-            add_warn "Machine seeding completed with errors — check /tmp/corpus_seed.log"
-            warn "Some machines failed to seed"
+# ── Corpus load phase (Docker RE) ─────────────────────────────────────────
+case "$MACHINE_LOAD" in
+    runtime)
+        # Docker RE loaded corpus from its own MACHINES_DIR volume at boot.
+        info "Machine load: runtime — corpus loaded by Docker RE at boot"
+        if [ "$PE_SOURCE_BOOTSTRAP" = "auto" ]; then
+            info "Bootstrapping PE test sources from RE machines..."
+            bash "$CI_DIR/scripts/pe-source-bootstrap.sh" "https://localhost:3004" \
+                > /tmp/pe_bootstrap.log 2>&1 \
+                && ok "PE sources bootstrapped (see /tmp/pe_bootstrap.log)" \
+                || add_warn "PE source bootstrap completed with errors — check /tmp/pe_bootstrap.log"
         fi
-    else
-        add_warn "Machine corpus validation failed — seed skipped (check /tmp/corpus_validate.log)"
-        warn "Corpus validation failed — skipping seed"
-    fi
-else
-    info "RealityEngine_Machines/scripts/seed-machines.sh not found — skipping seed"
-    info "  Populate $MACHINES_DIR/machines/ and re-run to seed the corpus"
-fi
+        ;;
+    ci-seed)
+        if [ "$VALIDATE_CORPUS" = "once" ] && [ -x "$MACHINES_DIR/scripts/validate-corpus.sh" ]; then
+            info "Validating machine corpus..."
+            if bash "$MACHINES_DIR/scripts/validate-corpus.sh" > /tmp/corpus_validate.log 2>&1; then
+                ok "Machine corpus valid"
+            else
+                add_warn "Machine corpus validation failed — seed skipped (check /tmp/corpus_validate.log)"
+                break 2>/dev/null || true
+            fi
+        fi
+        if [ -x "$MACHINES_DIR/scripts/seed-machines.sh" ]; then
+            info "Seeding RE machines from RealityEngine_Machines (RE only)..."
+            bash "$MACHINES_DIR/scripts/seed-machines.sh" --re-only \
+                "https://localhost:3000" > /tmp/corpus_seed.log 2>&1 \
+                && ok "RE machines seeded (see /tmp/corpus_seed.log)" \
+                || add_warn "Machine seeding completed with errors — check /tmp/corpus_seed.log"
+            if [ "$PE_SOURCE_BOOTSTRAP" = "auto" ]; then
+                info "Bootstrapping PE test sources from RE machines..."
+                bash "$CI_DIR/scripts/pe-source-bootstrap.sh" "https://localhost:3004" \
+                    >> /tmp/corpus_seed.log 2>&1 \
+                    && ok "PE sources bootstrapped" \
+                    || add_warn "PE source bootstrap completed with errors"
+            fi
+        else
+            info "RealityEngine_Machines/scripts/seed-machines.sh not found — skipping seed"
+        fi
+        ;;
+    none)
+        info "Machine load: none — RE empty, no seeding, no PE bootstrap"
+        ;;
+esac
 
 fi  # end: if [ "$MULTI_ENGINE_MODE" = false ] Docker RE block
 
