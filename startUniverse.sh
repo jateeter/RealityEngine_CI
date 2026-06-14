@@ -780,6 +780,10 @@ if [ "$MULTI_ENGINE_MODE" = true ]; then
     # The visualizer backend uses RE_REGISTRY_URL to discover and switch instances;
     # --re/--pe provide the fallback for the first instance before the registry is polled.
     if [ -x "$MGR_DIR/start.sh" ]; then
+        # Clear stale .manager-pids so start.sh doesn't exit early.
+        # The pre-flight port check (above) already confirmed no live Manager process.
+        rm -f "$MGR_DIR/.manager-pids"
+
         # Get first registered instance's URLs from the registry for the initial fallback
         _first_re_url=$(python3 -c "
 import json, sys
@@ -809,7 +813,8 @@ except Exception:
         MANAGER_PID=$!
         echo "$MANAGER_PID" > /tmp/manager_universe.pid
         echo -n "  MGR "
-        poll_http "http://localhost:3001/health" "Manager backend ready (:3001)" 30 "-sf" || \
+        # 60 × 2 s = 2 min — enough for npm install --prefer-offline on a cold cache
+        poll_http "http://localhost:3001/health" "Manager backend ready (:3001)" 60 "-sf" || \
             add_warn "Manager backend not reachable on :3001 — check /tmp/manager_universe.log"
     else
         add_warn "RealityEngine_Manager/start.sh not found — port 5173 will not be available"
