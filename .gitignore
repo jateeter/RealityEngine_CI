@@ -2,3 +2,10 @@
 .env
 .env~
 .universe-engine-selection
+
+# Node / Playwright e2e
+node_modules/
+e2e-report/
+e2e-results.json
+playwright-report/
+test-results/
