@@ -116,16 +116,18 @@ run_unit() {
         fi
     fi
 
-    # Lisp — asdf test-system (defsystem reality-engine-lsp/tests → run-tests)
+    # Lisp — `make test` (loads Quicklisp, provisions ASDF deps, runs core-tests).
+    # Running sbcl + asdf:test-system directly would skip Quicklisp and fail to
+    # resolve dependencies (alexandria, hunchentoot, …); the Makefile target is
+    # the canonical path. Gate on Quicklisp so a missing copy SKIPs cleanly
+    # instead of failing — the Makefile resolves it repo-local first, then $HOME.
     if [ -d "$LSP_DIR" ]; then
-        if have sbcl; then
-            run_suite "Lisp (core-tests)" "$LSP_DIR" \
-                sbcl --non-interactive \
-                     --eval "(require :asdf)" \
-                     --eval "(asdf:load-asd (truename \"reality-engine-lsp.asd\"))" \
-                     --eval "(asdf:test-system :reality-engine-lsp)"
-        else
+        if ! have sbcl; then
             skip_suite "Lisp (core-tests)" "sbcl not found (brew install sbcl)"
+        elif [ -f "$LSP_DIR/quicklisp/setup.lisp" ] || [ -f "$HOME/quicklisp/setup.lisp" ]; then
+            run_suite "Lisp (core-tests)" "$LSP_DIR" make test
+        else
+            skip_suite "Lisp (core-tests)" "Quicklisp not found — install to ~/quicklisp (see RealityEngine_LSP/README.md)"
         fi
     fi
 
