@@ -270,6 +270,45 @@ CPP
     return 1
 }
 
+# ── Lisp runtime-prerequisite validation (SBCL + Quicklisp) ────────────────
+# The native LSP engine (RealityEngine_LSP/start.sh) needs two prerequisites:
+#   1. SBCL on PATH — the Common Lisp runtime.
+#   2. Quicklisp (setup.lisp) — provisions the ASDF dependencies (alexandria,
+#      hunchentoot, drakma, yason, …) via ql:quickload. start.sh resolves it
+#      from $LSP_DIR/quicklisp/setup.lisp first, then $HOME/quicklisp/setup.lisp;
+#      we mirror that search so the check matches what start.sh will actually use.
+# Without either, start.sh dies with a terse message; validating here surfaces
+# the gap up front with install remediation. No-op when LSP is not selected.
+validate_lsp_runtime_deps() {
+    info "Validating Lisp runtime prerequisites (SBCL + Quicklisp)..."
+
+    if ! command -v sbcl >/dev/null 2>&1; then
+        warn "SBCL not found on PATH — the native LSP engine cannot run."
+        warn "  → Install it:  brew install sbcl"
+        return 1
+    fi
+    local sbcl_ver; sbcl_ver="$(sbcl --version 2>/dev/null || echo sbcl)"
+
+    # Mirror start.sh's resolution order: repo-local first, then $HOME.
+    local ql=""
+    if [ -f "$LSP_DIR/quicklisp/setup.lisp" ]; then
+        ql="$LSP_DIR/quicklisp/setup.lisp"
+    elif [ -f "$HOME/quicklisp/setup.lisp" ]; then
+        ql="$HOME/quicklisp/setup.lisp"
+    fi
+    if [ -z "$ql" ]; then
+        warn "Quicklisp not found — the LSP engine needs it to load ASDF dependencies."
+        warn "  Expected at $LSP_DIR/quicklisp/setup.lisp or $HOME/quicklisp/setup.lisp"
+        warn "  → Install it:"
+        warn "      curl -sSLo /tmp/quicklisp.lisp https://beta.quicklisp.org/quicklisp.lisp"
+        warn "      sbcl --non-interactive --load /tmp/quicklisp.lisp --eval '(quicklisp-quickstart:install)'"
+        return 1
+    fi
+
+    ok "Lisp runtime prerequisites OK ($sbcl_ver; Quicklisp: ${ql/#$HOME/~})"
+    return 0
+}
+
 # ── Host IP detection ─────────────────────────────────────────────────────
 HOST_IP="$(bash "$CI_DIR/scripts/detect-host-ip.sh" 2>/dev/null || echo "127.0.0.1")"
 export HOST_IP
@@ -440,6 +479,7 @@ if [ "$MULTI_ENGINE_MODE" = false ]; then
     run_native_engine "$CPP_DIR" "CPP"
   fi
   if [ "$RE_ENGINE" = "lsp" ] || [ "$PE_ENGINE" = "lsp" ]; then
+    validate_lsp_runtime_deps || die "Lisp runtime prerequisites not satisfied (see remediation above)"
     run_native_engine "$LSP_DIR" "LSP"
   fi
 fi
@@ -563,6 +603,7 @@ if [ "$MULTI_ENGINE_MODE" = true ]; then
     info "Pre-checking native engine ports (${ENGINES})..."
     _pf_all_ports=""
     _pf_has_cpp=false
+    _pf_has_lsp=false
     IFS=',' read -ra _pf_specs <<< "$ENGINES"
     for _pf_spec in "${_pf_specs[@]}"; do
         _pf_rt=$(echo "$_pf_spec" | cut -d: -f1 | tr -d ' ')
@@ -571,7 +612,7 @@ if [ "$MULTI_ENGINE_MODE" = true ]; then
         case "$_pf_rt" in
             scala) _pf_base_pe=$SCALA_PE_BASE; _pf_base_re=$(( SCALA_PE_BASE + 1 )) ;;
             cpp)   _pf_base_pe=$CPP_PE_BASE;   _pf_base_re=$(( CPP_PE_BASE + 1 )); _pf_has_cpp=true ;;
-            lsp)   _pf_base_pe=$LSP_PE_BASE;   _pf_base_re=$(( LSP_PE_BASE + 1 ))   ;;
+            lsp)   _pf_base_pe=$LSP_PE_BASE;   _pf_base_re=$(( LSP_PE_BASE + 1 )); _pf_has_lsp=true ;;
             *) continue ;;
         esac
         for (( _pf_i=1; _pf_i<=_pf_ct; _pf_i++ )); do
@@ -594,6 +635,10 @@ if [ "$MULTI_ENGINE_MODE" = true ]; then
     # so a missing Boost / incomplete SDK libc++ fails fast rather than mid-make.
     if [ "$_pf_has_cpp" = true ]; then
         validate_cpp_build_deps || die "C++ build prerequisites not satisfied (see remediation above)"
+    fi
+    # Likewise validate SBCL + Quicklisp before spawning any lsp instance.
+    if [ "$_pf_has_lsp" = true ]; then
+        validate_lsp_runtime_deps || die "Lisp runtime prerequisites not satisfied (see remediation above)"
     fi
 fi
 
