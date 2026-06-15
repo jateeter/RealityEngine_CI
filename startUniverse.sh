@@ -200,6 +200,76 @@ poll_http() {
     echo ""; return 1
 }
 
+# ── C++ build-prerequisite validation (macOS toolchain + Boost) ────────────
+# The native CPP engine builds via `make` (RealityEngine_CPP/start.sh), which
+# needs two host prerequisites that have bitten us with cryptic mid-build
+# "file not found" errors:
+#   1. Boost headers (boost/asio.hpp)  — installed via `brew install boost`.
+#   2. A COMPLETE libc++ from the active macOS SDK — the Command Line Tools'
+#      bundled /usr/include/c++/v1 can be stale and missing umbrella headers
+#      such as <atomic> / <cctype>.  The CPP Makefile anchors the build to the
+#      SDK to dodge this, but if the SDK copy is also incomplete it still fails.
+# We validate by compiling a tiny probe with the SAME flags the Makefile uses
+# (SDK anchoring + Boost include), so a problem surfaces here with a clear
+# remediation rather than deep inside `make`.  No-op when CPP is not selected.
+validate_cpp_build_deps() {
+    info "Validating C++ build prerequisites (libc++ headers + Boost)..."
+
+    local cxx="${CXX:-c++}"
+    command -v "$cxx" >/dev/null 2>&1 || cxx=g++
+    command -v "$cxx" >/dev/null 2>&1 || {
+        warn "No C++ compiler found on PATH."
+        warn "  → Install the Xcode Command Line Tools:  xcode-select --install"
+        return 1
+    }
+
+    # Boost include path (brew on macOS; rely on system path elsewhere).
+    local boost_inc="" bp=""
+    if command -v brew >/dev/null 2>&1; then
+        bp="$(brew --prefix boost 2>/dev/null || true)"
+        [ -n "$bp" ] && boost_inc="-I$bp/include"
+    fi
+
+    # macOS SDK anchoring — mirrors RealityEngine_CPP/Makefile so the probe
+    # exercises exactly the include search order the real build will use.
+    local sdk_flags="" sdkroot=""
+    if [ "$(uname -s)" = "Darwin" ]; then
+        sdkroot="$(xcrun --show-sdk-path 2>/dev/null || true)"
+        [ -n "$sdkroot" ] && sdk_flags="-isysroot $sdkroot -isystem $sdkroot/usr/include/c++/v1"
+    fi
+
+    local probe errlog
+    probe="$(mktemp -t re-cpp-probe.XXXXXX)" || return 1
+    mv "$probe" "$probe.cpp"; probe="$probe.cpp"
+    errlog="$(mktemp -t re-cpp-probe-log.XXXXXX)"
+    cat > "$probe" <<'CPP'
+#include <atomic>
+#include <cctype>
+#include <boost/asio.hpp>
+int main() { std::atomic<int> a{0}; return std::isspace(' ') ? a.load() : 0; }
+CPP
+
+    # shellcheck disable=SC2086 — sdk_flags/boost_inc are intentionally word-split
+    if "$cxx" -std=c++20 -fsyntax-only $sdk_flags $boost_inc "$probe" >"$errlog" 2>&1; then
+        ok "C++ build prerequisites OK${bp:+ (Boost: $bp)}${sdkroot:+, SDK: ${sdkroot##*/}}"
+        rm -f "$probe" "$errlog"
+        return 0
+    fi
+
+    warn "C++ build prerequisites check FAILED — the native CPP engine will not build:"
+    head -8 "$errlog" | sed 's/^/    /'
+    if grep -qiE "boost/asio|boost/" "$errlog"; then
+        warn "  → Boost headers missing.  Fix:  brew install boost"
+    fi
+    if grep -qiE "'atomic'|'cctype'|<atomic>|<cctype>|file not found" "$errlog"; then
+        warn "  → libc++ umbrella headers missing from the active SDK toolchain."
+        warn "    Reinstall the Command Line Tools:"
+        warn "      sudo rm -rf /Library/Developer/CommandLineTools && xcode-select --install"
+    fi
+    rm -f "$probe" "$errlog"
+    return 1
+}
+
 # ── Host IP detection ─────────────────────────────────────────────────────
 HOST_IP="$(bash "$CI_DIR/scripts/detect-host-ip.sh" 2>/dev/null || echo "127.0.0.1")"
 export HOST_IP
@@ -366,6 +436,7 @@ PYEOF
 
 if [ "$MULTI_ENGINE_MODE" = false ]; then
   if [ "$RE_ENGINE" = "cpp" ] || [ "$PE_ENGINE" = "cpp" ]; then
+    validate_cpp_build_deps || die "C++ build prerequisites not satisfied (see remediation above)"
     run_native_engine "$CPP_DIR" "CPP"
   fi
   if [ "$RE_ENGINE" = "lsp" ] || [ "$PE_ENGINE" = "lsp" ]; then
@@ -491,6 +562,7 @@ ok "No port conflicts"
 if [ "$MULTI_ENGINE_MODE" = true ]; then
     info "Pre-checking native engine ports (${ENGINES})..."
     _pf_all_ports=""
+    _pf_has_cpp=false
     IFS=',' read -ra _pf_specs <<< "$ENGINES"
     for _pf_spec in "${_pf_specs[@]}"; do
         _pf_rt=$(echo "$_pf_spec" | cut -d: -f1 | tr -d ' ')
@@ -498,7 +570,7 @@ if [ "$MULTI_ENGINE_MODE" = true ]; then
         _pf_ct="${_pf_ct:-1}"
         case "$_pf_rt" in
             scala) _pf_base_pe=$SCALA_PE_BASE; _pf_base_re=$(( SCALA_PE_BASE + 1 )) ;;
-            cpp)   _pf_base_pe=$CPP_PE_BASE;   _pf_base_re=$(( CPP_PE_BASE + 1 ))   ;;
+            cpp)   _pf_base_pe=$CPP_PE_BASE;   _pf_base_re=$(( CPP_PE_BASE + 1 )); _pf_has_cpp=true ;;
             lsp)   _pf_base_pe=$LSP_PE_BASE;   _pf_base_re=$(( LSP_PE_BASE + 1 ))   ;;
             *) continue ;;
         esac
@@ -517,6 +589,12 @@ if [ "$MULTI_ENGINE_MODE" = true ]; then
         fi
     done
     ok "Native engine ports free"
+
+    # If any cpp instance will spawn, validate its build prerequisites up front
+    # so a missing Boost / incomplete SDK libc++ fails fast rather than mid-make.
+    if [ "$_pf_has_cpp" = true ]; then
+        validate_cpp_build_deps || die "C++ build prerequisites not satisfied (see remediation above)"
+    fi
 fi
 
 # ── Orphan container cleanup ──────────────────────────────────────────────
