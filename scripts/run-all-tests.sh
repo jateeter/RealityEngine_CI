@@ -62,6 +62,21 @@ resolve_sbt() {
     return 1
 }
 
+# Resolve a Python >= 3.11. The Machines contract scripts (e.g.
+# build-dispatch-envelope.py) use datetime.UTC, which is 3.11+. macOS ships
+# /usr/bin/python3 as 3.9 (Command Line Tools), so bare `python3` is too old;
+# prefer the default if new enough, else the newest versioned interpreter on
+# PATH. Prints the interpreter name/path, or returns 1 if none qualifies.
+resolve_python() {
+    local c
+    for c in python3 python3.14 python3.13 python3.12 python3.11 python; do
+        if have "$c" && "$c" -c 'import sys; raise SystemExit(0 if sys.version_info[:2] >= (3, 11) else 1)' 2>/dev/null; then
+            echo "$c"; return 0
+        fi
+    done
+    return 1
+}
+
 # run_suite <label> <workdir> <command...>
 # Runs the command, captures output to a temp log, records PASS/FAIL.
 run_suite() {
@@ -158,13 +173,14 @@ run_unit() {
         fi
     fi
 
-    # Machines — Python agent-contract tests
+    # Machines — Python agent-contract tests (require Python >= 3.11)
     if [ -d "$MACHINES_DIR" ]; then
-        if have python3; then
+        local py
+        if py="$(resolve_python)"; then
             run_suite "Machines contracts (unittest)" "$MACHINES_DIR" \
-                python3 -m unittest discover -s tests/contracts -p '*_test.py'
+                "$py" -m unittest discover -s tests/contracts -p '*_test.py'
         else
-            skip_suite "Machines contracts (unittest)" "python3 not found"
+            skip_suite "Machines contracts (unittest)" "no Python >=3.11 found (scripts use datetime.UTC — brew install python@3.13)"
         fi
     fi
 }
