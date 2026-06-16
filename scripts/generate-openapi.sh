@@ -42,5 +42,9 @@ if $PROPAGATE; then
   cp "$OUT_DIR/cpp-pe.yaml"   "$WS/RealityEngine_CPP/docs/openapi/perception-engine.yaml"
   cp "$OUT_DIR/lsp-re.yaml"   "$WS/RealityEngine_LSP/docs/openapi/reality-engine.yaml"
   cp "$OUT_DIR/lsp-pe.yaml"   "$WS/RealityEngine_LSP/docs/openapi/perception-engine.yaml"
-  echo "propagated to RealityEngine_CPP and RealityEngine_LSP"
+  for runtime in cpp lsp scala; do
+    cp "$OUT_DIR/${runtime}-re.yaml" "$WS/RealityEngine_Manager/docs/openapi/${runtime}-re.yaml"
+    cp "$OUT_DIR/${runtime}-pe.yaml" "$WS/RealityEngine_Manager/docs/openapi/${runtime}-pe.yaml"
+  done
+  echo "propagated to RealityEngine_CPP, RealityEngine_LSP, and RealityEngine_Manager"
 fi
