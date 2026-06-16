@@ -1,29 +1,48 @@
-# OpenAPI Contracts — RealityEngine_AI
+# OpenAPI Contracts — RealityEngine
 
-Two OpenAPI 3.0.3 documents describe the AI runtime's HTTP surface.
+Six OpenAPI 3.1.0 documents describe the RE and PE HTTP surfaces for each runtime.
+All six are **generated** — do not edit them by hand. Edit the source files and regenerate.
 
-| File | Service | Default URL |
-|---|---|---|
-| [`reality-engine.yaml`](reality-engine.yaml)     | Reality Engine     | `http://localhost:3000` (direct) / `https://localhost:3000` (TLS proxy) |
-| [`perception-engine.yaml`](perception-engine.yaml) | Perception Engine | `http://localhost:3004` (direct) / `https://localhost:3004` (TLS proxy) |
+## Generated files
 
-Wire-compatible with [`RealityEngine_CPP`](../../../RealityEngine_CPP/docs/openapi/)
-and [`RealityEngine_LSP`](../../../RealityEngine_LSP/docs/openapi/) — the same
-JSON corpus drives byte-identical merge ordering and identical Prometheus
-metrics shape across all three runtimes; only the `runtime` label differs.
+| File | Runtime | Service | Default port |
+|---|---|---|---|
+| [`cpp-re.yaml`](cpp-re.yaml) | CPP (C++ / Boost.Beast) | Reality Engine  | `5301` |
+| [`cpp-pe.yaml`](cpp-pe.yaml) | CPP (C++ / Boost.Beast) | Perception Engine | `5300` |
+| [`lsp-re.yaml`](lsp-re.yaml) | LSP (SBCL / Hunchentoot) | Reality Engine  | `5601` |
+| [`lsp-pe.yaml`](lsp-pe.yaml) | LSP (SBCL / Hunchentoot) | Perception Engine | `5600` |
+| [`scala-re.yaml`](scala-re.yaml) | Scala (Akka-HTTP) | Reality Engine  | `5001` |
+| [`scala-pe.yaml`](scala-pe.yaml) | Scala (Akka-HTTP) | Perception Engine | `5000` |
 
-## Quick view (Redocly CLI)
+## Source files
+
+| Source | Role |
+|---|---|
+| `RealityEngine_CPP/SURFACE_SPEC.md` | Canonical route authority — every path and method |
+| `scripts/openapi/overlays/{cpp,lsp,scala}.yaml` | Runtime overlays — `info.title`, `info.version`, `servers` |
+| `scripts/openapi/generate.py` | Generator — parses SURFACE_SPEC.md, applies overlay, writes YAML |
+
+## Regenerate
 
 ```bash
-npx @redocly/cli preview-docs docs/openapi/reality-engine.yaml
-npx @redocly/cli preview-docs docs/openapi/perception-engine.yaml
+# From RealityEngine_CI root:
+bash scripts/generate-openapi.sh
+
+# Also copy into each runtime's docs/openapi/:
+bash scripts/generate-openapi.sh --propagate
 ```
 
-## Quick view (Swagger UI)
+Requires Python 3 with `pyyaml` (`pip3 install pyyaml`).
+
+## Quick view
 
 ```bash
+# Redocly CLI
+npx @redocly/cli preview-docs docs/openapi/cpp-re.yaml
+
+# Swagger UI (Docker)
 docker run -p 8081:8080 \
-  -e SWAGGER_JSON=/spec/reality-engine.yaml \
+  -e SWAGGER_JSON=/spec/cpp-re.yaml \
   -v $PWD/docs/openapi:/spec \
   swaggerapi/swagger-ui
 # open http://localhost:8081
@@ -33,16 +52,19 @@ docker run -p 8081:8080 \
 
 ```bash
 npx @openapitools/openapi-generator-cli generate \
-  -i docs/openapi/reality-engine.yaml \
+  -i docs/openapi/cpp-re.yaml \
   -g typescript-axios \
-  -o generated/reality-engine-client
+  -o generated/cpp-re-client
 ```
 
-## What's new in 1.1
+## Path coverage
 
-- `/api/metrics` (Prometheus text exposition) on the RE
-- `/api/governance/route` paging-decision resolver on the RE
-- `/api/runtime/vector-space` and `/api/runtime/storage-footprint` on the RE
-- `/api/mqtt/status` and `/api/mqtt/mappings` on the PE
-- `PagingDecision`, `MqttBridgeStatus`, `MqttMappingRule`, `MqttMappingsResponse` schemas
-- Cross-runtime parity statement added to both `info.description` blocks
+The generator reads every route table in `SURFACE_SPEC.md` and emits one
+operation per `METHOD + path` combination. Route counts as of last generation:
+
+- RE surface: **59 paths**
+- PE surface: **40 paths**
+
+Operation summaries, request-body schemas, and response schemas are sourced
+from a catalogue in `generate.py`. Paths not in the catalogue receive a
+documented skeleton with `additionalProperties: true` schemas.

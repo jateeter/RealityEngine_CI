@@ -1,0 +1,36 @@
+re:
+  info:
+    title: "RealityEngine LSP — Reality Engine API"
+    version: "1.1.0-lsp"
+    description: |
+      OpenAPI contract for the Common Lisp (SBCL / Hunchentoot) Reality Engine runtime.
+
+      Default native port: **5601** (PE on 5601 − 1 = 5600).
+      Additional LSP instances add +100 per pair (lsp-2: 5701/5700, lsp-3: 5801/5800).
+      In Docker/CI deployments the TLS proxy exposes the RE at `https://localhost:3000`.
+
+      Wire-compatible with the CPP (C++) and Scala runtimes.
+      Every metric line carries `runtime="lsp"`.
+  servers:
+    - url: http://localhost:5601
+      description: Local LSP Reality Engine (native, instance lsp-1)
+    - url: https://localhost:3000
+      description: Docker TLS proxy (CI deployment)
+
+pe:
+  info:
+    title: "RealityEngine LSP — Perception Engine API"
+    version: "1.1.0-lsp"
+    description: |
+      OpenAPI contract for the Common Lisp (SBCL / Hunchentoot) Perception Engine runtime.
+
+      Default native port: **5600**.
+      Additional LSP instances add +100 per pair (lsp-2: 5700, lsp-3: 5800).
+      In Docker/CI deployments the TLS proxy exposes the PE at `https://localhost:3004`.
+
+      Wire-compatible with the CPP (C++) and Scala runtimes.
+  servers:
+    - url: http://localhost:5600
+      description: Local LSP Perception Engine (native, instance lsp-1)
+    - url: https://localhost:3004
+      description: Docker TLS proxy (CI deployment)

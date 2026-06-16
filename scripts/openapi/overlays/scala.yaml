@@ -1,0 +1,38 @@
+re:
+  info:
+    title: "RealityEngine Scala — Reality Engine API"
+    version: "1.1.0-scala"
+    description: |
+      OpenAPI contract for the Scala (Akka-HTTP) Reality Engine runtime —
+      the active reference implementation.
+
+      Default native port: **5001** (PE on 5001 − 1 = 5000).
+      Additional Scala instances add +100 per pair (scala-2: 5101/5100, scala-3: 5201/5200).
+      In Docker/CI deployments the TLS proxy exposes the RE at `https://localhost:3000`.
+
+      Wire-compatible with the CPP (C++) and LSP (Common Lisp) runtimes.
+      Every metric line carries `runtime="scala"`.
+  servers:
+    - url: http://localhost:5001
+      description: Local Scala Reality Engine (native, instance scala-1)
+    - url: https://localhost:3000
+      description: Docker TLS proxy (CI deployment)
+
+pe:
+  info:
+    title: "RealityEngine Scala — Perception Engine API"
+    version: "1.1.0-scala"
+    description: |
+      OpenAPI contract for the Scala (Akka-HTTP) Perception Engine runtime —
+      the active reference implementation.
+
+      Default native port: **5000**.
+      Additional Scala instances add +100 per pair (scala-2: 5100, scala-3: 5200).
+      In Docker/CI deployments the TLS proxy exposes the PE at `https://localhost:3004`.
+
+      Wire-compatible with the CPP (C++) and LSP (Common Lisp) runtimes.
+  servers:
+    - url: http://localhost:5000
+      description: Local Scala Perception Engine (native, instance scala-1)
+    - url: https://localhost:3004
+      description: Docker TLS proxy (CI deployment)

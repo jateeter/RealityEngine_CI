@@ -1,0 +1,36 @@
+re:
+  info:
+    title: "RealityEngine CPP — Reality Engine API"
+    version: "1.1.0-cpp"
+    description: |
+      OpenAPI contract for the C++ (Boost.Beast / Asio) Reality Engine runtime.
+
+      Default native port: **5301** (PE on 5301 − 1 = 5300).
+      Additional CPP instances add +100 per pair (cpp-2: 5401/5400, cpp-3: 5501/5500).
+      In Docker/CI deployments the TLS proxy exposes the RE at `https://localhost:3000`.
+
+      Wire-compatible with the LSP (Common Lisp) and Scala runtimes.
+      Every metric line carries `runtime="cpp"`.
+  servers:
+    - url: http://localhost:5301
+      description: Local CPP Reality Engine (native, instance cpp-1)
+    - url: https://localhost:3000
+      description: Docker TLS proxy (CI deployment)
+
+pe:
+  info:
+    title: "RealityEngine CPP — Perception Engine API"
+    version: "1.1.0-cpp"
+    description: |
+      OpenAPI contract for the C++ (Boost.Beast / Asio) Perception Engine runtime.
+
+      Default native port: **5300**.
+      Additional CPP instances add +100 per pair (cpp-2: 5400, cpp-3: 5500).
+      In Docker/CI deployments the TLS proxy exposes the PE at `https://localhost:3004`.
+
+      Wire-compatible with the LSP (Common Lisp) and Scala runtimes.
+  servers:
+    - url: http://localhost:5300
+      description: Local CPP Perception Engine (native, instance cpp-1)
+    - url: https://localhost:3004
+      description: Docker TLS proxy (CI deployment)
