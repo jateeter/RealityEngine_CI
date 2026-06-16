@@ -228,8 +228,10 @@ run_unit() {
         if sbt="$(resolve_sbt)"; then
             run_suite "Scala root (sbt test)" "$SCALA_DIR" "$sbt" -batch -Dsbt.log.noformat=true test
             if [ -d "$SCALA_DIR/perception-engine" ]; then
-                run_suite "Scala PE (make compile)" "$SCALA_DIR/perception-engine" make compile
-                run_suite "Scala PE (make test)" "$SCALA_DIR/perception-engine" make test
+                # The PE Makefile defaults SBT ?= sbt (bare), which is not on the
+                # non-interactive PATH. Forward the resolved sbt so make can find it.
+                run_suite "Scala PE (make compile)" "$SCALA_DIR/perception-engine" make compile SBT="$sbt"
+                run_suite "Scala PE (make test)" "$SCALA_DIR/perception-engine" make test SBT="$sbt"
             else
                 skip_suite "Scala PE" "perception-engine directory missing"
             fi
@@ -322,8 +324,11 @@ run_e2e() {
     fi
 
     if repo_present "Scala PE e2e" "$SCALA_DIR/perception-engine"; then
-        if resolve_sbt >/dev/null; then
-            run_suite "Scala PE (make e2e-healthkit-spezi)" "$SCALA_DIR/perception-engine" make e2e-healthkit-spezi
+        local sbt
+        if sbt="$(resolve_sbt)"; then
+            # PE Makefile (and its reality-assembly dep) shell out to bare sbt;
+            # forward the resolved path so make can find it off the PATH.
+            run_suite "Scala PE (make e2e-healthkit-spezi)" "$SCALA_DIR/perception-engine" make e2e-healthkit-spezi SBT="$sbt"
         else
             skip_suite "Scala PE e2e" "sbt not found"
         fi
