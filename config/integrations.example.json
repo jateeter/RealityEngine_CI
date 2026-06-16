@@ -12,7 +12,8 @@
       "id": "yuma-mqtt",
       "kind": "mqtt",
       "enabled": false,
-      "mappingsFile": "config/mqtt-mappings.yuma-agriculture.json"
+      "_comment": "Mapping registry is owned by the CPP repo (single source of truth); reference the sibling-repo copy rather than duplicating it here.",
+      "mappingsFile": "../RealityEngine_CPP/config/mqtt-mappings.yuma-agriculture.json"
     },
     {
       "id": "localai-graphql",
