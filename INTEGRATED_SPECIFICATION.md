@@ -138,11 +138,16 @@ clean source state:
 
 ## Current Validation Snapshot
 
-As of this audit, the following gates are green:
+As of 2026-06-16, all deployment gates are green:
 
 - CPP build: `make all`
 - CPP unit tests: `make test`
 - CPP HealthKit Spezi e2e: `make e2e-healthkit-spezi`
+- CPP full corpus e2e: `make e2e` — previously blocked by a Boost.Beast
+  8 MB HTTP response body limit that caused the PE to silently bootstrap
+  0 machines from the ~10 MB `/api/machines` response; resolved in
+  `RealityEngine_CPP` commit `85f3632` by switching both HTTP and HTTPS
+  read paths to `response_parser` with an unlimited body limit
 - Scala RE compile: `sbt compile`
 - Scala PE compile: `sbt compile`
 - LSP build: `make build`
@@ -152,14 +157,7 @@ As of this audit, the following gates are green:
 - CI shell lint: `bash -n startUniverse.sh stopUniverse.sh statusUniverse.sh scripts/check-surface-specs.sh scripts/*.sh scripts/tests/*.sh`
 - Surface spec drift: `bash scripts/check-surface-specs.sh`
 
-The full CPP corpus e2e gate is not yet green. `make e2e` currently stops in
-`e2e-corpus` with machine sequence expectation mismatches in:
-
-- `CommunityCommandAgent.json`
-- `FallSensorMotionPreaggregator.json`
-
-These failures block a full deployment declaration even though the focused
-HealthKit BP/exercise/sleep bridge path is passing.
+No known deployment blockers remain.
 
 ## Roadmap To Full Integrated Specifications
 
