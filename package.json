@@ -5,8 +5,11 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "test": "playwright test",
-    "test:e2e": "playwright test",
+    "test": "bash scripts/run-all-tests.sh --unit",
+    "test:e2e": "bash scripts/run-all-tests.sh --e2e",
+    "test:all": "bash scripts/run-all-tests.sh --all",
+    "test:deployment": "bash scripts/run-all-tests.sh --deployment",
+    "test:playwright": "playwright test",
     "test:report": "playwright show-report e2e-report"
   },
   "engines": {

@@ -1,27 +1,21 @@
 #!/usr/bin/env bash
 #
-# run-all-tests.sh — unified test entry point across the RealityEngine repos.
-#
-# Addresses the cross-repo testing findings:
-#   * one command to run every suite (ScalaTest, C++, Lisp, Vitest, Playwright,
-#     Python unittest) instead of remembering each repo's bespoke invocation;
-#   * e2e suites are GATED on a live-stack health check, so they are skipped
-#     with a clear message instead of failing with confusing connection errors
-#     when the universe (startUniverse.sh) is not running.
+# run-all-tests.sh - unified test entry point across the RealityEngine repos.
 #
 # Usage:
-#   scripts/run-all-tests.sh [--unit] [--e2e] [--all] [--list] [-h|--help]
+#   scripts/run-all-tests.sh [--unit] [--e2e] [--all] [--deployment] [--list] [-h|--help]
 #
-#   --unit   Run unit/offline suites only (default).
-#   --e2e    Run end-to-end suites only (requires a healthy live stack).
-#   --all    Run both unit and e2e suites.
-#   --list   List the suites that would run and exit.
+#   --unit        Run offline build/unit/contract suites only (default).
+#   --e2e         Run self-contained runtime e2e plus live-stack Playwright suites.
+#   --all         Run both unit and e2e suites.
+#   --deployment  Strict deployment gate: implies --all and treats skipped suites as failures.
+#   --list        List the suites that would run and exit.
 #
-# Exit code is non-zero if any executed suite fails. Skipped suites do not
-# fail the run.
+# Exit code is non-zero if any executed suite fails. Skipped suites are allowed
+# for local non-deployment runs and fail the run in deployment mode.
 set -uo pipefail
 
-# ── Paths ─────────────────────────────────────────────────────────────────
+# -- Paths -----------------------------------------------------------------
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 CI_DIR="$(cd "$SCRIPT_DIR/.." && pwd)"
 WS="$(cd "$CI_DIR/.." && pwd)"
@@ -31,8 +25,10 @@ CPP_DIR="$WS/RealityEngine_CPP"
 LSP_DIR="$WS/RealityEngine_LSP"
 MGR_DIR="$WS/RealityEngine_Manager"
 MACHINES_DIR="$WS/RealityEngine_Machines"
+LOCALAI_DIR="$WS/localAIStack"
+OPENCLAW_DIR="$WS/localOpenClawStack"
 
-# ── Logging (matches startUniverse.sh style) ────────────────────────────────
+# -- Logging ---------------------------------------------------------------
 GREEN='\033[0;32m'; YELLOW='\033[1;33m'; RED='\033[0;31m'
 CYAN='\033[0;36m'; BOLD='\033[1m'; NC='\033[0m'
 ok()   { echo -e "${GREEN}✓${NC} $*"; }
@@ -40,20 +36,48 @@ info() { echo -e "${YELLOW}ℹ${NC} $*"; }
 warn() { echo -e "${RED}⚠${NC} $*"; }
 hdr()  { echo -e "\n${CYAN}${BOLD}─── $* ───${NC}"; }
 
-# ── Result accumulation ─────────────────────────────────────────────────────
+# -- Result accumulation ---------------------------------------------------
 declare -a RESULTS=()        # "STATUS|label|note"
 record() { RESULTS+=("$1|$2|${3:-}"); }
 
+DEPLOYMENT_MODE="${DEPLOYMENT_MODE:-false}"
+MODE="unit"
+
 have() { command -v "$1" >/dev/null 2>&1; }
 
-# node_ok — true if a usable Node (>=18) is on PATH. The npm/vitest/playwright
-# toolchains crash cryptically on ancient Node (e.g. nvm-default v12), so we
-# gate on this and skip with a clear message instead.
-NODE_MAJOR=0
-if have node; then NODE_MAJOR="$(node -v 2>/dev/null | sed -E 's/^v([0-9]+).*/\1/')"; fi
-node_ok() { [ "${NODE_MAJOR:-0}" -ge 18 ] 2>/dev/null; }
+version_at_least() {
+    # version_at_least ACTUAL REQUIRED, numeric dot-separated versions.
+    local actual="$1" required="$2" a_major a_minor a_patch r_major r_minor r_patch
+    IFS=. read -r a_major a_minor a_patch _ <<< "$actual"
+    IFS=. read -r r_major r_minor r_patch _ <<< "$required"
+    a_major="${a_major:-0}"; a_minor="${a_minor:-0}"; a_patch="${a_patch:-0}"
+    r_major="${r_major:-0}"; r_minor="${r_minor:-0}"; r_patch="${r_patch:-0}"
+    [ "$a_major" -gt "$r_major" ] && return 0
+    [ "$a_major" -lt "$r_major" ] && return 1
+    [ "$a_minor" -gt "$r_minor" ] && return 0
+    [ "$a_minor" -lt "$r_minor" ] && return 1
+    [ "$a_patch" -ge "$r_patch" ]
+}
 
-# Resolve sbt: PATH first, then SDKMAN, then Homebrew opt.
+NODE_VERSION=""
+if have node; then NODE_VERSION="$(node -v 2>/dev/null | sed -E 's/^v//')"; fi
+node_at_least() {
+    [ -n "$NODE_VERSION" ] && version_at_least "$NODE_VERSION" "$1"
+}
+
+require_node() {
+    local label="$1" min_version="$2"
+    if ! have node; then
+        skip_suite "$label" "node not found (need >=${min_version})"
+        return 1
+    fi
+    if ! node_at_least "$min_version"; then
+        skip_suite "$label" "Node ${NODE_VERSION} too old (need >=${min_version})"
+        return 1
+    fi
+    return 0
+}
+
 resolve_sbt() {
     if have sbt; then echo "sbt"; return 0; fi
     for c in "$HOME/.sdkman/candidates/sbt/current/bin/sbt" /opt/homebrew/opt/sbt/bin/sbt; do
@@ -62,11 +86,6 @@ resolve_sbt() {
     return 1
 }
 
-# Resolve a Python >= 3.11. The Machines contract scripts (e.g.
-# build-dispatch-envelope.py) use datetime.UTC, which is 3.11+. macOS ships
-# /usr/bin/python3 as 3.9 (Command Line Tools), so bare `python3` is too old;
-# prefer the default if new enough, else the newest versioned interpreter on
-# PATH. Prints the interpreter name/path, or returns 1 if none qualifies.
 resolve_python() {
     local c
     for c in python3 python3.14 python3.13 python3.12 python3.11 python; do
@@ -77,202 +96,357 @@ resolve_python() {
     return 1
 }
 
-# run_suite <label> <workdir> <command...>
-# Runs the command, captures output to a temp log, records PASS/FAIL.
 run_suite() {
     local label="$1" workdir="$2"; shift 2
     local log; log="$(mktemp -t re-test.XXXXXX)"
     info "Running: $label"
     if ( cd "$workdir" && "$@" ) >"$log" 2>&1; then
-        ok "$label — PASS"
+        ok "$label - PASS"
         record PASS "$label"
     else
-        warn "$label — FAIL (last 15 lines):"
-        tail -15 "$log" | sed 's/^/    /'
+        warn "$label - FAIL (last 20 lines):"
+        tail -20 "$log" | sed 's/^/    /'
         record FAIL "$label" "see output above"
     fi
     rm -f "$log"
 }
 
-skip_suite() { warn "SKIP: $1 — $2"; record SKIP "$1" "$2"; }
-
-# ── Live-stack health gate (Finding: e2e depend on a running universe) ──────
-# Returns 0 only if BOTH the Visualizer UI (Playwright baseURL, :5173) and the
-# Visualizer backend (:3001/health) respond. Requiring the backend prevents a
-# stale, leftover Vite dev server from falsely greenlighting the e2e suites.
-stack_healthy() {
-    local ui=1 be=1
-    curl -sk --max-time 3 https://localhost:5173/ >/dev/null 2>&1 \
-        || curl -s --max-time 3 http://localhost:5173/ >/dev/null 2>&1 && ui=0
-    curl -sk --max-time 3 https://localhost:3001/health >/dev/null 2>&1 \
-        || curl -s --max-time 3 http://localhost:3001/health >/dev/null 2>&1 && be=0
-    [ "$ui" -eq 0 ] && [ "$be" -eq 0 ]
+run_shell_suite() {
+    local label="$1" workdir="$2" command="$3"
+    local log; log="$(mktemp -t re-test.XXXXXX)"
+    info "Running: $label"
+    if ( cd "$workdir" && bash -lc "$command" ) >"$log" 2>&1; then
+        ok "$label - PASS"
+        record PASS "$label"
+    else
+        warn "$label - FAIL (last 20 lines):"
+        tail -20 "$log" | sed 's/^/    /'
+        record FAIL "$label" "see output above"
+    fi
+    rm -f "$log"
 }
 
-# ── Unit suites ─────────────────────────────────────────────────────────────
-run_unit() {
-    hdr "Unit / offline suites"
+skip_suite() {
+    if [ "$DEPLOYMENT_MODE" = "true" ]; then
+        warn "FAIL: $1 - skipped in deployment mode: $2"
+        record FAIL "$1" "skipped in deployment mode: $2"
+    else
+        warn "SKIP: $1 - $2"
+        record SKIP "$1" "$2"
+    fi
+}
 
-    # Scala — ScalaTest via sbt
-    if [ -d "$SCALA_DIR" ]; then
-        local sbt; if sbt="$(resolve_sbt)"; then
-            run_suite "Scala (ScalaTest)" "$SCALA_DIR" "$sbt" -batch -Dsbt.log.noformat=true test
-        else
-            skip_suite "Scala (ScalaTest)" "sbt not found (install via sdkman or brew)"
-        fi
+repo_present() {
+    local label="$1" dir="$2"
+    if [ ! -d "$dir" ]; then
+        skip_suite "$label" "repo not found at $dir"
+        return 1
+    fi
+    return 0
+}
+
+node_modules_present() {
+    local label="$1" dir="$2"
+    if [ ! -d "$dir/node_modules" ]; then
+        skip_suite "$label" "node_modules missing - run 'npm ci' in $dir"
+        return 1
+    fi
+    return 0
+}
+
+python_venv_env() {
+    local dir="$1"
+    if [ -d "$dir/.venv" ]; then
+        echo "source .venv/bin/activate"
+    else
+        echo ":"
+    fi
+}
+
+stack_healthy() {
+    local ui=1 be=1 pe=1 re=1
+    { curl -sk --max-time 3 https://localhost:5173/ >/dev/null 2>&1 || curl -s --max-time 3 http://localhost:5173/ >/dev/null 2>&1; } && ui=0
+    { curl -sk --max-time 3 https://localhost:3001/health >/dev/null 2>&1 || curl -s --max-time 3 http://localhost:3001/health >/dev/null 2>&1; } && be=0
+    { curl -sk --max-time 3 https://localhost:3004/api/health >/dev/null 2>&1 || curl -s --max-time 3 http://localhost:3004/api/health >/dev/null 2>&1; } && pe=0
+    { curl -sk --max-time 3 https://localhost:3000/api/health >/dev/null 2>&1 || curl -s --max-time 3 http://localhost:3000/api/health >/dev/null 2>&1; } && re=0
+    [ "$ui" -eq 0 ] && [ "$be" -eq 0 ] && [ "$pe" -eq 0 ] && [ "$re" -eq 0 ]
+}
+
+run_openclaw_smoke() {
+    local label="OpenClaw health/API smoke"
+    repo_present "$label" "$OPENCLAW_DIR" || return
+
+    local gateway_port="${OPENCLAW_GATEWAY_PORT:-18789}"
+    local gateway_url="${OPENCLAW_GATEWAY_URL:-http://localhost:${gateway_port}}"
+    local auth_header=()
+    [ -n "${OPENCLAW_GATEWAY_TOKEN:-}" ] && auth_header=(-H "Authorization: Bearer ${OPENCLAW_GATEWAY_TOKEN}")
+
+    if ! curl -sf --max-time 5 "$gateway_url/healthz" >/dev/null 2>&1; then
+        skip_suite "$label" "OpenClaw gateway not reachable at $gateway_url/healthz"
+        return
     fi
 
-    # C++ — make test (builds + runs unit binaries)
-    if [ -d "$CPP_DIR" ]; then
+    local log; log="$(mktemp -t re-openclaw.XXXXXX)"
+    info "Running: $label"
+    if curl -sf --max-time 10 "${auth_header[@]}" "$gateway_url/v1/models" >"$log" 2>&1; then
+        ok "$label - PASS"
+        record PASS "$label"
+    else
+        warn "$label - FAIL (last 20 lines):"
+        tail -20 "$log" | sed 's/^/    /'
+        record FAIL "$label" "health passed, /v1/models failed"
+    fi
+    rm -f "$log"
+}
+
+# -- Unit/build/contract suites -------------------------------------------
+run_unit() {
+    hdr "Build / unit / contract suites"
+
+    if repo_present "C++ (make all)" "$CPP_DIR"; then
         if have make && { have c++ || have g++ || have clang++; }; then
+            run_suite "C++ (make all)" "$CPP_DIR" make all
             run_suite "C++ (make test)" "$CPP_DIR" make test
         else
-            skip_suite "C++ (make test)" "make or C++ compiler not found"
+            skip_suite "C++" "make or C++ compiler not found"
         fi
     fi
 
-    # Lisp — `make test` (loads Quicklisp, provisions ASDF deps, runs core-tests).
-    # Running sbcl + asdf:test-system directly would skip Quicklisp and fail to
-    # resolve dependencies (alexandria, hunchentoot, …); the Makefile target is
-    # the canonical path. Gate on Quicklisp so a missing copy SKIPs cleanly
-    # instead of failing — the Makefile resolves it repo-local first, then $HOME.
-    if [ -d "$LSP_DIR" ]; then
+    if repo_present "LSP (make build/test)" "$LSP_DIR"; then
         if ! have sbcl; then
-            skip_suite "Lisp (core-tests)" "sbcl not found (brew install sbcl)"
+            skip_suite "LSP" "sbcl not found (brew install sbcl)"
         elif [ -f "$LSP_DIR/quicklisp/setup.lisp" ] || [ -f "$HOME/quicklisp/setup.lisp" ]; then
-            run_suite "Lisp (core-tests)" "$LSP_DIR" make test
+            run_suite "LSP (make build)" "$LSP_DIR" make build
+            run_suite "LSP (make test)" "$LSP_DIR" make test
         else
-            skip_suite "Lisp (core-tests)" "Quicklisp not found — install to ~/quicklisp (see RealityEngine_LSP/README.md)"
+            skip_suite "LSP" "Quicklisp not found - install to ~/quicklisp"
         fi
     fi
 
-    # Manager — Visualizer frontend (Vitest)
-    local fe="$MGR_DIR/visualizer/frontend"
-    if [ -d "$fe" ]; then
-        if ! node_ok; then
-            skip_suite "Manager frontend (Vitest)" "Node ${NODE_MAJOR} too old (need >=18) — 'nvm use 20' or newer"
-        elif [ ! -d "$fe/node_modules" ]; then
-            skip_suite "Manager frontend (Vitest)" "node_modules missing — run 'npm ci' in $fe"
+    if repo_present "Scala (sbt test)" "$SCALA_DIR"; then
+        local sbt
+        if sbt="$(resolve_sbt)"; then
+            run_suite "Scala root (sbt test)" "$SCALA_DIR" "$sbt" -batch -Dsbt.log.noformat=true test
+            if [ -d "$SCALA_DIR/perception-engine" ]; then
+                run_suite "Scala PE (make compile)" "$SCALA_DIR/perception-engine" make compile
+                run_suite "Scala PE (make test)" "$SCALA_DIR/perception-engine" make test
+            else
+                skip_suite "Scala PE" "perception-engine directory missing"
+            fi
         else
-            run_suite "Manager frontend (Vitest)" "$fe" npx vitest run
+            skip_suite "Scala" "sbt not found (install via sdkman or brew)"
         fi
     fi
 
-    # Manager — Perception-engine backend (orphaned: 211 tests, no runner)
-    local pe="$MGR_DIR/perception-engine/backend"
-    if [ -d "$pe" ]; then
-        if ! grep -q '"test"' "$pe/package.json" 2>/dev/null \
-           || ! grep -qiE '"(jest|vitest|mocha)"' "$pe/package.json" 2>/dev/null; then
-            skip_suite "Manager PE backend (15 files)" "no test runner configured in package.json"
-        elif ! node_ok; then
-            skip_suite "Manager PE backend (15 files)" "Node ${NODE_MAJOR} too old (need >=18) — 'nvm use 25.5.0'"
-        elif [ ! -d "$pe/node_modules" ]; then
-            skip_suite "Manager PE backend (15 files)" "node_modules missing — run 'npm ci' in $pe"
-        else
-            run_suite "Manager PE backend (Jest)" "$pe" npm test
-        fi
-    fi
+    run_manager_builds_and_tests
+    run_machines_offline
+    run_localai_tests
+}
 
-    # Machines — Python agent-contract tests (require Python >= 3.11)
-    if [ -d "$MACHINES_DIR" ]; then
-        local py
-        if py="$(resolve_python)"; then
-            run_suite "Machines contracts (unittest)" "$MACHINES_DIR" \
-                "$py" -m unittest discover -s tests/contracts -p '*_test.py'
-        else
-            skip_suite "Machines contracts (unittest)" "no Python >=3.11 found (scripts use datetime.UTC — brew install python@3.13)"
+run_manager_builds_and_tests() {
+    local min_node="25.5.0"
+    local modules=(
+        "visualizer/backend|Manager visualizer backend"
+        "visualizer/frontend|Manager visualizer frontend"
+        "perception-engine/backend|Manager PE backend"
+        "perception-engine/frontend|Manager PE frontend"
+    )
+
+    repo_present "Manager" "$MGR_DIR" || return
+    require_node "Manager" "$min_node" || return
+
+    local entry rel label dir
+    for entry in "${modules[@]}"; do
+        rel="${entry%%|*}"; label="${entry#*|}"; dir="$MGR_DIR/$rel"
+        if [ ! -f "$dir/package.json" ]; then
+            skip_suite "$label" "package.json missing at $dir"
+            continue
         fi
+        node_modules_present "$label build" "$dir" || continue
+        run_suite "$label (npm run build)" "$dir" npm run build
+        case "$rel" in
+            visualizer/frontend)
+                run_suite "$label (vitest)" "$dir" npx vitest run ;;
+            perception-engine/backend)
+                run_suite "$label (jest)" "$dir" npm test ;;
+        esac
+    done
+}
+
+run_machines_offline() {
+    repo_present "Machines" "$MACHINES_DIR" || return
+    require_node "Machines" "25.5.0" || return
+    local py
+    if py="$(resolve_python)"; then
+        run_suite "Machines validate" "$MACHINES_DIR" npm run validate
+        run_suite "Machines validate:strict" "$MACHINES_DIR" npm run validate:strict
+        run_suite "Machines contracts" "$MACHINES_DIR" "$py" -m unittest discover -s tests/contracts -p '*_test.py'
+    else
+        skip_suite "Machines offline" "no Python >=3.11 found"
     fi
 }
 
-# ── E2E suites (gated) ──────────────────────────────────────────────────────
+run_localai_tests() {
+    local label="localAIStack pytest"
+    repo_present "$label" "$LOCALAI_DIR" || return
+    local py_env; py_env="$(python_venv_env "$LOCALAI_DIR")"
+    if [ -d "$LOCALAI_DIR/.venv" ]; then
+        run_shell_suite "$label" "$LOCALAI_DIR" "$py_env && python -m pytest services/api/tests"
+    elif have pytest; then
+        run_suite "$label" "$LOCALAI_DIR" pytest services/api/tests
+    elif have python3 && python3 -m pytest --version >/dev/null 2>&1; then
+        run_suite "$label" "$LOCALAI_DIR" python3 -m pytest services/api/tests
+    else
+        skip_suite "$label" "pytest not found - install services/api/requirements-dev.txt"
+    fi
+}
+
+# -- E2E suites -------------------------------------------------------------
 run_e2e() {
-    hdr "End-to-end suites (live-stack gated)"
+    hdr "Runtime e2e suites"
+
+    if repo_present "C++ e2e" "$CPP_DIR"; then
+        if have make && { have c++ || have g++ || have clang++; }; then
+            run_suite "C++ (make e2e)" "$CPP_DIR" make e2e
+        else
+            skip_suite "C++ e2e" "make or C++ compiler not found"
+        fi
+    fi
+
+    if repo_present "LSP e2e" "$LSP_DIR"; then
+        if have sbcl && { [ -f "$LSP_DIR/quicklisp/setup.lisp" ] || [ -f "$HOME/quicklisp/setup.lisp" ]; }; then
+            run_suite "LSP (make e2e-healthkit-spezi)" "$LSP_DIR" make e2e-healthkit-spezi
+        else
+            skip_suite "LSP e2e" "sbcl or Quicklisp missing"
+        fi
+    fi
+
+    if repo_present "Scala PE e2e" "$SCALA_DIR/perception-engine"; then
+        if resolve_sbt >/dev/null; then
+            run_suite "Scala PE (make e2e-healthkit-spezi)" "$SCALA_DIR/perception-engine" make e2e-healthkit-spezi
+        else
+            skip_suite "Scala PE e2e" "sbt not found"
+        fi
+    fi
+
+    run_playwright_e2e
+    run_openclaw_smoke
+}
+
+run_playwright_e2e() {
+    hdr "Live-stack Playwright suites"
 
     if ! stack_healthy; then
-        warn "Live stack not reachable at https://localhost:5173"
-        warn "Start it first:  (cd $CI_DIR && ./startUniverse.sh)"
-        skip_suite "CI e2e (Playwright)"            "live stack down"
-        skip_suite "Machines e2e (Playwright)"      "live stack down"
+        warn "Live stack not reachable at https://localhost:5173 plus RE/PE/backend health endpoints"
+        warn "Start it first: (cd $CI_DIR && ./startUniverse.sh)"
+        skip_suite "CI e2e (Playwright)" "live stack down"
+        skip_suite "Machines smoke (Playwright)" "live stack down"
+        skip_suite "Machines integration (Playwright)" "live stack down"
+        skip_suite "Machines e2e (Playwright)" "live stack down"
         skip_suite "Manager frontend e2e (Playwright)" "live stack down"
         return
     fi
-    ok "Live stack reachable — reusing running services (REUSE_SERVICES=true)"
+    ok "Live stack reachable - reusing running services (REUSE_SERVICES=true)"
     export REUSE_SERVICES=true
 
-    if ! node_ok; then
-        skip_suite "CI e2e (Playwright)"               "Node ${NODE_MAJOR} too old (need >=18)"
-        skip_suite "Machines e2e (Playwright)"         "Node ${NODE_MAJOR} too old (need >=18)"
-        skip_suite "Manager frontend e2e (Playwright)" "Node ${NODE_MAJOR} too old (need >=18)"
-        return
-    fi
+    require_node "Playwright e2e" "25.5.0" || return
 
     if [ -d "$CI_DIR/node_modules" ]; then
         run_suite "CI e2e (Playwright)" "$CI_DIR" npx playwright test
     else
-        skip_suite "CI e2e (Playwright)" "node_modules missing — run 'npm ci' in $CI_DIR"
+        skip_suite "CI e2e (Playwright)" "node_modules missing - run 'npm ci' in $CI_DIR"
     fi
 
     if [ -d "$MACHINES_DIR/node_modules" ]; then
+        run_suite "Machines smoke (Playwright)" "$MACHINES_DIR" npm run test:smoke
+        run_suite "Machines integration (Playwright)" "$MACHINES_DIR" npm run test:integration
         run_suite "Machines e2e (Playwright)" "$MACHINES_DIR" npm run test:e2e
     else
-        skip_suite "Machines e2e (Playwright)" "node_modules missing — run 'npm ci' in $MACHINES_DIR"
+        skip_suite "Machines Playwright" "node_modules missing - run 'npm ci' in $MACHINES_DIR"
     fi
 
     local fe="$MGR_DIR/visualizer/frontend"
     if [ -d "$fe/node_modules" ]; then
         run_suite "Manager frontend e2e (Playwright)" "$fe" npm run test:e2e
     else
-        skip_suite "Manager frontend e2e (Playwright)" "node_modules missing — run 'npm ci' in $fe"
+        skip_suite "Manager frontend e2e (Playwright)" "node_modules missing - run 'npm ci' in $fe"
     fi
 }
 
-# ── Summary ─────────────────────────────────────────────────────────────────
 summary() {
     hdr "Summary"
-    local pass=0 fail=0 skip=0 entry status label note
+    local pass=0 fail=0 skip=0 entry status rest label note
     for entry in "${RESULTS[@]}"; do
         status="${entry%%|*}"; rest="${entry#*|}"; label="${rest%%|*}"; note="${rest#*|}"
         case "$status" in
             PASS) ok   "$label"; pass=$((pass+1));;
             FAIL) warn "$label  ($note)"; fail=$((fail+1));;
-            SKIP) info "$label  — skipped: $note"; skip=$((skip+1));;
+            SKIP) info "$label  - skipped: $note"; skip=$((skip+1));;
         esac
     done
     echo -e "\n${BOLD}Totals:${NC} ${GREEN}$pass passed${NC}, ${RED}$fail failed${NC}, ${YELLOW}$skip skipped${NC}"
+    if [ "$DEPLOYMENT_MODE" = "true" ]; then
+        echo -e "${BOLD}Deployment mode:${NC} skipped suites are recorded as failures"
+    fi
     [ "$fail" -eq 0 ]
 }
 
-# ── Main ────────────────────────────────────────────────────────────────────
-MODE="unit"
-case "${1:-}" in
-    --unit|"") MODE="unit";;
-    --e2e)     MODE="e2e";;
-    --all)     MODE="all";;
-    --list)    MODE="list";;
-    -h|--help)
-        sed -n '2,20p' "$0" | sed 's/^# \{0,1\}//'
-        exit 0;;
-    *) warn "Unknown option: $1"; echo "Try --help"; exit 2;;
-esac
-
-echo -e "${BOLD}RealityEngine — unified test runner${NC}  (workspace: $WS)"
-
-if [ "$MODE" = "list" ]; then
+print_list() {
     cat <<EOF
 
-Unit:  Scala (ScalaTest) · C++ (make test) · Lisp (core-tests) ·
-       Manager frontend (Vitest) · Manager PE backend [orphaned] ·
-       Machines contracts (unittest)
-E2E:   CI · Machines · Manager frontend  (Playwright; require live stack)
+Unit/build/offline:
+  _CPP       make all; make test
+  _LSP       make build; make test
+  _Scala     sbt test; perception-engine make compile; make test
+  _Manager   npm run build for visualizer/backend, visualizer/frontend,
+             perception-engine/backend, perception-engine/frontend; plus frontend Vitest and PE backend Jest
+  _Machines  validate; validate:strict; contracts
+  localAIStack pytest services/api/tests
+
+E2E:
+  _CPP       make e2e
+  _LSP       make e2e-healthkit-spezi
+  _Scala     perception-engine make e2e-healthkit-spezi
+  _CI        Playwright e2e against live stack
+  _Machines  smoke, integration, e2e Playwright against live stack
+  _Manager   visualizer frontend Playwright against live stack
+  OpenClaw   healthz + /v1/models smoke when gateway is running
+
+Modes:
+  --unit (default), --e2e, --all, --deployment (strict --all), --list
 EOF
+}
+
+while [ "$#" -gt 0 ]; do
+    case "$1" in
+        --unit) MODE="unit" ;;
+        --e2e) MODE="e2e" ;;
+        --all) MODE="all" ;;
+        --deployment) MODE="all"; DEPLOYMENT_MODE="true" ;;
+        --list) MODE="list" ;;
+        -h|--help)
+            sed -n '2,20p' "$0" | sed 's/^# \{0,1\}//'
+            exit 0 ;;
+        *) warn "Unknown option: $1"; echo "Try --help"; exit 2 ;;
+    esac
+    shift
+done
+
+[ "$DEPLOYMENT_MODE" = "1" ] && DEPLOYMENT_MODE="true"
+
+if [ "$MODE" = "list" ]; then
+    echo -e "${BOLD}RealityEngine - unified test runner${NC}  (workspace: $WS)"
+    print_list
     exit 0
 fi
 
+echo -e "${BOLD}RealityEngine - unified test runner${NC}  (workspace: $WS)"
+[ "$DEPLOYMENT_MODE" = "true" ] && info "Deployment mode enabled: skipped suites fail the run"
+
 case "$MODE" in
-    unit) run_unit;;
-    e2e)  run_e2e;;
-    all)  run_unit; run_e2e;;
+    unit) run_unit ;;
+    e2e)  run_e2e ;;
+    all)  run_unit; run_e2e ;;
 esac
 
 summary
