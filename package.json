@@ -13,7 +13,7 @@
     "test:report": "playwright show-report e2e-report"
   },
   "engines": {
-    "node": ">=18",
+    "node": ">=25.5.0",
     "npm": ">=10.0.0"
   },
   "devDependencies": {
