@@ -13,7 +13,7 @@ able to dynamically connect to any running instance.
 | Engine count | One RE + one PE at fixed ports |
 | Bind address | `localhost` / `127.0.0.1` (Scala ENV `HOST`; CPP/LSP default `0.0.0.0`) |
 | Manager target | Single `RE_RUNTIME_URL` + `PE_RUNTIME_URL` env var pair, set at startup |
-| Port assignments | Scala RE :5001, PE :5000 (native); CPP RE :3299, PE :3300; LSP RE :3299, PE :3300 |
+| Port assignments | Scala RE :5001, PE :5000 (native); CPP RE :5301, PE :5300; LSP RE :5601, PE :5600 |
 | Instance registry | None — no discovery mechanism exists |
 | Nginx routing | Docker service names hardcoded — no dynamic upstreams |
 
