@@ -2,6 +2,7 @@
 .env
 .env~
 .universe-engine-selection
+nginx/conf.d/
 
 # Node / Playwright e2e
 node_modules/
