@@ -79,7 +79,7 @@ MAX_RETRIES=30
 RETRY_COUNT=0
 
 while [ $RETRY_COUNT -lt $MAX_RETRIES ]; do
-    if curl -sk https://localhost:3000/api/health > /dev/null; then
+    if curl -sk https://localhost:5001/api/health > /dev/null; then
         echo "✓ Reality Engine is ready"
         break
     fi
@@ -101,7 +101,7 @@ echo "✓ Reality Engine is running!"
 echo "======================================"
 echo ""
 echo "📍 Services:"
-echo "   - Reality Engine API:         https://localhost:3000"
+echo "   - Reality Engine API:         https://localhost:5001"
 echo "   - Qdrant Dashboard:           http://localhost:4333/dashboard"
 echo "   - Visualizer Backend:         http://localhost:3001"
 echo "   - Visualizer Frontend:        http://localhost:5173"
@@ -115,9 +115,9 @@ echo "   3. Open Perception Engine UI: http://localhost:3005"
 echo "   4. Add sources and push reality vectors"
 echo ""
 echo "🔍 API Endpoints:"
-echo "   - Health:       GET  https://localhost:3000/api/health"
-echo "   - Perceive:     POST https://localhost:3000/api/perceive"
-echo "   - Process:      POST https://localhost:3000/api/engine/process"
+echo "   - Health:       GET  https://localhost:5001/api/health"
+echo "   - Perceive:     POST https://localhost:5001/api/perceive"
+echo "   - Process:      POST https://localhost:5001/api/engine/process"
 echo ""
 echo "📖 Documentation: See README.md and DEMO_STATUS.md"
 echo ""

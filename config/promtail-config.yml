@@ -1,0 +1,93 @@
+server:
+  http_listen_port: 9080
+  grpc_listen_port: 0
+
+positions:
+  filename: /tmp/promtail-positions.yaml
+
+# Push logs to Loki inside the compose network.
+# Loki serves TLS; skip verify because the cert is self-signed.
+clients:
+  - url: https://loki:3100/loki/api/v1/push
+    tls_config:
+      insecure_skip_verify: true
+
+scrape_configs:
+  # ── CPP native runtime logs ─────────────────────────────────────────────
+  - job_name: reality-engine-cpp
+    static_configs:
+      - targets:
+          - localhost
+        labels:
+          service:   reality-engine
+          runtime:   cpp
+          component: reality-engine
+          source:    host
+          __path__:  /host-logs/cpp/logs/reality_engine*.log
+
+  - job_name: perception-engine-cpp
+    static_configs:
+      - targets:
+          - localhost
+        labels:
+          service:   perception-engine
+          runtime:   cpp
+          component: perception-engine
+          source:    host
+          __path__:  /host-logs/cpp/logs/perception_engine*.log
+
+  # ── LSP native runtime logs ─────────────────────────────────────────────
+  - job_name: reality-engine-lsp
+    static_configs:
+      - targets:
+          - localhost
+        labels:
+          service:   reality-engine
+          runtime:   lsp
+          component: reality-engine
+          source:    host
+          __path__:  /host-logs/lsp/logs/reality-engine*.log
+
+  - job_name: perception-engine-lsp
+    static_configs:
+      - targets:
+          - localhost
+        labels:
+          service:   perception-engine
+          runtime:   lsp
+          component: perception-engine
+          source:    host
+          __path__:  /host-logs/lsp/logs/perception-engine*.log
+
+  # ── Scala native runtime logs ───────────────────────────────────────────
+  - job_name: reality-engine-scala
+    static_configs:
+      - targets:
+          - localhost
+        labels:
+          service:   reality-engine
+          runtime:   scala
+          component: reality-engine
+          source:    host
+          __path__:  /host-logs/scala/logs/reality-engine*.log
+
+  - job_name: perception-engine-scala
+    static_configs:
+      - targets:
+          - localhost
+        labels:
+          service:   perception-engine
+          runtime:   scala
+          component: perception-engine
+          source:    host
+          __path__:  /host-logs/scala/logs/perception-engine*.log
+
+  # ── Universe orchestration logs ─────────────────────────────────────────
+  - job_name: universe-scripts
+    static_configs:
+      - targets:
+          - localhost
+        labels:
+          service: universe
+          source:  host
+          __path__: /host-logs/tmp/{corpus_seed,corpus_validate,pe_bootstrap,manager_universe}.log

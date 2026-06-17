@@ -81,12 +81,13 @@ _add_row() {
 
 # Docker / fixed services (always stamped in non-multi mode)
 if [ "$STAMPED_MULTI_ENGINE_MODE" = "false" ]; then
-  _add_row "Docker RE"  "—" "✓" "n/a" "$(_health https://localhost:3000/api/health)" ":3000"
+  _add_row "Docker RE"  "—" "✓" "n/a" "$(_health https://localhost:5001/api/health)" ":5001"
   _add_row "Docker PE"  "—" "✓" "n/a" "$(_health https://localhost:3004/api/health)" ":3004"
   _add_row "Visualizer" "—" "✓" "n/a" "$(_health https://localhost:5173/)"           ":5173"
 fi
 
 # Infrastructure (always expected)
+_add_row "Grafana"  "—" "✓" "n/a" "$(_health https://localhost:3000/api/health)" ":3000"
 _add_row "Loki"    "—" "✓" "n/a" "$(_health https://localhost:3100/ready)"   ":3100"
 _add_row "Qdrant"  "—" "✓" "n/a" "$(_health http://localhost:4333/collections)" ":4333"
 _add_row "Ollama"  "—" "✓" "n/a" "$(_health http://localhost:11434/api/tags)"  ":11434"

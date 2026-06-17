@@ -280,7 +280,7 @@ if [ ! -f .api.pid ]; then
     print_success "Backend started (PID: $API_PID)"
 
     # Wait for backend to be ready
-    if ! wait_for_service "https://localhost:3000/api/health" "Reality Engine Backend" 40; then
+    if ! wait_for_service "https://localhost:5001/api/health" "Reality Engine Backend" 40; then
         print_error "Backend failed to start"
         echo "Check logs: tail -f logs/api.log"
         kill $API_PID 2>/dev/null || true
@@ -293,7 +293,7 @@ echo ""
 # Step 5: Validate Machine JSON Files
 print_step "Step 5: Validating Machine JSON Files Access"
 
-MACHINE_COUNT=$(curl -sk https://localhost:3000/api/machines/json/list | grep -o '"filename"' | wc -l | tr -d ' ')
+MACHINE_COUNT=$(curl -sk https://localhost:5001/api/machines/json/list | grep -o '"filename"' | wc -l | tr -d ' ')
 
 if [ "$MACHINE_COUNT" -eq "0" ]; then
     print_error "No machine JSON files found"
@@ -414,7 +414,7 @@ else
 fi
 
 # Test Reality Engine Backend
-if curl -skf https://localhost:3000/api/health > /dev/null 2>&1; then
+if curl -skf https://localhost:5001/api/health > /dev/null 2>&1; then
     print_success "Reality Engine Backend: OK"
 else
     print_error "Reality Engine Backend: FAILED"
@@ -422,7 +422,7 @@ else
 fi
 
 # Test Machine JSON Endpoint
-RESPONSE=$(curl -sk https://localhost:3000/api/machines/json/list)
+RESPONSE=$(curl -sk https://localhost:5001/api/machines/json/list)
 if echo "$RESPONSE" | grep -q '"machines"'; then
     print_success "Machine JSON API: OK"
 else
@@ -462,8 +462,8 @@ echo ""
 echo "📊 Services Status:"
 echo "  ✓ Qdrant Vector DB:      http://localhost:4333"
 echo "  ✓ Qdrant Dashboard:      http://localhost:4333/dashboard"
-echo "  ✓ Reality Engine API:    https://localhost:3000"
-echo "  ✓ API Health Check:      https://localhost:3000/api/health"
+echo "  ✓ Reality Engine API:    https://localhost:5001"
+echo "  ✓ API Health Check:      https://localhost:5001/api/health"
 echo "  ✓ Visualizer Backend:    http://localhost:3001"
 echo "  ✓ Visualizer Frontend:   http://localhost:5173"
 echo ""

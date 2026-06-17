@@ -8,14 +8,14 @@ re:
 
       Default native port: **5001** (PE on 5001 − 1 = 5000).
       Additional Scala instances add +100 per pair (scala-2: 5101/5100, scala-3: 5201/5200).
-      In Docker/CI deployments the TLS proxy exposes the RE at `https://localhost:3000`.
+      In Docker/CI deployments the TLS proxy exposes the RE at `https://localhost:5001`.
 
       Wire-compatible with the CPP (C++) and LSP (Common Lisp) runtimes.
       Every metric line carries `runtime="scala"`.
   servers:
     - url: http://localhost:5001
       description: Local Scala Reality Engine (native, instance scala-1)
-    - url: https://localhost:3000
+    - url: https://localhost:5001
       description: Docker TLS proxy (CI deployment)
 
 pe:

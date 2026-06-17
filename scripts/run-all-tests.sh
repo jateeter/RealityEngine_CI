@@ -168,7 +168,7 @@ stack_healthy() {
     { curl -sk --max-time 3 https://localhost:5173/ >/dev/null 2>&1 || curl -s --max-time 3 http://localhost:5173/ >/dev/null 2>&1; } && ui=0
     { curl -sk --max-time 3 https://localhost:3001/health >/dev/null 2>&1 || curl -s --max-time 3 http://localhost:3001/health >/dev/null 2>&1; } && be=0
     { curl -sk --max-time 3 https://localhost:3004/api/health >/dev/null 2>&1 || curl -s --max-time 3 http://localhost:3004/api/health >/dev/null 2>&1; } && pe=0
-    { curl -sk --max-time 3 https://localhost:3000/api/health >/dev/null 2>&1 || curl -s --max-time 3 http://localhost:3000/api/health >/dev/null 2>&1; } && re=0
+    { curl -sk --max-time 3 https://localhost:5001/api/health >/dev/null 2>&1 || curl -s --max-time 3 http://localhost:5001/api/health >/dev/null 2>&1; } && re=0
     [ "$ui" -eq 0 ] && [ "$be" -eq 0 ] && [ "$pe" -eq 0 ] && [ "$re" -eq 0 ]
 }
 

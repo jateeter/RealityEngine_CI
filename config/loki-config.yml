@@ -12,7 +12,7 @@ common:
   storage:
     filesystem:
       chunks_directory: /loki/chunks
-      rules_directory: /loki/rules
+      rules_directory:  /loki/rules
   replication_factor: 1
   ring:
     instance_addr: 127.0.0.1
@@ -28,35 +28,50 @@ schema_config:
       index:
         prefix: index_
         period: 24h
+    # TSDB store — used for all logs ingested from 2024-01-01 onward.
+    # Loki 2.8+ recommends TSDB over boltdb-shipper for new deployments.
+    - from: 2024-01-01
+      store: tsdb
+      object_store: filesystem
+      schema: v13
+      index:
+        prefix: index_
+        period: 24h
+
+storage_config:
+  boltdb_shipper:
+    active_index_directory: /loki/boltdb-index
+    cache_location:         /loki/boltdb-cache
+    shared_store:           filesystem
+  tsdb_shipper:
+    active_index_directory: /loki/tsdb-index
+    cache_location:         /loki/tsdb-cache
+    shared_store:           filesystem
+  filesystem:
+    directory: /loki/chunks
 
 ruler:
   alertmanager_url: http://localhost:9093
 
-# Limits configuration
 limits_config:
-  # Reject logs older than 24 hours
-  reject_old_samples: true
+  reject_old_samples:         true
   reject_old_samples_max_age: 168h
-  # Max query lookback period
-  max_query_lookback: 720h
-  # Ingestion rate limits
-  ingestion_rate_mb: 16
-  ingestion_burst_size_mb: 32
-  # Max number of active streams per user
-  max_streams_per_user: 10000
-  # Max line size
-  max_line_size: 256KB
+  max_query_lookback:         720h
+  ingestion_rate_mb:          16
+  ingestion_burst_size_mb:    32
+  max_streams_per_user:       10000
+  max_line_size:              256KB
+  # Allow all runtimes/labels through without cardinality limits.
+  max_label_names_per_series: 30
 
-# Compactor configuration
 compactor:
-  working_directory: /loki/compactor
-  shared_store: filesystem
-  compaction_interval: 10m
-  retention_enabled: true
-  retention_delete_delay: 2h
+  working_directory:         /loki/compactor
+  shared_store:              filesystem
+  compaction_interval:       10m
+  retention_enabled:         true
+  retention_delete_delay:    2h
   retention_delete_worker_count: 150
 
-# Table manager for retention
 table_manager:
   retention_deletes_enabled: true
-  retention_period: 720h
+  retention_period:          720h

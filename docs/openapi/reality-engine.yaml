@@ -6,16 +6,16 @@ info:
     OpenAPI contract for the AI (TypeScript / Node.js) Reality Engine —
     the default runtime.
 
-    Direct service: `http://localhost:3000`.  In containerized
+    Direct service: `http://localhost:5001`.  In containerized
     deployments the visualizer's TLS proxy fronts the same service at
-    `https://localhost:3000`.  Wire-compatible with the CPP (native C++)
+    `https://localhost:5001`.  Wire-compatible with the CPP (native C++)
     and LSP (Common Lisp) runtimes — same JSON corpus, byte-identical
     mergeBatch ordering, identical Prometheus shape.  This runtime
     emits `runtime="ai"` on every metric line.
 servers:
-  - url: http://localhost:3000
+  - url: http://localhost:5001
     description: Local Reality Engine (direct)
-  - url: https://localhost:3000
+  - url: https://localhost:5001
     description: TLS proxy (Docker compose deployment)
 tags:
   - name: System

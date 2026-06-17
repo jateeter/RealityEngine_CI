@@ -1,0 +1,164 @@
+{
+  "_comment": "Native runtime log explorer — tails RE and PE log files from CPP, LSP, and Scala host-native instances via Promtail. Requires the promtail service in docker-compose.yml to be running.",
+  "title": "Reality Engine — Native Runtime Logs",
+  "uid": "native-logs",
+  "schemaVersion": 38,
+  "version": 1,
+  "refresh": "10s",
+  "timezone": "browser",
+  "time": { "from": "now-30m", "to": "now" },
+  "tags": ["reality-engine", "logs", "native"],
+  "templating": {
+    "list": [
+      {
+        "name": "runtime",
+        "label": "Runtime",
+        "type": "custom",
+        "options": [
+          { "text": "All", "value": "", "selected": true },
+          { "text": "cpp",   "value": "cpp" },
+          { "text": "lsp",   "value": "lsp" },
+          { "text": "scala", "value": "scala" }
+        ],
+        "current": { "selected": true, "text": "All", "value": "" },
+        "multi": false,
+        "includeAll": false
+      },
+      {
+        "name": "component",
+        "label": "Component",
+        "type": "custom",
+        "options": [
+          { "text": "All",               "value": "",                   "selected": true },
+          { "text": "reality-engine",    "value": "reality-engine" },
+          { "text": "perception-engine", "value": "perception-engine" }
+        ],
+        "current": { "selected": true, "text": "All", "value": "" },
+        "multi": false,
+        "includeAll": false
+      }
+    ]
+  },
+  "panels": [
+    {
+      "id": 1,
+      "title": "Log volume by runtime",
+      "type": "timeseries",
+      "datasource": { "type": "loki", "uid": "loki" },
+      "gridPos": { "x": 0, "y": 0, "w": 24, "h": 6 },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "sum by (runtime, component) (count_over_time({source=\"host\", runtime=~\"$runtime\", component=~\"$component\"}[1m]))",
+          "legendFormat": "{{runtime}}/{{component}}"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "custom": {
+            "drawStyle": "bars",
+            "fillOpacity": 40,
+            "lineWidth": 0
+          }
+        }
+      }
+    },
+    {
+      "id": 2,
+      "title": "Reality Engine logs",
+      "type": "logs",
+      "datasource": { "type": "loki", "uid": "loki" },
+      "gridPos": { "x": 0, "y": 6, "w": 12, "h": 16 },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "{source=\"host\", component=\"reality-engine\", runtime=~\"$runtime|.+\"}",
+          "legendFormat": ""
+        }
+      ],
+      "options": {
+        "showTime": true,
+        "showLabels": true,
+        "showCommonLabels": false,
+        "wrapLogMessage": true,
+        "prettifyLogMessage": false,
+        "enableLogDetails": true,
+        "sortOrder": "Descending",
+        "dedupStrategy": "none"
+      }
+    },
+    {
+      "id": 3,
+      "title": "Perception Engine logs",
+      "type": "logs",
+      "datasource": { "type": "loki", "uid": "loki" },
+      "gridPos": { "x": 12, "y": 6, "w": 12, "h": 16 },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "{source=\"host\", component=\"perception-engine\", runtime=~\"$runtime|.+\"}",
+          "legendFormat": ""
+        }
+      ],
+      "options": {
+        "showTime": true,
+        "showLabels": true,
+        "showCommonLabels": false,
+        "wrapLogMessage": true,
+        "prettifyLogMessage": false,
+        "enableLogDetails": true,
+        "sortOrder": "Descending",
+        "dedupStrategy": "none"
+      }
+    },
+    {
+      "id": 4,
+      "title": "Universe orchestration logs",
+      "type": "logs",
+      "datasource": { "type": "loki", "uid": "loki" },
+      "gridPos": { "x": 0, "y": 22, "w": 24, "h": 10 },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "{service=\"universe\"}",
+          "legendFormat": ""
+        }
+      ],
+      "options": {
+        "showTime": true,
+        "showLabels": true,
+        "showCommonLabels": false,
+        "wrapLogMessage": true,
+        "prettifyLogMessage": false,
+        "enableLogDetails": true,
+        "sortOrder": "Descending",
+        "dedupStrategy": "none"
+      }
+    },
+    {
+      "id": 5,
+      "title": "Error / warning lines",
+      "description": "Lines containing ERROR, WARN, or exception keywords across all native services.",
+      "type": "logs",
+      "datasource": { "type": "loki", "uid": "loki" },
+      "gridPos": { "x": 0, "y": 32, "w": 24, "h": 10 },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "{source=\"host\"} |~ \"(?i)(error|warn|exception|fatal|panic|killed)\"",
+          "legendFormat": ""
+        }
+      ],
+      "options": {
+        "showTime": true,
+        "showLabels": true,
+        "showCommonLabels": false,
+        "wrapLogMessage": true,
+        "prettifyLogMessage": false,
+        "enableLogDetails": true,
+        "sortOrder": "Descending",
+        "dedupStrategy": "none"
+      }
+    }
+  ]
+}

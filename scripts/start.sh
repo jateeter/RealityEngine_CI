@@ -272,7 +272,7 @@ MAX_RETRIES=60
 RETRY_COUNT=0
 
 while [ $RETRY_COUNT -lt $MAX_RETRIES ]; do
-    if curl -sk https://localhost:3000/api/health > /dev/null 2>&1; then
+    if curl -sk https://localhost:5001/api/health > /dev/null 2>&1; then
         print_success "TLS proxy is ready"
         break
     fi
@@ -296,7 +296,7 @@ print_info "Waiting for Reality Engine API to be ready..."
 RETRY_COUNT=0
 
 while [ $RETRY_COUNT -lt $MAX_RETRIES ]; do
-    if curl -sk https://localhost:3000/api/health > /dev/null 2>&1; then
+    if curl -sk https://localhost:5001/api/health > /dev/null 2>&1; then
         print_success "Reality Engine API is ready"
         break
     fi
@@ -419,8 +419,8 @@ echo "Reality Engine Started Successfully! (Docker Mode)"
 echo "=================================================="
 echo ""
 echo "All Services Running in Docker (TLS — self-signed cert):"
-echo "  - Reality Engine API:         https://localhost:3000"
-echo "  - API Health:                 https://localhost:3000/api/health"
+echo "  - Reality Engine API:         https://localhost:5001"
+echo "  - API Health:                 https://localhost:5001/api/health"
 echo "  - Visualizer Backend:         https://localhost:3001"
 echo "  - Visualizer Frontend:        https://localhost:5173"
 echo "  - Perception Engine Backend:  https://localhost:3004"

@@ -83,21 +83,44 @@ REGISTRY_FILE="/tmp/re-registry/re-registry.json"
 _term_and_wait() {
   local pid="$1" label="$2"
   [ -z "$pid" ] && return 0
-  # Gap 6: verify PID is live before sending signal (stale PID guard)
   if ! kill -0 "$pid" 2>/dev/null; then
     info "$label (PID $pid) already exited"
     return 0
   fi
   kill -TERM "$pid" 2>/dev/null || true
-  # Gap 3 / Gap 5: wait up to 15 s for graceful exit, escalate to SIGKILL
   local waited=0
-  while kill -0 "$pid" 2>/dev/null && [ "$waited" -lt 15 ]; do
+  while kill -0 "$pid" 2>/dev/null && [ "$waited" -lt 10 ]; do
     sleep 1; waited=$((waited+1))
   done
   if kill -0 "$pid" 2>/dev/null; then
     warn "$label (PID $pid) did not exit after ${waited}s — sending SIGKILL"
     kill -KILL "$pid" 2>/dev/null || true
+    sleep 0.5
   fi
+}
+
+# Kill any process still listening on the given port (last-resort cleanup).
+# Used after normal stop sequences to ensure ports are free for the next start.
+_kill_port() {
+  local port="$1"
+  local pid
+  pid=$(lsof -ti ":$port" -sTCP:LISTEN 2>/dev/null | head -1 || true)
+  [ -z "$pid" ] && return 0
+  warn "Port $port still held by PID $pid after stop — force-killing"
+  kill -KILL "$pid" 2>/dev/null || true
+}
+
+# Sweep all native engine ports and kill any survivors.
+_sweep_native_ports() {
+  local _cpp_re=$(( ${CPP_PE_BASE:-5300} + 1 ))
+  local _cpp_pe=${CPP_PE_BASE:-5300}
+  local _lsp_re=$(( ${LSP_PE_BASE:-5600} + 1 ))
+  local _lsp_pe=${LSP_PE_BASE:-5600}
+  local _sc_re=$(( ${SCALA_PE_BASE:-5000} + 1 ))
+  local _sc_pe=${SCALA_PE_BASE:-5000}
+  for _p in $_cpp_re $_cpp_pe $_lsp_re $_lsp_pe $_sc_re $_sc_pe; do
+    _kill_port "$_p"
+  done
 }
 
 stop_instance() {
@@ -257,6 +280,7 @@ fi
 # ── Engines-only: stop all native instances, leave Docker up ───────────────
 if [ "$ENGINES_ONLY" = true ]; then
   stop_all_engines
+  _sweep_native_ports
   rm -f "$CI_DIR/.universe-engine-selection"
   echo ""
   ok "Native engine instances stopped (Docker infrastructure still running)"
@@ -289,6 +313,8 @@ else
   # Multi-engine mode uses Docker only for infrastructure
   [ "$STAMPED_MULTI_ENGINE_MODE" = "true" ] && stop_ai_stack
 fi
+
+_sweep_native_ports
 
 rm -f "$CI_DIR/.universe-engine-selection"
 echo ""

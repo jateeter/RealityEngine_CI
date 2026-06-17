@@ -8,7 +8,7 @@ import { test, expect } from '@playwright/test';
  * 3. Verify changes in Visualizer UI
  */
 
-const API_BASE_URL = 'https://localhost:3000';
+const API_BASE_URL = 'https://localhost:5001';
 const VISUALIZER_URL = 'https://localhost:5173';
 
 test.describe('Full Integration - End to End Flow', () => {

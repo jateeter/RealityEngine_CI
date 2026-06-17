@@ -85,7 +85,7 @@ else
 fi
 
 # Reality Engine API
-if curl -sk https://localhost:3000/api/health > /dev/null 2>&1; then
+if curl -sk https://localhost:5001/api/health > /dev/null 2>&1; then
     print_success "Reality Engine API responsive on port 3000"
 else
     print_error "Reality Engine API not responsive"
@@ -151,7 +151,7 @@ echo ""
 
 # Step 5: Check API has machines loaded
 print_info "Checking loaded machines..."
-MACHINES_RESPONSE=$(curl -sk https://localhost:3000/api/machines)
+MACHINES_RESPONSE=$(curl -sk https://localhost:5001/api/machines)
 MACHINE_COUNT=$(echo "$MACHINES_RESPONSE" | grep -o '"id"' | wc -l | tr -d ' ')
 
 if [ "$MACHINE_COUNT" -gt 0 ]; then
@@ -181,7 +181,7 @@ echo "=================================================="
 echo ""
 echo "All Services Running:"
 echo "  ✓ Qdrant Vector DB:           http://localhost:4333"
-echo "  ✓ Reality Engine API:         https://localhost:3000"
+echo "  ✓ Reality Engine API:         https://localhost:5001"
 echo "  ✓ Visualizer Backend:         http://localhost:3001"
 echo "  ✓ Visualizer Frontend:        http://localhost:5173"
 echo "  ✓ Perception Engine Backend:  https://localhost:3004"

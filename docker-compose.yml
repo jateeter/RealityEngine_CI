@@ -24,9 +24,9 @@ services:
       retries: 5
 
   # Prometheus — scrapes /api/metrics from each runtime for CES coverage gauges.
-  # Reaches host-side `npm run start` (TS) on host.docker.internal:3000 and
-  # native runtimes exposed through host.docker.internal when selected. All
-  # runtimes emit identical metric names so a single dashboard covers any selected engine.
+  # Reaches native RE (5001/5301/5601) and PE (5000/5300/5600) instances on
+  # the host via host.docker.internal, plus Docker-compose services internally.
+  # All runtimes emit identical metric names; a runtime= label distinguishes them.
   prometheus:
     image: prom/prometheus:v2.51.2
     container_name: reality-engine-prometheus
@@ -49,7 +49,7 @@ services:
       timeout: 5s
       retries: 3
 
-  # Grafana - accessed via TLS proxy at https://localhost:3002
+  # Grafana - accessed via TLS proxy at https://localhost:3000
   grafana:
     image: grafana/grafana:10.2.3
     container_name: reality-engine-grafana
@@ -59,7 +59,7 @@ services:
       - GF_SECURITY_ADMIN_PASSWORD=admin
       - GF_SECURITY_ADMIN_USER=admin
       - GF_INSTALL_PLUGINS=grafana-clock-panel
-      - GF_SERVER_ROOT_URL=https://localhost:3002
+      - GF_SERVER_ROOT_URL=https://localhost:3000
     volumes:
       - grafana_data:/var/lib/grafana
       - ./config/grafana-datasources.yml:/etc/grafana/provisioning/datasources/datasources.yml
@@ -79,7 +79,7 @@ services:
       timeout: 5s
       retries: 3
 
-  # Reality Engine API (Scala/Akka HTTP) - accessed via TLS proxy at https://localhost:3000
+  # Reality Engine API (Scala/Akka HTTP) - accessed via TLS proxy at https://localhost:5001
   # Source: ../RealityEngine_Scala  (context set below; Dockerfile in CI docker/scala/)
   # Machines: volume-mounted from ${MACHINES_DIR}/machines (RealityEngine_Machines repo)
   reality-engine:
@@ -297,6 +297,29 @@ services:
       timeout: 5s
       retries: 3
 
+  # Promtail — ships native runtime log files into Loki.
+  # Mounts the three native log directories (CPP, LSP, Scala) and /tmp so that
+  # Loki receives the same structured logs as Docker services do via the
+  # logging driver.  Runs alongside the compose stack; processes that are not
+  # running simply produce no log lines.
+  promtail:
+    image: grafana/promtail:2.9.3
+    container_name: reality-engine-promtail
+    command: -config.file=/etc/promtail/promtail-config.yml
+    volumes:
+      - ./config/promtail-config.yml:/etc/promtail/promtail-config.yml:ro
+      - ./certs:/etc/promtail/certs:ro
+      - ${CPP_LOG_DIR:-../../RealityEngine_CPP/logs}:/host-logs/cpp/logs:ro
+      - ${LSP_LOG_DIR:-../../RealityEngine_LSP/logs}:/host-logs/lsp/logs:ro
+      - ${SCALA_LOG_DIR:-../../RealityEngine_Scala/logs}:/host-logs/scala/logs:ro
+      - /tmp:/host-logs/tmp:ro
+    depends_on:
+      loki:
+        condition: service_healthy
+    restart: unless-stopped
+    networks:
+      - reality-network
+
   # TLS Termination Proxy — the only service that binds external ports.
   # Terminates HTTPS/WSS from clients and re-encrypts to internal HTTPS backends.
   # Requires: run bash certs/generate-dev-certs.sh first.
@@ -306,9 +329,9 @@ services:
     ports:
       - "3000:3000"
       - "3001:3001"
-      - "3002:3002"
       - "3004:3004"
       - "3005:3005"
+      - "5001:5001"
       - "5173:5173"
     volumes:
       - ./nginx/tls-proxy.conf:/etc/nginx/nginx.conf:ro

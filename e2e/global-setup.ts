@@ -17,7 +17,7 @@ async function globalSetup(_config: FullConfig) {
 
 async function waitForServices() {
   const services = [
-    { name: 'Reality Engine', url: 'https://localhost:3000/api/health' },
+    { name: 'Reality Engine', url: 'https://localhost:5001/api/health' },
     { name: 'Visualizer Backend', url: 'https://localhost:3001/health' },
     { name: 'Visualizer Frontend', url: 'https://localhost:5173/' },
   ];

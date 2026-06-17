@@ -5,7 +5,7 @@ import { test, expect } from '@playwright/test';
  * Tests the API endpoints running in Docker
  */
 
-const API_BASE_URL = 'https://localhost:3000';
+const API_BASE_URL = 'https://localhost:5001';
 
 test.describe('Reality Engine API - Configuration', () => {
   test('should get current configuration', async ({ request }) => {

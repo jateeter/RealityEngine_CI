@@ -62,7 +62,7 @@ check_service() {
 }
 
 check_service "Qdrant" "http://localhost:4333/"
-check_service "Reality Engine" "https://localhost:3000/api/engine/stats"
+check_service "Reality Engine" "https://localhost:5001/api/engine/stats"
 check_service "Visualizer Backend" "https://localhost:3001/health"
 check_service "Visualizer Frontend" "https://localhost:5173/"
 

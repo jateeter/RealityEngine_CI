@@ -93,7 +93,7 @@ startUniverse.sh — engine-selectable CI orchestrator
   --validate-corpus=off         Skip corpus validation in ci-seed mode
   --skip-seed                   Legacy alias for --machine-load=runtime --pe-source-bootstrap=off
   --manager-native              Start Visualizer+PE via RealityEngine_Manager/start.sh
-                                instead of Docker (points to Docker public endpoints: RE :3000, PE :3004)
+                                instead of Docker (points to Docker public endpoints: RE :5001, PE :3004)
   --engines=SPEC                Multi-engine native mode.  SPEC is a comma-separated list of
                                 <runtime>:<count> pairs, e.g. --engines=scala:2,cpp:1
                                 Spawns N native instances of each runtime on distinct ports.
@@ -587,7 +587,7 @@ fi
 
 # Block any process that would conflict with Docker port bindings
 CONFLICTS=""
-for port in 3000 3001 3004 3005 5173; do
+for port in 3001 3004 3005 5001 5173; do
     pid=$(lsof -ti ":$port" -sTCP:LISTEN 2>/dev/null | head -1 || true)
     if [ -n "$pid" ]; then
         proc=$(ps -p "$pid" -o comm= 2>/dev/null || echo "pid:$pid")
@@ -977,7 +977,7 @@ if [ "$MANAGER_NATIVE" = true ]; then
     [ -d "$MGR_DIR" ] || die "--manager-native requires RealityEngine_Manager at $MGR_DIR"
     [ -x "$MGR_DIR/start.sh" ] || die "$MGR_DIR/start.sh missing or not executable"
     info "--manager-native: Visualizer + PE will be started via RealityEngine_Manager/start.sh"
-    info "  RE API: https://localhost:3000  PE: https://localhost:3004"
+    info "  RE API: https://localhost:5001  PE: https://localhost:3004"
 fi
 
 if [ "$MULTI_ENGINE_MODE" = true ]; then
@@ -1066,12 +1066,12 @@ ok "All RE services healthy"
 info "Confirming RE external endpoints..."
 if [ "$MANAGER_NATIVE" = true ]; then
     echo -n "  API "
-    poll_http "https://localhost:3000/api/health" "RE API reachable (:3000)" 15 "-skf" || \
-        add_warn "RE API not reachable on https://localhost:3000"
+    poll_http "https://localhost:5001/api/health" "RE API reachable (:5001)" 15 "-skf" || \
+        add_warn "RE API not reachable on https://localhost:5001"
     # Start Manager (Visualizer + PE) natively — Scala preset
     info "Starting RealityEngine_Manager natively (--scala)..."
     echo "" >> /tmp/manager_universe.log 2>&1 || true
-    "$MGR_DIR/start.sh" --re https://localhost:3000 --pe https://localhost:3004 > /tmp/manager_universe.log 2>&1 &
+    "$MGR_DIR/start.sh" --re https://localhost:5001 --pe https://localhost:3004 > /tmp/manager_universe.log 2>&1 &
     MANAGER_PID=$!
     echo "$MANAGER_PID" > /tmp/manager_universe.pid
     echo -n "  VIZ "
@@ -1082,8 +1082,8 @@ if [ "$MANAGER_NATIVE" = true ]; then
         add_warn "PE backend not reachable on https://localhost:3004"
 else
     echo -n "  API "
-    poll_http "https://localhost:3000/api/health" "RE API reachable" 15 "-skf" || \
-        add_warn "RE API not reachable on https://localhost:3000 after startup"
+    poll_http "https://localhost:5001/api/health" "RE API reachable" 15 "-skf" || \
+        add_warn "RE API not reachable on https://localhost:5001 after startup"
     echo -n "  PE  "
     poll_http "https://localhost:3004/api/health" "PE Backend reachable" 15 "-skf" || \
         add_warn "Perception Engine not reachable on https://localhost:3004 after startup"
@@ -1093,7 +1093,7 @@ set +e
 PE_SRC_COUNT=$(curl -sk https://localhost:3004/api/sources 2>/dev/null \
     | python3 -c "import json,sys; print(len(json.load(sys.stdin).get('sources',[])))" \
     2>/dev/null || echo "?")
-RE_MACHINE_COUNT=$(curl -sk https://localhost:3000/api/machines 2>/dev/null \
+RE_MACHINE_COUNT=$(curl -sk https://localhost:5001/api/machines 2>/dev/null \
     | python3 -c "import json,sys; print(len(json.load(sys.stdin).get('machines',[])))" \
     2>/dev/null || echo "?")
 set -e
@@ -1125,7 +1125,7 @@ case "$MACHINE_LOAD" in
         if [ -x "$MACHINES_DIR/scripts/seed-machines.sh" ]; then
             info "Seeding RE machines from RealityEngine_Machines (RE only)..."
             bash "$MACHINES_DIR/scripts/seed-machines.sh" --re-only \
-                "https://localhost:3000" > /tmp/corpus_seed.log 2>&1 \
+                "https://localhost:5001" > /tmp/corpus_seed.log 2>&1 \
                 && ok "RE machines seeded (see /tmp/corpus_seed.log)" \
                 || add_warn "Machine seeding completed with errors — check /tmp/corpus_seed.log"
             if [ "$PE_SOURCE_BOOTSTRAP" = "auto" ]; then
@@ -1267,7 +1267,7 @@ VERIFY_PASS=false
 for attempt in 1 2 3; do
     [ "$attempt" -gt 1 ] && { info "Retry $attempt/3 — waiting 15s for hooks to settle..."; sleep 15; }
 
-    RE_MACHINES=$(curl -sk https://localhost:3000/api/machines 2>/dev/null || echo '{"machines":[]}')
+    RE_MACHINES=$(curl -sk https://localhost:5001/api/machines 2>/dev/null || echo '{"machines":[]}')
     MACHINE_LABELS=$(echo "$RE_MACHINES" | python3 -c "
 import json, sys
 for m in json.load(sys.stdin).get('machines', []):
@@ -1376,7 +1376,7 @@ set +e
 info "RE perceive smoke-test (${SMOKE_DIM}-element zero vector)..."
 ZERO_VEC=$(python3 -c "import json; print(json.dumps([0.0]*${SMOKE_DIM}))" 2>/dev/null || echo "")
 if [ -n "$ZERO_VEC" ]; then
-    PERCEIVE_RESP=$(curl -sk -X POST https://localhost:3000/api/perceive \
+    PERCEIVE_RESP=$(curl -sk -X POST https://localhost:5001/api/perceive \
         -H "Content-Type: application/json" \
         -d "{\"vector\": $ZERO_VEC}" --max-time 15 2>/dev/null || echo "")
     if [ -n "$PERCEIVE_RESP" ]; then
@@ -1538,11 +1538,11 @@ PYEOF
 fi
 else
 echo "  RealityEngine  (source: RealityEngine_Scala + RealityEngine_Manager)"
-printf "    %-30s %s\n" "API"                       "https://localhost:3000"
+printf "    %-30s %s\n" "Grafana"                   "https://localhost:3000"
+printf "    %-30s %s\n" "RE API (Docker/Scala)"     "https://localhost:5001"
 printf "    %-30s %s\n" "Visualizer"                "https://localhost:5173"
 printf "    %-30s %s\n" "Perception Engine API"     "https://localhost:3004"
 printf "    %-30s %s\n" "Perception Engine UI"      "https://localhost:3005"
-printf "    %-30s %s\n" "Grafana (CI Logs)"         "https://localhost:3002"
 echo ""
 echo "  Note: RE endpoints use a self-signed TLS cert (browser will warn)"
 echo "        Silence:  bash $CI_DIR/certs/generate-dev-certs.sh"

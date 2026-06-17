@@ -17,7 +17,7 @@ datasources:
           name: TraceID
           url: "$${__value.raw}"
 
-  # Prometheus — scrapes /api/metrics from the AI and C++ Reality Engines.
+  # Prometheus — scrapes /api/metrics from all RE and PE runtime instances.
   # Provided by the `prometheus` service in docker-compose.yml.
   - name: Prometheus
     type: prometheus

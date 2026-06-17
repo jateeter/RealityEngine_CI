@@ -52,7 +52,7 @@ echo ""
 
 # Test 2: Check Reality Engine Backend
 print_test "Reality Engine Backend API"
-if curl -s -k -f https://localhost:3000/api/health > /dev/null 2>&1; then
+if curl -s -k -f https://localhost:5001/api/health > /dev/null 2>&1; then
     print_success "Backend API is running"
 
     # Check if PID file exists
@@ -68,7 +68,7 @@ if curl -s -k -f https://localhost:3000/api/health > /dev/null 2>&1; then
     PASSED=$((PASSED + 1))
 else
     print_error "Backend API is not responding"
-    echo "  Expected: https://localhost:3000/api/health"
+    echo "  Expected: https://localhost:5001/api/health"
     echo "  Check logs: tail -f logs/api.log"
     FAILED=$((FAILED + 1))
 fi
@@ -76,7 +76,7 @@ echo ""
 
 # Test 3: Check Machine JSON Files Access
 print_test "Machine JSON Files API"
-if RESPONSE=$(curl -s -k https://localhost:3000/api/machines/json/list 2>&1); then
+if RESPONSE=$(curl -s -k https://localhost:5001/api/machines/json/list 2>&1); then
     if echo "$RESPONSE" | grep -q '"machines"'; then
         MACHINE_COUNT=$(echo "$RESPONSE" | grep -o '"filename"' | wc -l | tr -d ' ')
         print_success "Machine JSON API is working"
@@ -249,7 +249,7 @@ echo ""
 print_test "Reality Engine /api/perceive Endpoint"
 # Build a 256-element zero vector for the test
 ZERO_VEC=$(printf '0.0,%.0s' {1..255})0.0
-PERCEIVE_RESPONSE=$(curl -s -k -X POST https://localhost:3000/api/perceive \
+PERCEIVE_RESPONSE=$(curl -s -k -X POST https://localhost:5001/api/perceive \
     -H "Content-Type: application/json" \
     -d "{\"vector\": [$ZERO_VEC]}" 2>/dev/null)
 if echo "$PERCEIVE_RESPONSE" | grep -q '"success"'; then
@@ -299,7 +299,7 @@ if [ $FAILED -eq 0 ]; then
     echo -e "${GREEN}✓ All critical tests passed!${NC}"
     echo ""
     echo "System is operational. Services available at:"
-    echo "  - Reality Engine:         https://localhost:3000"
+    echo "  - Reality Engine:         https://localhost:5001"
     echo "  - Visualizer:             https://localhost:5173"
     echo "  - Qdrant:                 http://localhost:4333"
     echo "  - Perception Engine:      https://localhost:3004"

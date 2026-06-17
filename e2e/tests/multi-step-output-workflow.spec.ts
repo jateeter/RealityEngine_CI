@@ -25,7 +25,7 @@ import { test, expect } from '@playwright/test';
 
 const VISUALIZER_URL = 'https://localhost:5173';
 const PERCEPTUAL_API_URL = 'https://localhost:3001';  // Visualizer backend (perceptual simulation)
-const API_URL = 'https://localhost:3000';              // Reality Engine direct (legacy API)
+const API_URL = 'https://localhost:5001';              // Reality Engine direct (Docker/Scala via nginx)
 const PERCEPTION_ENGINE_URL = 'https://localhost:3004'; // Perception Engine backend
 
 /** Load all three machines required for the interconnection test. */
