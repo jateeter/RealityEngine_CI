@@ -520,11 +520,11 @@ drop-in interchangeable from an adapter's point of view.
 | `LOCAL_AI_BASE_URL`       | (provider-specific) | Phase 4b — base for localAI routes |
 | `BOOTSTRAP_LOCAL_AI`      | `false` | Phase 4b — runs `bootstrap_localai()` at startup |
 | `DISPATCH_LEDGER_FILE`    | unset (in-memory only) | Phase 3 (TS extension) |
-| `ACP_ENABLED`             | `false` | ACP/OpenClaw xACP handoff adapter |
+| `ACP_ENABLED`             | `true` | ACP/OpenClaw xACP handoff adapter |
 | `ACP_COMMAND` / `OPENCLAW_ACP_COMMAND` | `openclaw acp` | ACP handoff receipt metadata |
 | `ACP_GATEWAY_URL` / `OPENCLAW_GATEWAY_URL` | `ws://127.0.0.1:18789` | ACP handoff receipt metadata |
 | `ACP_SESSION_KEY` / `OPENCLAW_ACP_SESSION` | `agent:main:main` | ACP handoff receipt metadata |
-| `ACP_COMPLETION_SOURCE_MAPPING_ID` | `agent-completion-risk` | ACP completion source mapping default |
+| `ACP_COMPLETION_SOURCE_MAPPING_ID` | `acp-openclaw-completion` | ACP completion source mapping default |
 | `MQTT_BROKER_HOST` etc.   | unset (bridge disabled) | already wired in `_AI` |
 
 ### WebSocket events the visualizer (Phase 6) must handle

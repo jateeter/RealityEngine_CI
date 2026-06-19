@@ -199,6 +199,23 @@ run_openclaw_smoke() {
     rm -f "$log"
 }
 
+run_openclaw_integration_e2e() {
+    local label="OpenClaw PE integration e2e"
+    if [ ! -x "$CI_DIR/scripts/test-openclaw-integration.sh" ]; then
+        skip_suite "$label" "test script missing or not executable"
+        return
+    fi
+
+    require_node "$label" "25.5.0" || return
+
+    if ! { curl -sk --max-time 3 https://localhost:3004/api/health >/dev/null 2>&1 || curl -s --max-time 3 http://localhost:3004/api/health >/dev/null 2>&1; }; then
+        skip_suite "$label" "PE not reachable at https://localhost:3004"
+        return
+    fi
+
+    run_suite "$label" "$CI_DIR" "$CI_DIR/scripts/test-openclaw-integration.sh"
+}
+
 # -- Unit/build/contract suites -------------------------------------------
 run_unit() {
     hdr "Build / unit / contract suites"
@@ -336,6 +353,7 @@ run_e2e() {
 
     run_playwright_e2e
     run_openclaw_smoke
+    run_openclaw_integration_e2e
 }
 
 run_playwright_e2e() {
@@ -416,6 +434,7 @@ E2E:
   _Machines  smoke, integration, e2e Playwright against live stack
   _Manager   visualizer frontend Playwright against live stack
   OpenClaw   healthz + /v1/models smoke when gateway is running
+  OpenClaw   PE integration e2e when a PE is running at https://localhost:3004
 
 Modes:
   --unit (default), --e2e, --all, --deployment (strict --all), --list

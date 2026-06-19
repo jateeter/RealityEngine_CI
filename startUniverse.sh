@@ -56,6 +56,8 @@ CPP_DIR="$CI_DIR/../RealityEngine_CPP"
 LSP_DIR="$CI_DIR/../RealityEngine_LSP"
 LAS_DIR="$CI_DIR/../localAIStack"
 OCS_DIR="$CI_DIR/../localOpenClawStack"
+CI_INTEGRATIONS_CONFIG="$CI_DIR/config/integrations.json"
+CI_INTEGRATIONS_EXAMPLE="$CI_DIR/config/integrations.example.json"
 
 # ── Flags ──────────────────────────────────────────────────────────────────
 FRESH_START=false
@@ -176,6 +178,49 @@ fi  # end: if [ "$DRY_RUN" = false ] stamp
 source "$CI_DIR/scripts/registry.sh"
 # shellcheck source=scripts/allocate-ports.sh
 source "$CI_DIR/scripts/allocate-ports.sh"
+
+configure_openclaw_acp_defaults() {
+    export ACP_ENABLED="${ACP_ENABLED:-true}"
+    export ACP_PLATFORM="${ACP_PLATFORM:-OpenClaw}"
+    export ACP_SURFACE="${ACP_SURFACE:-xACP}"
+    export ACP_GATEWAY_URL="${ACP_GATEWAY_URL:-${OPENCLAW_GATEWAY_URL:-ws://127.0.0.1:18789}}"
+    export OPENCLAW_GATEWAY_URL="${OPENCLAW_GATEWAY_URL:-$ACP_GATEWAY_URL}"
+    export ACP_SESSION_KEY="${ACP_SESSION_KEY:-${OPENCLAW_ACP_SESSION:-agent:main:main}}"
+    export OPENCLAW_ACP_SESSION="${OPENCLAW_ACP_SESSION:-$ACP_SESSION_KEY}"
+    export ACP_TARGET_AGENT="${ACP_TARGET_AGENT:-openclaw}"
+    export ACP_COMPLETION_SOURCE_MAPPING_ID="${ACP_COMPLETION_SOURCE_MAPPING_ID:-acp-openclaw-completion}"
+    export INTEGRATIONS_CONFIG="$CI_INTEGRATIONS_CONFIG"
+}
+
+ensure_ci_integrations_config() {
+    configure_openclaw_acp_defaults
+    [ -f "$CI_INTEGRATIONS_EXAMPLE" ] || die "Integration registry template missing: $CI_INTEGRATIONS_EXAMPLE"
+    if [ "$DRY_RUN" = true ]; then
+        info "Dry-run: would generate integration registry at $CI_INTEGRATIONS_CONFIG"
+        return
+    fi
+    python3 - "$CI_INTEGRATIONS_EXAMPLE" "$CI_INTEGRATIONS_CONFIG" <<'PYEOF'
+import json
+import os
+import pathlib
+import sys
+
+src = pathlib.Path(sys.argv[1])
+dst = pathlib.Path(sys.argv[2])
+data = json.loads(src.read_text())
+for item in data.get("integrations", []):
+    if item.get("id") == "openclaw-xacp" or item.get("kind") in ("acp", "openclaw-acp"):
+        item["enabled"] = os.environ.get("ACP_ENABLED", "true").lower() not in ("0", "false", "no", "off")
+        item["platform"] = os.environ.get("ACP_PLATFORM", item.get("platform", "OpenClaw"))
+        item["surface"] = os.environ.get("ACP_SURFACE", item.get("surface", "xACP"))
+        item["gatewayUrl"] = os.environ.get("OPENCLAW_GATEWAY_URL") or os.environ.get("ACP_GATEWAY_URL", item.get("gatewayUrl", "ws://127.0.0.1:18789"))
+        item["sessionKey"] = os.environ.get("OPENCLAW_ACP_SESSION") or os.environ.get("ACP_SESSION_KEY", item.get("sessionKey", "agent:main:main"))
+        item["targetAgent"] = os.environ.get("ACP_TARGET_AGENT", item.get("targetAgent", "openclaw"))
+        item["completionSourceMappingId"] = os.environ.get("ACP_COMPLETION_SOURCE_MAPPING_ID", "acp-openclaw-completion")
+dst.write_text(json.dumps(data, indent=2) + "\n")
+PYEOF
+    ok "Integration registry ready: $CI_INTEGRATIONS_CONFIG"
+}
 
 # ── Colours + helpers ─────────────────────────────────────────────────────
 GREEN='\033[0;32m'; YELLOW='\033[1;33m'; RED='\033[0;31m'
@@ -351,6 +396,14 @@ spawn_scala_instance() {
     PERCEPTION_ENGINE_PORT="$pe_port" \
     REALITY_ENGINE_URL="http://$HOST_IP:$re_port" \
     MACHINES_DIR="$MACHINES_DIR/machines" \
+    INTEGRATIONS_CONFIG="$INTEGRATIONS_CONFIG" \
+    ACP_ENABLED="$ACP_ENABLED" \
+    ACP_GATEWAY_URL="$ACP_GATEWAY_URL" \
+    OPENCLAW_GATEWAY_URL="$OPENCLAW_GATEWAY_URL" \
+    ACP_SESSION_KEY="$ACP_SESSION_KEY" \
+    OPENCLAW_ACP_SESSION="$OPENCLAW_ACP_SESSION" \
+    ACP_TARGET_AGENT="$ACP_TARGET_AGENT" \
+    ACP_COMPLETION_SOURCE_MAPPING_ID="$ACP_COMPLETION_SOURCE_MAPPING_ID" \
         nohup bash "$SCALA_DIR/start.sh" \
         > "/tmp/re-${id}.log" 2>&1 &
     local pid_re=$!
@@ -386,6 +439,14 @@ spawn_cpp_instance() {
     REALITY_ENGINE_PORT="$re_port" \
     PERCEPTION_ENGINE_PORT="$pe_port" \
     MACHINES_DIR="$MACHINES_DIR/machines" \
+    INTEGRATIONS_CONFIG="$INTEGRATIONS_CONFIG" \
+    ACP_ENABLED="$ACP_ENABLED" \
+    ACP_GATEWAY_URL="$ACP_GATEWAY_URL" \
+    OPENCLAW_GATEWAY_URL="$OPENCLAW_GATEWAY_URL" \
+    ACP_SESSION_KEY="$ACP_SESSION_KEY" \
+    OPENCLAW_ACP_SESSION="$OPENCLAW_ACP_SESSION" \
+    ACP_TARGET_AGENT="$ACP_TARGET_AGENT" \
+    ACP_COMPLETION_SOURCE_MAPPING_ID="$ACP_COMPLETION_SOURCE_MAPPING_ID" \
         nohup bash "$CPP_DIR/start.sh" \
         > "/tmp/re-${id}.log" 2>&1 &
     local pid_re=$!
@@ -421,6 +482,14 @@ spawn_lsp_instance() {
     REALITY_ENGINE_PORT="$re_port" \
     PERCEPTION_ENGINE_PORT="$pe_port" \
     MACHINES_DIR="$MACHINES_DIR/machines" \
+    INTEGRATIONS_CONFIG="$INTEGRATIONS_CONFIG" \
+    ACP_ENABLED="$ACP_ENABLED" \
+    ACP_GATEWAY_URL="$ACP_GATEWAY_URL" \
+    OPENCLAW_GATEWAY_URL="$OPENCLAW_GATEWAY_URL" \
+    ACP_SESSION_KEY="$ACP_SESSION_KEY" \
+    OPENCLAW_ACP_SESSION="$OPENCLAW_ACP_SESSION" \
+    ACP_TARGET_AGENT="$ACP_TARGET_AGENT" \
+    ACP_COMPLETION_SOURCE_MAPPING_ID="$ACP_COMPLETION_SOURCE_MAPPING_ID" \
         nohup bash "$LSP_DIR/start.sh" \
         > "/tmp/re-${id}.log" 2>&1 &
     local pid_re=$!
@@ -472,9 +541,13 @@ PYEOF
   echo "  RE_ENGINE=$RE_ENGINE  PE_ENGINE=$PE_ENGINE"
   [ -n "${MQTT_BROKER_URL:-}${MQTT_BROKER_HOST:-}" ] && \
     echo "  MQTT broker: ${MQTT_BROKER_URL:-${MQTT_BROKER_HOST}:${MQTT_BROKER_PORT:-1883}}"
+  echo "  Integrations config: ${INTEGRATIONS_CONFIG}"
+  echo "  OpenClaw ACP: enabled=${ACP_ENABLED} gateway=${ACP_GATEWAY_URL} target=${ACP_TARGET_AGENT} mapping=${ACP_COMPLETION_SOURCE_MAPPING_ID}"
   echo "════════════════════════════════════════════════════════════════════"
   exec "$engine_dir/start.sh"
 }
+
+ensure_ci_integrations_config
 
 if [ "$MULTI_ENGINE_MODE" = false ]; then
   if [ "$RE_ENGINE" = "cpp" ] || [ "$PE_ENGINE" = "cpp" ]; then
@@ -510,6 +583,8 @@ fi
 
 # Pass sibling repo paths to docker-compose so build contexts and volume mounts resolve correctly.
 export SCALA_DIR MGR_DIR MACHINES_DIR
+export ACP_ENABLED ACP_PLATFORM ACP_SURFACE ACP_GATEWAY_URL OPENCLAW_GATEWAY_URL
+export ACP_SESSION_KEY OPENCLAW_ACP_SESSION ACP_TARGET_AGENT ACP_COMPLETION_SOURCE_MAPPING_ID INTEGRATIONS_CONFIG
 
 # =============================================================================
 hdr "1 · Pre-flight"
@@ -542,6 +617,7 @@ ok "Docker daemon reachable"
 [ -f "$CI_DIR/.env" ] || die ".env not found — copy .env.example and configure"
 # shellcheck source=/dev/null
 source "$CI_DIR/.env"
+ensure_ci_integrations_config
 
 # TLS certificates
 MISSING_CERTS=""

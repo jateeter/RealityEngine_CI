@@ -241,11 +241,13 @@ services:
       - OPENCLAW_ACP_SESSION
       - ACP_TARGET_AGENT
       - ACP_COMPLETION_SOURCE_MAPPING_ID
+      - INTEGRATIONS_CONFIG=/app/config/integrations.json
       - AUDIT_LOG_ENABLED=true
       - AUDIT_LOG_LEVEL=2
       - AUDIT_LOG_SERVICE=perception-engine
     volumes:
       - perception_sources_data:/app/data
+      - ./config:/app/config:ro
       - ./certs:/etc/certs:ro
     depends_on:
       reality-engine:

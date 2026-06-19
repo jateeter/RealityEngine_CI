@@ -3,6 +3,7 @@
 .env~
 .universe-engine-selection
 nginx/conf.d/
+config/integrations.json
 
 # Node / Playwright e2e
 node_modules/
