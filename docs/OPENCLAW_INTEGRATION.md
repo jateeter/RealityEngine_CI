@@ -20,13 +20,13 @@ The normalized integration registry already declares `openclaw-xacp`:
 
 `RealityEngine_LSP` mirrors the CPP shape closely. It has built-in `agent-completion-risk` and `acp-openclaw-completion` mappings, the same ACP status and dispatch endpoints, and the same completion callback endpoint. Its CLI exposes `pe acp-status`, `pe acp-dispatch`, and `pe completion`.
 
-`RealityEngine_Scala` has a simpler compatibility layer. The Scala PE exposes ACP status and dispatch, records accepted handoffs in its dispatch ledger, and supports completion ingestion. It does not yet derive the completion sensor from `sourceMappingId`; callers should send an explicit `sensorId` for portable tests.
+`RealityEngine_Scala` has a compatibility layer for the same PE boundary. The Scala PE exposes ACP status and dispatch, records accepted handoffs in its dispatch ledger, supports completion ingestion, and resolves `sourceMappingId` to the configured completion sensor mapping.
 
 ## Main Gap
 
 The current integration is a PE boundary contract, not a full OpenClaw agent runtime loop. ACP dispatch records the handoff and returns immediately. The missing piece is an external adapter that consumes the handoff receipt, activates a real OpenClaw agent/session through the gateway, and posts the finished result to `/api/integrations/completions`.
 
-CPP and LSP also require ACP dispatch to reference an existing dispatch ledger record. Scala accepts an arbitrary ACP handoff body. That means e2e tests should treat dispatch acceptance as partially compatible today, while completion-as-source is the portable contract across all three engines.
+CPP and LSP require ACP dispatch to reference an existing dispatch ledger record. Scala accepts an arbitrary ACP handoff body. The shared CI e2e now tries to reuse an existing ledger record or create one with a real PE source + push before invoking ACP, while still treating completion-as-source as the portable contract across all three engines.
 
 ## Roadmap
 
@@ -35,7 +35,7 @@ CPP and LSP also require ACP dispatch to reference an existing dispatch ledger r
    - Ensure the CI-generated `config/integrations.json` is passed to each PE through `INTEGRATIONS_CONFIG`.
 
 2. Make dispatch IDs portable.
-   - Either add a test-only dispatch-record creation route to Scala parity layers, or add a shared trigger fixture that creates a real dispatch record before invoking ACP.
+   - Add a shared trigger fixture that creates a real dispatch record before invoking ACP.
    - Keep the CPP/LSP behavior as the stricter contract: ACP dispatch should update an existing trigger dispatch record.
 
 3. Build the OpenClaw adapter.
@@ -45,7 +45,7 @@ CPP and LSP also require ACP dispatch to reference an existing dispatch ledger r
 
 4. Promote completion source mapping to a strict cross-engine contract.
    - CPP and LSP already support `acp-openclaw-completion`.
-   - Scala should resolve `sourceMappingId` to `sensorIdTemplate`, region, TTL, and normalization the same way CPP/LSP do.
+   - Scala resolves `sourceMappingId` to `sensorIdTemplate`, region, and TTL for OpenClaw completions.
 
 5. Add live OpenClaw e2e.
    - Phase 1: deterministic hello-world agent fixture, no external gateway dependency.
@@ -97,8 +97,8 @@ npm run test:e2e
 The test validates:
 
 - `GET /api/integrations/acp/status`
-- `POST /api/integrations/acp/dispatch` when the engine accepts the supplied handoff shape
+- `POST /api/integrations/acp/dispatch` after reusing or creating a real dispatch ledger record where supported
 - hello-world agent callback to `POST /api/integrations/completions`
 - `GET /api/sources` contains `acp.openclaw.hello-world.completion`
 
-For CPP/LSP, a `404` from ACP dispatch is treated as an expected compatibility limit when no dispatch ledger record exists. The completion callback must still pass.
+For CPP/LSP, a `404` from ACP dispatch is treated as an expected compatibility limit only when no dispatch ledger record could be created. If the fixture finds or creates a dispatch record, ACP dispatch must accept it. The completion callback must always pass.
