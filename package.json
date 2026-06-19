@@ -10,6 +10,7 @@
     "test:all": "bash scripts/run-all-tests.sh --all",
     "test:deployment": "bash scripts/run-all-tests.sh --deployment",
     "test:playwright": "playwright test",
+    "test:e2e:tree-pe-manager": "playwright test e2e/tests/tree-to-pe-manager-equivalence.spec.ts --project=chromium --workers=1",
     "test:report": "playwright show-report e2e-report"
   },
   "engines": {

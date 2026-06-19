@@ -16,11 +16,19 @@ async function globalSetup(_config: FullConfig) {
 }
 
 async function waitForServices() {
-  const services = [
-    { name: 'Reality Engine', url: 'https://localhost:5001/api/health' },
-    { name: 'Visualizer Backend', url: 'https://localhost:3001/health' },
-    { name: 'Visualizer Frontend', url: 'https://localhost:5173/' },
-  ];
+  const multiEngine = process.env.MULTI_ENGINE_E2E === 'true';
+  const visualizerUrl = process.env.PLAYWRIGHT_BASE_URL || 'https://localhost:5173';
+  const services = multiEngine
+    ? [
+        { name: 'Visualizer Backend', url: 'http://localhost:3001/health' },
+        { name: 'Visualizer Engines', url: 'http://localhost:3001/api/engines' },
+        { name: 'Visualizer Frontend', url: `${visualizerUrl}/` },
+      ]
+    : [
+        { name: 'Reality Engine', url: 'https://localhost:5001/api/health' },
+        { name: 'Visualizer Backend', url: 'https://localhost:3001/health' },
+        { name: 'Visualizer Frontend', url: `${visualizerUrl}/` },
+      ];
 
   const maxRetries = 60;
   const delayMs = 2000;

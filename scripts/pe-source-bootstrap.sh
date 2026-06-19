@@ -25,13 +25,29 @@ if [ -z "$RESP" ]; then
     exit 1
 fi
 
-CREATED=$(python3 -c "
+SUMMARY=$(python3 -c '
 import json, sys
 try:
-    d = json.loads('''$RESP''')
-    print(int(d.get('created', 0)))
+    d = json.loads(sys.argv[1])
+    if d.get("success") is False:
+        raise SystemExit(2)
+    print("{} {} {}".format(
+        int(d.get("created", 0)),
+        int(d.get("skipped", 0)),
+        int(d.get("machinesSeen", 0)),
+    ))
 except Exception:
-    print(0)
-" 2>/dev/null || echo "0")
+    raise SystemExit(1)
+' "$RESP" 2>/dev/null || true)
 
-echo "  [pe-bootstrap] PE: ${PE_URL}  sources created: ${CREATED}"
+if [ -z "$SUMMARY" ]; then
+    echo "  [pe-bootstrap] Invalid bootstrap response from ${PE_URL}: ${RESP}" >&2
+    exit 1
+fi
+
+set -- $SUMMARY
+CREATED="$1"
+SKIPPED="$2"
+MACHINES_SEEN="$3"
+
+echo "  [pe-bootstrap] PE: ${PE_URL}  machines seen: ${MACHINES_SEEN}  sources created: ${CREATED}  skipped: ${SKIPPED}"

@@ -12,6 +12,7 @@ import { defineConfig, devices } from '@playwright/test';
 
 const reuseServices = process.env.REUSE_SERVICES === 'true';
 const isCI = !!process.env.CI;
+const baseURL = process.env.PLAYWRIGHT_BASE_URL || 'https://localhost:5173';
 const dockerStartCommand = "bash -c '[ -f certs/server.crt ] && [ -f certs/server.key ] && [ -f certs/keystore.p12 ] || bash certs/generate-dev-certs.sh; docker compose up -d loki grafana reality-engine visualizer-backend visualizer-frontend tls-proxy && sleep 10'";
 
 export default defineConfig({
@@ -36,7 +37,7 @@ export default defineConfig({
   // Shared settings for all tests
   use: {
     // Base URL for the application
-    baseURL: 'https://localhost:5173',
+    baseURL,
 
     // Accept self-signed dev certificates
     ignoreHTTPSErrors: true,
@@ -91,7 +92,7 @@ export default defineConfig({
     ? undefined
     : {
         command: dockerStartCommand,
-        url: 'https://localhost:5173',
+        url: baseURL,
         ignoreHTTPSErrors: true,
         timeout: 120 * 1000,
         reuseExistingServer: !isCI,

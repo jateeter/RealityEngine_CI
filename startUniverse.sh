@@ -75,6 +75,7 @@ MQTT_BROKER_URL_OVERRIDE=""
 MQTT_MAPPINGS_OVERRIDE=""
 OPENCLAW="${OPENCLAW:-auto}"       # auto | yes | no
 OCS_NATIVE_UNLOADED=false
+VERSION_WARN_ONLY=false
 
 print_usage() {
   cat <<'USAGE'
@@ -105,6 +106,7 @@ startUniverse.sh — engine-selectable CI orchestrator
   --mqtt-mappings=PATH          Path to MQTT mappings JSON file
   --openclaw                    Force-start OpenClaw even if auto-detect would skip it
   --no-openclaw                 Skip OpenClaw startup
+  --warn-only                   Warn on sibling repo version mismatch instead of failing startup
   --dry-run                     Run all pre-flight checks and print the startup plan,
                                 but skip all docker compose up / nohup / registry start.
                                 Exits 0 on a coherent plan; non-zero if pre-flight fails.
@@ -132,6 +134,7 @@ for arg in "$@"; do
     --mqtt-mappings=*)     MQTT_MAPPINGS_OVERRIDE="${arg#*=}" ;;
     --openclaw)            OPENCLAW=yes ;;
     --no-openclaw)         OPENCLAW=no ;;
+    --warn-only)           VERSION_WARN_ONLY=true ;;
     --dry-run)             DRY_RUN=true ;;
     --help|-h)             print_usage; exit 0 ;;
     *)                     echo "Unknown argument: $arg"; print_usage; exit 2 ;;
@@ -519,7 +522,11 @@ ok "docker compose v$COMPOSE_VER"
 
 # Version compatibility check — blocks startup on branch mismatch
 if [ -x "$CI_DIR/scripts/validate-versions.sh" ]; then
-    bash "$CI_DIR/scripts/validate-versions.sh"
+    if [ "$VERSION_WARN_ONLY" = true ]; then
+        bash "$CI_DIR/scripts/validate-versions.sh" --warn-only
+    else
+        bash "$CI_DIR/scripts/validate-versions.sh"
+    fi
 fi
 
 # Verify required sibling repos are present
@@ -1452,6 +1459,14 @@ nz = sum(1 for v in ps if v != 0.0) if ps else 0
 print(f'machines_evaluated={n}, non-zero_perceptual_elements={nz}')
 " 2>/dev/null || echo "response received")
               ok "RE perceive [${_sm_first_id}]: $PERCEIVE_INFO"
+              if curl -sf --max-time 10 -X POST "$_sm_re_url/api/engine/reset" \
+                  -H "Content-Type: application/json" \
+                  -d '{}' >/dev/null 2>&1; then
+                  ok "RE reset after perceive smoke-test (${_sm_first_id})"
+              else
+                  add_warn "${_sm_first_id} reset after perceive smoke-test returned no response"
+                  warn "RE reset after perceive smoke-test [${_sm_first_id}]: no response"
+              fi
           else
               add_warn "${_sm_first_id} perceive returned no response"
               warn "RE perceive [${_sm_first_id}]: no response"
