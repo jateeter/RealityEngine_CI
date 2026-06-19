@@ -40,7 +40,7 @@ CPP and LSP require ACP dispatch to reference an existing dispatch ledger record
 
 3. Build the OpenClaw adapter.
    - Input: PE ACP handoff receipt with `gatewayUrl`, `sessionKey`, `targetAgent`, `prompt`, `dispatchId`, `envelopeId`, `correlationId`, and `completionEndpoint`.
-   - Work: connect to OpenClaw xACP, activate or resume the target agent, pass the prompt/envelope, collect the result.
+   - Work: connect to the local OpenClaw OpenAI-compatible gateway, activate or resume the target agent context through the prompt/envelope, collect the result.
    - Output: `POST /api/integrations/completions` with numeric `values`, `provider: "openclaw"`, `agent`, `sourceMappingId`, `correlationId`, `envelopeId`, and `completionId`.
 
 4. Promote completion source mapping to a strict cross-engine contract.
@@ -78,6 +78,28 @@ It simulates a completed OpenClaw agent by posting:
     "message": "hello world from OpenClaw"
   }
 }
+```
+
+## OpenClaw Adapter
+
+The external adapter is:
+
+```bash
+npm run openclaw:adapter -- \
+  --handoff-file handoff.json \
+  --pe-url https://localhost:3004 \
+  --api-key "$OPENCLAW_GATEWAY_TOKEN"
+```
+
+The adapter consumes the PE ACP handoff receipt returned from `POST /api/integrations/acp/dispatch`, calls the local OpenClaw gateway at `/v1/chat/completions`, extracts a numeric `values` array from the agent response, posts the completion to the PE, and patches `/api/dispatch/records/{dispatchId}` to `running` and then `completed` when that route is available.
+
+For local validation without a live gateway:
+
+```bash
+npm run openclaw:adapter -- \
+  --handoff-json '{"dispatchId":"dispatch-test","targetAgent":"openclaw","gatewayUrl":"ws://127.0.0.1:18789","completionEndpoint":"/api/integrations/completions","completionSourceMappingId":"acp-openclaw-completion","prompt":"hello"}' \
+  --pe-url https://localhost:3004 \
+  --dry-run
 ```
 
 ## E2E Testing
