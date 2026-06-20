@@ -366,7 +366,7 @@ export HOST_IP
 # ── Multi-engine spawn helpers ────────────────────────────────────────────
 
 _poll_native_health() {
-    local url="$1" label="$2" max="${3:-45}"
+    local url="$1" label="$2" max="${3:-${NATIVE_HEALTH_ATTEMPTS:-45}}"
     local n=0
     while [ "$n" -lt "$max" ]; do
         if curl -sf --max-time 2 "$url" > /dev/null 2>&1; then
@@ -1681,3 +1681,10 @@ with open("/tmp/universe-manifest.json", "w") as f:
     json.dump(manifest, f, indent=2)
 MANIFEST_EOF
 ok "Universe manifest written: /tmp/universe-manifest.json"
+
+if [ "${UNIVERSE_HOLD_OPEN:-false}" = "true" ]; then
+    info "UNIVERSE_HOLD_OPEN=true — keeping startUniverse.sh alive; stop with ./stopUniverse.sh"
+    while true; do
+        sleep 3600
+    done
+fi
