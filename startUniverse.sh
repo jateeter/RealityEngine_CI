@@ -189,6 +189,8 @@ configure_openclaw_acp_defaults() {
     export OPENCLAW_ACP_SESSION="${OPENCLAW_ACP_SESSION:-$ACP_SESSION_KEY}"
     export ACP_TARGET_AGENT="${ACP_TARGET_AGENT:-openclaw}"
     export ACP_COMPLETION_SOURCE_MAPPING_ID="${ACP_COMPLETION_SOURCE_MAPPING_ID:-acp-openclaw-completion}"
+    export TRIGGERS_ENABLED="${TRIGGERS_ENABLED:-true}"
+    export TRIGGER_DISPATCH_MODE="${TRIGGER_DISPATCH_MODE:-dry-run}"
     export INTEGRATIONS_CONFIG="$CI_INTEGRATIONS_CONFIG"
 }
 
@@ -404,6 +406,8 @@ spawn_scala_instance() {
     OPENCLAW_ACP_SESSION="$OPENCLAW_ACP_SESSION" \
     ACP_TARGET_AGENT="$ACP_TARGET_AGENT" \
     ACP_COMPLETION_SOURCE_MAPPING_ID="$ACP_COMPLETION_SOURCE_MAPPING_ID" \
+    TRIGGERS_ENABLED="$TRIGGERS_ENABLED" \
+    TRIGGER_DISPATCH_MODE="$TRIGGER_DISPATCH_MODE" \
         nohup bash "$SCALA_DIR/start.sh" \
         > "/tmp/re-${id}.log" 2>&1 &
     local pid_re=$!
@@ -447,6 +451,8 @@ spawn_cpp_instance() {
     OPENCLAW_ACP_SESSION="$OPENCLAW_ACP_SESSION" \
     ACP_TARGET_AGENT="$ACP_TARGET_AGENT" \
     ACP_COMPLETION_SOURCE_MAPPING_ID="$ACP_COMPLETION_SOURCE_MAPPING_ID" \
+    TRIGGERS_ENABLED="$TRIGGERS_ENABLED" \
+    TRIGGER_DISPATCH_MODE="$TRIGGER_DISPATCH_MODE" \
         nohup bash "$CPP_DIR/start.sh" \
         > "/tmp/re-${id}.log" 2>&1 &
     local pid_re=$!
@@ -490,6 +496,8 @@ spawn_lsp_instance() {
     OPENCLAW_ACP_SESSION="$OPENCLAW_ACP_SESSION" \
     ACP_TARGET_AGENT="$ACP_TARGET_AGENT" \
     ACP_COMPLETION_SOURCE_MAPPING_ID="$ACP_COMPLETION_SOURCE_MAPPING_ID" \
+    TRIGGERS_ENABLED="$TRIGGERS_ENABLED" \
+    TRIGGER_DISPATCH_MODE="$TRIGGER_DISPATCH_MODE" \
         nohup bash "$LSP_DIR/start.sh" \
         > "/tmp/re-${id}.log" 2>&1 &
     local pid_re=$!
@@ -1228,6 +1236,33 @@ case "$MACHINE_LOAD" in
 esac
 
 fi  # end: if [ "$MULTI_ENGINE_MODE" = false ] Docker RE block
+
+if [ "$MULTI_ENGINE_MODE" = true ]; then
+    _localai_bridge_urls=$(python3 - "$REGISTRY_FILE" <<'PYEOF'
+import json
+import sys
+
+try:
+    with open(sys.argv[1]) as f:
+        instances = json.load(f).get("instances", [])
+    first = instances[0] if instances else {}
+    re_port = first.get("re_port")
+    pe_port = first.get("pe_port")
+    if re_port and pe_port:
+        print(f"http://host.docker.internal:{re_port} http://host.docker.internal:{pe_port}")
+except Exception:
+    pass
+PYEOF
+)
+    if [ -n "$_localai_bridge_urls" ]; then
+        read -r LOCALAI_RE_URL LOCALAI_PE_URL <<< "$_localai_bridge_urls"
+        export RE_URL="$LOCALAI_RE_URL"
+        export PE_URL="$LOCALAI_PE_URL"
+        info "localAIStack bridge target — RE: $RE_URL  PE: $PE_URL"
+    else
+        add_warn "Could not derive localAIStack RE/PE bridge URLs from registry"
+    fi
+fi
 
 # =============================================================================
 hdr "5 · localAIStack API  (FastAPI + RAG + Ollama bridge)"
