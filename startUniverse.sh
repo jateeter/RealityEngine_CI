@@ -1106,6 +1106,8 @@ except Exception:
 
         info "Starting Manager (Visualizer) natively — RE: $_re_arg  registry: http://$HOST_IP:${REGISTRY_PORT}/re-registry.json"
         RE_REGISTRY_URL="http://$HOST_IP:${REGISTRY_PORT}/re-registry.json" \
+            VIZ_RATE_LIMIT_MAX="${VIZ_RATE_LIMIT_MAX:-5000}" \
+            VIZ_MACHINES_RATE_LIMIT_MAX="${VIZ_MACHINES_RATE_LIMIT_MAX:-2000}" \
             nohup "$MGR_DIR/start.sh" --re "$_re_arg" --pe "$_pe_arg" --no-seed \
             > /tmp/manager_universe.log 2>&1 &
         MANAGER_PID=$!
@@ -1541,6 +1543,24 @@ else
 fi
 set -e
 
+# ── MQTT Yuma integration test (when broker is configured) ────────────────
+if [ -n "${MQTT_BROKER_URL:-}" ] && [ "$MULTI_ENGINE_MODE" = false ]; then
+  if [ -x "$CI_DIR/scripts/test-mqtt-yuma.sh" ]; then
+    hdr "7.5 · MQTT Yuma Integration"
+    MQTT_YUMA_ARGS=(--pe-url "https://localhost:3004" --broker-url "$MQTT_BROKER_URL")
+    [ -n "${MQTT_MAPPINGS_FILE:-}" ] && [ -f "$MQTT_MAPPINGS_FILE" ] && \
+      MQTT_YUMA_ARGS+=(--mappings "$MQTT_MAPPINGS_FILE")
+    [ -n "${MQTT_USERNAME:-}" ] && MQTT_YUMA_ARGS+=(--username "$MQTT_USERNAME")
+    [ -n "${MQTT_PASSWORD:-}" ] && MQTT_YUMA_ARGS+=(--password "$MQTT_PASSWORD")
+    # Bridge was already started by PE at boot via env vars — skip re-enable
+    MQTT_YUMA_ARGS+=(--skip-enable)
+    set +e
+    bash "$CI_DIR/scripts/test-mqtt-yuma.sh" "${MQTT_YUMA_ARGS[@]}" || \
+      add_warn "MQTT Yuma integration test failed — check broker connectivity"
+    set -e
+  fi
+fi
+
 else
   # Multi-engine mode: smoke tests against first registered instance
   set +e
@@ -1669,6 +1689,10 @@ printf "    %-30s %s\n" "RE API (Docker/Scala)"     "https://localhost:5001"
 printf "    %-30s %s\n" "Visualizer"                "https://localhost:5173"
 printf "    %-30s %s\n" "Perception Engine API"     "https://localhost:3004"
 printf "    %-30s %s\n" "Perception Engine UI"      "https://localhost:3005"
+if [ -n "${MQTT_BROKER_URL:-}" ]; then
+printf "    %-30s %s\n" "MQTT broker"               "$MQTT_BROKER_URL"
+printf "    %-30s %s\n" "MQTT status"               "https://localhost:3004/api/mqtt/status"
+fi
 echo ""
 echo "  Note: RE endpoints use a self-signed TLS cert (browser will warn)"
 echo "        Silence:  bash $CI_DIR/certs/generate-dev-certs.sh"

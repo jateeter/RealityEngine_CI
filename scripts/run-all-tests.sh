@@ -164,6 +164,36 @@ python_venv_env() {
 }
 
 stack_healthy() {
+    local registry_file="${RE_REGISTRY_FILE:-/tmp/re-registry/re-registry.json}"
+    if [ -f "$registry_file" ]; then
+        local ui=1 be=1 endpoints endpoint_count=0
+        { curl -sk --max-time 3 https://localhost:5173/ >/dev/null 2>&1 || curl -s --max-time 3 http://localhost:5173/ >/dev/null 2>&1; } && ui=0
+        { curl -sk --max-time 3 https://localhost:3001/health >/dev/null 2>&1 || curl -s --max-time 3 http://localhost:3001/health >/dev/null 2>&1; } && be=0
+        endpoints="$(python3 - "$registry_file" <<'PYEOF' 2>/dev/null || true
+import json
+import sys
+
+with open(sys.argv[1]) as f:
+    instances = json.load(f).get("instances", [])
+for inst in instances:
+    re_url = inst.get("re_url")
+    pe_url = inst.get("pe_url")
+    if re_url:
+        print(re_url.rstrip("/") + "/api/health")
+    if pe_url:
+        print(pe_url.rstrip("/") + "/api/health")
+PYEOF
+)"
+        [ -n "$endpoints" ] || return 1
+        while IFS= read -r endpoint; do
+            [ -z "$endpoint" ] && continue
+            endpoint_count=$((endpoint_count + 1))
+            curl -sf --max-time 3 "$endpoint" >/dev/null 2>&1 || return 1
+        done <<< "$endpoints"
+        [ "$ui" -eq 0 ] && [ "$be" -eq 0 ] && [ "$endpoint_count" -gt 0 ]
+        return
+    fi
+
     local ui=1 be=1 pe=1 re=1
     { curl -sk --max-time 3 https://localhost:5173/ >/dev/null 2>&1 || curl -s --max-time 3 http://localhost:5173/ >/dev/null 2>&1; } && ui=0
     { curl -sk --max-time 3 https://localhost:3001/health >/dev/null 2>&1 || curl -s --max-time 3 http://localhost:3001/health >/dev/null 2>&1; } && be=0
@@ -178,8 +208,6 @@ run_openclaw_smoke() {
 
     local gateway_port="${OPENCLAW_GATEWAY_PORT:-18789}"
     local gateway_url="${OPENCLAW_GATEWAY_URL:-http://localhost:${gateway_port}}"
-    local auth_header=()
-    [ -n "${OPENCLAW_GATEWAY_TOKEN:-}" ] && auth_header=(-H "Authorization: Bearer ${OPENCLAW_GATEWAY_TOKEN}")
 
     if ! curl -sf --max-time 5 "$gateway_url/healthz" >/dev/null 2>&1; then
         skip_suite "$label" "OpenClaw gateway not reachable at $gateway_url/healthz"
@@ -188,7 +216,15 @@ run_openclaw_smoke() {
 
     local log; log="$(mktemp -t re-openclaw.XXXXXX)"
     info "Running: $label"
-    if curl -sf --max-time 10 "${auth_header[@]}" "$gateway_url/v1/models" >"$log" 2>&1; then
+    local rc=1
+    if [ -n "${OPENCLAW_GATEWAY_TOKEN:-}" ]; then
+        curl -sf --max-time 10 -H "Authorization: Bearer ${OPENCLAW_GATEWAY_TOKEN}" "$gateway_url/v1/models" >"$log" 2>&1
+        rc=$?
+    else
+        curl -sf --max-time 10 "$gateway_url/v1/models" >"$log" 2>&1
+        rc=$?
+    fi
+    if [ "$rc" -eq 0 ]; then
         ok "$label - PASS"
         record PASS "$label"
     else
@@ -207,6 +243,32 @@ run_openclaw_integration_e2e() {
     fi
 
     require_node "$label" "25.5.0" || return
+
+    local registry_file="${RE_REGISTRY_FILE:-/tmp/re-registry/re-registry.json}"
+    if [ -f "$registry_file" ]; then
+        local targets target_count=0 id pe_url
+        targets="$(python3 - "$registry_file" <<'PYEOF' 2>/dev/null || true
+import json
+import sys
+
+with open(sys.argv[1]) as f:
+    instances = json.load(f).get("instances", [])
+for inst in instances:
+    iid = inst.get("id")
+    pe_url = inst.get("pe_url")
+    if iid and pe_url:
+        print(f"{iid} {pe_url}")
+PYEOF
+)"
+        [ -n "$targets" ] || { skip_suite "$label" "multi-engine registry has no PE URLs"; return; }
+        while read -r id pe_url; do
+            [ -z "$id" ] && continue
+            target_count=$((target_count + 1))
+            run_shell_suite "$label ($id)" "$CI_DIR" "PE_URL='$pe_url' ACP_COMPLETION_SOURCE_MAPPING_ID='${ACP_COMPLETION_SOURCE_MAPPING_ID:-acp-openclaw-completion}' '$CI_DIR/scripts/test-openclaw-integration.sh'"
+        done <<< "$targets"
+        [ "$target_count" -gt 0 ] || skip_suite "$label" "multi-engine registry has no PE URLs"
+        return
+    fi
 
     if ! { curl -sk --max-time 3 https://localhost:3004/api/health >/dev/null 2>&1 || curl -s --max-time 3 http://localhost:3004/api/health >/dev/null 2>&1; }; then
         skip_suite "$label" "PE not reachable at https://localhost:3004"
@@ -359,6 +421,10 @@ run_e2e() {
 run_playwright_e2e() {
     hdr "Live-stack Playwright suites"
 
+    local registry_file="${RE_REGISTRY_FILE:-/tmp/re-registry/re-registry.json}"
+    local registry_url="${RE_REGISTRY_URL:-http://127.0.0.1:5999/re-registry.json}"
+    local multi_engine=false
+
     if ! stack_healthy; then
         warn "Live stack not reachable at https://localhost:5173 plus RE/PE/backend health endpoints"
         warn "Start it first: (cd $CI_DIR && ./startUniverse.sh)"
@@ -371,26 +437,61 @@ run_playwright_e2e() {
     fi
     ok "Live stack reachable - reusing running services (REUSE_SERVICES=true)"
     export REUSE_SERVICES=true
+    if [ -f "$registry_file" ]; then
+        multi_engine=true
+    fi
 
     require_node "Playwright e2e" "25.5.0" || return
 
     if [ -d "$CI_DIR/node_modules" ]; then
-        run_suite "CI e2e (Playwright)" "$CI_DIR" npx playwright test
+        if [ "$multi_engine" = "true" ]; then
+            run_shell_suite "CI e2e (Playwright, multi-engine)" "$CI_DIR" \
+                "REUSE_SERVICES=true MULTI_ENGINE_E2E=true PLAYWRIGHT_BASE_URL='${PLAYWRIGHT_BASE_URL:-http://localhost:5173}' CI=true npx playwright test e2e/tests/tree-to-pe-manager-equivalence.spec.ts --project=chromium --workers=1"
+        else
+            run_suite "CI e2e (Playwright)" "$CI_DIR" npx playwright test
+        fi
     else
         skip_suite "CI e2e (Playwright)" "node_modules missing - run 'npm ci' in $CI_DIR"
     fi
 
     if [ -d "$MACHINES_DIR/node_modules" ]; then
-        run_suite "Machines smoke (Playwright)" "$MACHINES_DIR" npm run test:smoke
-        run_suite "Machines integration (Playwright)" "$MACHINES_DIR" npm run test:integration
-        run_suite "Machines e2e (Playwright)" "$MACHINES_DIR" npm run test:e2e
+        if [ "$multi_engine" = "true" ]; then
+            local machines_env first_re_url first_pe_url
+            first_re_url="$(python3 - "$registry_file" <<'PYEOF' 2>/dev/null || true
+import json
+import sys
+
+with open(sys.argv[1]) as f:
+    instances = json.load(f).get("instances", [])
+print(instances[0].get("re_url", "") if instances else "")
+PYEOF
+)"
+            first_pe_url="$(python3 - "$registry_file" <<'PYEOF' 2>/dev/null || true
+import json
+import sys
+
+with open(sys.argv[1]) as f:
+    instances = json.load(f).get("instances", [])
+print(instances[0].get("pe_url", "") if instances else "")
+PYEOF
+)"
+            machines_env="REUSE_SERVICES=true RE_REGISTRY_URL='$registry_url' RE_BASE_URL='${first_re_url:-http://localhost:5001}' PE_BASE_URL='${first_pe_url:-http://localhost:5000}' VIZ_BASE_URL='http://localhost:3001' VIZ_FRONTEND_URL='http://localhost:5173' LAS_BASE_URL='http://localhost:4000' QD_BASE_URL='http://localhost:4333' SKIP_GLOBAL_SETUP=true CI=true"
+            run_shell_suite "Machines smoke (Playwright)" "$MACHINES_DIR" "$machines_env npm run test:smoke -- --project=chromium --workers=1"
+            run_shell_suite "Machines integration (Playwright)" "$MACHINES_DIR" "$machines_env npm run test:integration -- --project=chromium --workers=1"
+            run_shell_suite "Machines e2e (Playwright)" "$MACHINES_DIR" "$machines_env npm run test:e2e -- --project=chromium --workers=1"
+        else
+            run_suite "Machines smoke (Playwright)" "$MACHINES_DIR" npm run test:smoke
+            run_suite "Machines integration (Playwright)" "$MACHINES_DIR" npm run test:integration
+            run_suite "Machines e2e (Playwright)" "$MACHINES_DIR" npm run test:e2e
+        fi
     else
         skip_suite "Machines Playwright" "node_modules missing - run 'npm ci' in $MACHINES_DIR"
     fi
 
     local fe="$MGR_DIR/visualizer/frontend"
     if [ -d "$fe/node_modules" ]; then
-        run_suite "Manager frontend e2e (Playwright)" "$fe" npm run test:e2e
+        run_shell_suite "Manager frontend e2e (Playwright)" "$fe" \
+            "npx playwright test --project=chromium --workers=1"
     else
         skip_suite "Manager frontend e2e (Playwright)" "node_modules missing - run 'npm ci' in $fe"
     fi
