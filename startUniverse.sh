@@ -581,6 +581,21 @@ fi
 
 if [ -n "$MQTT_BROKER_URL_OVERRIDE" ]; then
   export MQTT_BROKER_URL="$MQTT_BROKER_URL_OVERRIDE"
+  # Bug 4 fix: CPP from_environment() reads MQTT_BROKER_HOST/PORT, not MQTT_BROKER_URL.
+  # Export them in the main body so multi-engine mode engines inherit them at boot.
+  _mqtt_parsed=$(python3 - "$MQTT_BROKER_URL_OVERRIDE" <<'PYEOF' 2>/dev/null
+import sys
+from urllib.parse import urlparse
+u = urlparse(sys.argv[1])
+default_port = 8883 if u.scheme == 'mqtts' else 1883
+print(u.hostname or '')
+print(u.port or default_port)
+PYEOF
+)
+  export MQTT_BROKER_HOST=$(printf '%s\n' "$_mqtt_parsed" | sed -n '1p')
+  export MQTT_BROKER_PORT=$(printf '%s\n' "$_mqtt_parsed" | sed -n '2p')
+  [ -z "$MQTT_BROKER_PORT" ] && MQTT_BROKER_PORT=1883
+  unset _mqtt_parsed
 fi
 if [ -n "$MQTT_MAPPINGS_OVERRIDE" ]; then
   [ -f "$MQTT_MAPPINGS_OVERRIDE" ] || die "MQTT mappings file not found: $MQTT_MAPPINGS_OVERRIDE"

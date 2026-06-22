@@ -10,6 +10,8 @@
 #                     [--all]
 #                     [--instance=<id>]   stop one registry instance by id
 #                     [--engines-only]    stop all native instances; leave Docker up
+#                     [--stop-docker]     also run docker compose down for all stacks
+#                                         (default: Docker containers are left running)
 #                     [--help]
 # =============================================================================
 set -e
@@ -31,6 +33,7 @@ PE_ENGINE=""
 STOP_ALL=false
 STOP_INSTANCE=""
 ENGINES_ONLY=false
+STOP_DOCKER=false   # default: leave Docker containers running
 
 for arg in "$@"; do
   case "$arg" in
@@ -39,15 +42,20 @@ for arg in "$@"; do
     --all)           STOP_ALL=true ;;
     --instance=*)    STOP_INSTANCE="${arg#*=}" ;;
     --engines-only)  ENGINES_ONLY=true ;;
+    --stop-docker)   STOP_DOCKER=true ;;
     --help|-h)
       cat <<'USAGE'
 Usage: ./stopUniverse.sh [--re-engine=ai|cpp|lsp] [--pe-engine=ai|cpp|lsp]
                          [--all] [--instance=<id>] [--engines-only]
+                         [--stop-docker]
 
 Without flags, reads .universe-engine-selection and stops the engines recorded
 there.  --all tears down every engine regardless of the stamp.
 --instance=<id>  Stop one specific registry instance (e.g. scala-1, cpp-2)
 --engines-only   Stop all native engine instances; leave Docker infrastructure up
+--stop-docker    Also run docker compose down for all stacks (CI, localAIStack,
+                 OpenClaw). Default is to leave Docker containers running so that
+                 Docker Desktop remains stable across repeated test cycles.
 USAGE
       exit 0 ;;
     *) echo "Unknown argument: $arg"; exit 2 ;;
@@ -164,10 +172,12 @@ stop_openclaw_stack() {
   local stamp="${1:-auto}" native_unloaded="${2:-false}"
   if [ "$stamp" = "no" ]; then
     info "OpenClaw: was not started — skipping"
-  elif [ -d "$OCS_DIR" ] && [ -f "$OCS_DIR/docker-compose.yml" ]; then
+  elif [ "$STOP_DOCKER" = true ] && [ -d "$OCS_DIR" ] && [ -f "$OCS_DIR/docker-compose.yml" ]; then
     info "Stopping OpenClaw stack..."
     (cd "$OCS_DIR" && docker compose down 2>/dev/null) || warn "OpenClaw compose down returned non-zero"
     ok "OpenClaw stopped"
+  elif [ "$STOP_DOCKER" = false ]; then
+    info "OpenClaw: leaving Docker containers running (use --stop-docker to tear down)"
   else
     info "OpenClaw: not found at $OCS_DIR — nothing to stop"
   fi
@@ -217,16 +227,20 @@ stop_ai_stack() {
   stop_openclaw_stack "$STAMPED_OPENCLAW" "$STAMPED_OCS_NATIVE_UNLOADED"
   stop_manager_native
 
-  info "Stopping RealityEngine CI Docker stack..."
-  if [ -f "$CI_DIR/docker-compose.yml" ]; then
-    (cd "$CI_DIR" && docker compose down 2>/dev/null) || warn "CI compose down returned non-zero"
-    ok "CI compose down complete"
-  fi
+  if [ "$STOP_DOCKER" = true ]; then
+    info "Stopping RealityEngine CI Docker stack..."
+    if [ -f "$CI_DIR/docker-compose.yml" ]; then
+      (cd "$CI_DIR" && docker compose down 2>/dev/null) || warn "CI compose down returned non-zero"
+      ok "CI compose down complete"
+    fi
 
-  info "Stopping localAIStack..."
-  if [ -d "$LAS_DIR" ] && [ -f "$LAS_DIR/docker-compose.yml" ]; then
-    (cd "$LAS_DIR" && docker compose down 2>/dev/null) || warn "localAIStack compose down returned non-zero"
-    ok "localAIStack stopped"
+    info "Stopping localAIStack..."
+    if [ -d "$LAS_DIR" ] && [ -f "$LAS_DIR/docker-compose.yml" ]; then
+      (cd "$LAS_DIR" && docker compose down 2>/dev/null) || warn "localAIStack compose down returned non-zero"
+      ok "localAIStack stopped"
+    fi
+  else
+    info "Docker stacks: leaving containers running (use --stop-docker to tear down)"
   fi
 
   # Stop Ollama only if startUniverse.sh started it (PID file present)
