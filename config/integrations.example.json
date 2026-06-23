@@ -236,6 +236,290 @@
       "ttlMs": 300000,
       "pushMode": "debounced",
       "debounceMs": 250
+    },
+    {
+      "id": "acp-childdevelopmentmonitor-input-assessment",
+      "sensorIdTemplate": "acp.openclaw.{agent}.assessment",
+      "region": {
+        "offset": 1975,
+        "length": 4
+      },
+      "extract": {
+        "type": "json",
+        "pointers": [
+          "/milestone_completion_norm",
+          "/peer_interaction_norm",
+          "/language_score_norm",
+          "/learning_engagement_norm"
+        ]
+      },
+      "normalize": {
+        "mode": "passthrough",
+        "clamp": true
+      },
+      "ttlMs": 300000,
+      "pushMode": "debounced",
+      "debounceMs": 250
+    },
+    {
+      "id": "acp-activity-monitor-input-assessment",
+      "sensorIdTemplate": "acp.openclaw.{agent}.assessment",
+      "region": {
+        "offset": 1951,
+        "length": 2
+      },
+      "extract": {
+        "type": "json",
+        "pointers": [
+          "/daily-activity-monitor-input-1",
+          "/daily-activity-monitor-input-2"
+        ]
+      },
+      "normalize": {
+        "mode": "passthrough",
+        "clamp": true
+      },
+      "ttlMs": 300000,
+      "pushMode": "debounced",
+      "debounceMs": 250
+    },
+    {
+      "id": "acp-facilitiesmaintenance-input-assessment",
+      "sensorIdTemplate": "acp.openclaw.{agent}.assessment",
+      "region": {
+        "offset": 1931,
+        "length": 8
+      },
+      "extract": {
+        "type": "json",
+        "pointers": [
+          "/facilitiesmaintenance-input-1",
+          "/facilitiesmaintenance-input-2",
+          "/facilitiesmaintenance-input-3",
+          "/facilitiesmaintenance-input-4",
+          "/facilitiesmaintenance-input-5",
+          "/facilitiesmaintenance-input-6",
+          "/facilitiesmaintenance-input-7",
+          "/facilitiesmaintenance-input-8"
+        ]
+      },
+      "normalize": {
+        "mode": "passthrough",
+        "clamp": true
+      },
+      "ttlMs": 300000,
+      "pushMode": "debounced",
+      "debounceMs": 250
+    },
+    {
+      "id": "acp-homechronicdiseasemonitor-input-assessment",
+      "sensorIdTemplate": "acp.openclaw.{agent}.assessment",
+      "region": {
+        "offset": 1987,
+        "length": 4
+      },
+      "extract": {
+        "type": "json",
+        "pointers": [
+          "/biomarker_control_norm",
+          "/symptom_burden_norm",
+          "/self_management_norm",
+          "/lifestyle_adherence_norm"
+        ]
+      },
+      "normalize": {
+        "mode": "passthrough",
+        "clamp": true
+      },
+      "ttlMs": 300000,
+      "pushMode": "debounced",
+      "debounceMs": 250
+    },
+    {
+      "id": "acp-homeenvironmentsafetymonitor-input-assessment",
+      "sensorIdTemplate": "acp.openclaw.{agent}.assessment",
+      "region": {
+        "offset": 1967,
+        "length": 4
+      },
+      "extract": {
+        "type": "json",
+        "pointers": [
+          "/temp_stability_norm",
+          "/air_quality_norm",
+          "/structural_safety_norm",
+          "/utility_reliability_norm"
+        ]
+      },
+      "normalize": {
+        "mode": "passthrough",
+        "clamp": true
+      },
+      "ttlMs": 300000,
+      "pushMode": "debounced",
+      "debounceMs": 250
+    },
+    {
+      "id": "acp-homefoodsecuritymonitor-input-assessment",
+      "sensorIdTemplate": "acp.openclaw.{agent}.assessment",
+      "region": {
+        "offset": 1963,
+        "length": 4
+      },
+      "extract": {
+        "type": "json",
+        "pointers": [
+          "/meal_frequency_norm",
+          "/food_quality_norm",
+          "/pantry_days_norm",
+          "/food_assistance_norm"
+        ]
+      },
+      "normalize": {
+        "mode": "passthrough",
+        "clamp": true
+      },
+      "ttlMs": 300000,
+      "pushMode": "debounced",
+      "debounceMs": 250
+    },
+    {
+      "id": "acp-homemedicationcostbarriermonitor-input-assessment",
+      "sensorIdTemplate": "acp.openclaw.{agent}.assessment",
+      "region": {
+        "offset": 1979,
+        "length": 4
+      },
+      "extract": {
+        "type": "json",
+        "pointers": [
+          "/fill_ratio_norm",
+          "/dose_adherence_norm",
+          "/cost_barrier_norm",
+          "/generic_access_norm"
+        ]
+      },
+      "normalize": {
+        "mode": "passthrough",
+        "clamp": true
+      },
+      "ttlMs": 300000,
+      "pushMode": "debounced",
+      "debounceMs": 250
+    },
+    {
+      "id": "acp-hometransportationbarriermonitor-input-assessment",
+      "sensorIdTemplate": "acp.openclaw.{agent}.assessment",
+      "region": {
+        "offset": 1983,
+        "length": 4
+      },
+      "extract": {
+        "type": "json",
+        "pointers": [
+          "/appointment_attendance_norm",
+          "/transit_access_norm",
+          "/missed_critical_care_norm",
+          "/proximity_norm"
+        ]
+      },
+      "normalize": {
+        "mode": "passthrough",
+        "clamp": true
+      },
+      "ttlMs": 300000,
+      "pushMode": "debounced",
+      "debounceMs": 250
+    },
+    {
+      "id": "acp-hydration-monitor-input-assessment",
+      "sensorIdTemplate": "acp.openclaw.{agent}.assessment",
+      "region": {
+        "offset": 1947,
+        "length": 2
+      },
+      "extract": {
+        "type": "json",
+        "pointers": [
+          "/hydration-monitor-input-1",
+          "/hydration-monitor-input-2"
+        ]
+      },
+      "normalize": {
+        "mode": "passthrough",
+        "clamp": true
+      },
+      "ttlMs": 300000,
+      "pushMode": "debounced",
+      "debounceMs": 250
+    },
+    {
+      "id": "acp-medication-adherence-input-assessment",
+      "sensorIdTemplate": "acp.openclaw.{agent}.assessment",
+      "region": {
+        "offset": 1939,
+        "length": 2
+      },
+      "extract": {
+        "type": "json",
+        "pointers": [
+          "/medication-adherence-monitor-input-1",
+          "/medication-adherence-monitor-input-2"
+        ]
+      },
+      "normalize": {
+        "mode": "passthrough",
+        "clamp": true
+      },
+      "ttlMs": 300000,
+      "pushMode": "debounced",
+      "debounceMs": 250
+    },
+    {
+      "id": "acp-pediatricnutritionmonitor-input-assessment",
+      "sensorIdTemplate": "acp.openclaw.{agent}.assessment",
+      "region": {
+        "offset": 1971,
+        "length": 4
+      },
+      "extract": {
+        "type": "json",
+        "pointers": [
+          "/growth_percentile_norm",
+          "/caloric_adequacy_norm",
+          "/micronutrient_score_norm",
+          "/dietary_diversity_norm"
+        ]
+      },
+      "normalize": {
+        "mode": "passthrough",
+        "clamp": true
+      },
+      "ttlMs": 300000,
+      "pushMode": "debounced",
+      "debounceMs": 250
+    },
+    {
+      "id": "acp-sleep-quality-input-assessment",
+      "sensorIdTemplate": "acp.openclaw.{agent}.assessment",
+      "region": {
+        "offset": 1943,
+        "length": 2
+      },
+      "extract": {
+        "type": "json",
+        "pointers": [
+          "/sleep-quality-monitor-input-1",
+          "/sleep-quality-monitor-input-2"
+        ]
+      },
+      "normalize": {
+        "mode": "passthrough",
+        "clamp": true
+      },
+      "ttlMs": 300000,
+      "pushMode": "debounced",
+      "debounceMs": 250
     }
   ]
 }
