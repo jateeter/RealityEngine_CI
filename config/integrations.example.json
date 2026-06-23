@@ -36,7 +36,10 @@
       "triggerRulesFile": "config/agent-triggers.example.json",
       "mcp": {
         "serverUrl": "https://example.org/mcp",
-        "allowedTools": ["re.read_state", "pe.list_sources"]
+        "allowedTools": [
+          "re.read_state",
+          "pe.list_sources"
+        ]
       },
       "completionMode": "https-callback"
     },
@@ -50,7 +53,10 @@
       "completionSourceMappingId": "agent-completion-risk",
       "mcp": {
         "execution": "local",
-        "allowedTools": ["re.read_state", "pe.list_sources"]
+        "allowedTools": [
+          "re.read_state",
+          "pe.list_sources"
+        ]
       },
       "completionMode": "local-adapter"
     },
@@ -91,12 +97,23 @@
     {
       "id": "agent-completion-risk",
       "sensorIdTemplate": "agent.{agent}.completion",
-      "region": { "offset": 4200, "length": 4 },
+      "region": {
+        "offset": 4200,
+        "length": 4
+      },
       "extract": {
         "type": "json",
-        "pointers": ["/completed", "/failed", "/confidence", "/actionClass"]
+        "pointers": [
+          "/completed",
+          "/failed",
+          "/confidence",
+          "/actionClass"
+        ]
       },
-      "normalize": { "mode": "passthrough", "clamp": true },
+      "normalize": {
+        "mode": "passthrough",
+        "clamp": true
+      },
       "ttlMs": 300000,
       "pushMode": "debounced",
       "debounceMs": 250
@@ -104,12 +121,23 @@
     {
       "id": "acp-openclaw-completion",
       "sensorIdTemplate": "acp.openclaw.{agent}.completion",
-      "region": { "offset": 4210, "length": 4 },
+      "region": {
+        "offset": 4210,
+        "length": 4
+      },
       "extract": {
         "type": "json",
-        "pointers": ["/completed", "/failed", "/confidence", "/actionClass"]
+        "pointers": [
+          "/completed",
+          "/failed",
+          "/confidence",
+          "/actionClass"
+        ]
       },
-      "normalize": { "mode": "passthrough", "clamp": true },
+      "normalize": {
+        "mode": "passthrough",
+        "clamp": true
+      },
       "ttlMs": 300000,
       "pushMode": "debounced",
       "debounceMs": 250
@@ -117,12 +145,23 @@
     {
       "id": "healthkit-activity",
       "sensorIdTemplate": "healthkit.{sampleType}",
-      "region": { "offset": 4300, "length": 4 },
+      "region": {
+        "offset": 4300,
+        "length": 4
+      },
       "extract": {
         "type": "json",
-        "pointers": ["/normalizedValue", "/trend", "/confidence", "/sourceClass"]
+        "pointers": [
+          "/normalizedValue",
+          "/trend",
+          "/confidence",
+          "/sourceClass"
+        ]
       },
-      "normalize": { "mode": "passthrough", "clamp": true },
+      "normalize": {
+        "mode": "passthrough",
+        "clamp": true
+      },
       "ttlMs": 900000,
       "pushMode": "debounced",
       "debounceMs": 250
@@ -130,25 +169,71 @@
     {
       "id": "carekit-task",
       "sensorIdTemplate": "carekit.{taskId}.{sampleType}",
-      "region": { "offset": 4310, "length": 4 },
+      "region": {
+        "offset": 4310,
+        "length": 4
+      },
       "extract": {
         "type": "json",
-        "pointers": ["/completed", "/missed", "/adherence", "/confidence"]
+        "pointers": [
+          "/completed",
+          "/missed",
+          "/adherence",
+          "/confidence"
+        ]
       },
-      "normalize": { "mode": "passthrough", "clamp": true },
+      "normalize": {
+        "mode": "passthrough",
+        "clamp": true
+      },
       "ttlMs": 900000,
       "pushMode": "debounced",
       "debounceMs": 250
     },
     {
       "id": "carekit-outcome",
-      "region": { "offset": 4314, "length": 4 },
+      "region": {
+        "offset": 4314,
+        "length": 4
+      },
       "extract": {
         "type": "json",
-        "pointers": ["/value", "/adherenceValue", "/trend", "/confidence"]
+        "pointers": [
+          "/value",
+          "/adherenceValue",
+          "/trend",
+          "/confidence"
+        ]
       },
-      "normalize": { "mode": "passthrough", "clamp": true },
+      "normalize": {
+        "mode": "passthrough",
+        "clamp": true
+      },
       "ttlMs": 900000,
+      "pushMode": "debounced",
+      "debounceMs": 250
+    },
+    {
+      "id": "acp-homechronicpainmonitor-input-assessment",
+      "sensorIdTemplate": "acp.openclaw.{agent}.assessment",
+      "region": {
+        "offset": 1991,
+        "length": 4
+      },
+      "extract": {
+        "type": "json",
+        "pointers": [
+          "/pain_scale_norm",
+          "/functional_impairment_norm",
+          "/opioid_risk_norm",
+          "/physical_activity_norm"
+        ]
+      },
+      "normalize": {
+        "mode": "passthrough",
+        "clamp": true
+      },
+      "ttlMs": 300000,
       "pushMode": "debounced",
       "debounceMs": 250
     }
