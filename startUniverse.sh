@@ -1346,25 +1346,6 @@ else
     fi
 
     if [ "$_ocs_ok" = true ]; then
-        mkdir -p "$OCS_DIR/openclaw"
-        if [ ! -f "$OCS_DIR/openclaw/openclaw.json" ] && [ -f "$HOME/.openclaw/openclaw.json" ]; then
-            cp "$HOME/.openclaw/openclaw.json" "$OCS_DIR/openclaw/openclaw.json"
-            info "Seeded OpenClaw config from ~/.openclaw/openclaw.json"
-        fi
-        if [ -f "$OCS_DIR/openclaw/openclaw.json" ] && command -v python3 >/dev/null 2>&1; then
-            python3 - "$OCS_DIR/openclaw/openclaw.json" <<'PYEOF'
-import json, sys
-path = sys.argv[1]
-with open(path) as f:
-    d = json.load(f)
-d.setdefault('gateway', {})['bind'] = 'lan'
-d.setdefault('gateway', {})['mode'] = 'local'
-with open(path, 'w') as f:
-    json.dump(d, f, indent=2)
-PYEOF
-            ok "OpenClaw config: gateway.bind=lan, gateway.mode=local"
-        fi
-
         for _ocs_check_port in "$OCS_GW_PORT" "$OCS_UI_PORT"; do
             _ocs_blocker=$(lsof -ti TCP:"$_ocs_check_port" -sTCP:LISTEN 2>/dev/null | head -1 || true)
             [ -n "$_ocs_blocker" ] && \
@@ -1372,8 +1353,8 @@ PYEOF
         done
 
         info "Starting OpenClaw (gateway :$OCS_GW_PORT, webui :$OCS_UI_PORT)..."
-        (cd "$OCS_DIR" && docker compose up -d 2>/tmp/ocs_start_err.log) > /dev/null || \
-            die "OpenClaw compose up failed\n$(tail -5 /tmp/ocs_start_err.log 2>/dev/null)"
+        (cd "$OCS_DIR" && ./scripts/start.sh > /tmp/ocs_start.log 2>&1) || \
+            die "OpenClaw startup failed\n$(tail -20 /tmp/ocs_start.log 2>/dev/null)"
 
         if poll_http "http://localhost:${OCS_GW_PORT}/healthz" "openclaw-gateway ready" 30 "-sf"; then
             OCS_STARTED=true

@@ -4,7 +4,7 @@ Scope: `RealityEngine_CPP`, `RealityEngine_Scala`, and `RealityEngine_LSP`. `Rea
 
 ## Current State
 
-`RealityEngine_CI` has the most complete OpenClaw bootstrap. `startUniverse.sh --openclaw` detects `../localOpenClawStack`, requires a configured `OPENCLAW_GATEWAY_TOKEN`, normalizes `openclaw/openclaw.json` to local LAN gateway mode, starts the compose stack, and waits for `/healthz` plus Open WebUI readiness. `stopUniverse.sh` also tears the stack down and can restore a previously unloaded native launchd gateway.
+`RealityEngine_CI` has the most complete OpenClaw bootstrap. `startUniverse.sh --openclaw` detects `../localOpenClawStack`, requires a configured `OPENCLAW_GATEWAY_TOKEN`, and delegates startup to `localOpenClawStack/scripts/start.sh`. That native entrypoint requires immutable image pins, hardens the persisted gateway configuration, starts Compose, synchronizes the configured WebUI administrator, and verifies image identity, health, and authentication. `stopUniverse.sh` tears the stack down and can restore a previously unloaded native launchd gateway.
 
 The normalized integration registry already declares `openclaw-xacp`:
 
@@ -24,9 +24,9 @@ The normalized integration registry already declares `openclaw-xacp`:
 
 ## Main Gap
 
-The current integration is a PE boundary contract, not a full OpenClaw agent runtime loop. ACP dispatch records the handoff and returns immediately. The missing piece is an external adapter that consumes the handoff receipt, activates a real OpenClaw agent/session through the gateway, and posts the finished result to `/api/integrations/completions`.
+The PE contract, one-shot external adapter, deterministic machine fixture, and mock-gateway adapter test are implemented. The remaining production gap is durable handoff transport: a runner or queue consumer must receive accepted PE handoffs and invoke the adapter without a human passing JSON between commands. The remaining deployment test gap is the live gateway plus final PE push into the fixture machine's completion state.
 
-CPP and LSP require ACP dispatch to reference an existing dispatch ledger record. Scala accepts an arbitrary ACP handoff body. The shared CI e2e now tries to reuse an existing ledger record or create one with a real PE source + push before invoking ACP, while still treating completion-as-source as the portable contract across all three engines.
+CPP and LSP require ACP dispatch to reference an existing dispatch ledger record. The shared CI e2e now enforces that stricter contract on every runtime by driving `OpenClawCompletionE2E.json` with its authored dispatch seed. Missing fixture machines, disabled triggers, absent dispatch records, and ACP `404` responses are failures rather than compatibility skips.
 
 ## Roadmap
 
@@ -34,11 +34,11 @@ CPP and LSP require ACP dispatch to reference an existing dispatch ledger record
    - Use `ACP_ENABLED=true`, `ACP_GATEWAY_URL` or `OPENCLAW_GATEWAY_URL`, `ACP_SESSION_KEY`, `ACP_TARGET_AGENT`, and `ACP_COMPLETION_SOURCE_MAPPING_ID=acp-openclaw-completion`.
    - Ensure the CI-generated `config/integrations.json` is passed to each PE through `INTEGRATIONS_CONFIG`.
 
-2. Make dispatch IDs portable.
-   - Add a shared trigger fixture that creates a real dispatch record before invoking ACP.
-   - Keep the CPP/LSP behavior as the stricter contract: ACP dispatch should update an existing trigger dispatch record.
+2. Make dispatch IDs portable. **Implemented.**
+   - `RealityEngine_Machines/machines/OpenClawCompletionE2E.json` creates the real dispatch record before ACP invocation.
+   - The strict CI test requires ACP dispatch to update that existing trigger record.
 
-3. Build the OpenClaw adapter.
+3. Build the OpenClaw adapter. **Implemented.**
    - Input: PE ACP handoff receipt with `gatewayUrl`, `sessionKey`, `targetAgent`, `prompt`, `dispatchId`, `envelopeId`, `correlationId`, and `completionEndpoint`.
    - Work: connect to the local OpenClaw OpenAI-compatible gateway, activate or resume the target agent context through the prompt/envelope, collect the result.
    - Output: `POST /api/integrations/completions` with numeric `values`, `provider: "openclaw"`, `agent`, `sourceMappingId`, `correlationId`, `envelopeId`, and `completionId`.
@@ -48,7 +48,8 @@ CPP and LSP require ACP dispatch to reference an existing dispatch ledger record
    - Scala resolves `sourceMappingId` to `sensorIdTemplate`, region, and TTL for OpenClaw completions.
 
 5. Add live OpenClaw e2e.
-   - Phase 1: deterministic hello-world agent fixture, no external gateway dependency.
+   - Phase 1: deterministic hello-world agent fixture, no external gateway dependency. **Implemented.**
+   - Phase 1b: real adapter against deterministic mock OpenClaw and PE HTTP services. **Implemented.**
    - Phase 2: same test with a local OpenClaw gateway running and a real target agent.
    - Phase 3: trigger a real machine terminal event, dispatch to OpenClaw, commit completion, and verify the PE source influences the next PE push.
 
@@ -88,7 +89,9 @@ The external adapter is:
 npm run openclaw:adapter -- \
   --handoff-file handoff.json \
   --pe-url https://localhost:3004 \
-  --api-key "$OPENCLAW_GATEWAY_TOKEN"
+  --api-key "$OPENCLAW_GATEWAY_TOKEN" \
+  --strict-values \
+  --require-dispatch-patch
 ```
 
 The adapter consumes the PE ACP handoff receipt returned from `POST /api/integrations/acp/dispatch`, calls the local OpenClaw gateway at `/v1/chat/completions`, extracts a numeric `values` array from the agent response, posts the completion to the PE, and patches `/api/dispatch/records/{dispatchId}` to `running` and then `completed` when that route is available.
@@ -104,6 +107,12 @@ npm run openclaw:adapter -- \
 
 ## E2E Testing
 
+Run the adapter unit and deterministic mock-service tests without a RealityEngine stack:
+
+```bash
+npm run test:openclaw-adapter
+```
+
 Run the PE-boundary OpenClaw e2e against the active PE:
 
 ```bash
@@ -118,9 +127,11 @@ npm run test:e2e
 
 The test validates:
 
-- `GET /api/integrations/acp/status`
-- `POST /api/integrations/acp/dispatch` after reusing or creating a real dispatch ledger record where supported
-- hello-world agent callback to `POST /api/integrations/completions`
-- `GET /api/sources` contains `acp.openclaw.hello-world.completion`
+- exact ACP status metadata and normalized source mapping
+- a unique fixture-driven dispatch record that did not exist before the test
+- exact `202 Accepted` no-wait handoff semantics
+- dispatch, envelope, and correlation IDs in both receipt and ledger
+- correlated hello-world callback to `POST /api/integrations/completions`
+- `acp.openclaw.hello-world.completion` at region `4210:4`
 
-For CPP/LSP, a `404` from ACP dispatch is treated as an expected compatibility limit only when no dispatch ledger record could be created. If the fixture finds or creates a dispatch record, ACP dispatch must accept it. The completion callback must always pass.
+The adapter mock e2e additionally proves authenticated gateway request construction, strict extraction of response values, `running -> completed` ledger patches, and the exact PE completion payload. It does not permit fallback values or optional dispatch patching.

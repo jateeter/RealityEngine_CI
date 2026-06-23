@@ -35,6 +35,7 @@ npm run test:deployment
 - Prefer `RE_REGISTRY_URL` for Manager, Machines, and CI e2e tests.
 - Pass CI-generated `config/integrations.json` to PE services with `INTEGRATIONS_CONFIG`.
 - Keep OpenClaw defaults aligned with `ACP_ENABLED=true`, `ACP_GATEWAY_URL` or `OPENCLAW_GATEWAY_URL`, `ACP_SESSION_KEY`, `ACP_TARGET_AGENT`, and `ACP_COMPLETION_SOURCE_MAPPING_ID=acp-openclaw-completion`.
+- `startUniverse.sh --openclaw` delegates to `localOpenClawStack/scripts/start.sh`; keep hardening, immutable image pins, WebUI bootstrap, and live verification authoritative in that native stack entrypoint.
 - Keep e2e results separated by availability, registry alignment, contract parity, byte equivalence, and integration success.
 
 ## LSP Support

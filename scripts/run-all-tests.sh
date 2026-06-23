@@ -321,7 +321,14 @@ run_unit() {
 
     run_manager_builds_and_tests
     run_machines_offline
+    run_openclaw_adapter_tests
     run_localai_tests
+}
+
+run_openclaw_adapter_tests() {
+    local label="OpenClaw adapter unit/mock e2e"
+    require_node "$label" "25.5.0" || return
+    run_suite "$label" "$CI_DIR" npm run test:openclaw-adapter
 }
 
 run_manager_builds_and_tests() {
