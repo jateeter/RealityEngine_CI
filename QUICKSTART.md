@@ -41,11 +41,11 @@ If localAIStack is already running and you only need to (re)start Reality Engine
 |---|---|
 | Visualizer Frontend | https://localhost:5173 |
 | Perception Engine UI | https://localhost:3005 |
-| Grafana Logs | https://localhost:3002 (admin / admin) |
-| Reality Engine API | https://localhost:3000 |
+| Grafana Logs | https://localhost:3000 (admin / admin) |
+| Reality Engine API | https://localhost:5001 |
 | Visualizer Backend | https://localhost:3001 |
 | Perception Engine API | https://localhost:3004 |
-| Qdrant Dashboard | http://localhost:6333/dashboard |
+| Qdrant Dashboard | http://localhost:4333/dashboard |
 
 Browsers will warn about the self-signed certificate — add an exception or use `--ignore-certificate-errors` in Playwright.
 
@@ -67,13 +67,13 @@ docker compose logs -f <svc>    # stream logs for one service
 
 ```bash
 # Health check
-curl -k https://localhost:3000/api/health
+curl -k https://localhost:5001/api/health
 
 # List registered machines
-curl -k https://localhost:3000/api/machines
+curl -k https://localhost:5001/api/machines
 
 # Engine statistics
-curl -k https://localhost:3000/api/engine/stats
+curl -k https://localhost:5001/api/engine/stats
 ```
 
 ## Next Steps

@@ -36,11 +36,11 @@ docker compose logs -f <service>   # stream logs for one service
 |---|---|---|
 | Visualizer Frontend | https://localhost:5173 | visualizer-frontend |
 | Visualizer Backend (WebSocket) | https://localhost:3001 | visualizer-backend |
-| Reality Engine API | https://localhost:3000 | reality-engine |
+| Reality Engine API | https://localhost:5001 | reality-engine |
 | Perception Engine UI | https://localhost:3005 | perception-engine-frontend |
 | Perception Engine API | https://localhost:3004 | perception-engine-backend |
-| Grafana | https://localhost:3002 | grafana |
-| Qdrant | http://localhost:6333/dashboard | qdrant |
+| Grafana | https://localhost:3000 | grafana |
+| Qdrant | http://localhost:4333/dashboard | qdrant |
 | Loki | http://localhost:3100 | loki |
 
 All HTTPS ports are handled by the **TLS proxy** (nginx) container which terminates TLS and forwards to each service over plain HTTP on the internal Docker network.

@@ -43,14 +43,14 @@ flowchart LR
 
 | Service | Runtime | Default external URL | Responsibility |
 | --- | --- | --- | --- |
-| Reality Engine | Scala 2.13 / Akka HTTP | `https://localhost:3000` | Machine registry, CES processing, perceptual-space simulation. |
+| Reality Engine | Scala 2.13 / Akka HTTP | `https://localhost:5001` | Machine registry, CES processing, perceptual-space simulation. |
 | Visualizer Backend | Node.js / Express / ws | `https://localhost:3001` | API proxy and step-result WebSocket broadcast. |
 | Visualizer Frontend | React / TypeScript / D3 | `https://localhost:5173` | Tobias canvas, machine administration, interconnection graph. |
 | Perception Engine Backend | Node.js / Express / ws | `https://localhost:3004` | Source assembly, push loop, localAI bridge signals. |
 | Perception Engine Frontend | React / TypeScript | `https://localhost:3005` | Source management and live push controls. |
 | nginx | nginx | all HTTPS ports | TLS/WSS termination and routing. |
 | Qdrant | localAIStack | `http://localhost:6333` | Shared vector database owned by localAIStack. |
-| Loki / Grafana | Docker services | `https://localhost:3002` | Log aggregation and dashboards. |
+| Loki / Grafana | Docker services | `https://localhost:3000` | Log aggregation and dashboards. |
 
 ## Data Flow
 

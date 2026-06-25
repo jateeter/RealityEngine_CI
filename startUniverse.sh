@@ -224,6 +224,41 @@ PYEOF
     ok "Integration registry ready: $CI_INTEGRATIONS_CONFIG"
 }
 
+configure_localai_bridge_targets() {
+    if [ "$MULTI_ENGINE_MODE" = true ]; then
+        _localai_bridge_urls=$(python3 - "$REGISTRY_FILE" <<'PYEOF'
+import json
+import sys
+
+try:
+    with open(sys.argv[1]) as f:
+        instances = json.load(f).get("instances", [])
+    first = instances[0] if instances else {}
+    re_port = first.get("re_port")
+    pe_port = first.get("pe_port")
+    if re_port and pe_port:
+        print(f"http://host.docker.internal:{re_port} http://host.docker.internal:{pe_port}")
+except Exception:
+    pass
+PYEOF
+)
+        if [ -n "$_localai_bridge_urls" ]; then
+            read -r LOCALAI_RE_URL LOCALAI_PE_URL <<< "$_localai_bridge_urls"
+        else
+            add_warn "Could not derive localAIStack RE/PE bridge URLs from registry"
+            return
+        fi
+    else
+        LOCALAI_RE_URL="${LOCALAI_RE_URL:-https://host.docker.internal:5001}"
+        LOCALAI_PE_URL="${LOCALAI_PE_URL:-https://host.docker.internal:3004}"
+    fi
+
+    export RE_URL="$LOCALAI_RE_URL"
+    export PE_URL="$LOCALAI_PE_URL"
+    export RE_SSL_VERIFY="${RE_SSL_VERIFY:-false}"
+    info "localAIStack bridge target — RE: $RE_URL  PE: $PE_URL"
+}
+
 # ── Colours + helpers ─────────────────────────────────────────────────────
 GREEN='\033[0;32m'; YELLOW='\033[1;33m'; RED='\033[0;31m'
 CYAN='\033[0;36m'; BOLD='\033[1m'; NC='\033[0m'
@@ -1254,32 +1289,7 @@ esac
 
 fi  # end: if [ "$MULTI_ENGINE_MODE" = false ] Docker RE block
 
-if [ "$MULTI_ENGINE_MODE" = true ]; then
-    _localai_bridge_urls=$(python3 - "$REGISTRY_FILE" <<'PYEOF'
-import json
-import sys
-
-try:
-    with open(sys.argv[1]) as f:
-        instances = json.load(f).get("instances", [])
-    first = instances[0] if instances else {}
-    re_port = first.get("re_port")
-    pe_port = first.get("pe_port")
-    if re_port and pe_port:
-        print(f"http://host.docker.internal:{re_port} http://host.docker.internal:{pe_port}")
-except Exception:
-    pass
-PYEOF
-)
-    if [ -n "$_localai_bridge_urls" ]; then
-        read -r LOCALAI_RE_URL LOCALAI_PE_URL <<< "$_localai_bridge_urls"
-        export RE_URL="$LOCALAI_RE_URL"
-        export PE_URL="$LOCALAI_PE_URL"
-        info "localAIStack bridge target — RE: $RE_URL  PE: $PE_URL"
-    else
-        add_warn "Could not derive localAIStack RE/PE bridge URLs from registry"
-    fi
-fi
+configure_localai_bridge_targets
 
 # =============================================================================
 hdr "5 · localAIStack API  (FastAPI + RAG + Ollama bridge)"
@@ -1447,7 +1457,7 @@ for coll in "localai_docs" "reality-vectors"; do
 done
 
 [ "$VERIFY_PASS" = "false" ] && \
-    add_warn "Integration hooks incomplete — run:  (cd $LAS_DIR && docker compose restart api)"
+    add_warn "Integration hooks incomplete — rerun startUniverse or recreate localAIStack api with RE_URL=$RE_URL PE_URL=$PE_URL"
 set -e
 
 else
@@ -1701,8 +1711,8 @@ if [ "${#WARNS[@]}" -gt 0 ]; then
     echo "════════════════════════════════════════════════════════════════════"
     for w in "${WARNS[@]}"; do warn "  $w"; done
     echo ""
-    echo "  Re-trigger localAIStack hooks:"
-    echo "    (cd $LAS_DIR && docker compose restart api)"
+    echo "  Re-trigger localAIStack hooks with the active bridge target:"
+    echo "    (cd $LAS_DIR && RE_URL=$RE_URL PE_URL=$PE_URL RE_SSL_VERIFY=${RE_SSL_VERIFY:-false} docker compose up -d --force-recreate api)"
     echo ""
 else
     echo "════════════════════════════════════════════════════════════════════"

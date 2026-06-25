@@ -56,9 +56,9 @@ If only one runtime type is in use the limit is the number of `+100` steps befor
 
 | Service | URL | Notes |
 |---|---|---|
-| Reality Engine API | `https://localhost:3000` | Public TLS endpoint through nginx |
+| Reality Engine API | `https://localhost:5001` | Public TLS endpoint through nginx; matches the native Scala RE port |
 | Manager / Visualizer backend | `https://localhost:3001` | Proxies selected RE/PE runtime |
-| RealityEngine Grafana | `https://localhost:3002` | CI observability |
+| RealityEngine Grafana | `https://localhost:3000` | CI observability |
 | Perception Engine API | `https://localhost:3004` | Public TLS endpoint |
 | Perception frontend | `https://localhost:3005` | PE UI |
 | Manager frontend | `https://localhost:5173` | Vite/React UI |
