@@ -384,6 +384,12 @@ restart_compose_service() {  # <unit> <health-url> <label> <svc...>
   info "Restarting $label (compose: ${svcs[*]})..."
   ( cd "$CI_DIR" && docker compose up -d --force-recreate --no-deps ${build[@]+"${build[@]}"} "${svcs[@]}" ) >>"$RUN_LOG" 2>&1 \
     || { fail "$unit" restart "$label recreate failed" "docker compose up ${svcs[*]}"; return 1; }
+  # Recreating a backend gives it a NEW container IP, but the nginx tls-proxy
+  # resolves upstream hostnames once and caches the IP — so the public endpoint
+  # (RE :5001, PE :3004, Viz :3001/:5173) 502s on the stale upstream until the
+  # proxy re-resolves. Recreate the tls-proxy so it picks up the new IPs before
+  # we health-check the public URL.
+  ( cd "$CI_DIR" && docker compose up -d --force-recreate --no-deps tls-proxy ) >>"$RUN_LOG" 2>&1 || true
   poll "$url" "$label back up" 30 && pass "$unit" restart "$label restarted cleanly" \
                                   || fail "$unit" restart "$label did not return healthy after restart" "$url"
 }
