@@ -16,7 +16,14 @@ set -uo pipefail
 
 PE_URL="${1:?Usage: pe-source-bootstrap.sh <pe_url>}"
 
-RESP=$(curl -sf -X POST "${PE_URL}/api/sources/bootstrap-from-machines" \
+CURL_FLAGS=(-sf)
+case "$PE_URL" in
+    https://localhost:*|https://127.0.0.1:*|https://host.docker.internal:*)
+        CURL_FLAGS=(-skf)
+        ;;
+esac
+
+RESP=$(curl "${CURL_FLAGS[@]}" -X POST "${PE_URL}/api/sources/bootstrap-from-machines" \
     -H "Content-Type: application/json" \
     --max-time 30 2>/dev/null || true)
 
