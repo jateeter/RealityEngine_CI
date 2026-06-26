@@ -610,9 +610,9 @@ fi
 #   visualizer-*          ← RealityEngine_Manager/visualizer/
 # The CI docker-compose.yml passes SCALA_DIR and MGR_DIR as build-args
 # so each service Dockerfile can COPY from the right source tree.
-# TODO (Roadmap Phase 1): Update docker-compose.yml build contexts + machine
-#       volume to reference RealityEngine_Scala, RealityEngine_Manager, and
-#       RealityEngine_Machines (see ROADMAP.md Phase 1).
+# Roadmap Phase 1 complete: docker-compose.yml build contexts reference
+# ../RealityEngine_Scala and ../RealityEngine_Manager/*, and the RE machine
+# volume mounts ${MACHINES_DIR}/machines from RealityEngine_Machines.
 
 if [ -n "$MQTT_BROKER_URL_OVERRIDE" ]; then
   export MQTT_BROKER_URL="$MQTT_BROKER_URL_OVERRIDE"
@@ -1177,29 +1177,68 @@ else
 
 cd "$CI_DIR"
 
-BUILDER="reality-engine-builder"
-if ! docker buildx inspect "$BUILDER" > /dev/null 2>&1; then
-    info "Creating isolated BuildKit builder (one-time)..."
-    docker buildx create --name "$BUILDER" --driver docker-container \
-        --bootstrap > /dev/null 2>&1 || \
-        die "BuildKit builder creation failed — check Docker Desktop is healthy"
-    ok "BuildKit builder created"
-else
-    ok "BuildKit builder ready ($BUILDER)"
-fi
-docker buildx use "$BUILDER" > /dev/null 2>&1
+# Build on the DEFAULT (docker-driver) builder so freshly-built images land in
+# the engine image store and `docker compose up` can find them.
+#
+# An isolated `docker-container`-driver builder must NOT be used here: with that
+# driver `docker compose build` only *names* the image inside the builder cache
+# ("naming to ...:latest done") and does not load it into the engine store
+# (that needs `--load`). The subsequent `docker compose up` then fails with
+# `No such image: realityengine_ci-<svc>:latest` and the stack never starts.
+# The docker driver builds straight into the store, which is what `up` reads.
+docker buildx use default > /dev/null 2>&1 || true
+ok "Using default (docker-driver) builder — images load into the engine store"
 
+# RE image build.
+#
+# For --fresh we rebuild each service in SERIAL with an explicit, staged
+# remove → rebuild → verify per image. A single parallel `docker compose build
+# --no-cache` races the per-image "delete previous image, write new image" step
+# in the engine store: while several builds replace their images concurrently,
+# one image (most often reality-engine) is momentarily absent when
+# `docker compose up` resolves it — surfacing as `No such image:
+# realityengine_ci-<svc>:latest`. Serializing remove→build→verify per image
+# keeps each replacement atomic and ordered, so every image is present before
+# `up`.
+RE_BUILD_SERVICES="reality-engine visualizer-backend visualizer-frontend perception-engine-backend perception-engine-frontend"
 if [ "$FRESH_START" = true ]; then
-    info "Building RE images (no cache)..."
-    SCALA_DIR="$SCALA_DIR" MGR_DIR="$MGR_DIR" docker compose build --no-cache || \
-        die "RE image build failed — run:  docker compose build --no-cache"
+    # Reclaim build cache first. A --fresh build is --no-cache, so accumulated
+    # build cache is dead weight that fills the Docker VM disk. Under disk
+    # pressure BuildKit's GC evicts freshly-built images mid-rebuild — the
+    # large reality-engine image vanishes between its build and `up`, surfacing
+    # as "No such image: realityengine_ci-reality-engine:latest". Pruning keeps
+    # enough headroom that the serial rebuild's images survive to `up`.
+    info "Reclaiming Docker build cache before no-cache rebuild (frees VM disk)..."
+    docker builder prune -af > /dev/null 2>&1 || true
+    info "Building RE images (no cache; serial remove → rebuild → verify per image)..."
+    for _svc in $RE_BUILD_SERVICES; do
+        _img="realityengine_ci-${_svc}:latest"
+        info "  [$_svc] removing previous image..."
+        docker image rm -f "$_img" > /dev/null 2>&1 || true
+        info "  [$_svc] rebuilding (no cache)..."
+        SCALA_DIR="$SCALA_DIR" MGR_DIR="$MGR_DIR" docker compose build --no-cache "$_svc" || \
+            die "RE image build failed for $_svc — run:  docker compose build --no-cache $_svc"
+        docker image inspect "$_img" > /dev/null 2>&1 || \
+            die "$_img not in engine store after rebuild — image remove/rebuild staging failed for $_svc"
+        ok "  [$_svc] rebuilt → present in engine store"
+    done
+    ok "All RE images rebuilt serially and present in engine store"
 else
     info "Building RE images (cached)..."
     SCALA_DIR="$SCALA_DIR" MGR_DIR="$MGR_DIR" docker compose build || \
         die "RE image build failed — run:  docker compose build"
+    # Verify each image is present; rebuild individually if the parallel build
+    # left one out (same staging race, just less likely without --no-cache).
+    for _svc in $RE_BUILD_SERVICES; do
+        _img="realityengine_ci-${_svc}:latest"
+        docker image inspect "$_img" > /dev/null 2>&1 || {
+            warn "Image $_img missing after build — rebuilding $_svc individually..."
+            SCALA_DIR="$SCALA_DIR" MGR_DIR="$MGR_DIR" docker compose build "$_svc" || \
+                die "Individual rebuild of $_svc failed"
+        }
+    done
+    ok "All RE images present in engine store"
 fi
-
-docker buildx use default > /dev/null 2>&1 || true
 
 info "Starting RE services (waiting for all healthchecks, timeout 360s)..."
 docker compose up -d --wait --wait-timeout 360 || \

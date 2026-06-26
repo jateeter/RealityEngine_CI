@@ -50,20 +50,25 @@ If only one runtime type is in use the limit is the number of `+100` steps befor
 `startUniverse.sh` enforces these limits at pre-flight: the `--engines` spec is checked for cross-runtime collisions before any process is spawned.
 
 `3299/3300` are deprecated compatibility ports and must not be used as canonical defaults.
-`3000/3004` are reserved for the CI Docker public stack and must not be native runtime defaults.
+`3004` (Perception Engine) and `3000` (Grafana) are reserved for the CI Docker public stack and must not be native runtime defaults. The public RE endpoint `5001` is shared by design with the native Scala RE (only one may bind it at a time).
 
 ## CI Docker Public Services
 
 | Service | URL | Notes |
 |---|---|---|
-| Reality Engine API | `https://localhost:5001` | Public TLS endpoint through nginx; matches the native Scala RE port |
+| Reality Engine API | `https://localhost:5001` | Public TLS endpoint; nginx terminates TLS and proxies to `reality-engine:3000`. Port 5001 deliberately matches the native Scala RE so tooling targets one port. |
 | Manager / Visualizer backend | `https://localhost:3001` | Proxies selected RE/PE runtime |
-| RealityEngine Grafana | `https://localhost:3000` | CI observability |
+| RealityEngine Grafana | `https://localhost:3000` | CI observability (nginx → `grafana:3000`) |
 | Perception Engine API | `https://localhost:3004` | Public TLS endpoint |
 | Perception frontend | `https://localhost:3005` | PE UI |
 | Manager frontend | `https://localhost:5173` | Vite/React UI |
 | CI Loki | `https://localhost:3100` | Host-bound for Docker log driver |
 | Prometheus | internal `9090` | No public host binding by default |
+
+> **Port correction (2026-06-24):** the public Reality Engine endpoint is
+> `https://localhost:5001`, **not** `:3000`. Host `:3000` is Grafana. This matches
+> `nginx/tls-proxy.conf` (`listen 5001 ssl → reality-engine:3000`,
+> `listen 3000 ssl → grafana:3000`) and every endpoint `startUniverse.sh` polls.
 
 ## localAIStack Services
 
@@ -108,7 +113,7 @@ If only one runtime type is in use the limit is the number of `+100` steps befor
 ## Normative Rules
 
 - Manager must prefer `RE_REGISTRY_URL` when present; static runtime presets are fallback only.
-- CI Docker mode owns public `3000/3004`; native runtimes must not default there.
+- CI Docker mode owns public `3000` (Grafana), `3004` (PE), and `5001` (RE); native runtimes must not default to `3000`/`3004`. The RE public port `5001` matches the native Scala RE on purpose so tooling targets one port — they cannot run at the same time.
 - Native multi-engine allocation must use the `5000/5300/5600` bands.
 - Orchestration owns `VECTOR_DIMENSION` and must propagate it to RE, PE, and tests.
 - Integrated runs use `RealityEngine_Machines/machines` as the canonical machine corpus.

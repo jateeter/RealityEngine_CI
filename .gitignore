@@ -5,6 +5,9 @@
 nginx/conf.d/
 config/integrations.json
 
+# Deployment-validation agent runtime state (logs, run records, issue drafts)
+.deploy-validate/
+
 # Node / Playwright e2e
 node_modules/
 e2e-report/
