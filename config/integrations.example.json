@@ -91,6 +91,26 @@
       "defaultSourceMappingId": "carekit-task",
       "transport": "https",
       "_comment": "Native Apple app owns the CareKit store. PE receives pre-normalised task/outcome payloads only. Set CAREKIT_BRIDGE_TOKEN for shared-secret auth."
+    },
+    {
+      "id": "realityengine-mcp-gateway",
+      "kind": "mcp",
+      "enabled": false,
+      "_comment": "MCP gateway projecting RE/PE surfaces as MCP tools (see mcp/). Read-only by default; mutating tools are policy-gated and completions still flow back through PE source mappings.",
+      "transport": "streamable-http",
+      "serverUrl": "http://localhost:7331/mcp",
+      "stdioCommand": "node mcp/bin/realityengine-mcp.js",
+      "allowedTools": [
+        "re.read_state",
+        "re.list_machines",
+        "re.read_machine",
+        "pe.list_sources",
+        "pe.integrations_status",
+        "dispatch.read_ledger",
+        "integrations.completion"
+      ],
+      "completionSourceMappingId": "agent-completion-risk",
+      "completionMode": "pe-source-mapping"
     }
   ],
   "sourceMappings": [

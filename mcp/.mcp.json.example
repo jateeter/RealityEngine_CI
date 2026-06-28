@@ -1,0 +1,31 @@
+{
+  "_comment": "Example MCP client config (Claude Code / Claude Desktop format). Copy the relevant block into your client. Paths are relative to the RealityEngine_CI repo root; use absolute paths in Claude Desktop.",
+
+  "mcpServers": {
+    "realityengine": {
+      "command": "node",
+      "args": ["mcp/bin/realityengine-mcp.js"],
+      "env": {
+        "RE_REGISTRY_URL": "http://localhost:5999",
+        "RE_MCP_INSECURE_TLS": "1",
+        "RE_MCP_ALLOW_MUTATION": "false"
+      }
+    },
+
+    "realityengine-single": {
+      "_comment": "No registry — point directly at one runtime's RE/PE ports (CPP defaults shown).",
+      "command": "node",
+      "args": ["mcp/bin/realityengine-mcp.js"],
+      "env": {
+        "RE_URL": "http://localhost:5301",
+        "PE_URL": "http://localhost:5300"
+      }
+    },
+
+    "realityengine-http": {
+      "_comment": "Remote/HTTP transport — start the gateway with `npm run mcp:http`, then connect over Streamable HTTP.",
+      "type": "http",
+      "url": "http://localhost:7331/mcp"
+    }
+  }
+}

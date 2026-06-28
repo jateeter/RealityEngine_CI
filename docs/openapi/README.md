@@ -36,17 +36,38 @@ Requires Python 3 with `pyyaml` (`pip3 install pyyaml`).
 
 ## Quick view
 
+### Swagger portal (all six specs, no Docker)
+
+[`index.html`](index.html) is a self-contained Swagger UI portal with a
+runtime + service dropdown over all six specs. Serve it (and the sibling
+`.yaml` files) over plain HTTP:
+
+```bash
+# From RealityEngine_CI root:
+bash scripts/serve-openapi.sh          # -> http://localhost:8088
+npm run openapi:serve                  # same thing
+```
+
+Then open <http://localhost:8088/>. The selection is reflected in the
+querystring (e.g. `?runtime=scala&service=pe`) so individual views are
+linkable; "Try it out" targets the `servers:` entries from each overlay.
+
+### Alternatives
+
 ```bash
 # Redocly CLI
 npx @redocly/cli preview-docs docs/openapi/cpp-re.yaml
 
-# Swagger UI (Docker)
+# Swagger UI (Docker) — single spec
 docker run -p 8081:8080 \
   -e SWAGGER_JSON=/spec/cpp-re.yaml \
   -v $PWD/docs/openapi:/spec \
   swaggerapi/swagger-ui
 # open http://localhost:8081
 ```
+
+> The MCP gateway (`mcp/`) packages the same RE/PE surfaces as Model Context
+> Protocol tools for ecosystem integration. See [`../../mcp/README.md`](../../mcp/README.md).
 
 ## Code generation
 
