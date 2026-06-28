@@ -1,0 +1,95 @@
+<!DOCTYPE html>
+<!--
+  RealityEngine OpenAPI / Swagger portal.
+
+  Self-contained Swagger UI over the six generated OpenAPI 3.1 contracts
+  (cpp/lsp/scala x re/pe). Do NOT edit the *.yaml specs by hand — they are
+  generated from RealityEngine_CPP/SURFACE_SPEC.md by scripts/generate-openapi.sh.
+
+  Serve locally so the browser can fetch the sibling .yaml files:
+    bash scripts/serve-openapi.sh          # -> http://localhost:8088
+  or any static server rooted at docs/openapi/.
+-->
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>RealityEngine API — Swagger</title>
+  <link rel="icon" href="data:," />
+  <link rel="stylesheet" href="https://unpkg.com/swagger-ui-dist@5/swagger-ui.css" />
+  <style>
+    body { margin: 0; background: #fafafa; }
+    .re-topbar {
+      display: flex; align-items: center; gap: 1rem; flex-wrap: wrap;
+      padding: 12px 18px; background: #1b1f24; color: #f4f4f4;
+      font-family: -apple-system, Segoe UI, Roboto, sans-serif;
+    }
+    .re-topbar strong { font-size: 15px; letter-spacing: .3px; }
+    .re-topbar label { font-size: 13px; opacity: .85; }
+    .re-topbar select {
+      font-size: 13px; padding: 5px 8px; border-radius: 6px;
+      border: 1px solid #3a4048; background: #2a2f36; color: #f4f4f4;
+    }
+    .re-topbar .spacer { flex: 1; }
+    .re-topbar a { color: #7cc4ff; font-size: 12px; text-decoration: none; }
+  </style>
+</head>
+<body>
+  <div class="re-topbar">
+    <strong>RealityEngine API</strong>
+    <label for="runtime">Runtime</label>
+    <select id="runtime">
+      <option value="cpp">CPP — C++ / Boost.Beast</option>
+      <option value="lsp">LSP — SBCL / Hunchentoot</option>
+      <option value="scala">Scala — Akka-HTTP</option>
+    </select>
+    <label for="service">Service</label>
+    <select id="service">
+      <option value="re">Reality Engine (RE)</option>
+      <option value="pe">Perception Engine (PE)</option>
+    </select>
+    <span class="spacer"></span>
+    <a id="rawlink" href="#" target="_blank" rel="noopener">view raw spec ↗</a>
+  </div>
+  <div id="swagger-ui"></div>
+
+  <script src="https://unpkg.com/swagger-ui-dist@5/swagger-ui-bundle.js" crossorigin></script>
+  <script src="https://unpkg.com/swagger-ui-dist@5/swagger-ui-standalone-preset.js" crossorigin></script>
+  <script>
+    const runtimeSel = document.getElementById('runtime');
+    const serviceSel = document.getElementById('service');
+    const rawlink = document.getElementById('rawlink');
+    let ui;
+
+    function specUrl() {
+      return `${runtimeSel.value}-${serviceSel.value}.yaml`;
+    }
+
+    function render() {
+      const url = specUrl();
+      rawlink.href = url;
+      ui = SwaggerUIBundle({
+        url,
+        dom_id: '#swagger-ui',
+        deepLinking: true,
+        presets: [SwaggerUIBundle.presets.apis, SwaggerUIStandalonePreset],
+        plugins: [SwaggerUIBundle.plugins.DownloadUrl],
+        layout: 'StandaloneLayout',
+        tryItOutEnabled: true,
+      });
+      // Reflect selection in the querystring so views are linkable.
+      const q = new URLSearchParams({ runtime: runtimeSel.value, service: serviceSel.value });
+      history.replaceState(null, '', `?${q}`);
+    }
+
+    // Restore selection from querystring.
+    const q = new URLSearchParams(location.search);
+    if (q.get('runtime')) runtimeSel.value = q.get('runtime');
+    if (q.get('service')) serviceSel.value = q.get('service');
+
+    runtimeSel.addEventListener('change', render);
+    serviceSel.addEventListener('change', render);
+    window.onload = render;
+  </script>
+</body>
+</html>
