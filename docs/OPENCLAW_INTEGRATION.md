@@ -96,6 +96,18 @@ npm run openclaw:adapter -- \
 
 The adapter consumes the PE ACP handoff receipt returned from `POST /api/integrations/acp/dispatch`, calls the local OpenClaw gateway at `/v1/chat/completions`, extracts a numeric `values` array from the agent response, posts the completion to the PE, and patches `/api/dispatch/records/{dispatchId}` to `running` and then `completed` when that route is available.
 
+## Operational Metrics
+
+`startUniverse.sh` starts the CI-owned bridge metrics exporter at:
+
+```bash
+http://localhost:7342/metrics
+```
+
+Prometheus scrapes that endpoint through the `ai-bridge-operations` job, and Grafana provisions the `AI Bridge Operations` dashboard. The exporter reports OpenClaw gateway health, OpenClaw model inventory, localAIStack service health, Qdrant collection count, Ollama model count, and OpenClaw adapter execution counters.
+
+The OpenClaw adapter appends execution events to `/tmp/realityengine-openclaw-adapter-metrics.jsonl` by default. Set `BRIDGE_METRICS_LEDGER` to use a different ledger path.
+
 For local validation without a live gateway:
 
 ```bash

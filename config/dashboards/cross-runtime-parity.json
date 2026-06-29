@@ -74,7 +74,7 @@
       "type": "timeseries",
       "title": "Sequence output rate by runtime",
       "gridPos": { "h": 9, "w": 12, "x": 12, "y": 4 },
-      "description": "rate(ces_sequence_outputs_total) — output emission rate.  AI / CPP / LSP should track each other when fed identical inputs through the perception engine.",
+      "description": "rate(ces_sequence_outputs_total) — output emission rate.  Scala / CPP / LSP should track each other when fed identical inputs through the perception engine.",
       "datasource": { "type": "prometheus", "uid": "prometheus" },
       "targets": [
         { "expr": "sum by (runtime) (rate(ces_sequence_outputs_total{runtime=~\"$runtime\"}[1m]))", "legendFormat": "{{runtime}}", "refId": "A" }

@@ -11,7 +11,8 @@ info:
     `https://localhost:5001`.  Wire-compatible with the CPP (native C++)
     and LSP (Common Lisp) runtimes — same JSON corpus, byte-identical
     mergeBatch ordering, identical Prometheus shape.  This runtime
-    emits `runtime="ai"` on every metric line.
+    emits `runtime="scala"`, `runtime="cpp"`, or `runtime="lsp"` on every
+    metric line.
 servers:
   - url: http://localhost:5001
     description: Local Reality Engine (direct)
@@ -547,7 +548,7 @@ paths:
         for a (sequenceId, outputMatches) match, then merges in
         `metadata.governance` defaults — owner team, SLA, runbook,
         escalation policy, contact roster.  Same precedence rule across
-        AI / CPP / LSP: `rule.governance.<field>` → `machine.metadata.governance.<field>` → null.
+        Scala / CPP / LSP: `rule.governance.<field>` → `machine.metadata.governance.<field>` → null.
       parameters:
         - name: machineId
           in: query
@@ -661,7 +662,7 @@ components:
       type: object
       description: |
         Governance contract resolved when a CES fires.  Same shape across
-        AI / CPP / LSP; produced by `/api/governance/route` and stamped
+        Scala / CPP / LSP; produced by `/api/governance/route` and stamped
         onto every mergeBatch entry whose `triggerConfig.rules` match.
       properties:
         machineId:       { type: string }

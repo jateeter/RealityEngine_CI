@@ -15,37 +15,44 @@
   "panels": [
     {
       "id": 1,
-      "title": "localAIStack API — Request Rate",
-      "type": "timeseries",
+      "title": "localAIStack Service Health",
+      "type": "bargauge",
       "datasource": { "type": "prometheus", "uid": "prometheus" },
       "gridPos": { "h": 8, "w": 12, "x": 0, "y": 0 },
       "targets": [
         {
-          "expr": "rate(http_requests_total{job=\"localaistack-api\"}[1m])",
-          "legendFormat": "{{method}} {{endpoint}}",
+          "expr": "re_localaistack_service_up",
+          "legendFormat": "{{service}}",
           "refId": "A"
         }
       ],
       "fieldConfig": {
-        "defaults": { "unit": "reqps", "color": { "mode": "palette-classic" } },
+        "defaults": { "unit": "short", "min": 0, "max": 1 },
         "overrides": []
+      },
+      "options": {
+        "displayMode": "gradient",
+        "orientation": "horizontal",
+        "reduceOptions": { "calcs": ["lastNotNull"], "fields": "", "values": false },
+        "showUnfilled": true,
+        "valueMode": "color"
       }
     },
     {
       "id": 2,
-      "title": "localAIStack API — Request Latency (p95)",
-      "type": "timeseries",
+      "title": "Ollama Models",
+      "type": "stat",
       "datasource": { "type": "prometheus", "uid": "prometheus" },
       "gridPos": { "h": 8, "w": 12, "x": 12, "y": 0 },
       "targets": [
         {
-          "expr": "histogram_quantile(0.95, rate(http_request_duration_seconds_bucket{job=\"localaistack-api\"}[5m]))",
-          "legendFormat": "p95 {{endpoint}}",
+          "expr": "re_localaistack_ollama_models_total",
+          "legendFormat": "Models",
           "refId": "A"
         }
       ],
       "fieldConfig": {
-        "defaults": { "unit": "s", "color": { "mode": "palette-classic" } },
+        "defaults": { "unit": "short", "color": { "mode": "palette-classic" } },
         "overrides": []
       }
     },
@@ -57,7 +64,7 @@
       "gridPos": { "h": 4, "w": 6, "x": 0, "y": 8 },
       "targets": [
         {
-          "expr": "qdrant_collections_total{job=\"qdrant\"}",
+          "expr": "collections_total{job=\"qdrant\"}",
           "legendFormat": "Collections",
           "refId": "A"
         }
@@ -72,7 +79,7 @@
       "gridPos": { "h": 4, "w": 6, "x": 6, "y": 8 },
       "targets": [
         {
-          "expr": "sum(qdrant_vectors_total{job=\"qdrant\"})",
+          "expr": "collections_vector_total{job=\"qdrant\"}",
           "legendFormat": "Vectors",
           "refId": "A"
         }

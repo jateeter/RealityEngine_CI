@@ -15,7 +15,7 @@ info:
     enabled, subscribes to a broker (default
     `mqtt://yuma.lateraledge.cloud:1883`) and projects sensor messages
     into perceptual-space regions via the mapping registry — same
-    contract across AI / CPP / LSP.
+    contract across Scala / CPP / LSP.
 servers:
   - url: http://localhost:3004
     description: Local Perception Engine (direct)
@@ -324,7 +324,7 @@ paths:
         MQTT_DISABLED=1.  Otherwise reports connection state, broker
         config, and bridge-level counters: messagesReceived,
         messagesMapped, messagesRejected, messagesUnmatched,
-        pushesTriggered.  Same shape across AI / CPP / LSP.
+        pushesTriggered.  Same shape across Scala / CPP / LSP.
       responses:
         "200":
           description: Bridge status
@@ -655,7 +655,7 @@ components:
     MqttMappingRule:
       type: object
       description: |
-        One topic→region projection rule.  Same schema across AI / CPP / LSP.
+        One topic→region projection rule.  Same schema across Scala / CPP / LSP.
       properties:
         id:               { type: string }
         topicFilter:      { type: string, description: "MQTT v3.1.1 filter with + and # wildcards" }

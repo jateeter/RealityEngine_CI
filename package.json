@@ -14,6 +14,7 @@
     "test:e2e:openclaw": "bash scripts/test-openclaw-integration.sh",
     "test:openclaw-adapter": "node --test scripts/tests/openclaw-acp-adapter.test.mjs scripts/tests/openclaw-acp-adapter-e2e.test.mjs",
     "openclaw:adapter": "node scripts/openclaw-acp-adapter.mjs",
+    "bridge:metrics": "node scripts/bridge-metrics-exporter.mjs",
     "openapi:gen": "bash scripts/generate-openapi.sh",
     "openapi:serve": "bash scripts/serve-openapi.sh",
     "mcp": "node mcp/bin/realityengine-mcp.js",

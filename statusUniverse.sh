@@ -65,8 +65,21 @@ REGISTRY_FILE="/tmp/re-registry/re-registry.json"
 _health() {
   local url="$1"
   [ -z "$url" ] && { echo "n/a"; return; }
-  if curl -sf --max-time 3 "$url" >/dev/null 2>&1; then echo "ok"
+  if curl -skf --max-time 3 "$url" >/dev/null 2>&1; then echo "ok"
   else echo "FAIL"; fi
+}
+
+_container_health() {
+  local container="$1" url="$2"
+  if docker exec "$container" wget --no-verbose --tries=1 --spider "$url" >/dev/null 2>&1; then echo "ok"
+  else echo "FAIL"; fi
+}
+
+_container_health_status() {
+  local container="$1"
+  local status
+  status=$(docker inspect -f '{{if .State.Health}}{{.State.Health.Status}}{{else}}{{.State.Status}}{{end}}' "$container" 2>/dev/null || echo "")
+  [ "$status" = "healthy" ] || [ "$status" = "running" ] && echo "ok" || echo "FAIL"
 }
 
 # ── Collect service rows ──────────────────────────────────────────────────────
@@ -87,11 +100,13 @@ if [ "$STAMPED_MULTI_ENGINE_MODE" = "false" ]; then
 fi
 
 # Infrastructure (always expected)
-_add_row "Grafana"  "—" "✓" "n/a" "$(_health https://localhost:3000/api/health)" ":3000"
-_add_row "Loki"    "—" "✓" "n/a" "$(_health https://localhost:3100/ready)"   ":3100"
-_add_row "Qdrant"  "—" "✓" "n/a" "$(_health http://localhost:4333/collections)" ":4333"
-_add_row "Ollama"  "—" "✓" "n/a" "$(_health http://localhost:11434/api/tags)"  ":11434"
-_add_row "LAS API" "—" "✓" "n/a" "$(_health http://localhost:4000/health)"     ":4000"
+_add_row "Grafana"     "—" "✓" "n/a" "$(_container_health reality-engine-grafana http://localhost:3000/api/health)" ":3002"
+_add_row "Prometheus"  "—" "✓" "n/a" "$(_container_health reality-engine-prometheus http://localhost:9090/-/ready)" ":9090"
+_add_row "Bridge Met." "—" "✓" "n/a" "$(_health http://localhost:7342/healthz)"    ":7342"
+_add_row "Loki"        "—" "✓" "n/a" "$(_health https://localhost:3100/ready)"      ":3100"
+_add_row "Qdrant"      "—" "✓" "n/a" "$(_health http://localhost:4333/collections)" ":4333"
+_add_row "Ollama"      "—" "✓" "n/a" "$(_health http://localhost:11434/api/tags)"   ":11434"
+_add_row "LAS API"     "—" "✓" "n/a" "$(_container_health_status localai_api)"       ":4000"
 
 # Multi-engine native instances
 if [ "$STAMPED_MULTI_ENGINE_MODE" = "true" ] && [ -f "$REGISTRY_FILE" ]; then

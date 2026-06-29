@@ -10,6 +10,8 @@ All deployment scripts, compose files, runtime presets, and local `.env.example`
 | `3000-3199` | CI Docker public RealityEngine stack | TLS/public endpoints exposed by `RealityEngine_CI` |
 | `4000-4499` | `localAIStack` | local AI API, Qdrant, Redis, and local observability |
 | `5000-5899` | Native RealityEngine runtimes | Deterministic RE/PE runtime pairs |
+| `7340-7349` | CI bridge metrics | Host-local AI bridge metrics exporters |
+| `9000-9099` | CI observability | Prometheus and observability tooling |
 | `5900-5999` | Runtime registry/control plane | Multi-engine registry and control endpoints |
 | `8000-8099` | External/local UI tools | OpenClaw WebUI default |
 | `11434` | Ollama native | Ollama API |
@@ -58,12 +60,14 @@ If only one runtime type is in use the limit is the number of `+100` steps befor
 |---|---|---|
 | Reality Engine API | `https://localhost:5001` | Public TLS endpoint; nginx terminates TLS and proxies to `reality-engine:3000`. Port 5001 deliberately matches the native Scala RE so tooling targets one port. |
 | Manager / Visualizer backend | `https://localhost:3001` | Proxies selected RE/PE runtime |
-| RealityEngine Grafana | `https://localhost:3000` | CI observability (nginx → `grafana:3000`) |
+| RealityEngine Grafana | `http://localhost:3002` | Direct CI Grafana dashboard access for Docker and native multi-engine runs |
+| RealityEngine Grafana TLS | `https://localhost:3000` | CI Docker mode TLS proxy (nginx → `grafana:3000`) |
 | Perception Engine API | `https://localhost:3004` | Public TLS endpoint |
 | Perception frontend | `https://localhost:3005` | PE UI |
 | Manager frontend | `https://localhost:5173` | Vite/React UI |
 | CI Loki | `https://localhost:3100` | Host-bound for Docker log driver |
-| Prometheus | internal `9090` | No public host binding by default |
+| Prometheus | `http://localhost:9090` | CI metrics scrape stack |
+| AI bridge metrics | `http://localhost:7342/metrics` | CI-owned OpenClaw/localAIStack operational exporter |
 
 > **Port correction (2026-06-24):** the public Reality Engine endpoint is
 > `https://localhost:5001`, **not** `:3000`. Host `:3000` is Grafana. This matches
