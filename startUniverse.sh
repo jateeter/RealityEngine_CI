@@ -400,20 +400,22 @@ start_observability_stack() {
         return 0
     }
 
-    if docker exec reality-engine-prometheus wget --no-verbose --tries=1 --spider \
-        http://localhost:9090/-/ready >/dev/null 2>&1; then
+    if wait_container_ready "Prometheus" reality-engine-prometheus \
+        "http://localhost:9090/-/ready" "http://localhost:9090" 45; then
         PROMETHEUS_STARTED=true
-        ok "Prometheus ready: http://localhost:9090"
     else
-        add_warn "Prometheus did not report ready — check: docker logs reality-engine-prometheus"
+        write_container_health_diagnostics "Prometheus" reality-engine-prometheus \
+            "http://localhost:9090/-/ready" /tmp/realityengine-prometheus-health-diagnostics.log
+        add_warn "Prometheus did not become ready — dockerHealth=$(docker_health_status reality-engine-prometheus) hostHttp=$(curl -sS -o /dev/null -w '%{http_code}' --max-time 3 http://localhost:9090/-/ready 2>/dev/null || true) lastHealth='$(docker_last_health_output reality-engine-prometheus)' diagnostics: /tmp/realityengine-prometheus-health-diagnostics.log"
     fi
 
-    if docker exec reality-engine-grafana wget --no-verbose --tries=1 --spider \
-        http://localhost:3000/api/health >/dev/null 2>&1; then
+    if wait_container_ready "Grafana" reality-engine-grafana \
+        "http://localhost:3002/api/health" "http://localhost:3002" 45; then
         GRAFANA_STARTED=true
-        ok "Grafana ready: http://localhost:3002"
     else
-        add_warn "Grafana did not report healthy — check: docker logs reality-engine-grafana"
+        write_container_health_diagnostics "Grafana" reality-engine-grafana \
+            "http://localhost:3002/api/health" /tmp/realityengine-grafana-health-diagnostics.log
+        add_warn "Grafana did not become healthy — dockerHealth=$(docker_health_status reality-engine-grafana) hostHttp=$(curl -sS -o /dev/null -w '%{http_code}' --max-time 3 http://localhost:3002/api/health 2>/dev/null || true) lastHealth='$(docker_last_health_output reality-engine-grafana)' diagnostics: /tmp/realityengine-grafana-health-diagnostics.log"
     fi
 }
 
@@ -475,6 +477,69 @@ poll_http() {
         n=$((n+1)); echo -n "."; sleep 2
     done
     echo ""; return 1
+}
+
+docker_health_status() {
+    local container="$1"
+    docker inspect -f '{{if .State.Health}}{{.State.Health.Status}}{{else}}{{.State.Status}}{{end}}' \
+        "$container" 2>/dev/null || echo "missing"
+}
+
+docker_last_health_output() {
+    local container="$1"
+    { docker inspect "$container" 2>/dev/null || echo "[]"; } | python3 -c '
+import json
+import sys
+try:
+    data = json.load(sys.stdin)
+    if not data:
+        print("container inspect unavailable")
+        raise SystemExit(0)
+    health = data[0].get("State", {}).get("Health", {})
+    log = health.get("Log") or []
+    if not log:
+        print("no healthcheck log")
+    else:
+        last = log[-1]
+        output = (last.get("Output") or "").strip().replace("\n", " ")
+        print("exit=%s start=%s end=%s output=%s" % (
+            last.get("ExitCode"),
+            last.get("Start"),
+            last.get("End"),
+            output))
+except Exception as exc:
+    print("healthcheck log unavailable: %s" % exc)
+'
+}
+
+write_container_health_diagnostics() {
+    local label="$1" container="$2" host_url="$3" diag_file="$4"
+    {
+        echo "$label readiness diagnostics"
+        echo "container: $container"
+        echo "dockerHealth: $(docker_health_status "$container")"
+        echo "hostUrl: $host_url"
+        echo "hostHttp: $(curl -sS -o /dev/null -w '%{http_code}' --max-time 3 "$host_url" 2>/dev/null || true)"
+        echo "lastHealthcheck: $(docker_last_health_output "$container")"
+        echo
+        echo "recent logs:"
+        docker logs --tail 40 "$container" 2>&1 || true
+    } > "$diag_file"
+}
+
+wait_container_ready() {
+    local label="$1" container="$2" host_url="$3" display_url="$4" max="${5:-45}"
+    local n=0 status
+    while [ "$n" -lt "$max" ]; do
+        status="$(docker_health_status "$container")"
+        if [ "$status" = "healthy" ] && curl -sf --max-time 3 "$host_url" >/dev/null 2>&1; then
+            ok "$label ready: $display_url"
+            return 0
+        fi
+        n=$((n+1)); echo -n "."; sleep 2
+    done
+    echo ""
+    return 1
 }
 
 pid_alive() {

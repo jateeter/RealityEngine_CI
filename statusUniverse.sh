@@ -71,7 +71,9 @@ _health() {
 
 _container_health() {
   local container="$1" url="$2"
-  if docker exec "$container" wget --no-verbose --tries=1 --spider "$url" >/dev/null 2>&1; then echo "ok"
+  local status
+  status=$(docker inspect -f '{{if .State.Health}}{{.State.Health.Status}}{{else}}{{.State.Status}}{{end}}' "$container" 2>/dev/null || echo "")
+  if { [ "$status" = "healthy" ] || [ "$status" = "running" ]; } && curl -skf --max-time 3 "$url" >/dev/null 2>&1; then echo "ok"
   else echo "FAIL"; fi
 }
 
@@ -100,7 +102,7 @@ if [ "$STAMPED_MULTI_ENGINE_MODE" = "false" ]; then
 fi
 
 # Infrastructure (always expected)
-_add_row "Grafana"     "—" "✓" "n/a" "$(_container_health reality-engine-grafana http://localhost:3000/api/health)" ":3002"
+_add_row "Grafana"     "—" "✓" "n/a" "$(_container_health reality-engine-grafana http://localhost:3002/api/health)" ":3002"
 _add_row "Prometheus"  "—" "✓" "n/a" "$(_container_health reality-engine-prometheus http://localhost:9090/-/ready)" ":9090"
 _add_row "Bridge Met." "—" "✓" "n/a" "$(_health http://localhost:7342/healthz)"    ":7342"
 _add_row "Loki"        "—" "✓" "n/a" "$(_health https://localhost:3100/ready)"      ":3100"
