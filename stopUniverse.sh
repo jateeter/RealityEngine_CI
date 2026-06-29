@@ -22,6 +22,8 @@ LAS_DIR="$CI_DIR/../localAIStack"
 CPP_DIR="$CI_DIR/../RealityEngine_CPP"
 LSP_DIR="$CI_DIR/../RealityEngine_LSP"
 OCS_DIR="$CI_DIR/../localOpenClawStack"
+MCP_HTTP_PID_FILE="${MCP_HTTP_PID_FILE:-/tmp/realityengine-mcp-http.pid}"
+OPENAPI_SWAGGER_PID_FILE="${OPENAPI_SWAGGER_PID_FILE:-/tmp/realityengine-openapi-swagger.pid}"
 
 GREEN='\033[0;32m'; YELLOW='\033[1;33m'; RED='\033[0;31m'; NC='\033[0m'
 ok()   { echo -e "${GREEN}✓${NC} $*"; }
@@ -116,6 +118,23 @@ _kill_port() {
   [ -z "$pid" ] && return 0
   warn "Port $port still held by PID $pid after stop — force-killing"
   kill -KILL "$pid" 2>/dev/null || true
+}
+
+_stop_pid_file() {
+  local pid_file="$1" label="$2"
+  [ -f "$pid_file" ] || return 0
+  local pid
+  pid="$(cat "$pid_file" 2>/dev/null || true)"
+  if [ -n "$pid" ]; then
+    _term_and_wait "$pid" "$label"
+    ok "$label stopped"
+  fi
+  rm -f "$pid_file"
+}
+
+stop_api_surface_services() {
+  _stop_pid_file "$MCP_HTTP_PID_FILE" "MCP HTTP gateway"
+  _stop_pid_file "$OPENAPI_SWAGGER_PID_FILE" "OpenAPI Swagger portal"
 }
 
 # Sweep all native engine ports and kill any survivors.
@@ -224,6 +243,7 @@ stop_manager_native() {
 }
 
 stop_ai_stack() {
+  stop_api_surface_services
   stop_openclaw_stack "$STAMPED_OPENCLAW" "$STAMPED_OCS_NATIVE_UNLOADED"
   stop_manager_native
 
@@ -293,6 +313,7 @@ fi
 
 # ── Engines-only: stop all native instances, leave Docker up ───────────────
 if [ "$ENGINES_ONLY" = true ]; then
+  stop_api_surface_services
   stop_all_engines
   _sweep_native_ports
   rm -f "$CI_DIR/.universe-engine-selection"

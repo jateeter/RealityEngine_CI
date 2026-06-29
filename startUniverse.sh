@@ -58,6 +58,18 @@ LAS_DIR="$CI_DIR/../localAIStack"
 OCS_DIR="$CI_DIR/../localOpenClawStack"
 CI_INTEGRATIONS_CONFIG="$CI_DIR/config/integrations.json"
 CI_INTEGRATIONS_EXAMPLE="$CI_DIR/config/integrations.example.json"
+MCP_HTTP_ENABLED="${MCP_HTTP_ENABLED:-true}"
+OPENAPI_SWAGGER_ENABLED="${OPENAPI_SWAGGER_ENABLED:-true}"
+RE_MCP_HTTP_HOST="${RE_MCP_HTTP_HOST:-127.0.0.1}"
+RE_MCP_HTTP_PORT="${RE_MCP_HTTP_PORT:-7331}"
+OPENAPI_SWAGGER_HOST="${OPENAPI_SWAGGER_HOST:-127.0.0.1}"
+OPENAPI_SWAGGER_PORT="${OPENAPI_SWAGGER_PORT:-8088}"
+MCP_HTTP_PID_FILE="${MCP_HTTP_PID_FILE:-/tmp/realityengine-mcp-http.pid}"
+MCP_HTTP_LOG_FILE="${MCP_HTTP_LOG_FILE:-/tmp/realityengine-mcp-http.log}"
+OPENAPI_SWAGGER_PID_FILE="${OPENAPI_SWAGGER_PID_FILE:-/tmp/realityengine-openapi-swagger.pid}"
+OPENAPI_SWAGGER_LOG_FILE="${OPENAPI_SWAGGER_LOG_FILE:-/tmp/realityengine-openapi-swagger.log}"
+MCP_HTTP_STARTED=false
+OPENAPI_SWAGGER_STARTED=false
 
 # ── Flags ──────────────────────────────────────────────────────────────────
 FRESH_START=false
@@ -108,6 +120,8 @@ startUniverse.sh — engine-selectable CI orchestrator
   --mqtt-mappings=PATH          Path to MQTT mappings JSON file
   --openclaw                    Force-start OpenClaw even if auto-detect would skip it
   --no-openclaw                 Skip OpenClaw startup
+  --no-mcp-http                 Skip RealityEngine MCP Streamable HTTP service startup
+  --no-openapi-swagger          Skip OpenAPI/Swagger portal startup
   --warn-only                   Warn on sibling repo version mismatch instead of failing startup
   --dry-run                     Run all pre-flight checks and print the startup plan,
                                 but skip all docker compose up / nohup / registry start.
@@ -136,6 +150,8 @@ for arg in "$@"; do
     --mqtt-mappings=*)     MQTT_MAPPINGS_OVERRIDE="${arg#*=}" ;;
     --openclaw)            OPENCLAW=yes ;;
     --no-openclaw)         OPENCLAW=no ;;
+    --no-mcp-http)         MCP_HTTP_ENABLED=false ;;
+    --no-openapi-swagger)  OPENAPI_SWAGGER_ENABLED=false ;;
     --warn-only)           VERSION_WARN_ONLY=true ;;
     --dry-run)             DRY_RUN=true ;;
     --help|-h)             print_usage; exit 0 ;;
@@ -169,6 +185,8 @@ ENGINES=$ENGINES
 MULTI_ENGINE_MODE=$MULTI_ENGINE_MODE
 OPENCLAW=$OPENCLAW
 OCS_NATIVE_UNLOADED=$OCS_NATIVE_UNLOADED
+MCP_HTTP_ENABLED=$MCP_HTTP_ENABLED
+OPENAPI_SWAGGER_ENABLED=$OPENAPI_SWAGGER_ENABLED
 STARTED_AT=$(date -u +%FT%TZ)
 EOF
 fi  # end: if [ "$DRY_RUN" = false ] stamp
@@ -283,6 +301,165 @@ poll_http() {
         n=$((n+1)); echo -n "."; sleep 2
     done
     echo ""; return 1
+}
+
+pid_alive() {
+    local pid_file="$1"
+    [ -f "$pid_file" ] || return 1
+    local pid
+    pid="$(cat "$pid_file" 2>/dev/null || true)"
+    [ -n "$pid" ] && kill -0 "$pid" 2>/dev/null
+}
+
+port_listener_pid() {
+    local port="$1"
+    lsof -ti TCP:"$port" -sTCP:LISTEN 2>/dev/null | head -1 || true
+}
+
+configure_mcp_targets() {
+    if [ "$MULTI_ENGINE_MODE" = true ]; then
+        export RE_REGISTRY_URL="${RE_REGISTRY_URL:-http://$HOST_IP:${REGISTRY_PORT}/re-registry.json}"
+        unset RE_URL PE_URL REALITY_ENGINE_URL PERCEPTION_ENGINE_URL
+    else
+        export RE_URL="${RE_URL:-https://localhost:5001}"
+        export PE_URL="${PE_URL:-https://localhost:3004}"
+        export RE_MCP_INSECURE_TLS="${RE_MCP_INSECURE_TLS:-1}"
+    fi
+}
+
+ensure_mcp_dependencies() {
+    [ -f "$CI_DIR/mcp/package.json" ] || { add_warn "MCP package missing: $CI_DIR/mcp/package.json"; return 1; }
+    if [ ! -d "$CI_DIR/mcp/node_modules/@modelcontextprotocol/sdk" ]; then
+        info "Installing MCP gateway dependencies..."
+        (cd "$CI_DIR/mcp" && npm install --omit=dev --no-audit --no-fund --package-lock=false > /tmp/realityengine-mcp-npm-install.log 2>&1) || {
+            add_warn "MCP dependency install failed — see /tmp/realityengine-mcp-npm-install.log"
+            return 1
+        }
+    fi
+}
+
+start_mcp_http_service() {
+    [ "$MCP_HTTP_ENABLED" = "true" ] || { info "MCP HTTP: skipped (MCP_HTTP_ENABLED=false)"; return 0; }
+    command -v node >/dev/null 2>&1 || { add_warn "MCP HTTP skipped — node is not on PATH"; return 0; }
+    ensure_mcp_dependencies || return 0
+    configure_mcp_targets
+
+    local url="http://${RE_MCP_HTTP_HOST}:${RE_MCP_HTTP_PORT}"
+    if pid_alive "$MCP_HTTP_PID_FILE" && curl -sf --max-time 3 "$url/healthz" >/dev/null 2>&1; then
+        MCP_HTTP_STARTED=true
+        ok "MCP HTTP already running: $url/mcp"
+        return 0
+    fi
+
+    local blocker
+    blocker="$(port_listener_pid "$RE_MCP_HTTP_PORT")"
+    if [ -n "$blocker" ]; then
+        if curl -sf --max-time 3 "$url/healthz" >/dev/null 2>&1; then
+            MCP_HTTP_STARTED=true
+            ok "MCP HTTP reachable on existing listener: $url/mcp"
+        else
+            add_warn "MCP HTTP port $RE_MCP_HTTP_PORT is in use by PID $blocker, but /healthz did not respond"
+        fi
+        return 0
+    fi
+
+    info "Starting MCP HTTP gateway on $url/mcp..."
+    (
+      cd "$CI_DIR"
+      RE_REGISTRY_URL="${RE_REGISTRY_URL:-}" \
+      RE_URL="${RE_URL:-}" \
+      PE_URL="${PE_URL:-}" \
+      RE_MCP_INSECURE_TLS="${RE_MCP_INSECURE_TLS:-}" \
+      RE_MCP_HTTP_HOST="$RE_MCP_HTTP_HOST" \
+      RE_MCP_HTTP_PORT="$RE_MCP_HTTP_PORT" \
+      nohup node mcp/src/http-server.js > "$MCP_HTTP_LOG_FILE" 2>&1 &
+      echo $! > "$MCP_HTTP_PID_FILE"
+    )
+    if poll_http "$url/healthz" "MCP HTTP health ready" 20 "-sf --max-time 3"; then
+        MCP_HTTP_STARTED=true
+    else
+        add_warn "MCP HTTP gateway did not become healthy — see $MCP_HTTP_LOG_FILE"
+    fi
+}
+
+start_openapi_swagger_service() {
+    [ "$OPENAPI_SWAGGER_ENABLED" = "true" ] || { info "OpenAPI Swagger: skipped (OPENAPI_SWAGGER_ENABLED=false)"; return 0; }
+    [ -f "$CI_DIR/docs/openapi/index.html" ] || { add_warn "Swagger portal missing; run bash scripts/generate-openapi.sh"; return 0; }
+
+    local url="http://${OPENAPI_SWAGGER_HOST}:${OPENAPI_SWAGGER_PORT}"
+    if pid_alive "$OPENAPI_SWAGGER_PID_FILE" && curl -sf --max-time 3 "$url/" >/dev/null 2>&1; then
+        OPENAPI_SWAGGER_STARTED=true
+        ok "OpenAPI Swagger already running: $url/"
+        return 0
+    fi
+
+    local blocker
+    blocker="$(port_listener_pid "$OPENAPI_SWAGGER_PORT")"
+    if [ -n "$blocker" ]; then
+        if curl -sf --max-time 3 "$url/" >/dev/null 2>&1; then
+            OPENAPI_SWAGGER_STARTED=true
+            ok "OpenAPI Swagger reachable on existing listener: $url/"
+        else
+            add_warn "OpenAPI Swagger port $OPENAPI_SWAGGER_PORT is in use by PID $blocker, but portal did not respond"
+        fi
+        return 0
+    fi
+
+    info "Starting OpenAPI Swagger portal on $url/..."
+    (
+      cd "$CI_DIR"
+      nohup bash scripts/serve-openapi.sh "$OPENAPI_SWAGGER_PORT" > "$OPENAPI_SWAGGER_LOG_FILE" 2>&1 &
+      echo $! > "$OPENAPI_SWAGGER_PID_FILE"
+    )
+    if poll_http "$url/" "OpenAPI Swagger portal ready" 20 "-sf --max-time 3"; then
+        OPENAPI_SWAGGER_STARTED=true
+    else
+        add_warn "OpenAPI Swagger portal did not become healthy — see $OPENAPI_SWAGGER_LOG_FILE"
+    fi
+}
+
+validate_mcp_and_openapi() {
+    set +e
+    if [ "$MCP_HTTP_ENABLED" = "true" ]; then
+        local mcp_url="http://${RE_MCP_HTTP_HOST}:${RE_MCP_HTTP_PORT}"
+        if curl -sf --max-time 5 "$mcp_url/healthz" >/dev/null 2>&1; then
+            ok "MCP HTTP health: $mcp_url/healthz"
+        else
+            add_warn "MCP HTTP /healthz unavailable at $mcp_url/healthz"
+        fi
+        if (cd "$CI_DIR/mcp" && RE_REGISTRY_URL="${RE_REGISTRY_URL:-}" RE_URL="${RE_URL:-}" PE_URL="${PE_URL:-}" RE_MCP_INSECURE_TLS="${RE_MCP_INSECURE_TLS:-}" npm run -s list-tools >/tmp/realityengine-mcp-tools.txt 2>&1); then
+            ok "MCP tool catalogue available"
+        else
+            add_warn "MCP tool catalogue check failed — see /tmp/realityengine-mcp-tools.txt"
+        fi
+        local init_body='{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":"2025-03-26","capabilities":{},"clientInfo":{"name":"realityengine-startup","version":"1.0.0"}}}'
+        local init_code
+        init_code="$(curl -sS --max-time 5 -o /tmp/realityengine-mcp-init.json -w '%{http_code}' -X POST "$mcp_url/mcp" -H 'content-type: application/json' -H 'accept: application/json, text/event-stream' -d "$init_body" 2>/tmp/realityengine-mcp-init.err || echo 000)"
+        case "$init_code" in
+            2*) ok "MCP Streamable HTTP initialize accepted" ;;
+            *)  add_warn "MCP Streamable HTTP initialize failed (HTTP $init_code) — see /tmp/realityengine-mcp-init.json" ;;
+        esac
+    fi
+
+    if [ "$OPENAPI_SWAGGER_ENABLED" = "true" ]; then
+        local swagger_url="http://${OPENAPI_SWAGGER_HOST}:${OPENAPI_SWAGGER_PORT}"
+        if curl -sf --max-time 5 "$swagger_url/" >/dev/null 2>&1; then
+            ok "Swagger portal available: $swagger_url/"
+        else
+            add_warn "Swagger portal unavailable at $swagger_url/"
+        fi
+        if curl -sf --max-time 5 "$swagger_url/cpp-re.yaml" | grep -q '^openapi:'; then
+            ok "Swagger raw OpenAPI spec available: cpp-re.yaml"
+        else
+            add_warn "Swagger raw OpenAPI spec unavailable or invalid at $swagger_url/cpp-re.yaml"
+        fi
+        if curl -sf --max-time 5 "$swagger_url/scala-pe.yaml" | grep -q '^openapi:'; then
+            ok "Swagger PE OpenAPI spec available: scala-pe.yaml"
+        else
+            add_warn "Swagger PE OpenAPI spec unavailable or invalid at $swagger_url/scala-pe.yaml"
+        fi
+    fi
+    set -e
 }
 
 # ── C++ build-prerequisite validation (macOS toolchain + Boost) ────────────
@@ -1423,8 +1600,17 @@ else
 fi
 
 # =============================================================================
+hdr "5.6 · MCP + OpenAPI Service Surfaces"
+# =============================================================================
+
+start_mcp_http_service
+start_openapi_swagger_service
+
+# =============================================================================
 hdr "6 · Integration Verification"
 # =============================================================================
+
+validate_mcp_and_openapi
 
 if [ "$MULTI_ENGINE_MODE" = false ]; then
 set +e
@@ -1699,6 +1885,16 @@ printf "    %-30s %s\n" "Open WebUI (Chat)"         "http://localhost:4080"
 printf "    %-30s %s\n" "Qdrant Dashboard"          "http://localhost:4333/dashboard"
 printf "    %-30s %s\n" "Ollama"                    "http://localhost:11434"
 echo ""
+echo "  API Integration Surfaces"
+if [ "$MCP_HTTP_ENABLED" = "true" ]; then
+printf "    %-30s %s\n" "MCP HTTP Gateway"          "http://${RE_MCP_HTTP_HOST}:${RE_MCP_HTTP_PORT}/mcp"
+printf "    %-30s %s\n" "MCP Health"                "http://${RE_MCP_HTTP_HOST}:${RE_MCP_HTTP_PORT}/healthz"
+fi
+if [ "$OPENAPI_SWAGGER_ENABLED" = "true" ]; then
+printf "    %-30s %s\n" "OpenAPI Swagger"           "http://${OPENAPI_SWAGGER_HOST}:${OPENAPI_SWAGGER_PORT}/"
+printf "    %-30s %s\n" "OpenAPI Specs"             "http://${OPENAPI_SWAGGER_HOST}:${OPENAPI_SWAGGER_PORT}/{cpp,lsp,scala}-{re,pe}.yaml"
+fi
+echo ""
 if [ "$OCS_STARTED" = true ]; then
 echo "  OpenClaw"
 printf "    %-30s %s\n" "ACP xACP Gateway"          "http://localhost:${OCS_GW_PORT}"
@@ -1779,6 +1975,12 @@ manifest = {
     "docker_services":         [s for s in "$_docker_svcs".split(",") if s],
     "ollama_started_by_universe": "$_ollama_started" == "true",
     "openclaw_started":        "$OCS_STARTED" == "true",
+    "mcp_http_enabled":        "$MCP_HTTP_ENABLED" == "true",
+    "mcp_http_started":        "$MCP_HTTP_STARTED" == "true",
+    "mcp_http_url":            "http://${RE_MCP_HTTP_HOST}:${RE_MCP_HTTP_PORT}/mcp",
+    "openapi_swagger_enabled": "$OPENAPI_SWAGGER_ENABLED" == "true",
+    "openapi_swagger_started": "$OPENAPI_SWAGGER_STARTED" == "true",
+    "openapi_swagger_url":     "http://${OPENAPI_SWAGGER_HOST}:${OPENAPI_SWAGGER_PORT}/",
     "warns":                   ${#WARNS[@]},
 }
 with open("/tmp/universe-manifest.json", "w") as f:
