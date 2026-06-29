@@ -21,4 +21,5 @@ COPY --from=build /app/dist ./dist
 
 EXPOSE 3004
 
+USER node
 CMD ["npm", "start"]
