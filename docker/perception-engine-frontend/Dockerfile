@@ -11,6 +11,8 @@ RUN npm run build
 RUN find /app/dist -type f -exec chmod 644 {} \; && \
     find /app/dist -type d -exec chmod 755 {} \;
 
+# trivy:ignore:DS-0002 -- nginx master process requires root to bind port 80;
+# worker processes run as the unprivileged nginx user automatically.
 FROM nginx:alpine
 
 COPY --from=build /app/dist /usr/share/nginx/html

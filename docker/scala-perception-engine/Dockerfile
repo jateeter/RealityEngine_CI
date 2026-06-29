@@ -27,11 +27,17 @@ WORKDIR /app
 
 COPY --from=build /build/target/scala-2.13/perception-engine.jar ./perception-engine.jar
 
+RUN groupadd -r -g 1001 appuser && \
+    useradd -r -u 1001 -g appuser appuser && \
+    chown -R appuser:appuser /app
+
 EXPOSE 3004
 
 ENV PORT=3004 \
     PERCEPTION_TARGET_URL=http://visualizer-backend:3001 \
     REALITY_ENGINE_URL=http://reality-engine:3000 \
     DATA_PATH=/app/data
+
+USER appuser
 
 CMD ["java", "-jar", "/app/perception-engine.jar"]

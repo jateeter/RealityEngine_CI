@@ -30,6 +30,8 @@ ENV RE_MCP_HTTP_HOST=0.0.0.0 \
 
 EXPOSE 7331
 
+USER node
+
 # Default to the HTTP transport for container/ecosystem use.
 # Override the entrypoint to `node bin/realityengine-mcp.js` for stdio.
 CMD ["node", "src/http-server.js"]

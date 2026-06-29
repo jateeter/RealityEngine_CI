@@ -31,7 +31,10 @@ COPY --from=build /build/target/scala-2.13/reality-engine.jar ./reality-engine.j
 
 # /app/machines is volume-mounted from RealityEngine_Machines at runtime.
 # The MACHINES_DIR env var points the loader at this mount path.
-RUN mkdir -p /app/machines
+RUN mkdir -p /app/machines && \
+    groupadd -r -g 1001 appuser && \
+    useradd -r -u 1001 -g appuser appuser && \
+    chown -R appuser:appuser /app
 
 EXPOSE 3000
 
@@ -40,5 +43,7 @@ ENV PORT=3000 \
     COLLECTION_NAME=reality-vectors \
     VECTOR_DIMENSION=7680 \
     MACHINES_DIR=/app/machines
+
+USER appuser
 
 CMD ["java", "-jar", "/app/reality-engine.jar"]

@@ -6,3 +6,12 @@
 # This is intentional documentation of the dev default; the production
 # value is always injected via the shell environment (never committed).
 # trivy may flag this as a hardcoded credential; suppress it here.
+
+# DS-0002: nginx master process requires root privileges to bind port 80;
+# worker processes automatically drop to the unprivileged nginx user.
+DS-0002 path:docker/perception-engine-frontend/Dockerfile
+DS-0002 path:docker/visualizer-frontend/Dockerfile
+
+# DS-0002: qdrant base image manages its own internal user model; adding a
+# USER instruction would conflict with the base image's entrypoint.
+DS-0002 path:Dockerfile.qdrant

@@ -36,4 +36,5 @@ COPY --from=build /app/examples ./examples
 
 EXPOSE 3000
 
+USER node
 CMD ["npm", "start"]

@@ -33,4 +33,5 @@ COPY --from=build /app/dist ./dist
 EXPOSE 3001
 
 # Start the server
+USER node
 CMD ["npm", "start"]
