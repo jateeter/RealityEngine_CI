@@ -96,6 +96,26 @@ const sourceMappingId = handoff.completionSourceMappingId
   || process.env.ACP_COMPLETION_SOURCE_MAPPING_ID
   || 'acp-openclaw-completion';
 const normalizedHandoff = { ...handoff, targetAgent, completionSourceMappingId: sourceMappingId };
+const metricsLedger = process.env.BRIDGE_METRICS_LEDGER || '/tmp/realityengine-openclaw-adapter-metrics.jsonl';
+
+async function appendMetricsEvent(event) {
+  try {
+    const fs = await import('node:fs/promises');
+    await fs.appendFile(metricsLedger, `${JSON.stringify({
+      type: 'openclaw_adapter_run',
+      timestamp: new Date().toISOString(),
+      provider: 'openclaw',
+      agent: targetAgent,
+      model,
+      dispatchId: handoff.dispatchId || handoff.id || null,
+      envelopeId: handoff.envelopeId || null,
+      correlationId: handoff.correlationId || null,
+      ...event
+    })}\n`);
+  } catch {
+    // Metrics must never change adapter behavior.
+  }
+}
 
 if (flag('--dry-run')) {
   console.log(JSON.stringify({
@@ -113,18 +133,34 @@ if (flag('--dry-run')) {
   process.exit(0);
 }
 
-const result = await executeOpenClawAdapter({
-  handoff: normalizedHandoff,
-  peUrl,
-  gatewayUrl,
-  apiKey,
-  model,
-  fallbackValues,
-  requireResponseValues: flag('--strict-values'),
-  requireDispatchPatch: flag('--require-dispatch-patch'),
-  skipDispatchPatch: flag('--skip-dispatch-patch'),
-  timeoutMs
-});
+const startedAt = Date.now();
+try {
+  const result = await executeOpenClawAdapter({
+    handoff: normalizedHandoff,
+    peUrl,
+    gatewayUrl,
+    apiKey,
+    model,
+    fallbackValues,
+    requireResponseValues: flag('--strict-values'),
+    requireDispatchPatch: flag('--require-dispatch-patch'),
+    skipDispatchPatch: flag('--skip-dispatch-patch'),
+    timeoutMs
+  });
 
-console.log(JSON.stringify(result, null, 2));
-process.exit(0);
+  await appendMetricsEvent({
+    status: 'ok',
+    durationMs: Date.now() - startedAt,
+    completionStatus: result.completion?.status || null,
+    gatewayStatus: result.gateway?.status || null
+  });
+  console.log(JSON.stringify(result, null, 2));
+  process.exit(0);
+} catch (error) {
+  await appendMetricsEvent({
+    status: 'error',
+    durationMs: Date.now() - startedAt,
+    error: error.message
+  });
+  throw error;
+}

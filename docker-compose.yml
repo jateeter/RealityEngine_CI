@@ -36,8 +36,11 @@ services:
       - --web.listen-address=:9090
     volumes:
       - ./config/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - ${PROMETHEUS_FILE_SD_DIR:-./config/prometheus-file-sd}:/etc/prometheus/file_sd:ro
       - ./certs:/etc/prometheus/certs:ro
       - prometheus_data:/prometheus
+    ports:
+      - "127.0.0.1:9090:9090"
     restart: unless-stopped
     networks:
       - reality-network
@@ -59,12 +62,14 @@ services:
       - GF_SECURITY_ADMIN_PASSWORD=admin
       - GF_SECURITY_ADMIN_USER=admin
       - GF_INSTALL_PLUGINS=grafana-clock-panel
-      - GF_SERVER_ROOT_URL=https://localhost:3000
+      - GF_SERVER_ROOT_URL=${GRAFANA_ROOT_URL:-http://localhost:3002}
     volumes:
       - grafana_data:/var/lib/grafana
       - ./config/grafana-datasources.yml:/etc/grafana/provisioning/datasources/datasources.yml
       - ./config/grafana-dashboards.yml:/etc/grafana/provisioning/dashboards/dashboards.yml
       - ./config/dashboards:/var/lib/grafana/dashboards
+    ports:
+      - "127.0.0.1:3002:3000"
     depends_on:
       loki:
         condition: service_healthy

@@ -5,16 +5,13 @@
 # `runtime="scala"|"cpp"|"lsp"` label so a single Grafana dashboard can
 # pivot by source runtime without scrape-time relabels.
 #
-# The Perception Engine (PE) on each runtime exposes /api/metrics with
-# PE-specific counters (source activations, perceive calls, MQTT messages).
-#
 # Targets are split between:
 #   • compose-internal — Docker services reachable on the reality-network
 #     bridge.  These use the project self-signed CA and the service hostname
 #     for SAN validation.  The Scala RE runs on port 5001 inside the proxy.
-#   • host-dev — native `bin/reality_engine_server` / start.sh instances.
-#     Reached via host.docker.internal.  Scrapes fail silently when those
-#     processes are not running (honor_labels: true).
+#   • registry-discovered — native multi-engine instances emitted by
+#     startUniverse.sh into /etc/prometheus/file_sd/*.json.  Reached via
+#     host.docker.internal so Prometheus can scrape host-native runtimes.
 
 global:
   scrape_interval:     5s
@@ -61,100 +58,38 @@ scrape_configs:
           component: perception-engine
           source:    compose
 
-  # ── Host-dev native instances ─────────────────────────────────────────────
-  # Scrapes fail silently when a given runtime is not running.
+  # ── Registry-discovered host-native instances ────────────────────────────
+  # startUniverse.sh writes these files from the live RE registry so dashboards
+  # follow the actual scala/cpp/lsp ports instead of fixed defaults.
 
-  # Reality Engine — host-native instances
-  - job_name:     reality-engine-scala-host
+  - job_name:     reality-engine-registry
     metrics_path: /api/metrics
     honor_labels: true
-    static_configs:
-      - targets:
-          - host.docker.internal:5001
-        labels:
-          runtime:   scala
-          component: reality-engine
-          source:    host
+    file_sd_configs:
+      - files:
+          - /etc/prometheus/file_sd/reality-engine-targets.json
+        refresh_interval: 10s
 
-  - job_name:     reality-engine-cpp-host
-    metrics_path: /api/metrics
-    honor_labels: true
-    static_configs:
-      - targets:
-          - host.docker.internal:5301
-        labels:
-          runtime:   cpp
-          component: reality-engine
-          source:    host
-
-  - job_name:     reality-engine-lsp-host
-    metrics_path: /api/metrics
-    honor_labels: true
-    static_configs:
-      - targets:
-          - host.docker.internal:5601
-        labels:
-          runtime:   lsp
-          component: reality-engine
-          source:    host
-
-  # Perception Engine — host-native instances (one per runtime)
-  - job_name:     perception-engine-scala-host
-    metrics_path: /api/metrics
-    honor_labels: true
-    static_configs:
-      - targets:
-          - host.docker.internal:5000
-        labels:
-          runtime:   scala
-          component: perception-engine
-          source:    host
-
-  - job_name:     perception-engine-cpp-host
-    metrics_path: /api/metrics
-    honor_labels: true
-    static_configs:
-      - targets:
-          - host.docker.internal:5300
-        labels:
-          runtime:   cpp
-          component: perception-engine
-          source:    host
-
-  - job_name:     perception-engine-lsp-host
-    metrics_path: /api/metrics
-    honor_labels: true
-    static_configs:
-      - targets:
-          - host.docker.internal:5600
-        labels:
-          runtime:   lsp
-          component: perception-engine
-          source:    host
-
-  # ── localAIStack FastAPI — RAG orchestration metrics ─────────────────────
-  # FastAPI exposes /metrics via prometheus-fastapi-instrumentator.
-  # Host-dev path: localai_api runs on the host (not in compose network)
-  # so we reach it via host.docker.internal.
-  - job_name:     localaistack-api
+  # ── AI bridge operations — CI-owned exporter for OpenClaw/localAIStack ───
+  - job_name:     ai-bridge-operations
     metrics_path: /metrics
     honor_labels: true
     static_configs:
       - targets:
-          - host.docker.internal:4000
+          - host.docker.internal:7342
         labels:
-          component: localaistack-api
+          component: ai-bridge-metrics
           source:    host
 
   # ── Qdrant — vector DB metrics ───────────────────────────────────────────
-  # Qdrant exposes Prometheus metrics at /metrics (REST port 6334 by default;
-  # localAIStack maps it to host port 4333 with metrics on 4334 if enabled).
+  # Qdrant exposes Prometheus metrics at /metrics on its REST port; localAIStack
+  # maps that to host port 4333.  Port 4334 is gRPC and is not HTTP-scrapable.
   - job_name:     qdrant
     metrics_path: /metrics
     honor_labels: true
     static_configs:
       - targets:
-          - host.docker.internal:4334
+          - host.docker.internal:4333
         labels:
           component: qdrant
           source:    host

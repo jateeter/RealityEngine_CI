@@ -24,6 +24,7 @@ LSP_DIR="$CI_DIR/../RealityEngine_LSP"
 OCS_DIR="$CI_DIR/../localOpenClawStack"
 MCP_HTTP_PID_FILE="${MCP_HTTP_PID_FILE:-/tmp/realityengine-mcp-http.pid}"
 OPENAPI_SWAGGER_PID_FILE="${OPENAPI_SWAGGER_PID_FILE:-/tmp/realityengine-openapi-swagger.pid}"
+BRIDGE_METRICS_PID_FILE="${BRIDGE_METRICS_PID_FILE:-/tmp/realityengine-bridge-metrics.pid}"
 
 GREEN='\033[0;32m'; YELLOW='\033[1;33m'; RED='\033[0;31m'; NC='\033[0m'
 ok()   { echo -e "${GREEN}✓${NC} $*"; }
@@ -135,6 +136,7 @@ _stop_pid_file() {
 stop_api_surface_services() {
   _stop_pid_file "$MCP_HTTP_PID_FILE" "MCP HTTP gateway"
   _stop_pid_file "$OPENAPI_SWAGGER_PID_FILE" "OpenAPI Swagger portal"
+  _stop_pid_file "$BRIDGE_METRICS_PID_FILE" "AI bridge metrics exporter"
 }
 
 # Sweep all native engine ports and kill any survivors.

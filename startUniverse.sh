@@ -68,8 +68,17 @@ MCP_HTTP_PID_FILE="${MCP_HTTP_PID_FILE:-/tmp/realityengine-mcp-http.pid}"
 MCP_HTTP_LOG_FILE="${MCP_HTTP_LOG_FILE:-/tmp/realityengine-mcp-http.log}"
 OPENAPI_SWAGGER_PID_FILE="${OPENAPI_SWAGGER_PID_FILE:-/tmp/realityengine-openapi-swagger.pid}"
 OPENAPI_SWAGGER_LOG_FILE="${OPENAPI_SWAGGER_LOG_FILE:-/tmp/realityengine-openapi-swagger.log}"
+BRIDGE_METRICS_HOST="${BRIDGE_METRICS_HOST:-0.0.0.0}"
+BRIDGE_METRICS_PORT="${BRIDGE_METRICS_PORT:-7342}"
+BRIDGE_METRICS_PID_FILE="${BRIDGE_METRICS_PID_FILE:-/tmp/realityengine-bridge-metrics.pid}"
+BRIDGE_METRICS_LOG_FILE="${BRIDGE_METRICS_LOG_FILE:-/tmp/realityengine-bridge-metrics.log}"
+BRIDGE_METRICS_LEDGER="${BRIDGE_METRICS_LEDGER:-/tmp/realityengine-openclaw-adapter-metrics.jsonl}"
+PROMETHEUS_FILE_SD_DIR="${PROMETHEUS_FILE_SD_DIR:-/tmp/realityengine-prometheus-file-sd}"
 MCP_HTTP_STARTED=false
 OPENAPI_SWAGGER_STARTED=false
+PROMETHEUS_STARTED=false
+GRAFANA_STARTED=false
+BRIDGE_METRICS_STARTED=false
 
 # ── Flags ──────────────────────────────────────────────────────────────────
 FRESH_START=false
@@ -275,6 +284,171 @@ PYEOF
     export PE_URL="$LOCALAI_PE_URL"
     export RE_SSL_VERIFY="${RE_SSL_VERIFY:-false}"
     info "localAIStack bridge target — RE: $RE_URL  PE: $PE_URL"
+}
+
+generate_prometheus_file_sd() {
+    mkdir -p "$PROMETHEUS_FILE_SD_DIR"
+    python3 - "$REGISTRY_FILE" \
+        "$PROMETHEUS_FILE_SD_DIR/reality-engine-targets.json" \
+        "$PROMETHEUS_FILE_SD_DIR/perception-engine-targets.json" <<'PYEOF'
+import json
+import pathlib
+import sys
+
+registry_path = pathlib.Path(sys.argv[1])
+re_path = pathlib.Path(sys.argv[2])
+pe_path = pathlib.Path(sys.argv[3])
+allowed = {"scala", "cpp", "lsp"}
+re_targets = []
+pe_targets = []
+
+try:
+    registry = json.loads(registry_path.read_text())
+except Exception:
+    registry = {"instances": []}
+
+for inst in registry.get("instances", []):
+    runtime = str(inst.get("runtime", "")).lower()
+    if runtime not in allowed:
+        continue
+    iid = inst.get("id", runtime)
+    re_port = inst.get("re_port")
+    pe_port = inst.get("pe_port")
+    if re_port:
+        re_targets.append({
+            "targets": [f"host.docker.internal:{int(re_port)}"],
+            "labels": {
+                "runtime": runtime,
+                "engine": runtime,
+                "instance": iid,
+                "component": "reality-engine",
+                "source": "registry"
+            }
+        })
+    if pe_port:
+        pe_targets.append({
+            "targets": [f"host.docker.internal:{int(pe_port)}"],
+            "labels": {
+                "runtime": runtime,
+                "engine": runtime,
+                "instance": iid,
+                "component": "perception-engine",
+                "source": "registry"
+            }
+        })
+
+re_path.write_text(json.dumps(re_targets, indent=2) + "\n")
+pe_path.write_text(json.dumps(pe_targets, indent=2) + "\n")
+print(f"{len(re_targets)} RE targets, {len(pe_targets)} PE targets")
+PYEOF
+}
+
+start_bridge_metrics_exporter() {
+    command -v node >/dev/null 2>&1 || { add_warn "Bridge metrics exporter skipped — node is not on PATH"; return 0; }
+    local url="http://${BRIDGE_METRICS_HOST}:${BRIDGE_METRICS_PORT}"
+    if pid_alive "$BRIDGE_METRICS_PID_FILE" && curl -sf --max-time 3 "$url/healthz" >/dev/null 2>&1; then
+        BRIDGE_METRICS_STARTED=true
+        ok "AI bridge metrics already running: $url/metrics"
+        return 0
+    fi
+
+    local blocker
+    blocker="$(port_listener_pid "$BRIDGE_METRICS_PORT")"
+    if [ -n "$blocker" ]; then
+        if curl -sf --max-time 3 "$url/healthz" >/dev/null 2>&1; then
+            BRIDGE_METRICS_STARTED=true
+            ok "AI bridge metrics reachable on existing listener: $url/metrics"
+        else
+            add_warn "AI bridge metrics port $BRIDGE_METRICS_PORT is in use by PID $blocker"
+        fi
+        return 0
+    fi
+
+    info "Starting AI bridge metrics exporter on $url/metrics..."
+    (
+      cd "$CI_DIR"
+      BRIDGE_METRICS_HOST="$BRIDGE_METRICS_HOST" \
+      BRIDGE_METRICS_PORT="$BRIDGE_METRICS_PORT" \
+      BRIDGE_METRICS_LEDGER="$BRIDGE_METRICS_LEDGER" \
+      OPENCLAW_GATEWAY_URL="${OPENCLAW_GATEWAY_URL:-http://127.0.0.1:${OCS_GW_PORT:-18789}}" \
+      OPENCLAW_GATEWAY_TOKEN="${_ocs_token:-${OPENCLAW_GATEWAY_TOKEN:-}}" \
+      LOCALAI_API_URL="${LOCALAI_API_URL:-http://127.0.0.1:4000}" \
+      QDRANT_URL="${QDRANT_URL:-http://127.0.0.1:4333}" \
+      OLLAMA_BASE_URL="${OLLAMA_BASE_URL:-http://127.0.0.1:11434}" \
+      nohup node scripts/bridge-metrics-exporter.mjs > "$BRIDGE_METRICS_LOG_FILE" 2>&1 &
+      echo $! > "$BRIDGE_METRICS_PID_FILE"
+    )
+    if poll_http "$url/healthz" "AI bridge metrics health ready" 20 "-sf --max-time 3"; then
+        BRIDGE_METRICS_STARTED=true
+    else
+        add_warn "AI bridge metrics exporter did not become healthy — see $BRIDGE_METRICS_LOG_FILE"
+    fi
+}
+
+start_observability_stack() {
+    local target_summary
+    target_summary="$(generate_prometheus_file_sd 2>/tmp/prometheus_file_sd_err.log)" || \
+        add_warn "Prometheus file_sd generation failed — $(cat /tmp/prometheus_file_sd_err.log 2>/dev/null)"
+    [ -n "$target_summary" ] && info "Prometheus registry targets: $target_summary"
+
+    start_bridge_metrics_exporter
+
+    info "Starting Prometheus + Grafana..."
+    (cd "$CI_DIR" && docker compose up -d --remove-orphans prometheus grafana \
+        2>/tmp/observability_start_err.log) > /dev/null || {
+        add_warn "Prometheus/Grafana startup failed — $(tail -5 /tmp/observability_start_err.log 2>/dev/null)"
+        return 0
+    }
+
+    if docker exec reality-engine-prometheus wget --no-verbose --tries=1 --spider \
+        http://localhost:9090/-/ready >/dev/null 2>&1; then
+        PROMETHEUS_STARTED=true
+        ok "Prometheus ready: http://localhost:9090"
+    else
+        add_warn "Prometheus did not report ready — check: docker logs reality-engine-prometheus"
+    fi
+
+    if docker exec reality-engine-grafana wget --no-verbose --tries=1 --spider \
+        http://localhost:3000/api/health >/dev/null 2>&1; then
+        GRAFANA_STARTED=true
+        ok "Grafana ready: http://localhost:3002"
+    else
+        add_warn "Grafana did not report healthy — check: docker logs reality-engine-grafana"
+    fi
+}
+
+validate_metrics_surfaces() {
+    info "Validating RE metric surfaces..."
+    set +e
+    if [ "$MULTI_ENGINE_MODE" = true ] && [ -f "$REGISTRY_FILE" ]; then
+        python3 - "$REGISTRY_FILE" <<'PYEOF' | while IFS='|' read -r _id _component _url; do
+import json
+import sys
+with open(sys.argv[1]) as f:
+    instances = json.load(f).get("instances", [])
+for inst in instances:
+    iid = inst.get("id", "?")
+    if inst.get("re_url"):
+        print(f"{iid}|RE|{inst['re_url']}/api/metrics")
+PYEOF
+            _bytes=$(curl -sf --max-time 4 "$_url" 2>/dev/null | wc -c | tr -d ' ')
+            if [ "${_bytes:-0}" -gt 0 ]; then
+                ok "$_id $_component metrics non-empty ($_bytes bytes)"
+            else
+                add_warn "$_id $_component metrics empty or unavailable at $_url"
+            fi
+        done
+    else
+        for _url in "https://localhost:5001/api/metrics"; do
+            _bytes=$(curl -skf --max-time 4 "$_url" 2>/dev/null | wc -c | tr -d ' ')
+            if [ "${_bytes:-0}" -gt 0 ]; then
+                ok "Metrics non-empty at $_url ($_bytes bytes)"
+            else
+                add_warn "Metrics empty or unavailable at $_url"
+            fi
+        done
+    fi
+    set -e
 }
 
 # ── Colours + helpers ─────────────────────────────────────────────────────
@@ -817,7 +991,7 @@ if [ -n "$MQTT_MAPPINGS_OVERRIDE" ]; then
 fi
 
 # Pass sibling repo paths to docker-compose so build contexts and volume mounts resolve correctly.
-export SCALA_DIR MGR_DIR MACHINES_DIR
+export SCALA_DIR MGR_DIR MACHINES_DIR PROMETHEUS_FILE_SD_DIR
 export ACP_ENABLED ACP_PLATFORM ACP_SURFACE ACP_GATEWAY_URL OPENCLAW_GATEWAY_URL
 export ACP_SESSION_KEY OPENCLAW_ACP_SESSION ACP_TARGET_AGENT ACP_COMPLETION_SOURCE_MAPPING_ID INTEGRATIONS_CONFIG
 
@@ -1505,6 +1679,9 @@ esac
 
 fi  # end: if [ "$MULTI_ENGINE_MODE" = false ] Docker RE block
 
+start_observability_stack
+validate_metrics_surfaces
+
 configure_localai_bridge_targets
 
 # =============================================================================
@@ -1895,6 +2072,12 @@ printf "    %-30s %s\n" "OpenAPI Swagger"           "http://${OPENAPI_SWAGGER_HO
 printf "    %-30s %s\n" "OpenAPI Specs"             "http://${OPENAPI_SWAGGER_HOST}:${OPENAPI_SWAGGER_PORT}/{cpp,lsp,scala}-{re,pe}.yaml"
 fi
 echo ""
+echo "  Observability"
+printf "    %-30s %s\n" "Grafana"                   "http://localhost:3002"
+printf "    %-30s %s\n" "Prometheus"                "http://localhost:9090"
+printf "    %-30s %s\n" "AI Bridge Metrics"         "http://localhost:${BRIDGE_METRICS_PORT}/metrics"
+printf "    %-30s %s\n" "Loki"                      "https://localhost:3100"
+echo ""
 if [ "$OCS_STARTED" = true ]; then
 echo "  OpenClaw"
 printf "    %-30s %s\n" "ACP xACP Gateway"          "http://localhost:${OCS_GW_PORT}"
@@ -1925,7 +2108,7 @@ PYEOF
 fi
 else
 echo "  RealityEngine  (source: RealityEngine_Scala + RealityEngine_Manager)"
-printf "    %-30s %s\n" "Grafana"                   "https://localhost:3000"
+printf "    %-30s %s\n" "Grafana (TLS proxy)"       "https://localhost:3000"
 printf "    %-30s %s\n" "RE API (Docker/Scala)"     "https://localhost:5001"
 printf "    %-30s %s\n" "Visualizer"                "https://localhost:5173"
 printf "    %-30s %s\n" "Perception Engine API"     "https://localhost:3004"
@@ -1957,7 +2140,7 @@ else
 fi
 
 # ── Write universe manifest ────────────────────────────────────────────────────
-_docker_svcs="loki,qdrant,redis"
+_docker_svcs="loki,prometheus,grafana,qdrant,redis"
 [ "$MULTI_ENGINE_MODE" = false ] && _docker_svcs="$_docker_svcs,reality-engine,visualizer,perception-engine,localai_api"
 [ "$MULTI_ENGINE_MODE" = true  ] && _docker_svcs="$_docker_svcs,localai_api"
 _ollama_started=false
@@ -1975,6 +2158,12 @@ manifest = {
     "docker_services":         [s for s in "$_docker_svcs".split(",") if s],
     "ollama_started_by_universe": "$_ollama_started" == "true",
     "openclaw_started":        "$OCS_STARTED" == "true",
+    "prometheus_started":      "$PROMETHEUS_STARTED" == "true",
+    "prometheus_url":          "http://localhost:9090",
+    "grafana_started":         "$GRAFANA_STARTED" == "true",
+    "grafana_url":             "http://localhost:3002",
+    "bridge_metrics_started":  "$BRIDGE_METRICS_STARTED" == "true",
+    "bridge_metrics_url":      "http://localhost:${BRIDGE_METRICS_PORT}/metrics",
     "mcp_http_enabled":        "$MCP_HTTP_ENABLED" == "true",
     "mcp_http_started":        "$MCP_HTTP_STARTED" == "true",
     "mcp_http_url":            "http://${RE_MCP_HTTP_HOST}:${RE_MCP_HTTP_PORT}/mcp",
