@@ -50,7 +50,20 @@ npm run openapi:serve                  # same thing
 
 Then open <http://localhost:8088/>. The selection is reflected in the
 querystring (e.g. `?runtime=scala&service=pe`) so individual views are
-linkable; "Try it out" targets the `servers:` entries from each overlay.
+linkable.
+
+When served through `scripts/serve-openapi.sh`, the checked-in generated specs
+are exposed with a runtime-aware `servers:` block that points to the same-origin
+Swagger proxy:
+
+```text
+http://localhost:8088/proxy/{cpp,lsp,scala}/{re,pe}
+```
+
+The proxy resolves live targets from `/tmp/re-registry/re-registry.json`, so
+"Try it out" follows the active universe instead of static local ports. The
+generated YAML files remain the source artifacts and should not be edited by
+hand.
 
 ### Alternatives
 

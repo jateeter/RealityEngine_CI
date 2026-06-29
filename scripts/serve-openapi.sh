@@ -16,8 +16,16 @@ PORT="${1:-8088}"
 
 [ -f "$DOCROOT/index.html" ] || { echo "missing portal: $DOCROOT/index.html (run scripts/generate-openapi.sh first)" >&2; exit 1; }
 
-echo "Serving $DOCROOT on http://localhost:${PORT}/"
-echo "  Swagger portal : http://localhost:${PORT}/"
-echo "  Raw specs      : http://localhost:${PORT}/{cpp,lsp,scala}-{re,pe}.yaml"
+HOST="${OPENAPI_SWAGGER_HOST:-127.0.0.1}"
+REGISTRY="${RE_REGISTRY_PATH:-/tmp/re-registry/re-registry.json}"
+
+echo "Serving $DOCROOT on http://${HOST}:${PORT}/"
+echo "  Swagger portal : http://${HOST}:${PORT}/"
+echo "  Raw specs      : http://${HOST}:${PORT}/{cpp,lsp,scala}-{re,pe}.yaml"
+echo "  Proxy          : http://${HOST}:${PORT}/proxy/{cpp,lsp,scala}/{re,pe}/..."
 echo "Ctrl-C to stop."
-exec python3 -m http.server "$PORT" --directory "$DOCROOT"
+exec python3 "$CI_DIR/scripts/serve_openapi.py" \
+  --host "$HOST" \
+  --port "$PORT" \
+  --docroot "$DOCROOT" \
+  --registry "$REGISTRY"

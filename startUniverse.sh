@@ -582,6 +582,8 @@ start_openapi_swagger_service() {
     info "Starting OpenAPI Swagger portal on $url/..."
     (
       cd "$CI_DIR"
+      RE_REGISTRY_PATH="$REGISTRY_FILE" \
+      OPENAPI_SWAGGER_HOST="$OPENAPI_SWAGGER_HOST" \
       nohup bash scripts/serve-openapi.sh "$OPENAPI_SWAGGER_PORT" > "$OPENAPI_SWAGGER_LOG_FILE" 2>&1 &
       echo $! > "$OPENAPI_SWAGGER_PID_FILE"
     )
@@ -631,6 +633,45 @@ validate_mcp_and_openapi() {
             ok "Swagger PE OpenAPI spec available: scala-pe.yaml"
         else
             add_warn "Swagger PE OpenAPI spec unavailable or invalid at $swagger_url/scala-pe.yaml"
+        fi
+        local swagger_runtime
+        swagger_runtime="$(python3 - "$REGISTRY_FILE" <<'PYEOF' 2>/dev/null || true
+import json, sys
+try:
+    with open(sys.argv[1]) as f:
+        registry = json.load(f)
+except Exception:
+    registry = {"instances": []}
+for instance in registry.get("instances", []):
+    runtime = instance.get("runtime")
+    if runtime and instance.get("re_url") and instance.get("pe_url") and instance.get("status", "running") == "running":
+        print(runtime)
+        break
+PYEOF
+)"
+        if [ -n "$swagger_runtime" ]; then
+            if curl -sf --max-time 5 "$swagger_url/${swagger_runtime}-re.yaml" | grep -q "url: ${swagger_url}/proxy/${swagger_runtime}/re"; then
+                ok "Swagger RE spec uses same-origin proxy for ${swagger_runtime}"
+            else
+                add_warn "Swagger RE spec for ${swagger_runtime} does not expose same-origin proxy server"
+            fi
+            if curl -sf --max-time 5 "$swagger_url/${swagger_runtime}-pe.yaml" | grep -q "url: ${swagger_url}/proxy/${swagger_runtime}/pe"; then
+                ok "Swagger PE spec uses same-origin proxy for ${swagger_runtime}"
+            else
+                add_warn "Swagger PE spec for ${swagger_runtime} does not expose same-origin proxy server"
+            fi
+            if curl -sf --max-time 5 "$swagger_url/proxy/${swagger_runtime}/re/api/health" >/dev/null 2>&1; then
+                ok "Swagger RE proxy executes against active ${swagger_runtime}"
+            else
+                add_warn "Swagger RE proxy execution failed for ${swagger_runtime}"
+            fi
+            if curl -sf --max-time 5 "$swagger_url/proxy/${swagger_runtime}/pe/api/health" >/dev/null 2>&1; then
+                ok "Swagger PE proxy executes against active ${swagger_runtime}"
+            else
+                add_warn "Swagger PE proxy execution failed for ${swagger_runtime}"
+            fi
+        else
+            add_warn "Swagger proxy validation skipped: no active registry instance found in $REGISTRY_FILE"
         fi
     fi
     set -e
