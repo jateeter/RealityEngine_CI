@@ -84,11 +84,18 @@ jobs:
 
       - name: Lint all docker/ Dockerfiles
         run: |
-          docker run --rm -i \
-            -v "${{ github.workspace }}/RealityEngine_CI:/repo:ro" \
+          REPO_DIR="${{ github.workspace }}/RealityEngine_CI"
+          dockerfiles=$(find "$REPO_DIR/docker" -name 'Dockerfile*' 2>/dev/null | \
+            sed "s|$REPO_DIR|/repo|g" | tr '\n' ' ')
+          if [ -z "$dockerfiles" ]; then
+            echo "No Dockerfiles found in docker/ directory, skipping."
+            exit 0
+          fi
+          docker run --rm \
+            -v "$REPO_DIR:/repo:ro" \
             hadolint/hadolint hadolint \
             --config /repo/.hadolint.yaml \
-            $(find /repo/docker -name 'Dockerfile*' | tr '\n' ' ')
+            $dockerfiles
 
       - name: Scan for secrets and misconfigurations (trivy)
         uses: aquasecurity/trivy-action@v0.36.0
