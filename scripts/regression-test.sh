@@ -405,7 +405,7 @@ run_universal_vectors() {
     --out "$RUN_DIR/responses/universal-vectors"
 }
 
-registry_pe_lines() {
+registry_instance_lines() {
   python3 - /tmp/re-registry/re-registry.json <<'PYEOF'
 import json
 import sys
@@ -418,11 +418,29 @@ except Exception as exc:
     raise SystemExit(f"could not read registry {path}: {exc}") from exc
 
 for item in data.get("instances", []):
+    instance_id = item.get("id") or item.get("runtime")
     runtime = item.get("runtime")
     pe_url = item.get("pe_url")
     status = item.get("status", "running")
     if runtime and pe_url and status == "running":
-        print(f"{runtime}|{pe_url}")
+        print(f"{instance_id}|{runtime}|{pe_url}")
+PYEOF
+}
+
+write_mqtt_skip_report() {
+  local reason="$1"
+  mkdir -p "$REPORT_DIR"
+  python3 - "$REPORT_DIR/mqtt-yuma-skipped.json" "$reason" "$MQTT_BROKER_URL" <<'PYEOF'
+import json
+import sys
+from pathlib import Path
+
+path, reason, broker = sys.argv[1:]
+Path(path).write_text(json.dumps({
+    "status": "skipped",
+    "reason": reason,
+    "brokerUrl": broker,
+}, indent=2, sort_keys=True) + "\n", encoding="utf-8")
 PYEOF
 }
 
@@ -430,6 +448,7 @@ run_mqtt_yuma() {
   step "MQTT Yuma stream"
   if [ -z "$MQTT_BROKER_URL" ]; then
     log "SKIP MQTT: --mqtt-broker-url not provided"
+    write_mqtt_skip_report "--mqtt-broker-url not provided"
     return 0
   fi
   local ci
@@ -437,14 +456,15 @@ run_mqtt_yuma() {
   local mqtt_args=(--broker-url "$MQTT_BROKER_URL" --skip-enable)
   [ -n "$MQTT_MAPPINGS" ] && mqtt_args+=(--mappings "$MQTT_MAPPINGS")
   local found=false
-  while IFS='|' read -r runtime pe_url; do
-    [ -n "$runtime" ] || continue
+  while IFS='|' read -r instance_id runtime pe_url; do
+    [ -n "$instance_id" ] || continue
     found=true
-    run_cmd "mqtt-yuma-$runtime" bash "$ci/scripts/test-mqtt-yuma.sh" \
+    run_cmd "mqtt-yuma-$instance_id" bash "$ci/scripts/test-mqtt-yuma.sh" \
       --pe-url "$pe_url" \
+      --report-json "$REPORT_DIR/mqtt-yuma-$instance_id.json" \
       "${mqtt_args[@]}"
-  done < <(registry_pe_lines)
-  [ "$found" = true ] || { log "SKIP MQTT: no running PE instances in registry"; return 0; }
+  done < <(registry_instance_lines)
+  [ "$found" = true ] || { log "SKIP MQTT: no running PE instances in registry"; write_mqtt_skip_report "no running PE instances in registry"; return 0; }
 }
 
 run_mcp() {
@@ -465,14 +485,14 @@ run_openclaw() {
   local ci
   ci="$(repo_root RealityEngine_CI)"
   local found=false
-  while IFS='|' read -r runtime pe_url; do
-    [ -n "$runtime" ] || continue
+  while IFS='|' read -r instance_id runtime pe_url; do
+    [ -n "$instance_id" ] || continue
     found=true
-    run_cmd "openclaw-integration-$runtime" env \
+    run_cmd "openclaw-integration-$instance_id" env \
       PE_URL="$pe_url" \
-      OPENCLAW_E2E_RUN_ID="$RUN_ID-$runtime" \
+      OPENCLAW_E2E_RUN_ID="$RUN_ID-$instance_id" \
       bash "$ci/scripts/test-openclaw-integration.sh"
-  done < <(registry_pe_lines)
+  done < <(registry_instance_lines)
   [ "$found" = true ] || { log "SKIP OpenClaw: no running PE instances in registry"; return 0; }
 }
 

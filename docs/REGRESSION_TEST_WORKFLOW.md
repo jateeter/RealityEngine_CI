@@ -167,6 +167,10 @@ Required behavior:
 - Store one MQTT log per engine under the run history. The regression runner
   invokes `scripts/test-mqtt-yuma.sh` directly for each registered PE so the
   Yuma phase does not restart or reshape the deployed universe.
+- Store one `mqtt-yuma-<instance>.json` report per PE with broker connection
+  status, mapping count, expected Yuma source coverage, observed MQTT source
+  count, final MQTT status, and categorized errors. If no broker URL is
+  configured, write `mqtt-yuma-skipped.json` with the skip reason.
 
 ## MCP Requirement
 

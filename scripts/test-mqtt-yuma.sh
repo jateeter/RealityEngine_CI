@@ -24,6 +24,7 @@
 #   --password PASS       MQTT password (optional)
 #   --timeout-connect N   Seconds to wait for broker connection (default: 30)
 #   --timeout-sources N   Seconds to wait for Yuma sources to appear (default: 60)
+#   --report-json PATH    Write a machine-readable report
 #   --skip-enable         Skip POST /api/mqtt/enable (bridge already configured)
 #   --verbose             Print each HTTP response body
 # ─────────────────────────────────────────────────────────────────────────────
@@ -36,10 +37,11 @@ CPP_DIR="$CI_DIR/../RealityEngine_CPP"
 PE_URL="https://localhost:3004"
 BROKER_URL="mqtt://yuma.lateraledge.cloud:1883"
 MAPPINGS_PATH=""
-MQTT_USERNAME=""
-MQTT_PASSWORD=""
+MQTT_USERNAME="${MQTT_USERNAME:-}"
+MQTT_PASSWORD="${MQTT_PASSWORD:-}"
 TIMEOUT_CONNECT=30
 TIMEOUT_SOURCES=60
+REPORT_JSON=""
 SKIP_ENABLE=false
 VERBOSE=false
 
@@ -59,6 +61,8 @@ while [[ $# -gt 0 ]]; do
     --timeout-connect)    TIMEOUT_CONNECT="$2";        shift 2 ;;
     --timeout-sources=*)  TIMEOUT_SOURCES="${1#*=}";   shift ;;
     --timeout-sources)    TIMEOUT_SOURCES="$2";        shift 2 ;;
+    --report-json=*)      REPORT_JSON="${1#*=}";       shift ;;
+    --report-json)        REPORT_JSON="$2";            shift 2 ;;
     --skip-enable)        SKIP_ENABLE=true;            shift ;;
     --verbose)            VERBOSE=true;                shift ;;
     -h|--help)
@@ -75,12 +79,104 @@ ok()   { echo -e "${GREEN}✓${NC} $*"; }
 info() { echo -e "${YELLOW}ℹ${NC} $*"; }
 warn() { echo -e "${RED}⚠${NC} $*"; }
 hdr()  { echo -e "\n${CYAN}${BOLD}─── $* ───${NC}"; }
-die()  { echo -e "\n${RED}✗  FATAL:${NC} $*\n"; exit 1; }
 
 PASS=0; FAIL=0; ERRORS=()
+MAPPINGS_SOURCE=""
+MAPPING_COUNT=0
+RESP_COUNT=""
+STATUS_JSON="{}"
+FINAL_STATUS="{}"
+CONNECTED=false
+BROKER_ACTUAL=""
+MSG_RX=""
+EXPECTED_COUNT=0
+MQTT_COUNT=0
+SOURCES_FOUND=false
+FAILURE_STAGE=""
 
 check_pass() { PASS=$((PASS+1)); ok "$*"; }
-check_fail() { FAIL=$((FAIL+1)); ERRORS+=("$*"); warn "$*"; }
+check_fail() { FAIL=$((FAIL+1)); ERRORS+=("$*"); [ -z "$FAILURE_STAGE" ] && FAILURE_STAGE="$*"; warn "$*"; }
+
+write_report() {
+  local status="$1"
+  [ -n "$REPORT_JSON" ] || return 0
+  mkdir -p "$(dirname "$REPORT_JSON")"
+  local errors_file
+  errors_file=$(mktemp /tmp/yuma-report-errors.XXXXXX)
+  printf '%s\n' "${ERRORS[@]}" > "$errors_file"
+  python3 - "$REPORT_JSON" "$errors_file" "$status" "$PE_URL" "$BROKER_URL" "$MAPPINGS_SOURCE" "$MAPPING_COUNT" \
+    "$RESP_COUNT" "$CONNECTED" "$BROKER_ACTUAL" "$MSG_RX" "$EXPECTED_COUNT" "$MQTT_COUNT" "$SOURCES_FOUND" \
+    "$PASS" "$FAIL" "$FAILURE_STAGE" "$STATUS_JSON" "$FINAL_STATUS" <<'PYEOF'
+import json
+import sys
+from pathlib import Path
+
+(
+    report_path,
+    errors_path,
+    status,
+    pe_url,
+    broker_url,
+    mappings_source,
+    mapping_count,
+    enable_mapping_count,
+    connected,
+    broker_actual,
+    messages_received,
+    expected_count,
+    mqtt_count,
+    sources_found,
+    passed,
+    failed,
+    failure_stage,
+    status_json,
+    final_status_json,
+) = sys.argv[1:]
+
+def parse_json(raw):
+    try:
+        return json.loads(raw) if raw else {}
+    except Exception:
+        return {"raw": raw}
+
+def maybe_int(value):
+    return int(value) if str(value).isdigit() else value
+
+errors = [line for line in Path(errors_path).read_text(encoding="utf-8").splitlines() if line.strip()]
+payload = {
+    "status": status,
+    "peUrl": pe_url,
+    "brokerUrl": broker_url,
+    "mappings": {
+        "source": mappings_source,
+        "count": maybe_int(mapping_count),
+        "enableAcceptedCount": maybe_int(enable_mapping_count),
+    },
+    "broker": {
+        "connected": connected == "true",
+        "actualUrl": broker_actual,
+        "messagesReceived": maybe_int(messages_received),
+        "status": parse_json(status_json),
+    },
+    "sources": {
+        "found": sources_found == "true",
+        "expectedMappingCount": maybe_int(expected_count),
+        "observedMqttSourceCount": maybe_int(mqtt_count),
+    },
+    "checks": {
+        "passed": int(passed),
+        "failed": int(failed),
+        "failureStage": failure_stage,
+        "errors": errors,
+    },
+    "finalStatus": parse_json(final_status_json),
+}
+Path(report_path).write_text(json.dumps(payload, indent=2, sort_keys=True) + "\n", encoding="utf-8")
+PYEOF
+  rm -f "$errors_file"
+}
+
+die()  { echo -e "\n${RED}✗  FATAL:${NC} $*\n"; FAIL=$((FAIL+1)); ERRORS+=("$*"); [ -z "$FAILURE_STAGE" ] && FAILURE_STAGE="$*"; write_report "failed"; exit 1; }
 
 # curl wrapper — handles TLS (self-signed certs) and optionally logs bodies
 _curl() { curl -sk --max-time 10 "$@"; }
@@ -106,11 +202,13 @@ MAPPINGS_JSON=""
 if [ -n "$MAPPINGS_PATH" ]; then
   [ -f "$MAPPINGS_PATH" ] || die "Mappings file not found: $MAPPINGS_PATH"
   MAPPINGS_JSON=$(cat "$MAPPINGS_PATH")
+  MAPPINGS_SOURCE="$MAPPINGS_PATH"
   ok "Mappings loaded from file: $MAPPINGS_PATH"
 
 # Priority 2: CPP repo sibling
 elif [ -f "$CPP_DIR/config/mqtt-mappings.yuma.json" ]; then
   MAPPINGS_JSON=$(cat "$CPP_DIR/config/mqtt-mappings.yuma.json")
+  MAPPINGS_SOURCE="$CPP_DIR/config/mqtt-mappings.yuma.json"
   ok "Mappings loaded from CPP repo: mqtt-mappings.yuma.json"
 
 # Priority 3: PE bundled example (Yuma agriculture)
@@ -123,6 +221,7 @@ else
     MAPPING_COUNT=$(echo "$MAPPINGS_JSON" | python3 -c \
       "import json,sys; d=json.load(sys.stdin); print(len(d.get('mappings', d.get('rules', []))))" \
       2>/dev/null || echo "?")
+    MAPPINGS_SOURCE="$PE_URL/api/mqtt/example"
     ok "Mappings loaded from PE example endpoint ($MAPPING_COUNT rules)"
   else
     die "Could not load Yuma mappings — provide --mappings=PATH or add RealityEngine_CPP sibling"
@@ -198,7 +297,6 @@ fi
 hdr "4 · Broker connection  (timeout: ${TIMEOUT_CONNECT}s)"
 
 n=0
-CONNECTED=false
 while [ "$n" -lt "$TIMEOUT_CONNECT" ]; do
   STATUS_JSON=$(_curl "$PE_URL/api/mqtt/status" 2>/dev/null || true)
   [ "$VERBOSE" = true ] && echo "  status: $STATUS_JSON"
@@ -244,7 +342,6 @@ PYEOF
 rm -f "$_MAPPINGS_TMP2"
 
 n=0
-SOURCES_FOUND=false
 _SOURCES_TMP=$(mktemp /tmp/yuma-sources.XXXXXX.json)
 
 while [ "$n" -lt "$TIMEOUT_SOURCES" ]; do
@@ -323,10 +420,12 @@ if [ "${#ERRORS[@]}" -gt 0 ]; then
     echo -e "  ${RED}✗${NC} $e"
   done
   echo ""
+  write_report "failed"
   exit 1
 else
   echo ""
   echo -e "  ${GREEN}All checks passed.${NC}"
   echo ""
+  write_report "passed"
   exit 0
 fi
