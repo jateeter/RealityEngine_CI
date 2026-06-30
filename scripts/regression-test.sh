@@ -20,6 +20,7 @@ OPENCLAW_FLAG="--openclaw"
 MQTT_BROKER_URL="${MQTT_BROKER_URL:-}"
 MQTT_MAPPINGS="${MQTT_MAPPINGS:-}"
 MCP_URL="${MCP_URL:-http://127.0.0.1:7331}"
+SWAGGER_URL="${SWAGGER_URL:-http://127.0.0.1:8088}"
 ENGINES_SPEC="cpp:1,lsp:1,scala:1"
 RETAIN=20
 
@@ -54,6 +55,7 @@ Options:
   --mqtt-broker-url URL     Yuma MQTT broker URL.
   --mqtt-mappings PATH      Yuma MQTT mappings file.
   --mcp-url URL             MCP HTTP base URL. Default: http://127.0.0.1:7331
+  --swagger-url URL         OpenAPI Swagger base URL. Default: http://127.0.0.1:8088
   --openclaw                Require OpenClaw. Default.
   --no-openclaw             Skip OpenClaw.
   --retain N                Keep latest N local run histories. Default: 20
@@ -82,6 +84,8 @@ while [ $# -gt 0 ]; do
     --mqtt-mappings) MQTT_MAPPINGS="$2"; shift 2 ;;
     --mcp-url=*) MCP_URL="${1#*=}"; shift ;;
     --mcp-url) MCP_URL="$2"; shift 2 ;;
+    --swagger-url=*) SWAGGER_URL="${1#*=}"; shift ;;
+    --swagger-url) SWAGGER_URL="$2"; shift 2 ;;
     --openclaw) OPENCLAW_FLAG="--openclaw"; shift ;;
     --no-openclaw) OPENCLAW_FLAG="--no-openclaw"; shift ;;
     --retain=*) RETAIN="${1#*=}"; shift ;;
@@ -282,6 +286,7 @@ plan() {
   log "openclaw:     $OPENCLAW_FLAG"
   log "mqtt broker:  ${MQTT_BROKER_URL:-<not configured>}"
   log "mcp url:      $MCP_URL"
+  log "swagger url:  $SWAGGER_URL"
   log ""
   log "repositories:"
   for repo in "${REPOS[@]}"; do
@@ -369,6 +374,22 @@ start_universe() {
   [ -n "$MQTT_BROKER_URL" ] && args+=("--mqtt-broker-url=$MQTT_BROKER_URL")
   [ -n "$MQTT_MAPPINGS" ] && args+=("--mqtt-mappings=$MQTT_MAPPINGS")
   run_cmd "start-universe" bash -lc "cd '$ci' && ./startUniverse.sh ${args[*]}"
+}
+
+run_service_inventory() {
+  step "Service inventory and readiness gates"
+  local ci
+  ci="$(repo_root RealityEngine_CI)"
+  local args=(
+    "--registry" "/tmp/re-registry/re-registry.json"
+    "--engine-spec" "$ENGINES_SPEC"
+    "--out" "$REPORT_DIR/service-inventory.json"
+    "--manifest" "$RUN_DIR/manifest.json"
+    "--mcp-url" "$MCP_URL"
+    "--swagger-url" "$SWAGGER_URL"
+  )
+  [ "$OPENCLAW_FLAG" = "--openclaw" ] && args+=("--require-openclaw")
+  run_cmd "service-inventory" python3 "$ci/scripts/regression-service-inventory.py" "${args[@]}"
 }
 
 run_universal_vectors() {
@@ -467,6 +488,7 @@ write_summary() {
 - OpenClaw: \`$OPENCLAW_FLAG\`
 - MQTT broker: \`${MQTT_BROKER_URL:-<not configured>}\`
 - MCP URL: \`$MCP_URL\`
+- Swagger URL: \`$SWAGGER_URL\`
 
 Artifacts are under this run directory:
 
@@ -507,6 +529,7 @@ create_worktrees
 build_repos
 if [ "$LIVE_TESTS" = true ]; then
   start_universe
+  run_service_inventory
   run_universal_vectors
   run_mqtt_yuma
   run_mcp
