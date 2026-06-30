@@ -232,6 +232,9 @@ jobs:
           docker plugin install grafana/loki-docker-driver:latest --alias loki --grant-all-permissions || \
             docker plugin enable loki
 
+      - name: Install native CPP dry-run prerequisites
+        run: sudo apt-get install -y libboost-dev
+
       - name: Run setup (env + certs)
         working-directory: RealityEngine_CI
         run: |

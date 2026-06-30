@@ -791,7 +791,8 @@ validate_cpp_build_deps() {
 int main() { std::atomic<int> a{0}; return std::isspace(' ') ? a.load() : 0; }
 CPP
 
-    # shellcheck disable=SC2086 — sdk_flags/boost_inc are intentionally word-split
+    # shellcheck disable=SC2086
+    # sdk_flags/boost_inc are intentionally word-split.
     if "$cxx" -std=c++20 -fsyntax-only $sdk_flags $boost_inc "$probe" >"$errlog" 2>&1; then
         ok "C++ build prerequisites OK${bp:+ (Boost: $bp)}${sdkroot:+, SDK: ${sdkroot##*/}}"
         rm -f "$probe" "$errlog"
@@ -1752,16 +1753,19 @@ case "$MACHINE_LOAD" in
         fi
         ;;
     ci-seed)
+        CORPUS_VALID=true
         if [ "$VALIDATE_CORPUS" = "once" ] && [ -x "$MACHINES_DIR/scripts/validate-corpus.sh" ]; then
             info "Validating machine corpus..."
             if bash "$MACHINES_DIR/scripts/validate-corpus.sh" > /tmp/corpus_validate.log 2>&1; then
                 ok "Machine corpus valid"
             else
                 add_warn "Machine corpus validation failed — seed skipped (check /tmp/corpus_validate.log)"
-                break 2>/dev/null || true
+                CORPUS_VALID=false
             fi
         fi
-        if [ -x "$MACHINES_DIR/scripts/seed-machines.sh" ]; then
+        if [ "$CORPUS_VALID" != true ]; then
+            info "Machine seed skipped because corpus validation failed"
+        elif [ -x "$MACHINES_DIR/scripts/seed-machines.sh" ]; then
             info "Seeding RE machines from RealityEngine_Machines (RE only)..."
             bash "$MACHINES_DIR/scripts/seed-machines.sh" --re-only \
                 "https://localhost:5001" > /tmp/corpus_seed.log 2>&1 \
