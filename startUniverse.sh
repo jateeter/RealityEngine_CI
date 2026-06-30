@@ -1443,7 +1443,7 @@ info "Starting Loki (CI) + Qdrant + Redis..."
     die "docker compose up failed for Qdrant/Redis\n$(tail -5 /tmp/infra_start_err.log 2>/dev/null)"
 
 info "Waiting for Loki..."
-poll_http "https://localhost:3100/ready" "Loki ready" 30 "-skf" || \
+poll_http "https://localhost:3100/ready" "Loki ready" 90 "-skf" || \
     die "Loki failed — check:  docker logs reality-engine-loki"
 
 info "Waiting for Qdrant..."
