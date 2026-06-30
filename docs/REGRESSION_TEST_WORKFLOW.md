@@ -188,6 +188,11 @@ MCP regression should connect to the open MCP service started by the universe:
 Mutating MCP tools remain gated unless the regression run explicitly sets
 `RE_MCP_ALLOW_MUTATION=true` or `RE_MCP_ALLOWED_TOOLS`.
 
+The executable MCP smoke writes `reports/mcp-smoke.json` with health status,
+initialize status, session id, tool count, advertised tool names, and read-only
+tool-call results for registry-backed runtimes. Mutation tools are not called by
+the regression smoke.
+
 ## OpenClaw Requirement
 
 OpenClaw validation must remain asynchronous with respect to PE cycles.

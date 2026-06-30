@@ -469,14 +469,12 @@ run_mqtt_yuma() {
 
 run_mcp() {
   step "MCP open service"
-  run_cmd "mcp-health" curl -sf "$MCP_URL/healthz"
-  local init_body
-  init_body='{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":"2025-03-26","capabilities":{},"clientInfo":{"name":"realityengine-regression","version":"1.0.0"}}}'
-  run_cmd "mcp-initialize" curl -sS -X POST "$MCP_URL/mcp" \
-    -H "content-type: application/json" \
-    -H "accept: application/json, text/event-stream" \
-    -d "$init_body"
-  run_cmd "mcp-list-tools" bash -lc "cd '$(repo_root RealityEngine_CI)/mcp' && RE_REGISTRY_URL='http://127.0.0.1:5999/re-registry.json' npm run -s list-tools"
+  local ci
+  ci="$(repo_root RealityEngine_CI)"
+  run_cmd "mcp-smoke" node "$ci/scripts/regression-mcp-smoke.mjs" \
+    --mcp-url "$MCP_URL" \
+    --registry /tmp/re-registry/re-registry.json \
+    --out "$REPORT_DIR/mcp-smoke.json"
 }
 
 run_openclaw() {
