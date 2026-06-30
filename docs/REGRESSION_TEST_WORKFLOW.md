@@ -147,6 +147,13 @@ authoritative machine corpus:
 This avoids hard-coded offsets and keeps the regression events tied to the
 current corpus.
 
+The selected set is written to `selected-events.json` with machine file,
+machine id, sequence id, input region, values, expected output count, and
+selection policy. A pinned `--event-fixture` may be supplied when a release or
+certification run needs an exact event set. Raw engine responses remain
+per-runtime files, while `normalized-comparison.json` captures signature
+differences without transient ids or timestamps.
+
 ## MQTT Requirement
 
 MQTT regression uses the Yuma example stream.

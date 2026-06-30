@@ -5,8 +5,8 @@ from __future__ import annotations
 
 import argparse
 import json
-import os
 from pathlib import Path
+import re
 import sys
 import time
 from typing import Any
@@ -94,6 +94,14 @@ def vector_values(seq: dict[str, Any], length: int) -> list[float] | None:
     return values
 
 
+def stable_sequence_id(seq: dict[str, Any], fallback: str) -> str:
+    for key in ("id", "sequenceId", "name"):
+        value = seq.get(key)
+        if value:
+            return str(value)
+    return fallback
+
+
 def discover_events(machine_dir: Path, limit: int) -> list[dict[str, Any]]:
     events: list[dict[str, Any]] = []
     for path in sorted(machine_dir.glob("*.json")):
@@ -110,7 +118,7 @@ def discover_events(machine_dir: Path, limit: int) -> list[dict[str, Any]]:
         sequences = machine.get("inputSequences")
         if not isinstance(sequences, list):
             continue
-        for seq in sequences:
+        for seq_index, seq in enumerate(sequences):
             metadata = seq.get("metadata") if isinstance(seq, dict) else {}
             expected = metadata.get("expectedOutputCount") if isinstance(metadata, dict) else None
             if expected is not None:
@@ -125,9 +133,13 @@ def discover_events(machine_dir: Path, limit: int) -> list[dict[str, Any]]:
             events.append(
                 {
                     "id": f"event-{len(events) + 1}",
+                    "selectionPolicy": "deterministic-corpus-scan",
                     "machineFile": path.name,
+                    "machineId": machine.get("id") or machine.get("machineId") or path.stem,
                     "machineName": machine.get("name", path.stem),
+                    "sequenceId": stable_sequence_id(seq, f"{path.stem}-sequence-{seq_index + 1}"),
                     "sequenceName": seq.get("name", "unnamed"),
+                    "expectedOutputCount": expected,
                     "region": region,
                     "values": values,
                 }
@@ -140,8 +152,38 @@ def discover_events(machine_dir: Path, limit: int) -> list[dict[str, Any]]:
     return events
 
 
+def load_event_fixture(path: Path, limit: int) -> list[dict[str, Any]]:
+    payload = load_json(path)
+    events = payload.get("events") if isinstance(payload, dict) else payload
+    if not isinstance(events, list):
+        raise SystemExit(f"event fixture {path} must contain an events array")
+    selected: list[dict[str, Any]] = []
+    for index, event in enumerate(events[:limit]):
+        if not isinstance(event, dict):
+            raise SystemExit(f"event fixture {path} entry {index + 1} is not an object")
+        region = event.get("region")
+        values = event.get("values")
+        if not isinstance(region, dict) or not isinstance(values, list):
+            raise SystemExit(f"event fixture {path} entry {index + 1} must include region and values")
+        if len(values) != int(region.get("length", -1)):
+            raise SystemExit(f"event fixture {path} entry {index + 1} values length does not match region.length")
+        selected.append(
+            {
+                **event,
+                "id": event.get("id", f"event-{index + 1}"),
+                "selectionPolicy": event.get("selectionPolicy", f"fixture:{path.name}"),
+            }
+        )
+    if len(selected) < limit:
+        raise SystemExit(f"event fixture {path} contains {len(selected)} event(s); need {limit}")
+    return selected
+
+
 def load_instances(registry: Path) -> list[dict[str, str]]:
-    data = load_json(registry)
+    try:
+        data = load_json(registry)
+    except Exception as exc:
+        raise SystemExit(f"could not read registry {registry}: {exc}") from exc
     instances = []
     for item in data.get("instances", []):
         runtime = item.get("runtime")
@@ -151,6 +193,10 @@ def load_instances(registry: Path) -> list[dict[str, str]]:
     if not instances:
         raise SystemExit(f"no running PE instances found in {registry}")
     return instances
+
+
+def safe_name(value: str) -> str:
+    return re.sub(r"[^A-Za-z0-9_.-]+", "_", value)
 
 
 def extract_signature(payload: Any) -> Any:
@@ -184,6 +230,13 @@ def extract_signature(payload: Any) -> Any:
     return payload
 
 
+def signature_diff(baseline: Any, actual: Any) -> dict[str, Any]:
+    return {
+        "baselineSignature": baseline,
+        "actualSignature": actual,
+    }
+
+
 def run_event(instance: dict[str, str], event: dict[str, Any], run_id: str) -> tuple[int, Any]:
     pe_url = instance["pe_url"]
     source_id = f"regression-{run_id}-{event['id']}-{instance['runtime']}"
@@ -214,27 +267,38 @@ def main() -> int:
     parser.add_argument("--registry", type=Path, default=Path("/tmp/re-registry/re-registry.json"))
     parser.add_argument("--machines", type=Path, default=Path("../RealityEngine_Machines/machines"))
     parser.add_argument("--events", type=int, default=5)
+    parser.add_argument("--event-fixture", type=Path, help="Pinned event fixture JSON. Defaults to deterministic corpus scan.")
     parser.add_argument("--out", type=Path, default=Path(".regression-tests/latest/universal-vectors"))
     parser.add_argument("--run-id", default=time.strftime("%Y%m%dT%H%M%SZ", time.gmtime()))
     args = parser.parse_args()
 
     args.out.mkdir(parents=True, exist_ok=True)
-    events = discover_events(args.machines, args.events)
+    events = load_event_fixture(args.event_fixture, args.events) if args.event_fixture else discover_events(args.machines, args.events)
+    (args.out / "selected-events.json").write_text(json.dumps({"events": events}, indent=2, sort_keys=True), encoding="utf-8")
     instances = load_instances(args.registry)
     failures: list[str] = []
-    summary: dict[str, Any] = {"runId": args.run_id, "events": events, "instances": instances, "results": []}
+    comparisons: list[dict[str, Any]] = []
+    summary: dict[str, Any] = {"runId": args.run_id, "events": events, "instances": instances, "results": [], "comparisons": comparisons}
 
     for event in events:
         signatures: dict[str, Any] = {}
+        instance_order: list[str] = []
         for instance in instances:
             status, payload = run_event(instance, event, args.run_id)
-            response_file = args.out / f"{event['id']}-{instance['runtime']}.json"
+            instance_key = instance["id"]
+            instance_order.append(instance_key)
+            response_file = args.out / f"{event['id']}-{safe_name(instance_key)}.json"
             response_file.write_text(json.dumps(payload, indent=2, sort_keys=True), encoding="utf-8")
             signature = extract_signature(payload)
-            signatures[instance["runtime"]] = signature
+            signatures[instance_key] = signature
             summary["results"].append(
                 {
                     "event": event["id"],
+                    "machineFile": event.get("machineFile"),
+                    "machineId": event.get("machineId"),
+                    "sequenceId": event.get("sequenceId"),
+                    "selectionPolicy": event.get("selectionPolicy"),
+                    "instanceId": instance["id"],
                     "runtime": instance["runtime"],
                     "status": status,
                     "signature": signature,
@@ -242,13 +306,34 @@ def main() -> int:
                 }
             )
             if status < 200 or status >= 300:
-                failures.append(f"{event['id']} {instance['runtime']} HTTP {status}")
+                failures.append(f"{event['id']} {instance['id']} ({instance['runtime']}) HTTP {status}")
         unique = {json.dumps(sig, sort_keys=True) for sig in signatures.values()}
         if len(unique) != 1:
-            failures.append(f"{event['id']} parity mismatch across runtimes")
+            baseline_key = instance_order[0] if instance_order else ""
+            baseline = signatures.get(baseline_key)
+            for instance_key in instance_order[1:]:
+                actual = signatures.get(instance_key)
+                if json.dumps(actual, sort_keys=True) != json.dumps(baseline, sort_keys=True):
+                    comparison = {
+                        "event": event["id"],
+                        "machineFile": event.get("machineFile"),
+                        "machineId": event.get("machineId"),
+                        "sequenceId": event.get("sequenceId"),
+                        "baselineInstance": baseline_key,
+                        "actualInstance": instance_key,
+                        **signature_diff(baseline, actual),
+                    }
+                    comparisons.append(comparison)
+                    failures.append(f"{event['id']} parity mismatch: {instance_key} differs from {baseline_key}")
+            if len(instance_order) == 1:
+                failures.append(f"{event['id']} parity mismatch with only one runtime signature")
 
     summary["failures"] = failures
     (args.out / "summary.json").write_text(json.dumps(summary, indent=2, sort_keys=True), encoding="utf-8")
+    (args.out / "normalized-comparison.json").write_text(
+        json.dumps({"runId": args.run_id, "comparisons": comparisons, "failures": failures}, indent=2, sort_keys=True),
+        encoding="utf-8",
+    )
     if failures:
         for item in failures:
             print(f"FAIL {item}", file=sys.stderr)
