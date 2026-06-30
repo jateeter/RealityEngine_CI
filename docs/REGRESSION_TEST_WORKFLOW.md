@@ -45,6 +45,8 @@ Use the existing CI primitives as the test framework:
   verification.
 - `scripts/test-openclaw-integration.sh` for OpenClaw async PE completion
   verification.
+- `scripts/regression-service-inventory.py` for deployed-service inventory,
+  readiness gates, and Swagger proxy verification.
 - `scripts/regression-universal-vectors.py` for regression-specific universal
   vector parity checks.
 
@@ -81,6 +83,13 @@ The regression runner identifies testable services in this order:
      `/api/integrations/acp/dispatch` ->
      `/api/integrations/completions` ->
      `/api/sources`
+
+The executable inventory gate writes
+`.regression-tests/runs/<run-id>/reports/service-inventory.json`. Runtime
+shape, RE/PE health, MCP health, Swagger health, and Swagger proxy health are
+required checks. Grafana, Prometheus, bridge metrics, localAIStack, Ollama, and
+OpenClaw readiness are recorded separately; OpenClaw becomes required when the
+regression run is configured with `--openclaw`.
 
 ## Cold Start Model
 
@@ -246,6 +255,8 @@ Best practices:
 - Verify registry has exactly one CPP, one LSP, and one Scala RE/PE pair.
 - Verify observability, Swagger proxy, MCP HTTP, localAIStack, OpenClaw, and
   bridge metrics.
+- Fail before payload tests when the runtime registry, RE/PE health, MCP
+  health, or Swagger proxy health is not ready.
 
 ### Phase 4 - Regression Assertions
 
