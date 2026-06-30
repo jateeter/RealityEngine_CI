@@ -9,6 +9,7 @@
     "test:e2e": "bash scripts/run-all-tests.sh --e2e",
     "test:all": "bash scripts/run-all-tests.sh --all",
     "test:deployment": "bash scripts/run-all-tests.sh --deployment",
+    "test:regression": "bash scripts/regression-test.sh",
     "test:playwright": "playwright test",
     "test:e2e:tree-pe-manager": "playwright test e2e/tests/tree-to-pe-manager-equivalence.spec.ts --project=chromium --workers=1",
     "test:e2e:openclaw": "bash scripts/test-openclaw-integration.sh",
