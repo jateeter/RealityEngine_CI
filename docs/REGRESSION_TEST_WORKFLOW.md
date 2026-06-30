@@ -310,3 +310,73 @@ Best practices:
   and local model dependencies.
 - Upload selected run summaries as artifacts.
 - Keep raw logs local or artifact-scoped, never committed to repo history.
+
+The executable automation lives in
+`.github/workflows/regression-tests.yml`. It is intentionally self-hosted
+because the full regression profile depends on Docker, local service ports,
+toolchains, localAIStack, Ollama, and optional OpenClaw credentials that are not
+available on a generic hosted runner.
+
+Manual `workflow_dispatch` inputs:
+
+- `run_mode`: `plan`, `build-only`, or `full`.
+- `engine_spec`: default `cpp:1,lsp:1,scala:1`.
+- `openclaw`: explicit opt-in for OpenClaw async integration checks.
+- `mqtt_broker_url` and `mqtt_mappings`: Yuma MQTT stream configuration.
+- `mcp_url`: MCP Streamable HTTP service base URL.
+- `swagger_url`: OpenAPI Swagger service base URL.
+- `compare`: optional previous run id.
+- `retain`: local retained run-history count.
+- `archive_artifacts`: copy certification artifacts to the local archive.
+- `create_issue_on_failure`: create or update a GitHub issue with the run id
+  and selected summary sections when the workflow fails.
+
+Scheduled execution is present but gated by repository configuration. Set
+`REGRESSION_SCHEDULE_ENABLED=true` to allow the nightly schedule to run. The
+schedule uses these optional repository variables:
+
+- `REGRESSION_RUNNER_LABELS`: JSON runner label array; defaults to
+  `["self-hosted"]`.
+- `REGRESSION_SCHEDULE_RUN_MODE`: defaults to `full`.
+- `REGRESSION_ENGINE_SPEC`: defaults to `cpp:1,lsp:1,scala:1`.
+- `REGRESSION_OPENCLAW`: defaults to `false`.
+- `REGRESSION_MQTT_BROKER_URL`
+- `REGRESSION_MQTT_MAPPINGS`
+- `REGRESSION_MCP_URL`: defaults to `http://127.0.0.1:7331`.
+- `REGRESSION_SWAGGER_URL`: defaults to `http://127.0.0.1:8088`.
+- `REGRESSION_COMPARE_RUN`
+- `REGRESSION_RETAIN`: defaults to `20`.
+- `REGRESSION_ARCHIVE_ARTIFACTS`: defaults to `true`.
+
+The workflow uses the `regression-live` GitHub environment so full or
+credentialed runs can be protected by environment approvals and secrets. Use
+`REPO_ACCESS_TOKEN` when private sibling repositories require a token beyond
+the default `GITHUB_TOKEN`. OpenClaw-specific credentials should be scoped to
+the same environment.
+
+The workflow checks out these sibling repositories only:
+
+- `RealityEngine_CI`
+- `RealityEngine_CPP`
+- `RealityEngine_LSP`
+- `RealityEngine_Scala`
+- `RealityEngine_Machines`
+- `RealityEngine_Manager`
+- `localAIStack`
+- `localOpenClawStack`
+
+`RealityEngine_AI` is deprecated and is intentionally not checked out or
+touched by the regression automation.
+
+Uploaded artifacts are limited to certification summaries and normalized
+reports:
+
+- `summary.md`
+- `manifest.json`
+- `reports/service-inventory.json`
+- `reports/regression-comparison.json`
+- `responses/universal-vectors/selected-events.json`
+- `responses/universal-vectors/normalized-comparison.json`
+- MQTT, MCP, and OpenClaw JSON reports when present
+
+Run histories remain under `.regression-tests/` and are ignored by git.
