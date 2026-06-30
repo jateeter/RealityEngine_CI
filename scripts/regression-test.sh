@@ -23,6 +23,8 @@ MCP_URL="${MCP_URL:-http://127.0.0.1:7331}"
 SWAGGER_URL="${SWAGGER_URL:-http://127.0.0.1:8088}"
 ENGINES_SPEC="cpp:1,lsp:1,scala:1"
 RETAIN=20
+COMPARE_RUN=""
+ARCHIVE_DIR=""
 
 REPOS=(
   RealityEngine_CI
@@ -59,6 +61,8 @@ Options:
   --openclaw                Require OpenClaw. Default.
   --no-openclaw             Skip OpenClaw.
   --retain N                Keep latest N local run histories. Default: 20
+  --compare RUN_ID          Compare against a previous run id. Default: latest completed run.
+  --archive PATH            Copy certification artifacts to PATH/<run-id>.
   --help                    Show this help.
 USAGE
 }
@@ -90,6 +94,10 @@ while [ $# -gt 0 ]; do
     --no-openclaw) OPENCLAW_FLAG="--no-openclaw"; shift ;;
     --retain=*) RETAIN="${1#*=}"; shift ;;
     --retain) RETAIN="$2"; shift 2 ;;
+    --compare=*) COMPARE_RUN="${1#*=}"; shift ;;
+    --compare) COMPARE_RUN="$2"; shift 2 ;;
+    --archive=*) ARCHIVE_DIR="${1#*=}"; shift ;;
+    --archive) ARCHIVE_DIR="$2"; shift 2 ;;
     --help|-h) usage; exit 0 ;;
     *) echo "Unknown argument: $1" >&2; usage; exit 2 ;;
   esac
@@ -287,6 +295,8 @@ plan() {
   log "mqtt broker:  ${MQTT_BROKER_URL:-<not configured>}"
   log "mcp url:      $MCP_URL"
   log "swagger url:  $SWAGGER_URL"
+  log "compare:      ${COMPARE_RUN:-<latest completed>}"
+  log "archive:      ${ARCHIVE_DIR:-<not configured>}"
   log ""
   log "repositories:"
   for repo in "${REPOS[@]}"; do
@@ -515,27 +525,17 @@ PYEOF
   fi
 }
 
-write_summary() {
-  mkdir -p "$RUN_DIR"
-  cat > "$RUN_DIR/summary.md" <<EOF
-# Regression Test Run $RUN_ID
-
-- Branch: \`$BRANCH_NAME\`
-- Run branch: \`$WORKTREE_BRANCH\`
-- Engine spec: \`$ENGINES_SPEC\`
-- Cold start: \`$COLD_START\`
-- OpenClaw: \`$OPENCLAW_FLAG\`
-- MQTT broker: \`${MQTT_BROKER_URL:-<not configured>}\`
-- MCP URL: \`$MCP_URL\`
-- Swagger URL: \`$SWAGGER_URL\`
-
-Artifacts are under this run directory:
-
-- \`logs/\`
-- \`reports/\`
-- \`responses/\`
-- \`worktrees/\`
-EOF
+generate_regression_report() {
+  step "Regression summary and comparison"
+  local ci args
+  ci="$(repo_root RealityEngine_CI)"
+  args=(
+    "--run-dir" "$RUN_DIR"
+    "--history-dir" "$HISTORY_DIR"
+  )
+  [ -n "$COMPARE_RUN" ] && args+=("--compare-run" "$COMPARE_RUN")
+  [ -n "$ARCHIVE_DIR" ] && args+=("--archive" "$ARCHIVE_DIR")
+  run_cmd "regression-report" python3 "$ci/scripts/regression-report.py" "${args[@]}"
 }
 
 retain_history() {
@@ -577,9 +577,9 @@ else
   log ""
   log "Live tests skipped (--build-only)."
 fi
-write_summary
-retain_history
 update_manifest_status completed
+generate_regression_report
+retain_history
 
 log ""
 log "Regression workflow executed."
