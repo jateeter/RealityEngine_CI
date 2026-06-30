@@ -165,10 +165,8 @@ python_venv_env() {
 
 stack_healthy() {
     local registry_file="${RE_REGISTRY_FILE:-/tmp/re-registry/re-registry.json}"
+    local endpoints=""
     if [ -f "$registry_file" ]; then
-        local ui=1 be=1 endpoints endpoint_count=0
-        { curl -sk --max-time 3 https://localhost:5173/ >/dev/null 2>&1 || curl -s --max-time 3 http://localhost:5173/ >/dev/null 2>&1; } && ui=0
-        { curl -sk --max-time 3 https://localhost:3001/health >/dev/null 2>&1 || curl -s --max-time 3 http://localhost:3001/health >/dev/null 2>&1; } && be=0
         endpoints="$(python3 - "$registry_file" <<'PYEOF' 2>/dev/null || true
 import json
 import sys
@@ -184,11 +182,21 @@ for inst in instances:
         print(pe_url.rstrip("/") + "/api/health")
 PYEOF
 )"
-        [ -n "$endpoints" ] || return 1
+    fi
+
+    # Multi-engine registry path: use it ONLY when the registry actually lists
+    # instance endpoints. A stale/empty registry ({"instances": []}) left over
+    # from a prior native/multi-engine run must NOT report the stack down — fall
+    # through to the direct single-engine checks below. The registry RE/PE
+    # endpoints are HTTPS with self-signed certs, so probe with -k.
+    if [ -n "$endpoints" ]; then
+        local ui=1 be=1 endpoint_count=0
+        { curl -sk --max-time 3 https://localhost:5173/ >/dev/null 2>&1 || curl -s --max-time 3 http://localhost:5173/ >/dev/null 2>&1; } && ui=0
+        { curl -sk --max-time 3 https://localhost:3001/health >/dev/null 2>&1 || curl -s --max-time 3 http://localhost:3001/health >/dev/null 2>&1; } && be=0
         while IFS= read -r endpoint; do
             [ -z "$endpoint" ] && continue
             endpoint_count=$((endpoint_count + 1))
-            curl -sf --max-time 3 "$endpoint" >/dev/null 2>&1 || return 1
+            curl -sfk --max-time 3 "$endpoint" >/dev/null 2>&1 || return 1
         done <<< "$endpoints"
         [ "$ui" -eq 0 ] && [ "$be" -eq 0 ] && [ "$endpoint_count" -gt 0 ]
         return

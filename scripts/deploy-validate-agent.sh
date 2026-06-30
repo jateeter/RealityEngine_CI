@@ -45,7 +45,10 @@
 #                     the per-unit restart matrix + tests.
 #   --no-deploy       Skip Phase 1 entirely (health-gate the current stack).
 #   --skip-tests      Skip Phase 4 operational tests.
-#   --openclaw / --no-openclaw   Force-include / exclude the OpenClaw unit.
+#   --openclaw / --no-openclaw   Include / exclude the OpenClaw unit. OpenClaw is
+#                     included by default (deployed via startUniverse --openclaw,
+#                     health-gated, restarted, and exercised by the test gate).
+#                     Pass --no-openclaw to skip it.
 #   --create-issues   File/refresh GitHub issues on failure (needs gh + network).
 #   --dry-run         Plan only — delegates to startUniverse.sh --dry-run, lists
 #                     the restart matrix and test gate, starts nothing.
@@ -82,7 +85,7 @@ FOOTPRINT="both"         # docker | native | both
 DO_DEPLOY=true
 RESTART_ONLY=false
 DO_TESTS=true
-OPENCLAW="auto"          # auto | yes | no
+OPENCLAW="yes"           # yes | no | auto — default includes OpenClaw explicitly
 CREATE_ISSUES=false
 DRY_RUN=false
 CYCLES=1
@@ -333,6 +336,11 @@ phase_deploy() {
       "Unexpected — compose down should not affect the daemon; investigate Docker Desktop"
     return 1
   fi
+  # This agent deploys single-engine Docker (no multi-engine registry). Remove a
+  # stale /tmp/re-registry/re-registry.json left by a prior native/multi-engine
+  # run so the test gate's stack-health check probes the live Docker stack
+  # instead of dead registry endpoints (a stale registry => false "live stack down").
+  rm -f "${RE_REGISTRY_FILE:-/tmp/re-registry/re-registry.json}" 2>/dev/null || true
   local args=( --warn-only )
   [ "$FRESH" = true ] && args+=( --fresh )
   [ -n "$oc_flag" ] && args+=( "$oc_flag" )
