@@ -18,13 +18,117 @@ SEED_SOURCE_ID="openclaw-e2e-seed-${RUN_ID}"
 COMPLETION_ID="openclaw-e2e-completion-${RUN_ID}"
 TMP_DIR="$(mktemp -d -t re-openclaw-e2e.XXXXXX)"
 COMPLETION_SOURCE_ID=""
+DISPATCH_ID=""
+ENVELOPE_ID=""
+CORRELATION_ID=""
+REPORT_JSON=""
+REPORT_WRITTEN=false
+RESULT_STATUS="failed"
+FAILURE_STAGE=""
+
+usage() {
+  cat <<'USAGE'
+test-openclaw-integration.sh [options]
+
+Options:
+  --report-json PATH    Write a machine-readable OpenClaw integration report.
+  --help                Show this help.
+
+Configuration is primarily environment-driven:
+  PE_URL
+  OPENCLAW_AGENT_ID
+  ACP_COMPLETION_SOURCE_MAPPING_ID
+  OPENCLAW_E2E_RUN_ID
+USAGE
+}
+
+while [ $# -gt 0 ]; do
+  case "$1" in
+    --report-json=*) REPORT_JSON="${1#*=}"; shift ;;
+    --report-json) REPORT_JSON="$2"; shift 2 ;;
+    --help|-h) usage; exit 0 ;;
+    *) echo "Unknown argument: $1" >&2; usage; exit 2 ;;
+  esac
+done
+
+write_report() {
+  local status="$1"
+  [ -n "$REPORT_JSON" ] || return 0
+  [ "$REPORT_WRITTEN" = false ] || return 0
+  mkdir -p "$(dirname "$REPORT_JSON")"
+  node - "$REPORT_JSON" "$status" "$FAILURE_STAGE" "$PE_URL" "$RUN_ID" "$AGENT_ID" "$SOURCE_MAPPING_ID" \
+    "$SENSOR_ID" "$FIXTURE_SEQUENCE_ID" "$SEED_SOURCE_ID" "$DISPATCH_ID" "$ENVELOPE_ID" "$CORRELATION_ID" \
+    "$COMPLETION_ID" "$COMPLETION_SOURCE_ID" "$TMP_DIR" <<'NODE'
+const fs = require('fs');
+const [
+  reportPath,
+  status,
+  failureStage,
+  peUrl,
+  runId,
+  agentId,
+  sourceMappingId,
+  sensorId,
+  fixtureSequenceId,
+  seedSourceId,
+  dispatchId,
+  envelopeId,
+  correlationId,
+  completionId,
+  completionSourceId,
+  tmpDir
+] = process.argv.slice(2);
+
+function readJson(name) {
+  const path = `${tmpDir}/${name}`;
+  if (!fs.existsSync(path)) return null;
+  try {
+    return JSON.parse(fs.readFileSync(path, 'utf8'));
+  } catch (error) {
+    return { raw: fs.readFileSync(path, 'utf8'), error: error.message };
+  }
+}
+
+const payload = {
+  status,
+  failureStage,
+  peUrl,
+  runId,
+  agentId,
+  sourceMappingId,
+  sensorId,
+  fixtureSequenceId,
+  seedSourceId,
+  dispatchId,
+  envelopeId,
+  correlationId,
+  completionId,
+  completionSourceId,
+  artifacts: {
+    acpStatus: readJson('acp-status.json'),
+    handoff: readJson('acp-handoff.json'),
+    dispatchRecord: readJson('dispatch-record-after-acceptance.json'),
+    agentResult: readJson('agent-result.json'),
+    sourcesAfterCompletion: readJson('sources-after-completion.json'),
+    downstreamPush: readJson('downstream-push-after-completion.json')
+  }
+};
+fs.writeFileSync(reportPath, `${JSON.stringify(payload, null, 2)}\n`);
+NODE
+  REPORT_WRITTEN=true
+}
 
 cleanup() {
+  local exit_code=$?
+  if [ "$RESULT_STATUS" != "passed" ]; then
+    write_report "failed"
+  fi
   curl -sk --max-time 5 -X DELETE "$PE_URL/api/sources/$SEED_SOURCE_ID" >/dev/null 2>&1 || true
   if [ -n "$COMPLETION_SOURCE_ID" ]; then
     curl -sk --max-time 5 -X DELETE "$PE_URL/api/sources/$COMPLETION_SOURCE_ID" >/dev/null 2>&1 || true
   fi
   rm -rf "$TMP_DIR"
+  return "$exit_code"
 }
 trap cleanup EXIT
 
@@ -46,8 +150,9 @@ assert_code() {
     printf '[pass] %s (%s)\n' "$label" "$code"
     return
   fi
+  FAILURE_STAGE="$label"
   printf '[fail] %s: expected %s, got %s\n' "$label" "$expected" "$code" >&2
-  sed 's/^/  /' "$TMP_DIR/response.json" >&2
+  [ -f "$TMP_DIR/response.json" ] && sed 's/^/  /' "$TMP_DIR/response.json" >&2
   exit 1
 }
 
@@ -55,8 +160,9 @@ assert_2xx() {
   local code="$1" label="$2"
   case "$code" in
     2*) printf '[pass] %s (%s)\n' "$label" "$code" ;;
-    *)  printf '[fail] %s (%s)\n' "$label" "$code" >&2
-        sed 's/^/  /' "$TMP_DIR/response.json" >&2
+    *)  FAILURE_STAGE="$label"
+        printf '[fail] %s (%s)\n' "$label" "$code" >&2
+        [ -f "$TMP_DIR/response.json" ] && sed 's/^/  /' "$TMP_DIR/response.json" >&2
         exit 1 ;;
   esac
 }
@@ -80,6 +186,7 @@ printf '[info] OpenClaw e2e run: %s\n' "$RUN_ID"
 
 code="$(curl_json GET "$PE_URL/api/integrations/acp/status")"
 assert_2xx "$code" "ACP status endpoint"
+cp "$TMP_DIR/response.json" "$TMP_DIR/acp-status.json"
 node - "$TMP_DIR/response.json" "$SOURCE_MAPPING_ID" <<'NODE'
 const fs = require('fs');
 const status = JSON.parse(fs.readFileSync(process.argv[2], 'utf8'));
@@ -163,6 +270,7 @@ NODE
 
 code="$(curl_json GET "$PE_URL/api/dispatch/records/$DISPATCH_ID")"
 assert_2xx "$code" "dispatch record after ACP acceptance"
+cp "$TMP_DIR/response.json" "$TMP_DIR/dispatch-record-after-acceptance.json"
 node - "$TMP_DIR/response.json" "$DISPATCH_ID" "$ENVELOPE_ID" "$CORRELATION_ID" <<'NODE'
 const fs = require('fs');
 const record = JSON.parse(fs.readFileSync(process.argv[2], 'utf8')).record || {};
@@ -214,6 +322,7 @@ NODE
 
 code="$(curl_json GET "$PE_URL/api/sources")"
 assert_2xx "$code" "sources endpoint after completion"
+cp "$TMP_DIR/response.json" "$TMP_DIR/sources-after-completion.json"
 
 COMPLETION_SOURCE_ID="$(node - "$TMP_DIR/response.json" "$SENSOR_ID" <<'NODE'
 const fs = require('fs');
@@ -236,3 +345,10 @@ process.stdout.write(hit.id || expected);
 NODE
 )"
 printf '[pass] OpenClaw completion source mapped to region 4210:4 (%s)\n' "$COMPLETION_SOURCE_ID"
+
+code="$(curl_json POST "$PE_URL/api/push" '{"compact":true}')"
+assert_2xx "$code" "downstream push after OpenClaw completion"
+cp "$TMP_DIR/response.json" "$TMP_DIR/downstream-push-after-completion.json"
+
+RESULT_STATUS="passed"
+write_report "passed"
