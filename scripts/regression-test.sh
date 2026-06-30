@@ -15,6 +15,7 @@ EXECUTE=false
 COLD_START=true
 BUILD=true
 START=true
+LIVE_TESTS=true
 OPENCLAW_FLAG="--openclaw"
 MQTT_BROKER_URL="${MQTT_BROKER_URL:-}"
 MQTT_MAPPINGS="${MQTT_MAPPINGS:-}"
@@ -48,6 +49,7 @@ Options:
   --no-cold-start           Do not create run-local worktrees.
   --skip-build              Skip full build phase.
   --skip-start              Skip universe start phase; use current deployment.
+  --build-only              Create worktrees and build only; skip start/live tests.
   --engines SPEC            Engine spec. Default: cpp:1,lsp:1,scala:1
   --mqtt-broker-url URL     Yuma MQTT broker URL.
   --mqtt-mappings PATH      Yuma MQTT mappings file.
@@ -71,6 +73,7 @@ while [ $# -gt 0 ]; do
     --no-cold-start) COLD_START=false; shift ;;
     --skip-build) BUILD=false; shift ;;
     --skip-start) START=false; shift ;;
+    --build-only) START=false; LIVE_TESTS=false; shift ;;
     --engines=*) ENGINES_SPEC="${1#*=}"; shift ;;
     --engines) ENGINES_SPEC="$2"; shift 2 ;;
     --mqtt-broker-url=*) MQTT_BROKER_URL="${1#*=}"; shift ;;
@@ -113,6 +116,112 @@ run_cmd() {
     return 0
   fi
   "$@" > "$log_file" 2>&1
+}
+
+record_repo_provenance() {
+  local repo="$1"
+  [ -f "$RUN_DIR/manifest.json" ] || return 0
+  python3 - "$RUN_DIR/manifest.json" "$repo" "$(repo_path "$repo")" "$(repo_root "$repo")" "$COLD_START" "$WORKTREE_BRANCH" <<'PYEOF'
+import json
+import subprocess
+import sys
+from pathlib import Path
+
+manifest_path, repo, source_path, active_path, cold_start, worktree_branch = sys.argv[1:]
+
+def git(path: str, *args: str) -> str:
+    try:
+        return subprocess.check_output(
+            ["git", "-C", path, *args],
+            stderr=subprocess.DEVNULL,
+            text=True,
+        ).strip()
+    except Exception:
+        return ""
+
+manifest = json.loads(Path(manifest_path).read_text(encoding="utf-8"))
+repos = manifest.setdefault("repos", [])
+entry = next((item for item in repos if item.get("name") == repo), None)
+if entry is None:
+    entry = {"name": repo, "commands": []}
+    repos.append(entry)
+
+source = Path(source_path)
+active = Path(active_path)
+entry.update(
+    {
+        "sourcePath": source_path,
+        "activePath": active_path,
+        "coldStart": cold_start == "true",
+        "worktreeBranch": worktree_branch,
+        "exists": (source / ".git").exists(),
+        "remoteUrl": git(source_path, "config", "--get", "remote.origin.url") if source.exists() else "",
+        "originMainSha": git(source_path, "rev-parse", "origin/main") if source.exists() else "",
+        "sourceHeadSha": git(source_path, "rev-parse", "HEAD") if source.exists() else "",
+        "worktreeSha": git(active_path, "rev-parse", "HEAD") if active.exists() else "",
+    }
+)
+Path(manifest_path).write_text(json.dumps(manifest, indent=2, sort_keys=True) + "\n", encoding="utf-8")
+PYEOF
+}
+
+record_command_result() {
+  local repo="$1"
+  local phase="$2"
+  local label="$3"
+  local command="$4"
+  local status="$5"
+  local log_rel="$6"
+  [ -f "$RUN_DIR/manifest.json" ] || return 0
+  python3 - "$RUN_DIR/manifest.json" "$repo" "$phase" "$label" "$command" "$status" "$log_rel" "$(date -u +%Y-%m-%dT%H:%M:%SZ)" <<'PYEOF'
+import json
+import sys
+from pathlib import Path
+
+manifest_path, repo, phase, label, command, status, log_rel, finished_at = sys.argv[1:]
+manifest = json.loads(Path(manifest_path).read_text(encoding="utf-8"))
+repos = manifest.setdefault("repos", [])
+entry = next((item for item in repos if item.get("name") == repo), None)
+if entry is None:
+    entry = {"name": repo, "commands": []}
+    repos.append(entry)
+
+commands = entry.setdefault("commands", [])
+commands.append(
+    {
+        "phase": phase,
+        "label": label,
+        "command": command,
+        "status": "passed" if status == "0" else "failed",
+        "exitCode": int(status),
+        "log": log_rel,
+        "finishedAt": finished_at,
+    }
+)
+if phase == "build":
+    entry["buildStatus"] = "failed" if status != "0" else entry.get("buildStatus", "passed")
+
+Path(manifest_path).write_text(json.dumps(manifest, indent=2, sort_keys=True) + "\n", encoding="utf-8")
+PYEOF
+}
+
+run_repo_cmd() {
+  local repo="$1"; shift
+  local phase="$1"; shift
+  local label="$1"; shift
+  local log_rel="logs/${label//[^A-Za-z0-9_.-]/_}.log"
+  local log_file="$RUN_DIR/$log_rel"
+  local status
+  log "+ $*"
+  if [ "$EXECUTE" = false ]; then
+    return 0
+  fi
+  set +e
+  "$@" > "$log_file" 2>&1
+  status=$?
+  set -e
+  record_command_result "$repo" "$phase" "$label" "$*" "$status" "$log_rel"
+  return "$status"
 }
 
 record_manifest() {
@@ -169,6 +278,7 @@ plan() {
   log "cold start:   $COLD_START"
   log "build:        $BUILD"
   log "start:        $START"
+  log "live tests:   $LIVE_TESTS"
   log "openclaw:     $OPENCLAW_FLAG"
   log "mqtt broker:  ${MQTT_BROKER_URL:-<not configured>}"
   log "mcp url:      $MCP_URL"
@@ -186,6 +296,9 @@ plan() {
 prepare_history() {
   mkdir -p "$LOG_DIR" "$REPORT_DIR" "$WORKTREE_DIR"
   record_manifest
+  for repo in "${REPOS[@]}"; do
+    record_repo_provenance "$repo"
+  done
   trap 'update_manifest_status failed' ERR
 }
 
@@ -196,12 +309,14 @@ create_worktrees() {
     local source target
     source="$(repo_path "$repo")"
     target="$(worktree_path "$repo")"
+    record_repo_provenance "$repo"
     if [ ! -d "$source/.git" ]; then
       log "SKIP $repo: missing git repo at $source"
       continue
     fi
-    run_cmd "fetch-$repo" git -C "$source" fetch origin main
-    run_cmd "worktree-$repo" git -C "$source" worktree add -B "$WORKTREE_BRANCH" "$target" origin/main
+    run_repo_cmd "$repo" "provenance" "fetch-$repo" git -C "$source" fetch origin main
+    run_repo_cmd "$repo" "provenance" "worktree-$repo" git -C "$source" worktree add -B "$WORKTREE_BRANCH" "$target" origin/main
+    record_repo_provenance "$repo"
   done
 }
 
@@ -217,22 +332,25 @@ repo_root() {
 build_repos() {
   [ "$BUILD" = true ] || return 0
   step "Full build"
-  run_cmd "build-ci-npm-install" bash -lc "cd '$(repo_root RealityEngine_CI)' && npm ci"
-  run_cmd "build-ci-mcp-test" bash -lc "cd '$(repo_root RealityEngine_CI)/mcp' && npm install && npm test"
-  run_cmd "build-cpp" bash -lc "cd '$(repo_root RealityEngine_CPP)' && make all"
-  run_cmd "build-lsp" bash -lc "cd '$(repo_root RealityEngine_LSP)' && make build"
-  run_cmd "build-scala" bash -lc "cd '$(repo_root RealityEngine_Scala)' && sbt clean compile"
-  run_cmd "validate-machines" bash -lc "cd '$(repo_root RealityEngine_Machines)' && bash scripts/validate-corpus.sh"
+  for repo in "${REPOS[@]}"; do
+    record_repo_provenance "$repo"
+  done
+  run_repo_cmd "RealityEngine_CI" "build" "build-ci-npm-install" bash -lc "cd '$(repo_root RealityEngine_CI)' && npm ci"
+  run_repo_cmd "RealityEngine_CI" "build" "build-ci-mcp-test" bash -lc "cd '$(repo_root RealityEngine_CI)/mcp' && npm install && npm test"
+  run_repo_cmd "RealityEngine_CPP" "build" "build-cpp" bash -lc "cd '$(repo_root RealityEngine_CPP)' && make all"
+  run_repo_cmd "RealityEngine_LSP" "build" "build-lsp" bash -lc "cd '$(repo_root RealityEngine_LSP)' && make build"
+  run_repo_cmd "RealityEngine_Scala" "build" "build-scala" bash -lc "cd '$(repo_root RealityEngine_Scala)' && sbt clean compile"
+  run_repo_cmd "RealityEngine_Machines" "build" "validate-machines" bash -lc "cd '$(repo_root RealityEngine_Machines)' && bash scripts/validate-corpus.sh"
   for package_dir in \
     "visualizer/backend" \
     "visualizer/frontend" \
     "perception-engine/backend" \
     "perception-engine/frontend"; do
-    run_cmd "build-manager-${package_dir//\//-}" bash -lc \
+    run_repo_cmd "RealityEngine_Manager" "build" "build-manager-${package_dir//\//-}" bash -lc \
       "cd '$(repo_root RealityEngine_Manager)/$package_dir' && npm ci && npm run build"
   done
-  run_cmd "build-localai-compose" bash -lc "cd '$(repo_root localAIStack)' && docker compose build"
-  run_cmd "build-openclaw-compose" bash -lc "cd '$(repo_root localOpenClawStack)' && docker compose build"
+  run_repo_cmd "localAIStack" "build" "build-localai-compose" bash -lc "cd '$(repo_root localAIStack)' && docker compose build"
+  run_repo_cmd "localOpenClawStack" "build" "build-openclaw-compose" bash -lc "cd '$(repo_root localOpenClawStack)' && docker compose build"
 }
 
 start_universe() {
@@ -387,11 +505,16 @@ fi
 prepare_history
 create_worktrees
 build_repos
-start_universe
-run_universal_vectors
-run_mqtt_yuma
-run_mcp
-run_openclaw
+if [ "$LIVE_TESTS" = true ]; then
+  start_universe
+  run_universal_vectors
+  run_mqtt_yuma
+  run_mcp
+  run_openclaw
+else
+  log ""
+  log "Live tests skipped (--build-only)."
+fi
 write_summary
 retain_history
 update_manifest_status completed

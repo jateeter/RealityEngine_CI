@@ -101,6 +101,10 @@ working branches directly. It should:
 8. Write a manifest containing repo remote URL, source `main` SHA, regression
    branch SHA, build status, test status, and artifact paths.
 
+For provenance and build certification without a deployed universe, use
+`--build-only`. That mode still creates the run-local worktrees and executes the
+full build phase, but skips universe startup and all live tests.
+
 Participating repos:
 
 - `RealityEngine_CI`
