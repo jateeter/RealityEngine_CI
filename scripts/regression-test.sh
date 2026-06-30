@@ -479,7 +479,17 @@ run_mcp() {
 
 run_openclaw() {
   step "OpenClaw async handoff and PE completion return"
-  [ "$OPENCLAW_FLAG" = "--openclaw" ] || { log "SKIP OpenClaw: disabled"; return 0; }
+  if [ "$OPENCLAW_FLAG" != "--openclaw" ]; then
+    log "SKIP OpenClaw: disabled"
+    mkdir -p "$REPORT_DIR"
+    python3 - "$REPORT_DIR/openclaw-skipped.json" <<'PYEOF'
+import json
+import sys
+from pathlib import Path
+Path(sys.argv[1]).write_text(json.dumps({"status": "skipped", "reason": "--no-openclaw"}, indent=2, sort_keys=True) + "\n", encoding="utf-8")
+PYEOF
+    return 0
+  fi
   local ci
   ci="$(repo_root RealityEngine_CI)"
   local found=false
@@ -489,9 +499,20 @@ run_openclaw() {
     run_cmd "openclaw-integration-$instance_id" env \
       PE_URL="$pe_url" \
       OPENCLAW_E2E_RUN_ID="$RUN_ID-$instance_id" \
-      bash "$ci/scripts/test-openclaw-integration.sh"
+      bash "$ci/scripts/test-openclaw-integration.sh" \
+      --report-json "$REPORT_DIR/openclaw-integration-$instance_id.json"
   done < <(registry_instance_lines)
-  [ "$found" = true ] || { log "SKIP OpenClaw: no running PE instances in registry"; return 0; }
+  if [ "$found" != true ]; then
+    log "SKIP OpenClaw: no running PE instances in registry"
+    mkdir -p "$REPORT_DIR"
+    python3 - "$REPORT_DIR/openclaw-skipped.json" <<'PYEOF'
+import json
+import sys
+from pathlib import Path
+Path(sys.argv[1]).write_text(json.dumps({"status": "skipped", "reason": "no running PE instances in registry"}, indent=2, sort_keys=True) + "\n", encoding="utf-8")
+PYEOF
+    return 0
+  fi
 }
 
 write_summary() {

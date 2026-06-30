@@ -218,6 +218,13 @@ used as the executable baseline. The regression runner invokes it once per
 active PE URL in the registry so the async return path is verified for each
 engine runtime.
 
+Each OpenClaw run writes `openclaw-integration-<instance>.json` with dispatch
+id, envelope id, correlation id, completion id, completion source id, ACP
+status, handoff receipt, dispatch record, agent result, final PE source
+observation, and downstream push response. When OpenClaw is disabled or no PE
+instances are available, the runner writes `openclaw-skipped.json` with the skip
+reason.
+
 ## History Management
 
 Run history is stored under `.regression-tests/runs/<run-id>/` and ignored by
