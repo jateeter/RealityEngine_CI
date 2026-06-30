@@ -245,6 +245,10 @@ Best practices:
 - Use a stable `run_id` and include it in every generated file.
 - Retain the latest N local runs by default; archive selected certification
   runs outside the repo or attach them to release artifacts.
+- Generate `summary.md` and `reports/regression-comparison.json` at the end of
+  each run. By default, the comparison report uses the latest previous
+  completed run; `--compare RUN_ID` pins a specific baseline, and
+  `--archive PATH` exports a copy of certification artifacts without worktrees.
 
 ## Roadmap
 
