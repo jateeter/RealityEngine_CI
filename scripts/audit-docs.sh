@@ -147,6 +147,38 @@ else
     PE_PATHS=$(python3 -c "import yaml; d=yaml.safe_load(open('$TMP_DIR/cpp-pe.yaml')); print(len(d['paths']))")
     pass "OpenAPI current with SURFACE_SPEC (RE: ${RE_PATHS} paths, PE: ${PE_PATHS} paths)"
   fi
+
+  PROPAGATION_PASS=true
+  check_mirror() {
+    local source="$1"
+    local mirror="$2"
+    local label="$3"
+
+    if [ ! -f "$mirror" ]; then
+      fail "missing propagated OpenAPI mirror: $label — run: bash scripts/generate-openapi.sh --propagate"
+      PROPAGATION_PASS=false
+    elif ! diff -q "$source" "$mirror" >/dev/null 2>&1; then
+      fail "stale propagated OpenAPI mirror: $label — run: bash scripts/generate-openapi.sh --propagate"
+      PROPAGATION_PASS=false
+      if $FIX; then
+        cp "$source" "$mirror"
+        detail "auto-fixed propagated mirror: $label"
+      fi
+    fi
+  }
+
+  check_mirror "$OUT_DIR/cpp-re.yaml" "$WS/RealityEngine_CPP/docs/openapi/reality-engine.yaml" "RealityEngine_CPP/docs/openapi/reality-engine.yaml"
+  check_mirror "$OUT_DIR/cpp-pe.yaml" "$WS/RealityEngine_CPP/docs/openapi/perception-engine.yaml" "RealityEngine_CPP/docs/openapi/perception-engine.yaml"
+  check_mirror "$OUT_DIR/lsp-re.yaml" "$WS/RealityEngine_LSP/docs/openapi/reality-engine.yaml" "RealityEngine_LSP/docs/openapi/reality-engine.yaml"
+  check_mirror "$OUT_DIR/lsp-pe.yaml" "$WS/RealityEngine_LSP/docs/openapi/perception-engine.yaml" "RealityEngine_LSP/docs/openapi/perception-engine.yaml"
+  for runtime in cpp lsp scala; do
+    check_mirror "$OUT_DIR/${runtime}-re.yaml" "$WS/RealityEngine_Manager/docs/openapi/${runtime}-re.yaml" "RealityEngine_Manager/docs/openapi/${runtime}-re.yaml"
+    check_mirror "$OUT_DIR/${runtime}-pe.yaml" "$WS/RealityEngine_Manager/docs/openapi/${runtime}-pe.yaml" "RealityEngine_Manager/docs/openapi/${runtime}-pe.yaml"
+  done
+
+  if $PROPAGATION_PASS; then
+    pass "propagated OpenAPI mirrors match CI generated specs"
+  fi
 fi
 
 # ── Check 4: Wiki content drift ───────────────────────────────────────────────

@@ -16,7 +16,7 @@
     "list-tools": "node bin/realityengine-mcp.js --list-tools",
     "manifest:gen": "node scripts/gen-manifest.mjs",
     "manifest:check": "node scripts/gen-manifest.mjs --check",
-    "test": "node --test test/"
+    "test": "node --test test/*.js"
   },
   "engines": {
     "node": ">=20.0.0"
