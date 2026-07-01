@@ -587,6 +587,7 @@ jobs:
         env:
           REUSE_SERVICES: 'true'
           RE_REGISTRY_URL: 'http://localhost:5999/re-registry.json'
+          VIZ_BASE_URL: 'http://127.0.0.1:3001'
         run: |
           npx playwright test tests/integration/multi-instance.spec.ts \
             --reporter=list
@@ -606,6 +607,11 @@ jobs:
         run: |
           echo "=== Registry ==="
           cat /tmp/re-registry/re-registry.json 2>/dev/null || echo "No registry"
+          echo "=== Manager launcher ==="
+          tail -120 /tmp/manager_universe.log 2>/dev/null || echo "No manager launcher log"
+          for f in RealityEngine_Manager/.manager-logs/*.log; do
+            [ -f "$f" ] && { echo "--- $f ---"; tail -120 "$f"; } || true
+          done
           for f in /tmp/re-*.log /tmp/pe-*.log; do
             [ -f "$f" ] && { echo "--- $f ---"; tail -20 "$f"; } || true
           done

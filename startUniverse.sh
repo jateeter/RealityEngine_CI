@@ -1250,26 +1250,41 @@ fi
 
 # Loki Docker logging driver
 LOKI_ENABLED=$(docker plugin inspect loki --format '{{.Enabled}}' 2>/dev/null || echo "missing")
+LOKI_READY=false
 if [ "$LOKI_ENABLED" = "missing" ]; then
-    info "Installing Loki Docker logging driver..."
-    if ! docker plugin install grafana/loki-docker-driver:latest \
-            --alias loki --grant-all-permissions 2>/dev/null; then
-        warn "Loki Docker driver install failed."
-        warn "Plugin installation requires elevated privileges. Install it first:"
-        warn "  sudo docker plugin install grafana/loki-docker-driver:latest --alias loki --grant-all-permissions"
-        warn "Or run:  sudo bash $CI_DIR/scripts/setup-loki-driver.sh"
-        die "Loki log driver not available"
+    if [ "$DRY_RUN" = true ]; then
+        warn "Dry-run: Loki Docker logging driver is not installed"
+    else
+        info "Installing Loki Docker logging driver..."
+        if ! docker plugin install grafana/loki-docker-driver:latest \
+                --alias loki --grant-all-permissions 2>/dev/null; then
+            warn "Loki Docker driver install failed."
+            warn "Plugin installation requires elevated privileges. Install it first:"
+            warn "  sudo docker plugin install grafana/loki-docker-driver:latest --alias loki --grant-all-permissions"
+            warn "Or run:  sudo bash $CI_DIR/scripts/setup-loki-driver.sh"
+            die "Loki log driver not available"
+        fi
+        LOKI_READY=true
     fi
 elif [ "$LOKI_ENABLED" = "false" ]; then
-    info "Enabling Loki Docker logging driver..."
-    docker plugin enable loki 2>/dev/null || die "Could not enable loki plugin"
+    if [ "$DRY_RUN" = true ]; then
+        warn "Dry-run: Loki Docker logging driver is installed but disabled"
+    else
+        info "Enabling Loki Docker logging driver..."
+        docker plugin enable loki 2>/dev/null || die "Could not enable loki plugin"
+        LOKI_READY=true
+    fi
+elif [ "$LOKI_ENABLED" = "true" ]; then
+    LOKI_READY=true
 fi
-ok "Loki Docker logging driver ready"
+if [ "$LOKI_READY" = true ]; then
+    ok "Loki Docker logging driver ready"
+fi
 
 # In multi-engine mode the Manager (ports 3001 + 5173) is started natively
 # by this script. Stop any previous instance before the port conflict check
 # so a restart doesn't die on its own previously-started Manager.
-if [ "$MULTI_ENGINE_MODE" = true ] && [ -x "$MGR_DIR/stop.sh" ]; then
+if [ "$DRY_RUN" = false ] && [ "$MULTI_ENGINE_MODE" = true ] && [ -x "$MGR_DIR/stop.sh" ]; then
     if [ -f "$MGR_DIR/.manager-pids" ] || \
        lsof -ti :3001 -sTCP:LISTEN >/dev/null 2>&1 || \
        lsof -ti :5173 -sTCP:LISTEN >/dev/null 2>&1; then
@@ -1289,9 +1304,15 @@ for port in 3001 3004 3005 5001 5173; do
         CONFLICTS="$CONFLICTS ${port}(${proc})"
     fi
 done
-[ -n "$CONFLICTS" ] && \
-    die "Processes already listening on RE ports:$CONFLICTS\n  Stop them first (see RealityEngine_Manager/stop.sh)"
-ok "No port conflicts"
+if [ -n "$CONFLICTS" ]; then
+    if [ "$DRY_RUN" = true ]; then
+        warn "Dry-run: processes currently listening on RE ports:$CONFLICTS"
+    else
+        die "Processes already listening on RE ports:$CONFLICTS\n  Stop them first (see RealityEngine_Manager/stop.sh)"
+    fi
+else
+    ok "No port conflicts"
+fi
 
 # Pre-check all native engine ports before spawning begins — fail fast before partial starts
 if [ "$MULTI_ENGINE_MODE" = true ]; then
@@ -1321,10 +1342,16 @@ if [ "$MULTI_ENGINE_MODE" = true ]; then
     # Check host occupancy
     for _pf_port in $_pf_all_ports; do
         if lsof -i ":${_pf_port}" -sTCP:LISTEN >/dev/null 2>&1; then
-            die "Native engine port ${_pf_port} already in use\n  Stop the blocking process and retry"
+            if [ "$DRY_RUN" = true ]; then
+                add_warn "Dry-run: native engine port ${_pf_port} is already in use"
+            else
+                die "Native engine port ${_pf_port} already in use\n  Stop the blocking process and retry"
+            fi
         fi
     done
-    ok "Native engine ports free"
+    if [ "$DRY_RUN" = false ]; then
+        ok "Native engine ports free"
+    fi
 
     # If any cpp instance will spawn, validate its build prerequisites up front
     # so a missing Boost / incomplete SDK libc++ fails fast rather than mid-make.
@@ -1338,6 +1365,7 @@ if [ "$MULTI_ENGINE_MODE" = true ]; then
 fi
 
 # ── Orphan container cleanup ──────────────────────────────────────────────
+if [ "$DRY_RUN" = false ]; then
 info "Checking for orphaned containers..."
 # Use `rm -sf` (stop + remove) rather than `down` so stale compose state
 # (container ID exists in compose but not in Docker) doesn't block startup.
@@ -1408,17 +1436,23 @@ else
 fi
 
 sleep 2
+fi
 
 [ "$FRESH_START" = true ] && warn "Fresh start — perception volume wiped; all images rebuilt no-cache"
 
 # ── Dry-run: print plan and exit without starting anything ────────────────────
 if [ "$DRY_RUN" = true ]; then
+    if [ "$MULTI_ENGINE_MODE" = true ]; then
+        _dry_run_mode="multi-engine ($ENGINES)"
+    else
+        _dry_run_mode="single-engine"
+    fi
     echo ""
     echo "════════════════════════════════════════════════════════════════════"
     echo "  Dry-Run Plan  (pre-flight passed — nothing will be started)"
     echo "════════════════════════════════════════════════════════════════════"
     echo ""
-    printf "  %-28s %s\n" "Mode"       "${MULTI_ENGINE_MODE:+multi-engine ($ENGINES)}${MULTI_ENGINE_MODE:-false}"
+    printf "  %-28s %s\n" "Mode"       "$_dry_run_mode"
     printf "  %-28s %s\n" "RE engine"  "$RE_ENGINE"
     printf "  %-28s %s\n" "PE engine"  "$PE_ENGINE"
     printf "  %-28s %s\n" "Fresh"              "$FRESH_START"
@@ -1453,9 +1487,15 @@ if [ "$DRY_RUN" = true ]; then
                 esac
                 _dr_re=$(( _dr_base_re + (_dr_idx-1)*100 ))
                 _dr_pe=$(( _dr_base_pe + (_dr_idx-1)*100 ))
+                case "$_dr_rt" in
+                    scala) _dr_dir="$SCALA_DIR" ;;
+                    cpp)   _dr_dir="$CPP_DIR" ;;
+                    lsp)   _dr_dir="$LSP_DIR" ;;
+                    *)     _dr_dir="?" ;;
+                esac
                 printf "    %-16s RE=%-6s PE=%-6s start.sh=%s\n" \
                     "${_dr_rt}-${_dr_idx}" "$HOST_IP:$_dr_re" "$HOST_IP:$_dr_pe" \
-                    "$(eval echo "\${${_dr_rt^^}_DIR:-?}")/start.sh"
+                    "$_dr_dir/start.sh"
             done
         done
         printf "  %-28s %s\n" "Registry" "http://$HOST_IP:${REGISTRY_PORT}/re-registry.json"
@@ -1720,8 +1760,36 @@ except Exception:
         _re_arg="${_first_re_url:-http://localhost:$(( SCALA_PE_BASE + 1 ))}"
         _pe_arg="${_first_pe_url:-http://localhost:${SCALA_PE_BASE}}"
 
+        _manager_nvm_dir="${NVM_DIR:-$HOME/.nvm}"
+        if [ ! -s "$_manager_nvm_dir/nvm.sh" ]; then
+            _node_version="$(node --version 2>/dev/null || true)"
+            if [ "$_node_version" = "v25.5.0" ]; then
+                _manager_nvm_dir="/tmp/realityengine-manager-nvm-shim"
+                mkdir -p "$_manager_nvm_dir"
+                cat > "$_manager_nvm_dir/nvm.sh" <<'SH'
+nvm() {
+  case "${1:-}" in
+    use)
+      case "${2:-}" in
+        25.5.0|v25.5.0) return 0 ;;
+      esac
+      echo "nvm shim only supports Node 25.5.0; requested ${2:-<empty>}" >&2
+      return 1
+      ;;
+    *)
+      echo "nvm shim only supports 'nvm use'" >&2
+      return 1
+      ;;
+  esac
+}
+SH
+                info "Using Node $_node_version from PATH for Manager nvm compatibility"
+            fi
+        fi
+
         info "Starting Manager (Visualizer) natively — RE: $_re_arg  registry: http://$HOST_IP:${REGISTRY_PORT}/re-registry.json"
-        RE_REGISTRY_URL="http://$HOST_IP:${REGISTRY_PORT}/re-registry.json" \
+        NVM_DIR="$_manager_nvm_dir" \
+            RE_REGISTRY_URL="http://$HOST_IP:${REGISTRY_PORT}/re-registry.json" \
             VIZ_RATE_LIMIT_MAX="${VIZ_RATE_LIMIT_MAX:-5000}" \
             VIZ_MACHINES_RATE_LIMIT_MAX="${VIZ_MACHINES_RATE_LIMIT_MAX:-2000}" \
             nohup "$MGR_DIR/start.sh" --re "$_re_arg" --pe "$_pe_arg" --no-seed \
