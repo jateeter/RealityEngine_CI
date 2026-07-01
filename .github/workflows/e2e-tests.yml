@@ -569,7 +569,7 @@ jobs:
           SCALA_DIR: ${{ github.workspace }}/RealityEngine_Scala
           MGR_DIR: ${{ github.workspace }}/RealityEngine_Manager
         run: |
-          ./startUniverse.sh --no-openclaw --no-local-ai --skip-seed --engines=scala:1,scala:2
+          ./startUniverse.sh --no-openclaw --no-local-ai --skip-seed --engines=scala:2
 
       - name: Run multi-instance integration tests
         working-directory: RealityEngine_Machines
