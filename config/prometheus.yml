@@ -70,6 +70,14 @@ scrape_configs:
           - /etc/prometheus/file_sd/reality-engine-targets.json
         refresh_interval: 10s
 
+  - job_name:     perception-engine-registry
+    metrics_path: /api/metrics
+    honor_labels: true
+    file_sd_configs:
+      - files:
+          - /etc/prometheus/file_sd/perception-engine-targets.json
+        refresh_interval: 10s
+
   # ── AI bridge operations — CI-owned exporter for OpenClaw/localAIStack ───
   - job_name:     ai-bridge-operations
     metrics_path: /metrics
