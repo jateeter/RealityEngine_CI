@@ -1685,8 +1685,17 @@ if [ "$FRESH_START" = true ]; then
         info "  [$_svc] removing previous image..."
         docker image rm -f "$_img" > /dev/null 2>&1 || true
         info "  [$_svc] rebuilding (no cache)..."
-        SCALA_DIR="$SCALA_DIR" MGR_DIR="$MGR_DIR" docker compose build --no-cache "$_svc" || \
-            die "RE image build failed for $_svc — run:  docker compose build --no-cache $_svc"
+        # Retry transient failures. The most common is a BuildKit "load metadata
+        # for docker.io/..." timeout (~168s) when the Docker Hub registry is
+        # briefly unreachable from the VM — a transient network hiccup, not a
+        # build defect. Retry a couple of times before giving up.
+        _attempt=0
+        until SCALA_DIR="$SCALA_DIR" MGR_DIR="$MGR_DIR" docker compose build --no-cache "$_svc"; do
+            _attempt=$((_attempt + 1))
+            [ "$_attempt" -ge 3 ] && die "RE image build failed for $_svc after ${_attempt} attempts — if it was a 'load metadata for docker.io/...' timeout, the Docker Hub registry was unreachable; verify with 'docker pull <base-image>' and retry"
+            warn "  [$_svc] build failed (attempt ${_attempt}/3) — likely a transient registry/network hiccup; retrying in 10s..."
+            sleep 10
+        done
         docker image inspect "$_img" > /dev/null 2>&1 || \
             die "$_img not in engine store after rebuild — image remove/rebuild staging failed for $_svc"
         ok "  [$_svc] rebuilt → present in engine store"

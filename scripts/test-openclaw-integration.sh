@@ -132,6 +132,60 @@ cleanup() {
 }
 trap cleanup EXIT
 
+write_report() {
+  [ -n "$REPORT_JSON" ] || return 0
+  mkdir -p "$(dirname "$REPORT_JSON")"
+  node - "$REPORT_JSON" "$TMP_DIR/final-push.json" "$PE_URL" "$RUN_ID" "$AGENT_ID" \
+    "$SOURCE_MAPPING_ID" "$SENSOR_ID" "$DISPATCH_ID" "$ENVELOPE_ID" "$CORRELATION_ID" \
+    "$COMPLETION_ID" "$COMPLETION_SOURCE_ID" "$FINAL_PUSH_STATUS_CODE" <<'NODE'
+const fs = require('fs');
+const [
+  reportPath,
+  finalPushPath,
+  peUrl,
+  runId,
+  agentId,
+  sourceMappingId,
+  sensorId,
+  dispatchId,
+  envelopeId,
+  correlationId,
+  completionId,
+  completionSourceId,
+  finalPushStatusCode
+] = process.argv.slice(2);
+
+let finalPush = null;
+try {
+  finalPush = JSON.parse(fs.readFileSync(finalPushPath, 'utf8'));
+} catch {
+  finalPush = null;
+}
+
+const report = {
+  status: 'pass',
+  standard: 'openclaw-xacp',
+  peUrl,
+  runId,
+  agentId,
+  sourceMappingId,
+  sensorId,
+  dispatchId,
+  envelopeId,
+  correlationId,
+  completionId,
+  completionSourceId,
+  completionRegion: { offset: 4210, length: 4 },
+  finalPushStatusCode,
+  finalPush,
+  generatedAt: new Date().toISOString()
+};
+
+fs.writeFileSync(reportPath, JSON.stringify(report, null, 2) + '\n');
+NODE
+  printf '[pass] OpenClaw e2e report written (%s)\n' "$REPORT_JSON"
+}
+
 curl_json() {
   local method="$1" url="$2" body="${3:-}"
   local out="$TMP_DIR/response.json" code

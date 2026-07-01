@@ -93,12 +93,43 @@ for inst in reg.get('instances', []):
 EOF
 }
 
+# Reap a stale registry shim still bound to REGISTRY_PORT. A prior run that
+# crashed or was never stopped (registry_stop_server not called) leaves its
+# python3 http.server holding :$REGISTRY_PORT but dead — the new bind then fails
+# and the readiness poll times out, failing the whole multi-engine deploy at
+# phase 3.5. Kill the recorded PID first, then any python3 listener still on the
+# port (guarded so an unrelated service is never killed), and wait for release.
+_registry_free_port() {
+    local pid
+    if [ -f "$REGISTRY_PID_FILE" ]; then
+        pid="$(cat "$REGISTRY_PID_FILE" 2>/dev/null || true)"
+        [ -n "$pid" ] && kill -9 "$pid" 2>/dev/null || true
+        rm -f "$REGISTRY_PID_FILE"
+    fi
+    pid="$(lsof -ti tcp:"$REGISTRY_PORT" -sTCP:LISTEN 2>/dev/null | head -1 || true)"
+    if [ -n "$pid" ]; then
+        case "$(ps -p "$pid" -o comm= 2>/dev/null)" in
+            *[Pp]ython*)
+                echo "[registry] reaping stale shim (pid $pid) on :$REGISTRY_PORT" >&2
+                kill -9 "$pid" 2>/dev/null || true ;;
+            *)
+                echo "[registry] warning: :$REGISTRY_PORT held by non-python process $pid — not reaping" >&2 ;;
+        esac
+    fi
+    local _n=0
+    while [ "$_n" -lt 10 ]; do
+        lsof -ti tcp:"$REGISTRY_PORT" -sTCP:LISTEN >/dev/null 2>&1 || break
+        _n=$((_n + 1)); sleep 0.3
+    done
+}
+
 registry_start_server() {
     # Serve a dedicated subdirectory so only registry files are exposed (not all of /tmp/)
     local serve_dir
     serve_dir="$(dirname "$REGISTRY_FILE")"
     mkdir -p "$serve_dir"
     _registry_init
+    _registry_free_port
     python3 -c "
 import http.server, os, sys
 os.chdir(sys.argv[1])

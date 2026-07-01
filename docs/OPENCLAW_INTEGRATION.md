@@ -24,7 +24,7 @@ The normalized integration registry already declares `openclaw-xacp`:
 
 ## Main Gap
 
-The PE contract, one-shot external adapter, deterministic machine fixture, and mock-gateway adapter test are implemented. The remaining production gap is durable handoff transport: a runner or queue consumer must receive accepted PE handoffs and invoke the adapter without a human passing JSON between commands. The remaining deployment test gap is the live gateway plus final PE push into the fixture machine's completion state.
+The PE contract, one-shot external adapter, deterministic machine fixture, mock-gateway adapter test, completion source assertion, final PE push assertion, and JSON e2e report are implemented. The remaining production gap is durable handoff transport: a runner or queue consumer must receive accepted PE handoffs and invoke the adapter without a human passing JSON between commands. The remaining deployment gap is live regression coverage against a running OpenClaw gateway and target agent.
 
 CPP and LSP require ACP dispatch to reference an existing dispatch ledger record. The shared CI e2e now enforces that stricter contract on every runtime by driving `OpenClawCompletionE2E.json` with its authored dispatch seed. Missing fixture machines, disabled triggers, absent dispatch records, and ACP `404` responses are failures rather than compatibility skips.
 
@@ -50,8 +50,8 @@ CPP and LSP require ACP dispatch to reference an existing dispatch ledger record
 5. Add live OpenClaw e2e.
    - Phase 1: deterministic hello-world agent fixture, no external gateway dependency. **Implemented.**
    - Phase 1b: real adapter against deterministic mock OpenClaw and PE HTTP services. **Implemented.**
-   - Phase 2: same test with a local OpenClaw gateway running and a real target agent.
-   - Phase 3: trigger a real machine terminal event, dispatch to OpenClaw, commit completion, and verify the PE source influences the next PE push.
+   - Phase 2: trigger a real machine terminal event, dispatch to OpenClaw, commit completion, verify the PE source mapping, verify the next PE push, and write a JSON report. **Implemented in `scripts/test-openclaw-integration.sh`; requires a running PE.**
+   - Phase 3: run the same contract with a local OpenClaw gateway and real target agent under live regression.
 
 ## Hello World Agent
 
