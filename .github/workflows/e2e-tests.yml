@@ -578,6 +578,7 @@ jobs:
           SCALA_DIR: ${{ github.workspace }}/RealityEngine_Scala
           MGR_DIR: ${{ github.workspace }}/RealityEngine_Manager
           NATIVE_HEALTH_ATTEMPTS: '180'
+          HOST_IP_OVERRIDE: 127.0.0.1
         run: |
           ./startUniverse.sh --no-openclaw --no-local-ai --skip-seed --engines=scala:2
 

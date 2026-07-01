@@ -856,10 +856,15 @@ validate_lsp_runtime_deps() {
 }
 
 # ── Host IP detection ─────────────────────────────────────────────────────
-HOST_IP="$(bash "$CI_DIR/scripts/detect-host-ip.sh" 2>/dev/null || echo "127.0.0.1")"
+HOST_IP="${HOST_IP_OVERRIDE:-$(bash "$CI_DIR/scripts/detect-host-ip.sh" 2>/dev/null || echo "127.0.0.1")}"
 export HOST_IP
-[ "$HOST_IP" = "127.0.0.1" ] && \
-    warn "Could not detect LAN IP — using 127.0.0.1 (multi-engine URLs will be local-only)"
+if [ "$HOST_IP" = "127.0.0.1" ]; then
+    if [ -n "${HOST_IP_OVERRIDE:-}" ]; then
+        warn "Using HOST_IP_OVERRIDE=127.0.0.1 (multi-engine URLs will be local-only)"
+    else
+        warn "Could not detect LAN IP — using 127.0.0.1 (multi-engine URLs will be local-only)"
+    fi
+fi
 
 # ── Multi-engine spawn helpers ────────────────────────────────────────────
 
