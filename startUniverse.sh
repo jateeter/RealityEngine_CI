@@ -396,10 +396,10 @@ start_observability_stack() {
 
     start_bridge_metrics_exporter
 
-    info "Starting Prometheus + Grafana..."
-    (cd "$CI_DIR" && docker compose up -d --remove-orphans prometheus grafana \
+    info "Starting Prometheus + Grafana + Promtail..."
+    (cd "$CI_DIR" && docker compose up -d --remove-orphans --force-recreate prometheus grafana promtail \
         2>/tmp/observability_start_err.log) > /dev/null || {
-        add_warn "Prometheus/Grafana startup failed — $(tail -5 /tmp/observability_start_err.log 2>/dev/null)"
+        add_warn "Prometheus/Grafana/Promtail startup failed — $(tail -5 /tmp/observability_start_err.log 2>/dev/null)"
         return 0
     }
 
@@ -419,6 +419,14 @@ start_observability_stack() {
         write_container_health_diagnostics "Grafana" reality-engine-grafana \
             "http://localhost:3002/api/health" /tmp/realityengine-grafana-health-diagnostics.log
         add_warn "Grafana did not become healthy — dockerHealth=$(docker_health_status reality-engine-grafana) hostHttp=$(curl -sS -o /dev/null -w '%{http_code}' --max-time 3 http://localhost:3002/api/health 2>/dev/null || true) lastHealth='$(docker_last_health_output reality-engine-grafana)' diagnostics: /tmp/realityengine-grafana-health-diagnostics.log"
+    fi
+
+    local promtail_status
+    promtail_status="$(docker_health_status reality-engine-promtail)"
+    if [ "$promtail_status" = "healthy" ] || [ "$promtail_status" = "running" ]; then
+        ok "Promtail running: dockerHealth=$promtail_status"
+    else
+        add_warn "Promtail is not running — dockerHealth=$promtail_status; native log dashboards may show No Data"
     fi
 }
 
