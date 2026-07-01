@@ -62,8 +62,8 @@ openssl pkcs12 -export \
 rm -f "${SCRIPT_DIR}/server.csr" "${SCRIPT_DIR}/ca.srl"
 
 # ── Permissions ───────────────────────────────────────────────────────────────
-chmod 600 "${SCRIPT_DIR}/ca.key" "${SCRIPT_DIR}/server.key" "${SCRIPT_DIR}/keystore.p12"
-chmod 644 "${SCRIPT_DIR}/ca.crt" "${SCRIPT_DIR}/server.crt"
+chmod 600 "${SCRIPT_DIR}/ca.key" "${SCRIPT_DIR}/keystore.p12"
+chmod 644 "${SCRIPT_DIR}/ca.crt" "${SCRIPT_DIR}/server.crt" "${SCRIPT_DIR}/server.key"
 
 echo ""
 echo "✓ certs/ca.key          (CA private key — keep secret)"

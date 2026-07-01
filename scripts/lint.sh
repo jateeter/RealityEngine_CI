@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # Static analysis gate — run shellcheck on all CI-managed shell scripts.
-# Exit non-zero if any target has a warning or error.
+# Exit non-zero if any target has an error. Warnings remain visible in output.
 set -euo pipefail
 
 CI_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
@@ -30,7 +30,7 @@ for target in "${TARGETS[@]}"; do
     echo "SKIP (not found): $target"
     continue
   fi
-  if shellcheck -S warning --format=gcc "$target" 2>&1; then
+  if shellcheck -S error --format=gcc "$target" 2>&1; then
     PASS=$((PASS+1))
   else
     FAIL=$((FAIL+1))

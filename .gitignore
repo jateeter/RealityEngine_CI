@@ -8,6 +8,9 @@ config/integrations.json
 # Deployment-validation agent runtime state (logs, run records, issue drafts)
 .deploy-validate/
 
+# Regression-test workflow history (run manifests, logs, reports, worktrees)
+.regression-tests/
+
 # Node / Playwright e2e
 node_modules/
 e2e-report/

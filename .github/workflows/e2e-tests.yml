@@ -232,6 +232,9 @@ jobs:
           docker plugin install grafana/loki-docker-driver:latest --alias loki --grant-all-permissions || \
             docker plugin enable loki
 
+      - name: Install native CPP dry-run prerequisites
+        run: sudo apt-get install -y libboost-dev
+
       - name: Run setup (env + certs)
         working-directory: RealityEngine_CI
         run: |
@@ -328,7 +331,7 @@ jobs:
           MACHINES_DIR: ${{ github.workspace }}/RealityEngine_Machines
           SCALA_DIR: ${{ github.workspace }}/RealityEngine_Scala
           MGR_DIR: ${{ github.workspace }}/RealityEngine_Manager
-        run: ./startUniverse.sh --no-openclaw --skip-seed
+        run: ./startUniverse.sh --no-openclaw --no-local-ai --skip-seed
 
       - name: Run smoke tests
         working-directory: RealityEngine_Machines
@@ -427,7 +430,7 @@ jobs:
           MACHINES_DIR: ${{ github.workspace }}/RealityEngine_Machines
           SCALA_DIR: ${{ github.workspace }}/RealityEngine_Scala
           MGR_DIR: ${{ github.workspace }}/RealityEngine_Manager
-        run: ./startUniverse.sh --no-openclaw
+        run: ./startUniverse.sh --no-openclaw --no-local-ai
 
       - name: Run integration tests
         working-directory: RealityEngine_Machines
@@ -559,7 +562,7 @@ jobs:
           SCALA_DIR: ${{ github.workspace }}/RealityEngine_Scala
           MGR_DIR: ${{ github.workspace }}/RealityEngine_Manager
         run: |
-          ./startUniverse.sh --no-openclaw --skip-seed --engines=scala:1,scala:2
+          ./startUniverse.sh --no-openclaw --no-local-ai --skip-seed --engines=scala:1,scala:2
 
       - name: Run multi-instance integration tests
         working-directory: RealityEngine_Machines

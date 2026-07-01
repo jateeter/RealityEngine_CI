@@ -79,6 +79,7 @@ OPENAPI_SWAGGER_STARTED=false
 PROMETHEUS_STARTED=false
 GRAFANA_STARTED=false
 BRIDGE_METRICS_STARTED=false
+LOCAL_AI_ENABLED="${LOCAL_AI_ENABLED:-true}"
 
 # ── Flags ──────────────────────────────────────────────────────────────────
 FRESH_START=false
@@ -129,6 +130,7 @@ startUniverse.sh — engine-selectable CI orchestrator
   --mqtt-mappings=PATH          Path to MQTT mappings JSON file
   --openclaw                    Force-start OpenClaw even if auto-detect would skip it
   --no-openclaw                 Skip OpenClaw startup
+  --no-local-ai                 Skip Ollama and localAIStack API startup
   --no-mcp-http                 Skip RealityEngine MCP Streamable HTTP service startup
   --no-openapi-swagger          Skip OpenAPI/Swagger portal startup
   --warn-only                   Warn on sibling repo version mismatch instead of failing startup
@@ -159,6 +161,7 @@ for arg in "$@"; do
     --mqtt-mappings=*)     MQTT_MAPPINGS_OVERRIDE="${arg#*=}" ;;
     --openclaw)            OPENCLAW=yes ;;
     --no-openclaw)         OPENCLAW=no ;;
+    --no-local-ai)         LOCAL_AI_ENABLED=false ;;
     --no-mcp-http)         MCP_HTTP_ENABLED=false ;;
     --no-openapi-swagger)  OPENAPI_SWAGGER_ENABLED=false ;;
     --warn-only)           VERSION_WARN_ONLY=true ;;
@@ -791,7 +794,8 @@ validate_cpp_build_deps() {
 int main() { std::atomic<int> a{0}; return std::isspace(' ') ? a.load() : 0; }
 CPP
 
-    # shellcheck disable=SC2086 — sdk_flags/boost_inc are intentionally word-split
+    # shellcheck disable=SC2086
+    # sdk_flags/boost_inc are intentionally word-split.
     if "$cxx" -std=c++20 -fsyntax-only $sdk_flags $boost_inc "$probe" >"$errlog" 2>&1; then
         ok "C++ build prerequisites OK${bp:+ (Boost: $bp)}${sdkroot:+, SDK: ${sdkroot##*/}}"
         rm -f "$probe" "$errlog"
@@ -1363,7 +1367,11 @@ if [ "$DRY_RUN" = true ]; then
     else
         echo ""
         echo "  Docker services that would start:"
-        echo "    CI Loki · Qdrant · Redis · RE API (Scala) · Visualizer · PE · localAIStack API"
+        if [ "$LOCAL_AI_ENABLED" = true ]; then
+            echo "    CI Loki · Qdrant · Redis · RE API (Scala) · Visualizer · PE · localAIStack API"
+        else
+            echo "    CI Loki · Qdrant · Redis · RE API (Scala) · Visualizer · PE"
+        fi
     fi
     echo ""
     echo "  Machine load:       $MACHINE_LOAD  (RE_LOAD_MACHINES=$_RE_LOAD_MACHINES)"
@@ -1379,7 +1387,9 @@ fi
 hdr "2 · Ollama"
 # =============================================================================
 
-if curl -sf http://localhost:11434/api/tags > /dev/null 2>&1; then
+if [ "$LOCAL_AI_ENABLED" != true ]; then
+    info "Ollama: skipped (--no-local-ai)"
+elif curl -sf http://localhost:11434/api/tags > /dev/null 2>&1; then
     ok "Ollama already running"
 else
     info "Starting Ollama..."
@@ -1389,24 +1399,26 @@ else
         die "Ollama failed to start — log: /tmp/ollama_universe.log"
 fi
 
-set +e
-TAGS_JSON=$(curl -sf http://localhost:11434/api/tags 2>/dev/null || echo '{"models":[]}')
-EMBED_MODEL_REQUIRED="${EMBED_MODEL:-}"
-[ -z "$EMBED_MODEL_REQUIRED" ] && [ -f "$LAS_DIR/.env" ] && \
-    EMBED_MODEL_REQUIRED=$(grep -E '^EMBED_MODEL=' "$LAS_DIR/.env" | tail -1 | cut -d= -f2-)
-EMBED_MODEL_REQUIRED="${EMBED_MODEL_REQUIRED:-ternary-bonsai:4}"
-set -e
+if [ "$LOCAL_AI_ENABLED" = true ]; then
+    set +e
+    TAGS_JSON=$(curl -sf http://localhost:11434/api/tags 2>/dev/null || echo '{"models":[]}')
+    EMBED_MODEL_REQUIRED="${EMBED_MODEL:-}"
+    [ -z "$EMBED_MODEL_REQUIRED" ] && [ -f "$LAS_DIR/.env" ] && \
+        EMBED_MODEL_REQUIRED=$(grep -E '^EMBED_MODEL=' "$LAS_DIR/.env" | tail -1 | cut -d= -f2-)
+    EMBED_MODEL_REQUIRED="${EMBED_MODEL_REQUIRED:-ternary-bonsai:4}"
+    set -e
 
-for model in "llama3" "$EMBED_MODEL_REQUIRED"; do
-    MATCH=$(echo "$TAGS_JSON" | python3 -c \
-        "import json,sys
+    for model in "llama3" "$EMBED_MODEL_REQUIRED"; do
+        MATCH=$(echo "$TAGS_JSON" | python3 -c \
+            "import json,sys
 ms=[m['name'] for m in json.load(sys.stdin).get('models',[]) if '$model' in m['name']]
 print(ms[0] if ms else '')" 2>/dev/null || echo "")
-    if [ -n "$MATCH" ]; then ok "Model: $MATCH"
-    else add_warn "Ollama model '$model' not found — pull with:  ollama pull $model"
-         warn "Model not found: $model"
-    fi
-done
+        if [ -n "$MATCH" ]; then ok "Model: $MATCH"
+        else add_warn "Ollama model '$model' not found — pull with:  ollama pull $model"
+             warn "Model not found: $model"
+        fi
+    done
+fi
 
 # =============================================================================
 hdr "3 · Infrastructure  (CI Loki + Qdrant + Redis)"
@@ -1431,7 +1443,7 @@ info "Starting Loki (CI) + Qdrant + Redis..."
     die "docker compose up failed for Qdrant/Redis\n$(tail -5 /tmp/infra_start_err.log 2>/dev/null)"
 
 info "Waiting for Loki..."
-poll_http "https://localhost:3100/ready" "Loki ready" 30 "-skf" || \
+poll_http "https://localhost:3100/ready" "Loki ready" 90 "-skf" || \
     die "Loki failed — check:  docker logs reality-engine-loki"
 
 info "Waiting for Qdrant..."
@@ -1761,16 +1773,19 @@ case "$MACHINE_LOAD" in
         fi
         ;;
     ci-seed)
+        CORPUS_VALID=true
         if [ "$VALIDATE_CORPUS" = "once" ] && [ -x "$MACHINES_DIR/scripts/validate-corpus.sh" ]; then
             info "Validating machine corpus..."
             if bash "$MACHINES_DIR/scripts/validate-corpus.sh" > /tmp/corpus_validate.log 2>&1; then
                 ok "Machine corpus valid"
             else
                 add_warn "Machine corpus validation failed — seed skipped (check /tmp/corpus_validate.log)"
-                break 2>/dev/null || true
+                CORPUS_VALID=false
             fi
         fi
-        if [ -x "$MACHINES_DIR/scripts/seed-machines.sh" ]; then
+        if [ "$CORPUS_VALID" != true ]; then
+            info "Machine seed skipped because corpus validation failed"
+        elif [ -x "$MACHINES_DIR/scripts/seed-machines.sh" ]; then
             info "Seeding RE machines from RealityEngine_Machines (RE only)..."
             bash "$MACHINES_DIR/scripts/seed-machines.sh" --re-only \
                 "https://localhost:5001" > /tmp/corpus_seed.log 2>&1 \
@@ -1797,24 +1812,29 @@ fi  # end: if [ "$MULTI_ENGINE_MODE" = false ] Docker RE block
 start_observability_stack
 validate_metrics_surfaces
 
-configure_localai_bridge_targets
+if [ "$LOCAL_AI_ENABLED" = true ]; then
+    configure_localai_bridge_targets
+fi
 
 # =============================================================================
 hdr "5 · localAIStack API  (FastAPI + RAG + Ollama bridge)"
 # =============================================================================
 
-info "Building localAIStack API image..."
-(cd "$LAS_DIR" && docker compose build api 2>&1) | tail -5
-info "Starting localAIStack API (lifespan hooks register machines + sensors)..."
-(cd "$LAS_DIR" && docker compose up -d --force-recreate --wait \
-    --wait-timeout 120 api 2>&1) || \
-    die "localAIStack API failed to reach healthy state\n  Check:  docker logs localai_api"
-(cd "$LAS_DIR" && docker compose up -d open-webui) > /dev/null 2>&1 || true
-ok "localAIStack API ready"
+if [ "$LOCAL_AI_ENABLED" != true ]; then
+    info "localAIStack API: skipped (--no-local-ai)"
+else
+    info "Building localAIStack API image..."
+    (cd "$LAS_DIR" && docker compose build api 2>&1) | tail -5
+    info "Starting localAIStack API (lifespan hooks register machines + sensors)..."
+    (cd "$LAS_DIR" && docker compose up -d --force-recreate --wait \
+        --wait-timeout 120 api 2>&1) || \
+        die "localAIStack API failed to reach healthy state\n  Check:  docker logs localai_api"
+    (cd "$LAS_DIR" && docker compose up -d open-webui) > /dev/null 2>&1 || true
+    ok "localAIStack API ready"
 
-set +e
-HEALTH_JSON=$(curl -sf http://localhost:4000/health 2>/dev/null || echo '{}')
-echo "$HEALTH_JSON" | python3 -c "
+    set +e
+    HEALTH_JSON=$(curl -sf http://localhost:4000/health 2>/dev/null || echo '{}')
+    echo "$HEALTH_JSON" | python3 -c "
 import json, sys
 h = json.load(sys.stdin).get('services', {})
 for k, v in h.items():
@@ -1825,7 +1845,8 @@ for k, v in h.items():
         icon = '✓' if v == 'ok' else '⚠'
         print(f'  {icon}  {k:<10}: {v}')
 " 2>/dev/null || true
-set -e
+    set -e
+fi
 
 # =============================================================================
 hdr "5.5 · OpenClaw  (ACP xACP gateway)"
@@ -2039,15 +2060,17 @@ print(f'machines_evaluated={n}, non-zero_perceptual_elements={nz}')
     fi
 fi
 
-info "localAIStack RAG readiness..."
-LAS_HEALTH=$(curl -sf http://localhost:4000/health --max-time 5 2>/dev/null || echo "")
-if [ -n "$LAS_HEALTH" ]; then
-    LAS_STATUS=$(echo "$LAS_HEALTH" | python3 -c \
-        "import json,sys; print(json.load(sys.stdin).get('status','unknown'))" 2>/dev/null || echo "unknown")
-    [ "$LAS_STATUS" = "ok" ] && ok "localAIStack API: all services healthy" || \
-        { add_warn "localAIStack API status: $LAS_STATUS"; warn "localAIStack API: $LAS_STATUS"; }
-else
-    add_warn "localAIStack API /health not responding"; warn "localAIStack API: no response"
+if [ "$LOCAL_AI_ENABLED" = true ]; then
+    info "localAIStack RAG readiness..."
+    LAS_HEALTH=$(curl -sf http://localhost:4000/health --max-time 5 2>/dev/null || echo "")
+    if [ -n "$LAS_HEALTH" ]; then
+        LAS_STATUS=$(echo "$LAS_HEALTH" | python3 -c \
+            "import json,sys; print(json.load(sys.stdin).get('status','unknown'))" 2>/dev/null || echo "unknown")
+        [ "$LAS_STATUS" = "ok" ] && ok "localAIStack API: all services healthy" || \
+            { add_warn "localAIStack API status: $LAS_STATUS"; warn "localAIStack API: $LAS_STATUS"; }
+    else
+        add_warn "localAIStack API /health not responding"; warn "localAIStack API: no response"
+    fi
 fi
 
 info "Integration path smoke-test (sensor write → PE)..."
@@ -2147,16 +2170,18 @@ print(f'machines_evaluated={n}, non-zero_perceptual_elements={nz}')
       add_warn "No registry instances available for smoke tests"
   fi
 
-  info "localAIStack RAG readiness..."
-  LAS_HEALTH=$(curl -sf http://localhost:4000/health --max-time 5 2>/dev/null || echo "")
-  if [ -n "$LAS_HEALTH" ]; then
-      LAS_STATUS=$(echo "$LAS_HEALTH" | python3 -c \
-          "import json,sys; print(json.load(sys.stdin).get('status','unknown'))" 2>/dev/null || echo "unknown")
-      [ "$LAS_STATUS" = "ok" ] && ok "localAIStack API: all services healthy" || \
-          { add_warn "localAIStack API status: $LAS_STATUS"; warn "localAIStack API: $LAS_STATUS"; }
-  else
-      add_warn "localAIStack API /health not responding"
-      warn "localAIStack API: no response"
+  if [ "$LOCAL_AI_ENABLED" = true ]; then
+      info "localAIStack RAG readiness..."
+      LAS_HEALTH=$(curl -sf http://localhost:4000/health --max-time 5 2>/dev/null || echo "")
+      if [ -n "$LAS_HEALTH" ]; then
+          LAS_STATUS=$(echo "$LAS_HEALTH" | python3 -c \
+              "import json,sys; print(json.load(sys.stdin).get('status','unknown'))" 2>/dev/null || echo "unknown")
+          [ "$LAS_STATUS" = "ok" ] && ok "localAIStack API: all services healthy" || \
+              { add_warn "localAIStack API status: $LAS_STATUS"; warn "localAIStack API: $LAS_STATUS"; }
+      else
+          add_warn "localAIStack API /health not responding"
+          warn "localAIStack API: no response"
+      fi
   fi
   set -e
 fi
@@ -2244,9 +2269,11 @@ if [ "${#WARNS[@]}" -gt 0 ]; then
     echo "════════════════════════════════════════════════════════════════════"
     for w in "${WARNS[@]}"; do warn "  $w"; done
     echo ""
-    echo "  Re-trigger localAIStack hooks with the active bridge target:"
-    echo "    (cd $LAS_DIR && RE_URL=$RE_URL PE_URL=$PE_URL RE_SSL_VERIFY=${RE_SSL_VERIFY:-false} docker compose up -d --force-recreate api)"
-    echo ""
+    if [ "$LOCAL_AI_ENABLED" = true ]; then
+        echo "  Re-trigger localAIStack hooks with the active bridge target:"
+        echo "    (cd $LAS_DIR && RE_URL=$RE_URL PE_URL=$PE_URL RE_SSL_VERIFY=${RE_SSL_VERIFY:-false} docker compose up -d --force-recreate api)"
+        echo ""
+    fi
 else
     echo "════════════════════════════════════════════════════════════════════"
     echo -e "  ${GREEN}Integration verified — all systems nominal${NC}"
@@ -2256,8 +2283,8 @@ fi
 
 # ── Write universe manifest ────────────────────────────────────────────────────
 _docker_svcs="loki,prometheus,grafana,qdrant,redis"
-[ "$MULTI_ENGINE_MODE" = false ] && _docker_svcs="$_docker_svcs,reality-engine,visualizer,perception-engine,localai_api"
-[ "$MULTI_ENGINE_MODE" = true  ] && _docker_svcs="$_docker_svcs,localai_api"
+[ "$MULTI_ENGINE_MODE" = false ] && _docker_svcs="$_docker_svcs,reality-engine,visualizer,perception-engine"
+[ "$LOCAL_AI_ENABLED" = true ] && _docker_svcs="$_docker_svcs,localai_api"
 _ollama_started=false
 [ -f /tmp/ollama_universe.pid ] && _ollama_started=true
 python3 - <<MANIFEST_EOF

@@ -1,0 +1,298 @@
+name: Regression Tests
+
+on:
+  workflow_dispatch:
+    inputs:
+      run_mode:
+        description: 'Regression depth'
+        required: true
+        type: choice
+        default: plan
+        options:
+          - plan
+          - build-only
+          - full
+      engine_spec:
+        description: 'Engine spec passed to startUniverse.sh'
+        required: true
+        default: 'cpp:1,lsp:1,scala:1'
+      openclaw:
+        description: 'Require OpenClaw async integration checks'
+        required: true
+        type: boolean
+        default: false
+      mqtt_broker_url:
+        description: 'MQTT broker URL for the Yuma stream; empty skips MQTT live checks'
+        required: false
+        default: ''
+      mqtt_mappings:
+        description: 'Optional Yuma MQTT mappings path on the runner host'
+        required: false
+        default: ''
+      mcp_url:
+        description: 'MCP Streamable HTTP service base URL'
+        required: true
+        default: 'http://127.0.0.1:7331'
+      swagger_url:
+        description: 'OpenAPI Swagger service base URL'
+        required: true
+        default: 'http://127.0.0.1:8088'
+      compare:
+        description: 'Optional previous run id to compare against'
+        required: false
+        default: ''
+      retain:
+        description: 'Local run histories to retain on the runner'
+        required: true
+        default: '20'
+      archive_artifacts:
+        description: 'Copy certification artifacts to the local regression archive'
+        required: true
+        type: boolean
+        default: true
+      create_issue_on_failure:
+        description: 'Create or update a GitHub issue when the regression fails'
+        required: true
+        type: boolean
+        default: true
+  schedule:
+    - cron: '17 9 * * *'
+
+permissions:
+  contents: read
+  issues: write
+  actions: read
+
+jobs:
+  regression:
+    name: Regression workflow
+    if: ${{ github.event_name == 'workflow_dispatch' || vars.REGRESSION_SCHEDULE_ENABLED == 'true' }}
+    runs-on: ${{ fromJSON(vars.REGRESSION_RUNNER_LABELS || '["self-hosted"]') }}
+    environment: regression-live
+    timeout-minutes: 480
+
+    steps:
+      - name: Checkout RealityEngine_CI
+        uses: actions/checkout@v4
+        with:
+          path: RealityEngine_CI
+          fetch-depth: 0
+
+      - name: Checkout RealityEngine_CPP
+        uses: actions/checkout@v4
+        with:
+          repository: ${{ github.repository_owner }}/RealityEngine_CPP
+          path: RealityEngine_CPP
+          fetch-depth: 0
+          token: ${{ secrets.REPO_ACCESS_TOKEN || github.token }}
+
+      - name: Checkout RealityEngine_LSP
+        uses: actions/checkout@v4
+        with:
+          repository: ${{ github.repository_owner }}/RealityEngine_LSP
+          path: RealityEngine_LSP
+          fetch-depth: 0
+          token: ${{ secrets.REPO_ACCESS_TOKEN || github.token }}
+
+      - name: Checkout RealityEngine_Scala
+        uses: actions/checkout@v4
+        with:
+          repository: ${{ github.repository_owner }}/RealityEngine_Scala
+          path: RealityEngine_Scala
+          fetch-depth: 0
+          token: ${{ secrets.REPO_ACCESS_TOKEN || github.token }}
+
+      - name: Checkout RealityEngine_Machines
+        uses: actions/checkout@v4
+        with:
+          repository: ${{ github.repository_owner }}/RealityEngine_Machines
+          path: RealityEngine_Machines
+          fetch-depth: 0
+          token: ${{ secrets.REPO_ACCESS_TOKEN || github.token }}
+
+      - name: Checkout RealityEngine_Manager
+        uses: actions/checkout@v4
+        with:
+          repository: ${{ github.repository_owner }}/RealityEngine_Manager
+          path: RealityEngine_Manager
+          fetch-depth: 0
+          token: ${{ secrets.REPO_ACCESS_TOKEN || github.token }}
+
+      - name: Checkout localAIStack
+        uses: actions/checkout@v4
+        with:
+          repository: ${{ github.repository_owner }}/localAIStack
+          path: localAIStack
+          fetch-depth: 0
+          token: ${{ secrets.REPO_ACCESS_TOKEN || github.token }}
+
+      - name: Checkout localOpenClawStack
+        uses: actions/checkout@v4
+        with:
+          repository: ${{ github.repository_owner }}/localOpenClawStack
+          path: localOpenClawStack
+          fetch-depth: 0
+          token: ${{ secrets.REPO_ACCESS_TOKEN || github.token }}
+
+      - name: Run regression workflow
+        id: regression
+        working-directory: RealityEngine_CI
+        env:
+          INPUT_RUN_MODE: ${{ github.event.inputs.run_mode }}
+          INPUT_ENGINE_SPEC: ${{ github.event.inputs.engine_spec }}
+          INPUT_OPENCLAW: ${{ github.event.inputs.openclaw }}
+          INPUT_MQTT_BROKER_URL: ${{ github.event.inputs.mqtt_broker_url }}
+          INPUT_MQTT_MAPPINGS: ${{ github.event.inputs.mqtt_mappings }}
+          INPUT_MCP_URL: ${{ github.event.inputs.mcp_url }}
+          INPUT_SWAGGER_URL: ${{ github.event.inputs.swagger_url }}
+          INPUT_COMPARE: ${{ github.event.inputs.compare }}
+          INPUT_RETAIN: ${{ github.event.inputs.retain }}
+          INPUT_ARCHIVE_ARTIFACTS: ${{ github.event.inputs.archive_artifacts }}
+          SCHEDULE_RUN_MODE: ${{ vars.REGRESSION_SCHEDULE_RUN_MODE || 'full' }}
+          SCHEDULE_ENGINE_SPEC: ${{ vars.REGRESSION_ENGINE_SPEC || 'cpp:1,lsp:1,scala:1' }}
+          SCHEDULE_OPENCLAW: ${{ vars.REGRESSION_OPENCLAW || 'false' }}
+          SCHEDULE_MQTT_BROKER_URL: ${{ vars.REGRESSION_MQTT_BROKER_URL || '' }}
+          SCHEDULE_MQTT_MAPPINGS: ${{ vars.REGRESSION_MQTT_MAPPINGS || '' }}
+          SCHEDULE_MCP_URL: ${{ vars.REGRESSION_MCP_URL || 'http://127.0.0.1:7331' }}
+          SCHEDULE_SWAGGER_URL: ${{ vars.REGRESSION_SWAGGER_URL || 'http://127.0.0.1:8088' }}
+          SCHEDULE_COMPARE: ${{ vars.REGRESSION_COMPARE_RUN || '' }}
+          SCHEDULE_RETAIN: ${{ vars.REGRESSION_RETAIN || '20' }}
+          SCHEDULE_ARCHIVE_ARTIFACTS: ${{ vars.REGRESSION_ARCHIVE_ARTIFACTS || 'true' }}
+        run: |
+          set -euo pipefail
+
+          run_id="gha-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}"
+          run_mode="${INPUT_RUN_MODE:-plan}"
+          engine_spec="${INPUT_ENGINE_SPEC:-cpp:1,lsp:1,scala:1}"
+          openclaw="${INPUT_OPENCLAW:-false}"
+          mqtt_broker_url="${INPUT_MQTT_BROKER_URL:-}"
+          mqtt_mappings="${INPUT_MQTT_MAPPINGS:-}"
+          mcp_url="${INPUT_MCP_URL:-http://127.0.0.1:7331}"
+          swagger_url="${INPUT_SWAGGER_URL:-http://127.0.0.1:8088}"
+          compare_run="${INPUT_COMPARE:-}"
+          retain="${INPUT_RETAIN:-20}"
+          archive_artifacts="${INPUT_ARCHIVE_ARTIFACTS:-true}"
+
+          if [ "${GITHUB_EVENT_NAME}" = "schedule" ]; then
+            run_mode="${SCHEDULE_RUN_MODE:-full}"
+            engine_spec="${SCHEDULE_ENGINE_SPEC:-cpp:1,lsp:1,scala:1}"
+            openclaw="${SCHEDULE_OPENCLAW:-false}"
+            mqtt_broker_url="${SCHEDULE_MQTT_BROKER_URL:-}"
+            mqtt_mappings="${SCHEDULE_MQTT_MAPPINGS:-}"
+            mcp_url="${SCHEDULE_MCP_URL:-http://127.0.0.1:7331}"
+            swagger_url="${SCHEDULE_SWAGGER_URL:-http://127.0.0.1:8088}"
+            compare_run="${SCHEDULE_COMPARE:-}"
+            retain="${SCHEDULE_RETAIN:-20}"
+            archive_artifacts="${SCHEDULE_ARCHIVE_ARTIFACTS:-true}"
+          fi
+
+          args=(
+            --run-id "$run_id"
+            --engines "$engine_spec"
+            --retain "$retain"
+            --mcp-url "$mcp_url"
+            --swagger-url "$swagger_url"
+          )
+
+          case "$run_mode" in
+            plan)
+              ;;
+            build-only)
+              args+=(--execute --build-only)
+              ;;
+            full)
+              args+=(--execute)
+              ;;
+            *)
+              echo "Unsupported run mode: $run_mode" >&2
+              exit 2
+              ;;
+          esac
+
+          if [ "$openclaw" = "true" ]; then
+            args+=(--openclaw)
+          else
+            args+=(--no-openclaw)
+          fi
+
+          [ -n "$mqtt_broker_url" ] && args+=(--mqtt-broker-url "$mqtt_broker_url")
+          [ -n "$mqtt_mappings" ] && args+=(--mqtt-mappings "$mqtt_mappings")
+          [ -n "$compare_run" ] && args+=(--compare "$compare_run")
+          [ "$archive_artifacts" = "true" ] && args+=(--archive "$PWD/.regression-tests/archive")
+
+          echo "run_id=$run_id" >> "$GITHUB_OUTPUT"
+          echo "run_dir=.regression-tests/runs/$run_id" >> "$GITHUB_OUTPUT"
+
+          bash scripts/regression-test.sh "${args[@]}"
+
+      - name: Upload regression artifacts
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: regression-${{ steps.regression.outputs.run_id || github.run_id }}
+          if-no-files-found: warn
+          retention-days: 30
+          path: |
+            RealityEngine_CI/.regression-tests/runs/**/summary.md
+            RealityEngine_CI/.regression-tests/runs/**/manifest.json
+            RealityEngine_CI/.regression-tests/runs/**/reports/service-inventory.json
+            RealityEngine_CI/.regression-tests/runs/**/reports/regression-comparison.json
+            RealityEngine_CI/.regression-tests/runs/**/responses/universal-vectors/selected-events.json
+            RealityEngine_CI/.regression-tests/runs/**/responses/universal-vectors/normalized-comparison.json
+            RealityEngine_CI/.regression-tests/runs/**/reports/mqtt-yuma*.json
+            RealityEngine_CI/.regression-tests/runs/**/reports/mcp-smoke.json
+            RealityEngine_CI/.regression-tests/runs/**/reports/openclaw*.json
+
+      - name: Create or update regression failure issue
+        if: ${{ failure() && (github.event_name == 'schedule' || github.event.inputs.create_issue_on_failure == 'true') }}
+        uses: actions/github-script@v7
+        env:
+          REGRESSION_RUN_ID: ${{ steps.regression.outputs.run_id }}
+        with:
+          script: |
+            const fs = require('fs');
+            const path = require('path');
+
+            const runId = process.env.REGRESSION_RUN_ID || `gha-${context.runId}-${context.runAttempt}`;
+            const runUrl = `${context.serverUrl}/${context.repo.owner}/${context.repo.repo}/actions/runs/${context.runId}`;
+            const summaryPath = path.join(process.cwd(), 'RealityEngine_CI', '.regression-tests', 'runs', runId, 'summary.md');
+            let summary = 'summary.md was not generated before the workflow failed.';
+            if (fs.existsSync(summaryPath)) {
+              summary = fs.readFileSync(summaryPath, 'utf8').split('\n').slice(0, 160).join('\n');
+            }
+
+            const title = `Regression failure: ${runId}`;
+            const body = [
+              `Regression run ${runId} failed.`,
+              '',
+              `Actions run: ${runUrl}`,
+              '',
+              'Selected summary:',
+              '',
+              '```markdown',
+              summary,
+              '```'
+            ].join('\n');
+
+            const issues = await github.paginate(github.rest.issues.listForRepo, {
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              state: 'open',
+              per_page: 100
+            });
+            const existing = issues.find((issue) => issue.title === title);
+            if (existing) {
+              await github.rest.issues.update({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                issue_number: existing.number,
+                body
+              });
+            } else {
+              await github.rest.issues.create({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                title,
+                body
+              });
+            }
