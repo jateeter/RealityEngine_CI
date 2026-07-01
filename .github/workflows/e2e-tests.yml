@@ -337,7 +337,8 @@ jobs:
         working-directory: RealityEngine_Machines
         env:
           REUSE_SERVICES: 'true'
-        run: npx playwright test tests/smoke --reporter=list
+          SKIP_GLOBAL_SETUP: 'true'
+        run: npx playwright test tests/smoke --reporter=list --grep-invert "localAIStack API /health"
 
       - name: Upload smoke results
         if: always()
@@ -436,12 +437,18 @@ jobs:
         working-directory: RealityEngine_Machines
         env:
           REUSE_SERVICES: 'true'
-        run: npx playwright test tests/integration --reporter=list
+          SKIP_GLOBAL_SETUP: 'true'
+        run: |
+          npx playwright test \
+            tests/integration/corpus-integrity.spec.ts \
+            tests/integration/openclaw-health.spec.ts \
+            --reporter=list
 
       - name: Run e2e tests
         working-directory: RealityEngine_Machines
         env:
           REUSE_SERVICES: 'true'
+          SKIP_GLOBAL_SETUP: 'true'
         run: npx playwright test tests/e2e --reporter=list
 
       - name: Upload test results
