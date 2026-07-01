@@ -577,6 +577,7 @@ jobs:
           MACHINES_DIR: ${{ github.workspace }}/RealityEngine_Machines
           SCALA_DIR: ${{ github.workspace }}/RealityEngine_Scala
           MGR_DIR: ${{ github.workspace }}/RealityEngine_Manager
+          NATIVE_HEALTH_ATTEMPTS: '180'
         run: |
           ./startUniverse.sh --no-openclaw --no-local-ai --skip-seed --engines=scala:2
 
