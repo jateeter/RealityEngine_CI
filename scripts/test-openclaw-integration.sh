@@ -45,7 +45,11 @@ USAGE
 while [ $# -gt 0 ]; do
   case "$1" in
     --report-json=*) REPORT_JSON="${1#*=}"; shift ;;
-    --report-json) REPORT_JSON="$2"; shift 2 ;;
+    --report-json)
+      [ $# -ge 2 ] || { echo "Missing value for --report-json" >&2; exit 2; }
+      REPORT_JSON="$2"
+      shift 2
+      ;;
     --help|-h) usage; exit 0 ;;
     *) echo "Unknown argument: $1" >&2; usage; exit 2 ;;
   esac
@@ -91,6 +95,7 @@ function readJson(name) {
 
 const payload = {
   status,
+  standard: 'openclaw-xacp',
   failureStage,
   peUrl,
   runId,
@@ -104,6 +109,8 @@ const payload = {
   correlationId,
   completionId,
   completionSourceId,
+  completionRegion: { offset: 4210, length: 4 },
+  generatedAt: new Date().toISOString(),
   artifacts: {
     acpStatus: readJson('acp-status.json'),
     handoff: readJson('acp-handoff.json'),
@@ -116,6 +123,7 @@ const payload = {
 fs.writeFileSync(reportPath, `${JSON.stringify(payload, null, 2)}\n`);
 NODE
   REPORT_WRITTEN=true
+  printf '[pass] OpenClaw e2e report written (%s)\n' "$REPORT_JSON"
 }
 
 cleanup() {
@@ -131,60 +139,6 @@ cleanup() {
   return "$exit_code"
 }
 trap cleanup EXIT
-
-write_report() {
-  [ -n "$REPORT_JSON" ] || return 0
-  mkdir -p "$(dirname "$REPORT_JSON")"
-  node - "$REPORT_JSON" "$TMP_DIR/final-push.json" "$PE_URL" "$RUN_ID" "$AGENT_ID" \
-    "$SOURCE_MAPPING_ID" "$SENSOR_ID" "$DISPATCH_ID" "$ENVELOPE_ID" "$CORRELATION_ID" \
-    "$COMPLETION_ID" "$COMPLETION_SOURCE_ID" "$FINAL_PUSH_STATUS_CODE" <<'NODE'
-const fs = require('fs');
-const [
-  reportPath,
-  finalPushPath,
-  peUrl,
-  runId,
-  agentId,
-  sourceMappingId,
-  sensorId,
-  dispatchId,
-  envelopeId,
-  correlationId,
-  completionId,
-  completionSourceId,
-  finalPushStatusCode
-] = process.argv.slice(2);
-
-let finalPush = null;
-try {
-  finalPush = JSON.parse(fs.readFileSync(finalPushPath, 'utf8'));
-} catch {
-  finalPush = null;
-}
-
-const report = {
-  status: 'pass',
-  standard: 'openclaw-xacp',
-  peUrl,
-  runId,
-  agentId,
-  sourceMappingId,
-  sensorId,
-  dispatchId,
-  envelopeId,
-  correlationId,
-  completionId,
-  completionSourceId,
-  completionRegion: { offset: 4210, length: 4 },
-  finalPushStatusCode,
-  finalPush,
-  generatedAt: new Date().toISOString()
-};
-
-fs.writeFileSync(reportPath, JSON.stringify(report, null, 2) + '\n');
-NODE
-  printf '[pass] OpenClaw e2e report written (%s)\n' "$REPORT_JSON"
-}
 
 curl_json() {
   local method="$1" url="$2" body="${3:-}"
