@@ -18,6 +18,43 @@ SEED_SOURCE_ID="openclaw-e2e-seed-${RUN_ID}"
 COMPLETION_ID="openclaw-e2e-completion-${RUN_ID}"
 TMP_DIR="$(mktemp -d -t re-openclaw-e2e.XXXXXX)"
 COMPLETION_SOURCE_ID=""
+FINAL_PUSH_STATUS_CODE=""
+REPORT_JSON=""
+
+usage() {
+  cat <<'EOF'
+Usage: test-openclaw-integration.sh [--report-json PATH]
+
+Validates the OpenClaw ACP integration against a running PE service.
+
+Options:
+  --report-json PATH  Write a JSON success report with run IDs and push details.
+  -h, --help          Show this help.
+EOF
+}
+
+while [ "$#" -gt 0 ]; do
+  case "$1" in
+    --report-json)
+      [ "$#" -ge 2 ] || { echo "missing value for --report-json" >&2; exit 2; }
+      REPORT_JSON="$2"
+      shift 2
+      ;;
+    --report-json=*)
+      REPORT_JSON="${1#*=}"
+      shift
+      ;;
+    -h|--help)
+      usage
+      exit 0
+      ;;
+    *)
+      echo "unknown argument: $1" >&2
+      usage >&2
+      exit 2
+      ;;
+  esac
+done
 
 cleanup() {
   curl -sk --max-time 5 -X DELETE "$PE_URL/api/sources/$SEED_SOURCE_ID" >/dev/null 2>&1 || true
@@ -27,6 +64,60 @@ cleanup() {
   rm -rf "$TMP_DIR"
 }
 trap cleanup EXIT
+
+write_report() {
+  [ -n "$REPORT_JSON" ] || return 0
+  mkdir -p "$(dirname "$REPORT_JSON")"
+  node - "$REPORT_JSON" "$TMP_DIR/final-push.json" "$PE_URL" "$RUN_ID" "$AGENT_ID" \
+    "$SOURCE_MAPPING_ID" "$SENSOR_ID" "$DISPATCH_ID" "$ENVELOPE_ID" "$CORRELATION_ID" \
+    "$COMPLETION_ID" "$COMPLETION_SOURCE_ID" "$FINAL_PUSH_STATUS_CODE" <<'NODE'
+const fs = require('fs');
+const [
+  reportPath,
+  finalPushPath,
+  peUrl,
+  runId,
+  agentId,
+  sourceMappingId,
+  sensorId,
+  dispatchId,
+  envelopeId,
+  correlationId,
+  completionId,
+  completionSourceId,
+  finalPushStatusCode
+] = process.argv.slice(2);
+
+let finalPush = null;
+try {
+  finalPush = JSON.parse(fs.readFileSync(finalPushPath, 'utf8'));
+} catch {
+  finalPush = null;
+}
+
+const report = {
+  status: 'pass',
+  standard: 'openclaw-xacp',
+  peUrl,
+  runId,
+  agentId,
+  sourceMappingId,
+  sensorId,
+  dispatchId,
+  envelopeId,
+  correlationId,
+  completionId,
+  completionSourceId,
+  completionRegion: { offset: 4210, length: 4 },
+  finalPushStatusCode,
+  finalPush,
+  generatedAt: new Date().toISOString()
+};
+
+fs.writeFileSync(reportPath, JSON.stringify(report, null, 2) + '\n');
+NODE
+  printf '[pass] OpenClaw e2e report written (%s)\n' "$REPORT_JSON"
+}
 
 curl_json() {
   local method="$1" url="$2" body="${3:-}"
@@ -236,3 +327,21 @@ process.stdout.write(hit.id || expected);
 NODE
 )"
 printf '[pass] OpenClaw completion source mapped to region 4210:4 (%s)\n' "$COMPLETION_SOURCE_ID"
+
+code="$(curl_json POST "$PE_URL/api/push" '{"compact":true}')"
+FINAL_PUSH_STATUS_CODE="$code"
+assert_2xx "$code" "OpenClaw completion push"
+cp "$TMP_DIR/response.json" "$TMP_DIR/final-push.json"
+node - "$TMP_DIR/final-push.json" <<'NODE'
+const fs = require('fs');
+const push = JSON.parse(fs.readFileSync(process.argv[2], 'utf8'));
+const isObject = push && typeof push === 'object' && !Array.isArray(push);
+if (!(isObject && (push.success || push.pushed || Object.prototype.hasOwnProperty.call(push, 'stepCount') || push.id))) {
+  console.error('push response did not expose a recognized success marker');
+  console.error(JSON.stringify(push, null, 2));
+  process.exit(1);
+}
+console.log('[pass] OpenClaw completion reached PE push path');
+NODE
+
+write_report

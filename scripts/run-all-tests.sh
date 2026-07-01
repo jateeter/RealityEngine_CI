@@ -251,10 +251,11 @@ run_openclaw_integration_e2e() {
     fi
 
     require_node "$label" "25.5.0" || return
+    local report_dir="${OPENCLAW_E2E_REPORT_DIR:-/tmp/re-openclaw-e2e-reports}"
 
     local registry_file="${RE_REGISTRY_FILE:-/tmp/re-registry/re-registry.json}"
     if [ -f "$registry_file" ]; then
-        local targets target_count=0 id pe_url
+        local targets target_count=0 id pe_url safe_id report_path
         targets="$(python3 - "$registry_file" <<'PYEOF' 2>/dev/null || true
 import json
 import sys
@@ -267,12 +268,14 @@ for inst in instances:
     if iid and pe_url:
         print(f"{iid} {pe_url}")
 PYEOF
-)"
+        )"
         [ -n "$targets" ] || { skip_suite "$label" "multi-engine registry has no PE URLs"; return; }
         while read -r id pe_url; do
             [ -z "$id" ] && continue
             target_count=$((target_count + 1))
-            run_shell_suite "$label ($id)" "$CI_DIR" "PE_URL='$pe_url' ACP_COMPLETION_SOURCE_MAPPING_ID='${ACP_COMPLETION_SOURCE_MAPPING_ID:-acp-openclaw-completion}' '$CI_DIR/scripts/test-openclaw-integration.sh'"
+            safe_id="$(printf '%s' "$id" | tr -c 'A-Za-z0-9_.-' '_')"
+            report_path="$report_dir/${safe_id}.json"
+            run_shell_suite "$label ($id)" "$CI_DIR" "PE_URL='$pe_url' ACP_COMPLETION_SOURCE_MAPPING_ID='${ACP_COMPLETION_SOURCE_MAPPING_ID:-acp-openclaw-completion}' '$CI_DIR/scripts/test-openclaw-integration.sh' --report-json '$report_path'"
         done <<< "$targets"
         [ "$target_count" -gt 0 ] || skip_suite "$label" "multi-engine registry has no PE URLs"
         return
@@ -283,7 +286,7 @@ PYEOF
         return
     fi
 
-    run_suite "$label" "$CI_DIR" "$CI_DIR/scripts/test-openclaw-integration.sh"
+    run_suite "$label" "$CI_DIR" "$CI_DIR/scripts/test-openclaw-integration.sh" --report-json "$report_dir/default.json"
 }
 
 # -- Unit/build/contract suites -------------------------------------------
