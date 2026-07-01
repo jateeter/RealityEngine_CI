@@ -544,6 +544,15 @@ jobs:
           cache: 'npm'
           cache-dependency-path: RealityEngine_Machines/package.json
 
+      - name: Setup Java for native Scala engines
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '21'
+
+      - name: Setup sbt for native Scala engines
+        uses: sbt/setup-sbt@v1
+
       - name: Install Playwright + deps
         working-directory: RealityEngine_Machines
         run: |
