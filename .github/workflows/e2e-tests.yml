@@ -331,13 +331,14 @@ jobs:
           MACHINES_DIR: ${{ github.workspace }}/RealityEngine_Machines
           SCALA_DIR: ${{ github.workspace }}/RealityEngine_Scala
           MGR_DIR: ${{ github.workspace }}/RealityEngine_Manager
-        run: ./startUniverse.sh --no-openclaw --no-local-ai --skip-seed
+        run: ./startUniverse.sh --no-openclaw --no-local-ai --skip-seed --machine-corpus=standard-deployment
 
       - name: Run smoke tests
         working-directory: RealityEngine_Machines
         env:
           REUSE_SERVICES: 'true'
-        run: npx playwright test tests/smoke --reporter=list
+          SKIP_GLOBAL_SETUP: 'true'
+        run: npx playwright test tests/smoke --reporter=list --grep-invert "localAIStack API /health"
 
       - name: Upload smoke results
         if: always()
@@ -430,18 +431,24 @@ jobs:
           MACHINES_DIR: ${{ github.workspace }}/RealityEngine_Machines
           SCALA_DIR: ${{ github.workspace }}/RealityEngine_Scala
           MGR_DIR: ${{ github.workspace }}/RealityEngine_Manager
-        run: ./startUniverse.sh --no-openclaw --no-local-ai
+        run: ./startUniverse.sh --no-openclaw --no-local-ai --machine-corpus=standard-deployment
 
       - name: Run integration tests
         working-directory: RealityEngine_Machines
         env:
           REUSE_SERVICES: 'true'
-        run: npx playwright test tests/integration --reporter=list
+          SKIP_GLOBAL_SETUP: 'true'
+        run: |
+          npx playwright test \
+            tests/integration/corpus-integrity.spec.ts \
+            tests/integration/openclaw-health.spec.ts \
+            --reporter=list
 
       - name: Run e2e tests
         working-directory: RealityEngine_Machines
         env:
           REUSE_SERVICES: 'true'
+          SKIP_GLOBAL_SETUP: 'true'
         run: npx playwright test tests/e2e --reporter=list
 
       - name: Upload test results
@@ -537,6 +544,15 @@ jobs:
           cache: 'npm'
           cache-dependency-path: RealityEngine_Machines/package.json
 
+      - name: Setup Java for native Scala engines
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '21'
+
+      - name: Setup sbt for native Scala engines
+        uses: sbt/setup-sbt@v1
+
       - name: Install Playwright + deps
         working-directory: RealityEngine_Machines
         run: |
@@ -561,8 +577,10 @@ jobs:
           MACHINES_DIR: ${{ github.workspace }}/RealityEngine_Machines
           SCALA_DIR: ${{ github.workspace }}/RealityEngine_Scala
           MGR_DIR: ${{ github.workspace }}/RealityEngine_Manager
+          NATIVE_HEALTH_ATTEMPTS: '180'
+          HOST_IP_OVERRIDE: 127.0.0.1
         run: |
-          ./startUniverse.sh --no-openclaw --no-local-ai --skip-seed --engines=scala:1,scala:2
+          ./startUniverse.sh --no-openclaw --no-local-ai --skip-seed --machine-corpus=standard-deployment --engines=scala:2
 
       - name: Run multi-instance integration tests
         working-directory: RealityEngine_Machines

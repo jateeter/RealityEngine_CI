@@ -1,0 +1,19 @@
+# Standard deployment corpus
+#
+# This intentionally small corpus proves that each deployed engine can load
+# machine JSON, expose inventory, evaluate deterministic CES fixtures, and keep
+# integration fixtures available during deployment validation. The full corpus
+# remains the authoritative production corpus and can be loaded after stack
+# completion.
+DLX011_req-ack-handshake.json
+DLX017_start-busy-done.json
+DLX034_watchdog-kick-window.json
+DLX041_one-hot-grant.json
+DCMemoryAlertFF.json
+DCNetworkThrottleFF.json
+OpenClawCompletionE2E.json
+DocumentSigningWorkflowMonitor.json
+QualificationVerificationMonitor.json
+HomeTransportationBarrierMonitor.json
+DataCenterDcx001010Interconnect.json
+DigitalLogicDlx021030Interconnect.json

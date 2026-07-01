@@ -51,11 +51,12 @@ set -o pipefail
 CI_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 SCALA_DIR="$CI_DIR/../RealityEngine_Scala"
 MGR_DIR="$CI_DIR/../RealityEngine_Manager"
-MACHINES_DIR="$CI_DIR/../RealityEngine_Machines"
+MACHINES_DIR="${MACHINES_DIR:-$CI_DIR/../RealityEngine_Machines}"
 CPP_DIR="$CI_DIR/../RealityEngine_CPP"
 LSP_DIR="$CI_DIR/../RealityEngine_LSP"
 LAS_DIR="$CI_DIR/../localAIStack"
 OCS_DIR="$CI_DIR/../localOpenClawStack"
+FULL_MACHINES_DIR="$MACHINES_DIR"
 CI_INTEGRATIONS_CONFIG="$CI_DIR/config/integrations.json"
 CI_INTEGRATIONS_EXAMPLE="$CI_DIR/config/integrations.example.json"
 MCP_HTTP_ENABLED="${MCP_HTTP_ENABLED:-true}"
@@ -84,6 +85,10 @@ LOCAL_AI_ENABLED="${LOCAL_AI_ENABLED:-true}"
 # ── Flags ──────────────────────────────────────────────────────────────────
 FRESH_START=false
 MACHINE_LOAD="runtime"       # runtime | ci-seed | none
+MACHINE_CORPUS="full"        # full | standard-deployment
+MACHINE_CORPUS_MANIFEST="$CI_DIR/config/standard-deployment-corpus.txt"
+MACHINE_CORPUS_WORK_DIR="${MACHINE_CORPUS_WORK_DIR:-/tmp/realityengine-standard-deployment-corpus}"
+POST_START_FULL_CORPUS="off" # off | seed
 PE_SOURCE_BOOTSTRAP="auto"   # auto | off
 VALIDATE_CORPUS="once"       # once | off
 MANAGER_NATIVE=false
@@ -111,6 +116,13 @@ startUniverse.sh — engine-selectable CI orchestrator
   --machine-load=ci-seed        RE starts empty (RE_LOAD_MACHINES=0); CI calls seed-machines.sh --re-only
                                   once per RE instance after RE health, then triggers PE bootstrap
   --machine-load=none           RE starts empty; no seeding, no PE bootstrap regardless of other flags
+  --machine-corpus=full         Use the full RealityEngine_Machines corpus at boot (default)
+  --machine-corpus=standard-deployment
+                                Materialize and boot from config/standard-deployment-corpus.txt
+  --machine-corpus-manifest=PATH
+                                Alternate manifest for --machine-corpus=standard-deployment
+  --post-start-full-corpus=off  Do not load the full corpus after startup (default)
+  --post-start-full-corpus=seed After stack completion, seed the full corpus into RE instances
   --pe-source-bootstrap=auto    After the machine-load phase, call POST /api/sources/bootstrap-from-machines
                                   on each PE instance (default)
   --pe-source-bootstrap=off     Skip PE source materialisation entirely
@@ -150,6 +162,9 @@ for arg in "$@"; do
   case "$arg" in
     --fresh)                    FRESH_START=true ;;
     --machine-load=*)           MACHINE_LOAD="${arg#*=}" ;;
+    --machine-corpus=*)         MACHINE_CORPUS="${arg#*=}" ;;
+    --machine-corpus-manifest=*) MACHINE_CORPUS_MANIFEST="${arg#*=}" ;;
+    --post-start-full-corpus=*) POST_START_FULL_CORPUS="${arg#*=}" ;;
     --pe-source-bootstrap=*)    PE_SOURCE_BOOTSTRAP="${arg#*=}" ;;
     --validate-corpus=*)        VALIDATE_CORPUS="${arg#*=}" ;;
     --skip-seed)                MACHINE_LOAD=runtime; PE_SOURCE_BOOTSTRAP=off ;;  # legacy alias
@@ -174,6 +189,8 @@ done
 case "$RE_ENGINE"          in ai|cpp|lsp)              ;; *) echo "Bad --re-engine=$RE_ENGINE"; exit 2 ;; esac
 case "$PE_ENGINE"          in ai|cpp|lsp)              ;; *) echo "Bad --pe-engine=$PE_ENGINE"; exit 2 ;; esac
 case "$MACHINE_LOAD"       in runtime|ci-seed|none)    ;; *) echo "Bad --machine-load=$MACHINE_LOAD (runtime|ci-seed|none)"; exit 2 ;; esac
+case "$MACHINE_CORPUS"     in full|standard-deployment);; *) echo "Bad --machine-corpus=$MACHINE_CORPUS (full|standard-deployment)"; exit 2 ;; esac
+case "$POST_START_FULL_CORPUS" in off|seed)            ;; *) echo "Bad --post-start-full-corpus=$POST_START_FULL_CORPUS (off|seed)"; exit 2 ;; esac
 case "$PE_SOURCE_BOOTSTRAP" in auto|off)               ;; *) echo "Bad --pe-source-bootstrap=$PE_SOURCE_BOOTSTRAP (auto|off)"; exit 2 ;; esac
 case "$VALIDATE_CORPUS"    in once|off)                ;; *) echo "Bad --validate-corpus=$VALIDATE_CORPUS (once|off)"; exit 2 ;; esac
 
@@ -182,6 +199,19 @@ case "$MACHINE_LOAD" in
     runtime) _RE_LOAD_MACHINES=1 ;;
     *)       _RE_LOAD_MACHINES=0 ;;
 esac
+
+if [ "$MACHINE_CORPUS" = "standard-deployment" ]; then
+    bash "$CI_DIR/scripts/materialize-machine-corpus.sh" \
+        "$FULL_MACHINES_DIR" "$MACHINE_CORPUS_MANIFEST" "$MACHINE_CORPUS_WORK_DIR" >/tmp/machine_corpus_materialize.log 2>&1 || {
+        cat /tmp/machine_corpus_materialize.log >&2
+        exit 1
+    }
+    MACHINES_DIR="$MACHINE_CORPUS_WORK_DIR"
+    _MACHINE_CORPUS_COUNT="$(cat "$MACHINE_CORPUS_WORK_DIR/machine-count.txt" 2>/dev/null || echo "?")"
+else
+    _MACHINE_CORPUS_COUNT="$(find "$MACHINES_DIR/machines" -name '*.json' 2>/dev/null | wc -l | tr -d ' ')"
+fi
+_FULL_MACHINE_CORPUS_COUNT="$(find "$FULL_MACHINES_DIR/machines" -name '*.json' 2>/dev/null | wc -l | tr -d ' ')"
 
 # When --engines= is specified it supersedes --re-engine / --pe-engine
 MULTI_ENGINE_MODE=false
@@ -195,6 +225,11 @@ RE_ENGINE=$RE_ENGINE
 PE_ENGINE=$PE_ENGINE
 ENGINES=$ENGINES
 MULTI_ENGINE_MODE=$MULTI_ENGINE_MODE
+MACHINE_CORPUS=$MACHINE_CORPUS
+MACHINE_CORPUS_MANIFEST=$MACHINE_CORPUS_MANIFEST
+MACHINE_CORPUS_ACTIVE_DIR=$MACHINES_DIR
+FULL_MACHINES_DIR=$FULL_MACHINES_DIR
+POST_START_FULL_CORPUS=$POST_START_FULL_CORPUS
 OPENCLAW=$OPENCLAW
 OCS_NATIVE_UNLOADED=$OCS_NATIVE_UNLOADED
 MCP_HTTP_ENABLED=$MCP_HTTP_ENABLED
@@ -462,6 +497,51 @@ PYEOF
         done
     fi
     set -e
+}
+
+load_full_corpus_after_stack_completion() {
+    [ "$MACHINE_CORPUS" = "standard-deployment" ] || return 0
+    [ "$POST_START_FULL_CORPUS" = "seed" ] || return 0
+    [ "$MACHINE_LOAD" != "none" ] || { info "Full corpus post-load skipped because --machine-load=none"; return 0; }
+    [ -x "$FULL_MACHINES_DIR/scripts/seed-machines.sh" ] || {
+        add_warn "Full corpus post-load skipped — seed script missing at $FULL_MACHINES_DIR/scripts/seed-machines.sh"
+        return 0
+    }
+
+    info "Post-start full corpus load: seeding ${_FULL_MACHINE_CORPUS_COUNT:-?} machine(s) from $FULL_MACHINES_DIR"
+    if [ "$MULTI_ENGINE_MODE" = true ] && [ -f "$REGISTRY_FILE" ]; then
+        while IFS= read -r _inst_id; do
+            _inst_entry=$(registry_get "$_inst_id" 2>/dev/null || true)
+            _re_url=$(echo "$_inst_entry" \
+                | python3 -c "import json,sys; print(json.load(sys.stdin).get('re_url',''))" 2>/dev/null || true)
+            _pe_url=$(echo "$_inst_entry" \
+                | python3 -c "import json,sys; print(json.load(sys.stdin).get('pe_url',''))" 2>/dev/null || true)
+            [ -z "$_re_url" ] && continue
+            info "Full corpus seed → $_inst_id ($_re_url)..."
+            bash "$FULL_MACHINES_DIR/scripts/seed-machines.sh" --re-only "$_re_url" \
+                > "/tmp/corpus_full_seed_${_inst_id}.log" 2>&1 \
+                && ok "Full corpus seeded ($_inst_id)" \
+                || add_warn "Full corpus seed to $_inst_id completed with errors — check /tmp/corpus_full_seed_${_inst_id}.log"
+            if [ "$PE_SOURCE_BOOTSTRAP" = "auto" ] && [ -n "$_pe_url" ]; then
+                info "PE source refresh after full corpus → $_inst_id ($_pe_url)..."
+                bash "$CI_DIR/scripts/pe-source-bootstrap.sh" "$_pe_url" \
+                    >> "/tmp/corpus_full_seed_${_inst_id}.log" 2>&1 \
+                    || add_warn "PE source refresh after full corpus for $_inst_id had errors"
+            fi
+        done < <(registry_ids 2>/dev/null)
+    else
+        info "Full corpus seed → Docker RE (https://localhost:5001)..."
+        bash "$FULL_MACHINES_DIR/scripts/seed-machines.sh" --re-only \
+            "https://localhost:5001" > /tmp/corpus_full_seed.log 2>&1 \
+            && ok "Full corpus seeded (see /tmp/corpus_full_seed.log)" \
+            || add_warn "Full corpus seeding completed with errors — check /tmp/corpus_full_seed.log"
+        if [ "$PE_SOURCE_BOOTSTRAP" = "auto" ]; then
+            info "PE source refresh after full corpus..."
+            bash "$CI_DIR/scripts/pe-source-bootstrap.sh" "https://localhost:3004" \
+                >> /tmp/corpus_full_seed.log 2>&1 \
+                || add_warn "PE source refresh after full corpus completed with errors"
+        fi
+    fi
 }
 
 # ── Colours + helpers ─────────────────────────────────────────────────────
@@ -864,10 +944,15 @@ validate_lsp_runtime_deps() {
 }
 
 # ── Host IP detection ─────────────────────────────────────────────────────
-HOST_IP="$(bash "$CI_DIR/scripts/detect-host-ip.sh" 2>/dev/null || echo "127.0.0.1")"
+HOST_IP="${HOST_IP_OVERRIDE:-$(bash "$CI_DIR/scripts/detect-host-ip.sh" 2>/dev/null || echo "127.0.0.1")}"
 export HOST_IP
-[ "$HOST_IP" = "127.0.0.1" ] && \
-    warn "Could not detect LAN IP — using 127.0.0.1 (multi-engine URLs will be local-only)"
+if [ "$HOST_IP" = "127.0.0.1" ]; then
+    if [ -n "${HOST_IP_OVERRIDE:-}" ]; then
+        warn "Using HOST_IP_OVERRIDE=127.0.0.1 (multi-engine URLs will be local-only)"
+    else
+        warn "Could not detect LAN IP — using 127.0.0.1 (multi-engine URLs will be local-only)"
+    fi
+fi
 
 # ── Multi-engine spawn helpers ────────────────────────────────────────────
 
@@ -1338,6 +1423,8 @@ if [ "$DRY_RUN" = true ]; then
     printf "  %-28s %s\n" "PE engine"  "$PE_ENGINE"
     printf "  %-28s %s\n" "Fresh"              "$FRESH_START"
     printf "  %-28s %s\n" "Machine load"       "$MACHINE_LOAD"
+    printf "  %-28s %s\n" "Machine corpus"     "$MACHINE_CORPUS ($_MACHINE_CORPUS_COUNT/${_FULL_MACHINE_CORPUS_COUNT:-?})"
+    printf "  %-28s %s\n" "Full corpus post-load" "$POST_START_FULL_CORPUS"
     printf "  %-28s %s\n" "PE source bootstrap" "$PE_SOURCE_BOOTSTRAP"
     printf "  %-28s %s\n" "Validate corpus"    "$VALIDATE_CORPUS"
     printf "  %-28s %s\n" "RE_LOAD_MACHINES"   "$_RE_LOAD_MACHINES"
@@ -1383,6 +1470,8 @@ if [ "$DRY_RUN" = true ]; then
     fi
     echo ""
     echo "  Machine load:       $MACHINE_LOAD  (RE_LOAD_MACHINES=$_RE_LOAD_MACHINES)"
+    echo "  Machine corpus:     $MACHINE_CORPUS ($_MACHINE_CORPUS_COUNT/${_FULL_MACHINE_CORPUS_COUNT:-?})"
+    echo "  Full corpus load:   $POST_START_FULL_CORPUS"
     echo "  PE bootstrap:       $PE_SOURCE_BOOTSTRAP"
     echo "  Validate corpus:    $VALIDATE_CORPUS"
     echo ""
@@ -2194,6 +2283,8 @@ print(f'machines_evaluated={n}, non-zero_perceptual_elements={nz}')
   set -e
 fi
 
+load_full_corpus_after_stack_completion
+
 # =============================================================================
 hdr "8 · Summary"
 # =============================================================================
@@ -2225,6 +2316,14 @@ printf "    %-30s %s\n" "Grafana"                   "http://localhost:3002"
 printf "    %-30s %s\n" "Prometheus"                "http://localhost:9090"
 printf "    %-30s %s\n" "AI Bridge Metrics"         "http://localhost:${BRIDGE_METRICS_PORT}/metrics"
 printf "    %-30s %s\n" "Loki"                      "https://localhost:3100"
+echo ""
+echo "  Machine Corpus"
+printf "    %-30s %s\n" "Boot corpus"               "$MACHINE_CORPUS ($_MACHINE_CORPUS_COUNT/${_FULL_MACHINE_CORPUS_COUNT:-?} machines)"
+printf "    %-30s %s\n" "Active corpus root"        "$MACHINES_DIR"
+if [ "$MACHINE_CORPUS" != "full" ]; then
+printf "    %-30s %s\n" "Full corpus root"          "$FULL_MACHINES_DIR"
+printf "    %-30s %s\n" "Post-start full load"      "$POST_START_FULL_CORPUS"
+fi
 echo ""
 if [ "$OCS_STARTED" = true ]; then
 echo "  OpenClaw"
@@ -2303,6 +2402,13 @@ manifest = {
     "engines":                 "$ENGINES",
     "re_engine":               "$RE_ENGINE",
     "pe_engine":               "$PE_ENGINE",
+    "machine_corpus":          "$MACHINE_CORPUS",
+    "machine_corpus_manifest": "$MACHINE_CORPUS_MANIFEST",
+    "machine_corpus_active_dir": "$MACHINES_DIR",
+    "machine_corpus_count":    "$_MACHINE_CORPUS_COUNT",
+    "full_machines_dir":       "$FULL_MACHINES_DIR",
+    "full_machine_corpus_count": "$_FULL_MACHINE_CORPUS_COUNT",
+    "post_start_full_corpus":  "$POST_START_FULL_CORPUS",
     "host_ip":                 "$HOST_IP",
     "registry_url":            "http://$HOST_IP:${REGISTRY_PORT}/re-registry.json" if "$MULTI_ENGINE_MODE" == "true" else "",
     "docker_services":         [s for s in "$_docker_svcs".split(",") if s],
