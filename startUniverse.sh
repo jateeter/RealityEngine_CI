@@ -1766,12 +1766,24 @@ except Exception:
         _pe_arg="${_first_pe_url:-http://localhost:${SCALA_PE_BASE}}"
 
         _manager_nvm_dir="${NVM_DIR:-$HOME/.nvm}"
-        if [ ! -s "$_manager_nvm_dir/nvm.sh" ]; then
-            _node_version="$(node --version 2>/dev/null || true)"
-            if [ "$_node_version" = "v25.5.0" ]; then
-                _manager_nvm_dir="/tmp/realityengine-manager-nvm-shim"
-                mkdir -p "$_manager_nvm_dir"
-                cat > "$_manager_nvm_dir/nvm.sh" <<'SH'
+        _manager_needs_nvm_shim=false
+        if [ -s "$_manager_nvm_dir/nvm.sh" ]; then
+            if ! (
+                # shellcheck source=/dev/null
+                . "$_manager_nvm_dir/nvm.sh" >/dev/null 2>&1
+                nvm use 25.5.0 >/dev/null 2>&1
+            ); then
+                _manager_needs_nvm_shim=true
+            fi
+        else
+            _manager_needs_nvm_shim=true
+        fi
+
+        _node_version="$(node --version 2>/dev/null || true)"
+        if [ "$_manager_needs_nvm_shim" = true ] && [ "$_node_version" = "v25.5.0" ]; then
+            _manager_nvm_dir="/tmp/realityengine-manager-nvm-shim"
+            mkdir -p "$_manager_nvm_dir"
+            cat > "$_manager_nvm_dir/nvm.sh" <<'SH'
 nvm() {
   case "${1:-}" in
     use)
@@ -1788,8 +1800,7 @@ nvm() {
   esac
 }
 SH
-                info "Using Node $_node_version from PATH for Manager nvm compatibility"
-            fi
+            info "Using Node $_node_version from PATH for Manager nvm compatibility"
         fi
 
         info "Starting Manager (Visualizer) natively — RE: $_re_arg  registry: http://$HOST_IP:${REGISTRY_PORT}/re-registry.json"
