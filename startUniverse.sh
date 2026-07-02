@@ -1832,7 +1832,14 @@ if [ "$LOCAL_AI_ENABLED" != true ]; then
     info "localAIStack API: skipped (--no-local-ai)"
 else
     info "Building localAIStack API image..."
-    (cd "$LAS_DIR" && docker compose build api 2>&1) | tail -5
+    # Capture full build output so a failure surfaces the real buildkit error
+    # rather than just the "View build details" link (piping through `tail -5`
+    # discards the diagnostic under set -e / pipefail). See issue #45.
+    _api_build_log="/tmp/localai-api-build.log"
+    if ! (cd "$LAS_DIR" && docker compose build api) > "$_api_build_log" 2>&1; then
+        die "localAIStack API image build failed\n$(tail -n 30 "$_api_build_log")"
+    fi
+    tail -n 5 "$_api_build_log"
     info "Starting localAIStack API (lifespan hooks register machines + sensors)..."
     (cd "$LAS_DIR" && docker compose up -d --force-recreate --wait \
         --wait-timeout 120 api 2>&1) || \
