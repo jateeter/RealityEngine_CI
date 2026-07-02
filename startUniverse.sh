@@ -1223,8 +1223,13 @@ for dir_var in SCALA_DIR MGR_DIR MACHINES_DIR LAS_DIR; do
 done
 ok "Sibling repos found: RealityEngine_Scala, RealityEngine_Manager, RealityEngine_Machines, localAIStack"
 
-docker info > /dev/null 2>&1 || die "Docker daemon not running — start Docker Desktop first"
-ok "Docker daemon reachable"
+if docker info > /dev/null 2>&1; then
+    ok "Docker daemon reachable"
+elif [ "$DRY_RUN" = true ]; then
+    warn "Dry-run: Docker daemon not reachable; compose startup is not validated"
+else
+    die "Docker daemon not running — start Docker Desktop first"
+fi
 
 [ -f "$CI_DIR/.env" ] || die ".env not found — copy .env.example and configure"
 # shellcheck source=/dev/null

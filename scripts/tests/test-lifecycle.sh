@@ -99,6 +99,14 @@ if _scenario_selected "dry-run"; then
   SCENARIOS_RUN+=("dry-run")
   _hdr "Scenario: dry-run"
 
+  stamp_file="$CI_DIR/.universe-engine-selection"
+  stamp_before_present=false
+  stamp_before=""
+  if [ -f "$stamp_file" ]; then
+    stamp_before_present=true
+    stamp_before="$(cat "$stamp_file")"
+  fi
+
   output=$(./startUniverse.sh --dry-run --no-openclaw 2>&1) && _exit=0 || _exit=$?
   assert_eq "$_exit" "0" "dry-run exits 0"
   echo "$output" | grep -q "Dry-Run Plan" \
@@ -107,7 +115,15 @@ if _scenario_selected "dry-run"; then
   echo "$output" | grep -q "Pre-flight: PASSED" \
     && _ok "output contains 'Pre-flight: PASSED'" \
     || _fail "output missing 'Pre-flight: PASSED'"
-  assert_file_absent "$CI_DIR/.universe-engine-selection"
+  if [ "$stamp_before_present" = true ]; then
+    if [ -f "$stamp_file" ] && [ "$(cat "$stamp_file")" = "$stamp_before" ]; then
+      _ok "dry-run leaves existing engine-selection stamp unchanged"
+    else
+      _fail "dry-run modified existing engine-selection stamp"
+    fi
+  else
+    assert_file_absent "$stamp_file"
+  fi
 
   # dry-run with --engines= should show instance plan
   output2=$(./startUniverse.sh --dry-run --engines=scala:2,cpp:1 --no-openclaw 2>&1) && true || true
