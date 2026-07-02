@@ -383,6 +383,12 @@ run_machines_offline() {
     else
         skip_suite "Machines offline" "no Python >=3.11 found"
     fi
+    # JSON-Schema deployment gate: machines + registries + trigger files vs schemas/.
+    # Needs ajv (Machines devDependencies); in --deployment mode a missing
+    # node_modules is treated as a failure, forcing 'npm ci' before deploy.
+    if node_modules_present "Machines validate:schemas" "$MACHINES_DIR"; then
+        run_suite "Machines validate:schemas" "$MACHINES_DIR" npm run validate:schemas
+    fi
 }
 
 run_localai_tests() {
