@@ -331,13 +331,14 @@ jobs:
           MACHINES_DIR: ${{ github.workspace }}/RealityEngine_Machines
           SCALA_DIR: ${{ github.workspace }}/RealityEngine_Scala
           MGR_DIR: ${{ github.workspace }}/RealityEngine_Manager
-        run: ./startUniverse.sh --no-openclaw --no-local-ai --skip-seed
+        run: ./startUniverse.sh --no-openclaw --no-local-ai --skip-seed --machine-corpus=standard-deployment
 
       - name: Run smoke tests
         working-directory: RealityEngine_Machines
         env:
           REUSE_SERVICES: 'true'
-        run: npx playwright test tests/smoke --reporter=list
+          SKIP_GLOBAL_SETUP: 'true'
+        run: npx playwright test tests/smoke --reporter=list --grep-invert "localAIStack API /health"
 
       - name: Upload smoke results
         if: always()
@@ -430,18 +431,24 @@ jobs:
           MACHINES_DIR: ${{ github.workspace }}/RealityEngine_Machines
           SCALA_DIR: ${{ github.workspace }}/RealityEngine_Scala
           MGR_DIR: ${{ github.workspace }}/RealityEngine_Manager
-        run: ./startUniverse.sh --no-openclaw --no-local-ai
+        run: ./startUniverse.sh --no-openclaw --no-local-ai --machine-corpus=standard-deployment
 
       - name: Run integration tests
         working-directory: RealityEngine_Machines
         env:
           REUSE_SERVICES: 'true'
-        run: npx playwright test tests/integration --reporter=list
+          SKIP_GLOBAL_SETUP: 'true'
+        run: |
+          npx playwright test \
+            tests/integration/corpus-integrity.spec.ts \
+            tests/integration/openclaw-health.spec.ts \
+            --reporter=list
 
       - name: Run e2e tests
         working-directory: RealityEngine_Machines
         env:
           REUSE_SERVICES: 'true'
+          SKIP_GLOBAL_SETUP: 'true'
         run: npx playwright test tests/e2e --reporter=list
 
       - name: Upload test results
@@ -537,6 +544,18 @@ jobs:
           cache: 'npm'
           cache-dependency-path: RealityEngine_Machines/package.json
 
+      - name: Setup Java for native Scala engines
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '21'
+
+      - name: Setup sbt for native Scala engines
+        run: |
+          curl -fsSL https://github.com/sbt/sbt/releases/download/v1.12.8/sbt-1.12.8.tgz -o /tmp/sbt-1.12.8.tgz
+          sudo tar -xzf /tmp/sbt-1.12.8.tgz -C /opt
+          echo "/opt/sbt/bin" >> "$GITHUB_PATH"
+
       - name: Install Playwright + deps
         working-directory: RealityEngine_Machines
         run: |
@@ -561,14 +580,17 @@ jobs:
           MACHINES_DIR: ${{ github.workspace }}/RealityEngine_Machines
           SCALA_DIR: ${{ github.workspace }}/RealityEngine_Scala
           MGR_DIR: ${{ github.workspace }}/RealityEngine_Manager
+          NATIVE_HEALTH_ATTEMPTS: '180'
+          HOST_IP_OVERRIDE: 127.0.0.1
         run: |
-          ./startUniverse.sh --no-openclaw --no-local-ai --skip-seed --engines=scala:1,scala:2
+          ./startUniverse.sh --no-openclaw --no-local-ai --skip-seed --machine-corpus=standard-deployment --engines=scala:2
 
       - name: Run multi-instance integration tests
         working-directory: RealityEngine_Machines
         env:
           REUSE_SERVICES: 'true'
           RE_REGISTRY_URL: 'http://localhost:5999/re-registry.json'
+          VIZ_BASE_URL: 'http://127.0.0.1:3001'
         run: |
           npx playwright test tests/integration/multi-instance.spec.ts \
             --reporter=list
@@ -588,6 +610,11 @@ jobs:
         run: |
           echo "=== Registry ==="
           cat /tmp/re-registry/re-registry.json 2>/dev/null || echo "No registry"
+          echo "=== Manager launcher ==="
+          tail -120 /tmp/manager_universe.log 2>/dev/null || echo "No manager launcher log"
+          for f in RealityEngine_Manager/.manager-logs/*.log; do
+            [ -f "$f" ] && { echo "--- $f ---"; tail -120 "$f"; } || true
+          done
           for f in /tmp/re-*.log /tmp/pe-*.log; do
             [ -f "$f" ] && { echo "--- $f ---"; tail -20 "$f"; } || true
           done

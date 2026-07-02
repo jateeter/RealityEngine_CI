@@ -51,11 +51,12 @@ set -o pipefail
 CI_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 SCALA_DIR="$CI_DIR/../RealityEngine_Scala"
 MGR_DIR="$CI_DIR/../RealityEngine_Manager"
-MACHINES_DIR="$CI_DIR/../RealityEngine_Machines"
+MACHINES_DIR="${MACHINES_DIR:-$CI_DIR/../RealityEngine_Machines}"
 CPP_DIR="$CI_DIR/../RealityEngine_CPP"
 LSP_DIR="$CI_DIR/../RealityEngine_LSP"
 LAS_DIR="$CI_DIR/../localAIStack"
 OCS_DIR="$CI_DIR/../localOpenClawStack"
+FULL_MACHINES_DIR="$MACHINES_DIR"
 CI_INTEGRATIONS_CONFIG="$CI_DIR/config/integrations.json"
 CI_INTEGRATIONS_EXAMPLE="$CI_DIR/config/integrations.example.json"
 MCP_HTTP_ENABLED="${MCP_HTTP_ENABLED:-true}"
@@ -84,6 +85,10 @@ LOCAL_AI_ENABLED="${LOCAL_AI_ENABLED:-true}"
 # ── Flags ──────────────────────────────────────────────────────────────────
 FRESH_START=false
 MACHINE_LOAD="runtime"       # runtime | ci-seed | none
+MACHINE_CORPUS="full"        # full | standard-deployment
+MACHINE_CORPUS_MANIFEST="$CI_DIR/config/standard-deployment-corpus.txt"
+MACHINE_CORPUS_WORK_DIR="${MACHINE_CORPUS_WORK_DIR:-/tmp/realityengine-standard-deployment-corpus}"
+POST_START_FULL_CORPUS="off" # off | seed
 PE_SOURCE_BOOTSTRAP="auto"   # auto | off
 VALIDATE_CORPUS="once"       # once | off
 MANAGER_NATIVE=false
@@ -111,6 +116,13 @@ startUniverse.sh — engine-selectable CI orchestrator
   --machine-load=ci-seed        RE starts empty (RE_LOAD_MACHINES=0); CI calls seed-machines.sh --re-only
                                   once per RE instance after RE health, then triggers PE bootstrap
   --machine-load=none           RE starts empty; no seeding, no PE bootstrap regardless of other flags
+  --machine-corpus=full         Use the full RealityEngine_Machines corpus at boot (default)
+  --machine-corpus=standard-deployment
+                                Materialize and boot from config/standard-deployment-corpus.txt
+  --machine-corpus-manifest=PATH
+                                Alternate manifest for --machine-corpus=standard-deployment
+  --post-start-full-corpus=off  Do not load the full corpus after startup (default)
+  --post-start-full-corpus=seed After stack completion, seed the full corpus into RE instances
   --pe-source-bootstrap=auto    After the machine-load phase, call POST /api/sources/bootstrap-from-machines
                                   on each PE instance (default)
   --pe-source-bootstrap=off     Skip PE source materialisation entirely
@@ -150,6 +162,9 @@ for arg in "$@"; do
   case "$arg" in
     --fresh)                    FRESH_START=true ;;
     --machine-load=*)           MACHINE_LOAD="${arg#*=}" ;;
+    --machine-corpus=*)         MACHINE_CORPUS="${arg#*=}" ;;
+    --machine-corpus-manifest=*) MACHINE_CORPUS_MANIFEST="${arg#*=}" ;;
+    --post-start-full-corpus=*) POST_START_FULL_CORPUS="${arg#*=}" ;;
     --pe-source-bootstrap=*)    PE_SOURCE_BOOTSTRAP="${arg#*=}" ;;
     --validate-corpus=*)        VALIDATE_CORPUS="${arg#*=}" ;;
     --skip-seed)                MACHINE_LOAD=runtime; PE_SOURCE_BOOTSTRAP=off ;;  # legacy alias
@@ -174,6 +189,8 @@ done
 case "$RE_ENGINE"          in ai|cpp|lsp)              ;; *) echo "Bad --re-engine=$RE_ENGINE"; exit 2 ;; esac
 case "$PE_ENGINE"          in ai|cpp|lsp)              ;; *) echo "Bad --pe-engine=$PE_ENGINE"; exit 2 ;; esac
 case "$MACHINE_LOAD"       in runtime|ci-seed|none)    ;; *) echo "Bad --machine-load=$MACHINE_LOAD (runtime|ci-seed|none)"; exit 2 ;; esac
+case "$MACHINE_CORPUS"     in full|standard-deployment);; *) echo "Bad --machine-corpus=$MACHINE_CORPUS (full|standard-deployment)"; exit 2 ;; esac
+case "$POST_START_FULL_CORPUS" in off|seed)            ;; *) echo "Bad --post-start-full-corpus=$POST_START_FULL_CORPUS (off|seed)"; exit 2 ;; esac
 case "$PE_SOURCE_BOOTSTRAP" in auto|off)               ;; *) echo "Bad --pe-source-bootstrap=$PE_SOURCE_BOOTSTRAP (auto|off)"; exit 2 ;; esac
 case "$VALIDATE_CORPUS"    in once|off)                ;; *) echo "Bad --validate-corpus=$VALIDATE_CORPUS (once|off)"; exit 2 ;; esac
 
@@ -182,6 +199,19 @@ case "$MACHINE_LOAD" in
     runtime) _RE_LOAD_MACHINES=1 ;;
     *)       _RE_LOAD_MACHINES=0 ;;
 esac
+
+if [ "$MACHINE_CORPUS" = "standard-deployment" ]; then
+    bash "$CI_DIR/scripts/materialize-machine-corpus.sh" \
+        "$FULL_MACHINES_DIR" "$MACHINE_CORPUS_MANIFEST" "$MACHINE_CORPUS_WORK_DIR" >/tmp/machine_corpus_materialize.log 2>&1 || {
+        cat /tmp/machine_corpus_materialize.log >&2
+        exit 1
+    }
+    MACHINES_DIR="$MACHINE_CORPUS_WORK_DIR"
+    _MACHINE_CORPUS_COUNT="$(cat "$MACHINE_CORPUS_WORK_DIR/machine-count.txt" 2>/dev/null || echo "?")"
+else
+    _MACHINE_CORPUS_COUNT="$(find "$MACHINES_DIR/machines" -name '*.json' 2>/dev/null | wc -l | tr -d ' ')"
+fi
+_FULL_MACHINE_CORPUS_COUNT="$(find "$FULL_MACHINES_DIR/machines" -name '*.json' 2>/dev/null | wc -l | tr -d ' ')"
 
 # When --engines= is specified it supersedes --re-engine / --pe-engine
 MULTI_ENGINE_MODE=false
@@ -195,6 +225,11 @@ RE_ENGINE=$RE_ENGINE
 PE_ENGINE=$PE_ENGINE
 ENGINES=$ENGINES
 MULTI_ENGINE_MODE=$MULTI_ENGINE_MODE
+MACHINE_CORPUS=$MACHINE_CORPUS
+MACHINE_CORPUS_MANIFEST=$MACHINE_CORPUS_MANIFEST
+MACHINE_CORPUS_ACTIVE_DIR=$MACHINES_DIR
+FULL_MACHINES_DIR=$FULL_MACHINES_DIR
+POST_START_FULL_CORPUS=$POST_START_FULL_CORPUS
 OPENCLAW=$OPENCLAW
 OCS_NATIVE_UNLOADED=$OCS_NATIVE_UNLOADED
 MCP_HTTP_ENABLED=$MCP_HTTP_ENABLED
@@ -462,6 +497,51 @@ PYEOF
         done
     fi
     set -e
+}
+
+load_full_corpus_after_stack_completion() {
+    [ "$MACHINE_CORPUS" = "standard-deployment" ] || return 0
+    [ "$POST_START_FULL_CORPUS" = "seed" ] || return 0
+    [ "$MACHINE_LOAD" != "none" ] || { info "Full corpus post-load skipped because --machine-load=none"; return 0; }
+    [ -x "$FULL_MACHINES_DIR/scripts/seed-machines.sh" ] || {
+        add_warn "Full corpus post-load skipped — seed script missing at $FULL_MACHINES_DIR/scripts/seed-machines.sh"
+        return 0
+    }
+
+    info "Post-start full corpus load: seeding ${_FULL_MACHINE_CORPUS_COUNT:-?} machine(s) from $FULL_MACHINES_DIR"
+    if [ "$MULTI_ENGINE_MODE" = true ] && [ -f "$REGISTRY_FILE" ]; then
+        while IFS= read -r _inst_id; do
+            _inst_entry=$(registry_get "$_inst_id" 2>/dev/null || true)
+            _re_url=$(echo "$_inst_entry" \
+                | python3 -c "import json,sys; print(json.load(sys.stdin).get('re_url',''))" 2>/dev/null || true)
+            _pe_url=$(echo "$_inst_entry" \
+                | python3 -c "import json,sys; print(json.load(sys.stdin).get('pe_url',''))" 2>/dev/null || true)
+            [ -z "$_re_url" ] && continue
+            info "Full corpus seed → $_inst_id ($_re_url)..."
+            bash "$FULL_MACHINES_DIR/scripts/seed-machines.sh" --re-only "$_re_url" \
+                > "/tmp/corpus_full_seed_${_inst_id}.log" 2>&1 \
+                && ok "Full corpus seeded ($_inst_id)" \
+                || add_warn "Full corpus seed to $_inst_id completed with errors — check /tmp/corpus_full_seed_${_inst_id}.log"
+            if [ "$PE_SOURCE_BOOTSTRAP" = "auto" ] && [ -n "$_pe_url" ]; then
+                info "PE source refresh after full corpus → $_inst_id ($_pe_url)..."
+                bash "$CI_DIR/scripts/pe-source-bootstrap.sh" "$_pe_url" \
+                    >> "/tmp/corpus_full_seed_${_inst_id}.log" 2>&1 \
+                    || add_warn "PE source refresh after full corpus for $_inst_id had errors"
+            fi
+        done < <(registry_ids 2>/dev/null)
+    else
+        info "Full corpus seed → Docker RE (https://localhost:5001)..."
+        bash "$FULL_MACHINES_DIR/scripts/seed-machines.sh" --re-only \
+            "https://localhost:5001" > /tmp/corpus_full_seed.log 2>&1 \
+            && ok "Full corpus seeded (see /tmp/corpus_full_seed.log)" \
+            || add_warn "Full corpus seeding completed with errors — check /tmp/corpus_full_seed.log"
+        if [ "$PE_SOURCE_BOOTSTRAP" = "auto" ]; then
+            info "PE source refresh after full corpus..."
+            bash "$CI_DIR/scripts/pe-source-bootstrap.sh" "https://localhost:3004" \
+                >> /tmp/corpus_full_seed.log 2>&1 \
+                || add_warn "PE source refresh after full corpus completed with errors"
+        fi
+    fi
 }
 
 # ── Colours + helpers ─────────────────────────────────────────────────────
@@ -864,10 +944,15 @@ validate_lsp_runtime_deps() {
 }
 
 # ── Host IP detection ─────────────────────────────────────────────────────
-HOST_IP="$(bash "$CI_DIR/scripts/detect-host-ip.sh" 2>/dev/null || echo "127.0.0.1")"
+HOST_IP="${HOST_IP_OVERRIDE:-$(bash "$CI_DIR/scripts/detect-host-ip.sh" 2>/dev/null || echo "127.0.0.1")}"
 export HOST_IP
-[ "$HOST_IP" = "127.0.0.1" ] && \
-    warn "Could not detect LAN IP — using 127.0.0.1 (multi-engine URLs will be local-only)"
+if [ "$HOST_IP" = "127.0.0.1" ]; then
+    if [ -n "${HOST_IP_OVERRIDE:-}" ]; then
+        warn "Using HOST_IP_OVERRIDE=127.0.0.1 (multi-engine URLs will be local-only)"
+    else
+        warn "Could not detect LAN IP — using 127.0.0.1 (multi-engine URLs will be local-only)"
+    fi
+fi
 
 # ── Multi-engine spawn helpers ────────────────────────────────────────────
 
@@ -1138,8 +1223,13 @@ for dir_var in SCALA_DIR MGR_DIR MACHINES_DIR LAS_DIR; do
 done
 ok "Sibling repos found: RealityEngine_Scala, RealityEngine_Manager, RealityEngine_Machines, localAIStack"
 
-docker info > /dev/null 2>&1 || die "Docker daemon not running — start Docker Desktop first"
-ok "Docker daemon reachable"
+if docker info > /dev/null 2>&1; then
+    ok "Docker daemon reachable"
+elif [ "$DRY_RUN" = true ]; then
+    warn "Dry-run: Docker daemon not reachable; compose startup is not validated"
+else
+    die "Docker daemon not running — start Docker Desktop first"
+fi
 
 [ -f "$CI_DIR/.env" ] || die ".env not found — copy .env.example and configure"
 # shellcheck source=/dev/null
@@ -1165,26 +1255,41 @@ fi
 
 # Loki Docker logging driver
 LOKI_ENABLED=$(docker plugin inspect loki --format '{{.Enabled}}' 2>/dev/null || echo "missing")
+LOKI_READY=false
 if [ "$LOKI_ENABLED" = "missing" ]; then
-    info "Installing Loki Docker logging driver..."
-    if ! docker plugin install grafana/loki-docker-driver:latest \
-            --alias loki --grant-all-permissions 2>/dev/null; then
-        warn "Loki Docker driver install failed."
-        warn "Plugin installation requires elevated privileges. Install it first:"
-        warn "  sudo docker plugin install grafana/loki-docker-driver:latest --alias loki --grant-all-permissions"
-        warn "Or run:  sudo bash $CI_DIR/scripts/setup-loki-driver.sh"
-        die "Loki log driver not available"
+    if [ "$DRY_RUN" = true ]; then
+        warn "Dry-run: Loki Docker logging driver is not installed"
+    else
+        info "Installing Loki Docker logging driver..."
+        if ! docker plugin install grafana/loki-docker-driver:latest \
+                --alias loki --grant-all-permissions 2>/dev/null; then
+            warn "Loki Docker driver install failed."
+            warn "Plugin installation requires elevated privileges. Install it first:"
+            warn "  sudo docker plugin install grafana/loki-docker-driver:latest --alias loki --grant-all-permissions"
+            warn "Or run:  sudo bash $CI_DIR/scripts/setup-loki-driver.sh"
+            die "Loki log driver not available"
+        fi
+        LOKI_READY=true
     fi
 elif [ "$LOKI_ENABLED" = "false" ]; then
-    info "Enabling Loki Docker logging driver..."
-    docker plugin enable loki 2>/dev/null || die "Could not enable loki plugin"
+    if [ "$DRY_RUN" = true ]; then
+        warn "Dry-run: Loki Docker logging driver is installed but disabled"
+    else
+        info "Enabling Loki Docker logging driver..."
+        docker plugin enable loki 2>/dev/null || die "Could not enable loki plugin"
+        LOKI_READY=true
+    fi
+elif [ "$LOKI_ENABLED" = "true" ]; then
+    LOKI_READY=true
 fi
-ok "Loki Docker logging driver ready"
+if [ "$LOKI_READY" = true ]; then
+    ok "Loki Docker logging driver ready"
+fi
 
 # In multi-engine mode the Manager (ports 3001 + 5173) is started natively
 # by this script. Stop any previous instance before the port conflict check
 # so a restart doesn't die on its own previously-started Manager.
-if [ "$MULTI_ENGINE_MODE" = true ] && [ -x "$MGR_DIR/stop.sh" ]; then
+if [ "$DRY_RUN" = false ] && [ "$MULTI_ENGINE_MODE" = true ] && [ -x "$MGR_DIR/stop.sh" ]; then
     if [ -f "$MGR_DIR/.manager-pids" ] || \
        lsof -ti :3001 -sTCP:LISTEN >/dev/null 2>&1 || \
        lsof -ti :5173 -sTCP:LISTEN >/dev/null 2>&1; then
@@ -1204,9 +1309,15 @@ for port in 3001 3004 3005 5001 5173; do
         CONFLICTS="$CONFLICTS ${port}(${proc})"
     fi
 done
-[ -n "$CONFLICTS" ] && \
-    die "Processes already listening on RE ports:$CONFLICTS\n  Stop them first (see RealityEngine_Manager/stop.sh)"
-ok "No port conflicts"
+if [ -n "$CONFLICTS" ]; then
+    if [ "$DRY_RUN" = true ]; then
+        warn "Dry-run: processes currently listening on RE ports:$CONFLICTS"
+    else
+        die "Processes already listening on RE ports:$CONFLICTS\n  Stop them first (see RealityEngine_Manager/stop.sh)"
+    fi
+else
+    ok "No port conflicts"
+fi
 
 # Pre-check all native engine ports before spawning begins — fail fast before partial starts
 if [ "$MULTI_ENGINE_MODE" = true ]; then
@@ -1236,10 +1347,16 @@ if [ "$MULTI_ENGINE_MODE" = true ]; then
     # Check host occupancy
     for _pf_port in $_pf_all_ports; do
         if lsof -i ":${_pf_port}" -sTCP:LISTEN >/dev/null 2>&1; then
-            die "Native engine port ${_pf_port} already in use\n  Stop the blocking process and retry"
+            if [ "$DRY_RUN" = true ]; then
+                add_warn "Dry-run: native engine port ${_pf_port} is already in use"
+            else
+                die "Native engine port ${_pf_port} already in use\n  Stop the blocking process and retry"
+            fi
         fi
     done
-    ok "Native engine ports free"
+    if [ "$DRY_RUN" = false ]; then
+        ok "Native engine ports free"
+    fi
 
     # If any cpp instance will spawn, validate its build prerequisites up front
     # so a missing Boost / incomplete SDK libc++ fails fast rather than mid-make.
@@ -1253,6 +1370,7 @@ if [ "$MULTI_ENGINE_MODE" = true ]; then
 fi
 
 # ── Orphan container cleanup ──────────────────────────────────────────────
+if [ "$DRY_RUN" = false ]; then
 info "Checking for orphaned containers..."
 # Use `rm -sf` (stop + remove) rather than `down` so stale compose state
 # (container ID exists in compose but not in Docker) doesn't block startup.
@@ -1323,21 +1441,29 @@ else
 fi
 
 sleep 2
+fi
 
 [ "$FRESH_START" = true ] && warn "Fresh start — perception volume wiped; all images rebuilt no-cache"
 
 # ── Dry-run: print plan and exit without starting anything ────────────────────
 if [ "$DRY_RUN" = true ]; then
+    if [ "$MULTI_ENGINE_MODE" = true ]; then
+        _dry_run_mode="multi-engine ($ENGINES)"
+    else
+        _dry_run_mode="single-engine"
+    fi
     echo ""
     echo "════════════════════════════════════════════════════════════════════"
     echo "  Dry-Run Plan  (pre-flight passed — nothing will be started)"
     echo "════════════════════════════════════════════════════════════════════"
     echo ""
-    printf "  %-28s %s\n" "Mode"       "${MULTI_ENGINE_MODE:+multi-engine ($ENGINES)}${MULTI_ENGINE_MODE:-false}"
+    printf "  %-28s %s\n" "Mode"       "$_dry_run_mode"
     printf "  %-28s %s\n" "RE engine"  "$RE_ENGINE"
     printf "  %-28s %s\n" "PE engine"  "$PE_ENGINE"
     printf "  %-28s %s\n" "Fresh"              "$FRESH_START"
     printf "  %-28s %s\n" "Machine load"       "$MACHINE_LOAD"
+    printf "  %-28s %s\n" "Machine corpus"     "$MACHINE_CORPUS ($_MACHINE_CORPUS_COUNT/${_FULL_MACHINE_CORPUS_COUNT:-?})"
+    printf "  %-28s %s\n" "Full corpus post-load" "$POST_START_FULL_CORPUS"
     printf "  %-28s %s\n" "PE source bootstrap" "$PE_SOURCE_BOOTSTRAP"
     printf "  %-28s %s\n" "Validate corpus"    "$VALIDATE_CORPUS"
     printf "  %-28s %s\n" "RE_LOAD_MACHINES"   "$_RE_LOAD_MACHINES"
@@ -1366,9 +1492,15 @@ if [ "$DRY_RUN" = true ]; then
                 esac
                 _dr_re=$(( _dr_base_re + (_dr_idx-1)*100 ))
                 _dr_pe=$(( _dr_base_pe + (_dr_idx-1)*100 ))
+                case "$_dr_rt" in
+                    scala) _dr_dir="$SCALA_DIR" ;;
+                    cpp)   _dr_dir="$CPP_DIR" ;;
+                    lsp)   _dr_dir="$LSP_DIR" ;;
+                    *)     _dr_dir="?" ;;
+                esac
                 printf "    %-16s RE=%-6s PE=%-6s start.sh=%s\n" \
                     "${_dr_rt}-${_dr_idx}" "$HOST_IP:$_dr_re" "$HOST_IP:$_dr_pe" \
-                    "$(eval echo "\${${_dr_rt^^}_DIR:-?}")/start.sh"
+                    "$_dr_dir/start.sh"
             done
         done
         printf "  %-28s %s\n" "Registry" "http://$HOST_IP:${REGISTRY_PORT}/re-registry.json"
@@ -1383,6 +1515,8 @@ if [ "$DRY_RUN" = true ]; then
     fi
     echo ""
     echo "  Machine load:       $MACHINE_LOAD  (RE_LOAD_MACHINES=$_RE_LOAD_MACHINES)"
+    echo "  Machine corpus:     $MACHINE_CORPUS ($_MACHINE_CORPUS_COUNT/${_FULL_MACHINE_CORPUS_COUNT:-?})"
+    echo "  Full corpus load:   $POST_START_FULL_CORPUS"
     echo "  PE bootstrap:       $PE_SOURCE_BOOTSTRAP"
     echo "  Validate corpus:    $VALIDATE_CORPUS"
     echo ""
@@ -1631,8 +1765,38 @@ except Exception:
         _re_arg="${_first_re_url:-http://localhost:$(( SCALA_PE_BASE + 1 ))}"
         _pe_arg="${_first_pe_url:-http://localhost:${SCALA_PE_BASE}}"
 
+        _manager_nvm_dir="${NVM_DIR:-$HOME/.nvm}"
+        _node_version="$(node --version 2>/dev/null || true)"
+        # GitHub Actions provisions Node with actions/setup-node, not nvm. Even
+        # when a hosted-runner nvm probe succeeds, Manager/start.sh can fail in
+        # its fresh shell if that nvm tree does not contain 25.5.0. Prefer the
+        # already-selected PATH node when it matches the Manager contract.
+        if [ "$_node_version" = "v25.5.0" ]; then
+            _manager_nvm_dir="/tmp/realityengine-manager-nvm-shim"
+            mkdir -p "$_manager_nvm_dir"
+            cat > "$_manager_nvm_dir/nvm.sh" <<'SH'
+nvm() {
+  case "${1:-}" in
+    use)
+      case "${2:-}" in
+        25.5.0|v25.5.0) return 0 ;;
+      esac
+      echo "nvm shim only supports Node 25.5.0; requested ${2:-<empty>}" >&2
+      return 1
+      ;;
+    *)
+      echo "nvm shim only supports 'nvm use'" >&2
+      return 1
+      ;;
+  esac
+}
+SH
+            info "Using Node $_node_version from PATH for Manager nvm compatibility"
+        fi
+
         info "Starting Manager (Visualizer) natively — RE: $_re_arg  registry: http://$HOST_IP:${REGISTRY_PORT}/re-registry.json"
-        RE_REGISTRY_URL="http://$HOST_IP:${REGISTRY_PORT}/re-registry.json" \
+        NVM_DIR="$_manager_nvm_dir" \
+            RE_REGISTRY_URL="http://$HOST_IP:${REGISTRY_PORT}/re-registry.json" \
             VIZ_RATE_LIMIT_MAX="${VIZ_RATE_LIMIT_MAX:-5000}" \
             VIZ_MACHINES_RATE_LIMIT_MAX="${VIZ_MACHINES_RATE_LIMIT_MAX:-2000}" \
             nohup "$MGR_DIR/start.sh" --re "$_re_arg" --pe "$_pe_arg" --no-seed \
@@ -1641,12 +1805,23 @@ except Exception:
         echo "$MANAGER_PID" > /tmp/manager_universe.pid
         echo -n "  MGR backend "
         # 60 × 2 s = 2 min — enough for npm install --prefer-offline on a cold cache
-        poll_http "http://localhost:3001/health" "Manager backend ready (:3001)" 60 "-sf" || \
+        if ! poll_http "http://localhost:3001/health" "Manager backend ready (:3001)" 60 "-sf"; then
+            if [ "${CI:-false}" = "true" ]; then
+                tail -120 /tmp/manager_universe.log 2>/dev/null || true
+                die "Manager backend not reachable on :3001 — check /tmp/manager_universe.log"
+            fi
             add_warn "Manager backend not reachable on :3001 — check /tmp/manager_universe.log"
+        fi
         echo -n "  MGR frontend "
         # Vite starts after the backend; 30 × 2 s = 60 s is more than enough
-        poll_http "http://localhost:5173/" "Manager frontend ready (:5173)" 30 "-sf" || \
+        if ! poll_http "http://localhost:5173/" "Manager frontend ready (:5173)" 30 "-sf"; then
+            if [ "${CI:-false}" = "true" ]; then
+                tail -120 "$MGR_DIR"/.manager-logs/frontend.log 2>/dev/null || \
+                    tail -120 /tmp/manager_universe.log 2>/dev/null || true
+                die "Manager frontend not reachable on :5173 — check $(ls "$MGR_DIR"/.manager-logs/frontend.log 2>/dev/null || echo '/tmp/manager_universe.log')"
+            fi
             add_warn "Manager frontend not reachable on :5173 — check $(ls "$MGR_DIR"/.manager-logs/frontend.log 2>/dev/null || echo '/tmp/manager_universe.log')"
+        fi
     else
         add_warn "RealityEngine_Manager/start.sh not found — port 5173 will not be available"
     fi
@@ -2194,6 +2369,8 @@ print(f'machines_evaluated={n}, non-zero_perceptual_elements={nz}')
   set -e
 fi
 
+load_full_corpus_after_stack_completion
+
 # =============================================================================
 hdr "8 · Summary"
 # =============================================================================
@@ -2225,6 +2402,14 @@ printf "    %-30s %s\n" "Grafana"                   "http://localhost:3002"
 printf "    %-30s %s\n" "Prometheus"                "http://localhost:9090"
 printf "    %-30s %s\n" "AI Bridge Metrics"         "http://localhost:${BRIDGE_METRICS_PORT}/metrics"
 printf "    %-30s %s\n" "Loki"                      "https://localhost:3100"
+echo ""
+echo "  Machine Corpus"
+printf "    %-30s %s\n" "Boot corpus"               "$MACHINE_CORPUS ($_MACHINE_CORPUS_COUNT/${_FULL_MACHINE_CORPUS_COUNT:-?} machines)"
+printf "    %-30s %s\n" "Active corpus root"        "$MACHINES_DIR"
+if [ "$MACHINE_CORPUS" != "full" ]; then
+printf "    %-30s %s\n" "Full corpus root"          "$FULL_MACHINES_DIR"
+printf "    %-30s %s\n" "Post-start full load"      "$POST_START_FULL_CORPUS"
+fi
 echo ""
 if [ "$OCS_STARTED" = true ]; then
 echo "  OpenClaw"
@@ -2303,6 +2488,13 @@ manifest = {
     "engines":                 "$ENGINES",
     "re_engine":               "$RE_ENGINE",
     "pe_engine":               "$PE_ENGINE",
+    "machine_corpus":          "$MACHINE_CORPUS",
+    "machine_corpus_manifest": "$MACHINE_CORPUS_MANIFEST",
+    "machine_corpus_active_dir": "$MACHINES_DIR",
+    "machine_corpus_count":    "$_MACHINE_CORPUS_COUNT",
+    "full_machines_dir":       "$FULL_MACHINES_DIR",
+    "full_machine_corpus_count": "$_FULL_MACHINE_CORPUS_COUNT",
+    "post_start_full_corpus":  "$POST_START_FULL_CORPUS",
     "host_ip":                 "$HOST_IP",
     "registry_url":            "http://$HOST_IP:${REGISTRY_PORT}/re-registry.json" if "$MULTI_ENGINE_MODE" == "true" else "",
     "docker_services":         [s for s in "$_docker_svcs".split(",") if s],

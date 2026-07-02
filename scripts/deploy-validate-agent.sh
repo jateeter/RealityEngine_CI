@@ -55,6 +55,14 @@
 #   --cycle=N         Repeat the whole workflow N times (default 1).
 #   --interval=S      Seconds to wait between cycles (default 0).
 #   --help            This message.
+#
+# Environment:
+#   DEPLOYMENT_MACHINE_CORPUS=standard-deployment|full
+#                     Machine corpus passed to startUniverse during deployment
+#                     validation (default: standard-deployment).
+#   DEPLOYMENT_POST_START_FULL_CORPUS=off|seed
+#                     Optional full corpus seed after stack completion
+#                     (default: off).
 # =============================================================================
 set -uo pipefail
 
@@ -300,8 +308,8 @@ phase_deploy() {
   local oc_flag=""
   case "$OPENCLAW" in yes) oc_flag="--openclaw" ;; no) oc_flag="--no-openclaw" ;; esac
   if [ "$DRY_RUN" = true ]; then
-    info "Dry-run: ./startUniverse.sh --dry-run ${FRESH_FLAG:+$FRESH_FLAG }$oc_flag"
-    ( cd "$CI_DIR" && bash ./startUniverse.sh --dry-run $FRESH_FLAG $oc_flag ) \
+    info "Dry-run: ./startUniverse.sh --dry-run ${FRESH_FLAG:+$FRESH_FLAG }$oc_flag --machine-corpus=${DEPLOYMENT_MACHINE_CORPUS:-standard-deployment}"
+    ( cd "$CI_DIR" && bash ./startUniverse.sh --dry-run $FRESH_FLAG $oc_flag "--machine-corpus=${DEPLOYMENT_MACHINE_CORPUS:-standard-deployment}" ) \
       && pass orchestration deploy "startUniverse dry-run plan coherent" \
       || fail orchestration deploy "startUniverse dry-run failed preflight" "See $RUN_LOG"
     return 0
@@ -341,7 +349,9 @@ phase_deploy() {
   # run so the test gate's stack-health check probes the live Docker stack
   # instead of dead registry endpoints (a stale registry => false "live stack down").
   rm -f "${RE_REGISTRY_FILE:-/tmp/re-registry/re-registry.json}" 2>/dev/null || true
-  local args=( --warn-only )
+  local machine_corpus="${DEPLOYMENT_MACHINE_CORPUS:-standard-deployment}"
+  local post_start_full_corpus="${DEPLOYMENT_POST_START_FULL_CORPUS:-off}"
+  local args=( --warn-only "--machine-corpus=$machine_corpus" "--post-start-full-corpus=$post_start_full_corpus" )
   [ "$FRESH" = true ] && args+=( --fresh )
   [ -n "$oc_flag" ] && args+=( "$oc_flag" )
   info "Running: ./startUniverse.sh ${args[*]}"
