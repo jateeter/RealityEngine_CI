@@ -1766,21 +1766,12 @@ except Exception:
         _pe_arg="${_first_pe_url:-http://localhost:${SCALA_PE_BASE}}"
 
         _manager_nvm_dir="${NVM_DIR:-$HOME/.nvm}"
-        _manager_needs_nvm_shim=false
-        if [ -s "$_manager_nvm_dir/nvm.sh" ]; then
-            if ! (
-                # shellcheck source=/dev/null
-                . "$_manager_nvm_dir/nvm.sh" >/dev/null 2>&1
-                nvm use 25.5.0 >/dev/null 2>&1
-            ); then
-                _manager_needs_nvm_shim=true
-            fi
-        else
-            _manager_needs_nvm_shim=true
-        fi
-
         _node_version="$(node --version 2>/dev/null || true)"
-        if [ "$_manager_needs_nvm_shim" = true ] && [ "$_node_version" = "v25.5.0" ]; then
+        # GitHub Actions provisions Node with actions/setup-node, not nvm. Even
+        # when a hosted-runner nvm probe succeeds, Manager/start.sh can fail in
+        # its fresh shell if that nvm tree does not contain 25.5.0. Prefer the
+        # already-selected PATH node when it matches the Manager contract.
+        if [ "$_node_version" = "v25.5.0" ]; then
             _manager_nvm_dir="/tmp/realityengine-manager-nvm-shim"
             mkdir -p "$_manager_nvm_dir"
             cat > "$_manager_nvm_dir/nvm.sh" <<'SH'
@@ -1814,12 +1805,23 @@ SH
         echo "$MANAGER_PID" > /tmp/manager_universe.pid
         echo -n "  MGR backend "
         # 60 × 2 s = 2 min — enough for npm install --prefer-offline on a cold cache
-        poll_http "http://localhost:3001/health" "Manager backend ready (:3001)" 60 "-sf" || \
+        if ! poll_http "http://localhost:3001/health" "Manager backend ready (:3001)" 60 "-sf"; then
+            if [ "${CI:-false}" = "true" ]; then
+                tail -120 /tmp/manager_universe.log 2>/dev/null || true
+                die "Manager backend not reachable on :3001 — check /tmp/manager_universe.log"
+            fi
             add_warn "Manager backend not reachable on :3001 — check /tmp/manager_universe.log"
+        fi
         echo -n "  MGR frontend "
         # Vite starts after the backend; 30 × 2 s = 60 s is more than enough
-        poll_http "http://localhost:5173/" "Manager frontend ready (:5173)" 30 "-sf" || \
+        if ! poll_http "http://localhost:5173/" "Manager frontend ready (:5173)" 30 "-sf"; then
+            if [ "${CI:-false}" = "true" ]; then
+                tail -120 "$MGR_DIR"/.manager-logs/frontend.log 2>/dev/null || \
+                    tail -120 /tmp/manager_universe.log 2>/dev/null || true
+                die "Manager frontend not reachable on :5173 — check $(ls "$MGR_DIR"/.manager-logs/frontend.log 2>/dev/null || echo '/tmp/manager_universe.log')"
+            fi
             add_warn "Manager frontend not reachable on :5173 — check $(ls "$MGR_DIR"/.manager-logs/frontend.log 2>/dev/null || echo '/tmp/manager_universe.log')"
+        fi
     else
         add_warn "RealityEngine_Manager/start.sh not found — port 5173 will not be available"
     fi
