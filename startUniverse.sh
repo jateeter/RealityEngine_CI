@@ -1832,9 +1832,12 @@ if [ "$LOCAL_AI_ENABLED" != true ]; then
     info "localAIStack API: skipped (--no-local-ai)"
 else
     info "Building localAIStack API image..."
-    (cd "$LAS_DIR" && docker compose build api 2>&1) | tail -5
+    _las_build_log=/tmp/las_api_build.log
+    (cd "$LAS_DIR" && docker compose build api > "$_las_build_log" 2>&1) || \
+        die "localAIStack API image build failed\n$(tail -25 "$_las_build_log")\n  Full log: $_las_build_log"
+    tail -5 "$_las_build_log"
     info "Starting localAIStack API (lifespan hooks register machines + sensors)..."
-    (cd "$LAS_DIR" && docker compose up -d --force-recreate --wait \
+    (cd "$LAS_DIR" && docker compose up -d --force-recreate --no-build --wait \
         --wait-timeout 120 api 2>&1) || \
         die "localAIStack API failed to reach healthy state\n  Check:  docker logs localai_api"
     (cd "$LAS_DIR" && docker compose up -d open-webui) > /dev/null 2>&1 || true
