@@ -114,9 +114,20 @@ _term_and_wait() {
 # Used after normal stop sequences to ensure ports are free for the next start.
 _kill_port() {
   local port="$1"
-  local pid
+  local pid pcmd
   pid=$(lsof -ti ":$port" -sTCP:LISTEN 2>/dev/null | head -1 || true)
   [ -z "$pid" ] && return 0
+  # Never force-kill protected processes (issue #41). The Docker daemon/proxy
+  # (com.docker.backend) holds *published container ports* (e.g. 5001) on behalf
+  # of containers; killing it crashes Docker Desktop and corrupts the container
+  # store, leaving unremovable ghost containers. macOS Control Center holds :5000
+  # (AirPlay). Stop the owning container/app instead of nuking the port holder.
+  pcmd=$(ps -o command= -p "$pid" 2>/dev/null || true)
+  case "$pcmd" in
+    *com.docker*|*Docker.app*|*ControlCenter*)
+      warn "Port $port held by protected process (PID $pid: ${pcmd%% *}) — NOT killing; stop the owning container/app instead"
+      return 0 ;;
+  esac
   warn "Port $port still held by PID $pid after stop — force-killing"
   kill -KILL "$pid" 2>/dev/null || true
 }
