@@ -1413,10 +1413,12 @@ if [ "$LOCAL_AI_ENABLED" = true ]; then
     EMBED_MODEL_REQUIRED="${EMBED_MODEL:-}"
     [ -z "$EMBED_MODEL_REQUIRED" ] && [ -f "$LAS_DIR/.env" ] && \
         EMBED_MODEL_REQUIRED=$(grep -E '^EMBED_MODEL=' "$LAS_DIR/.env" | tail -1 | cut -d= -f2-)
-    EMBED_MODEL_REQUIRED="${EMBED_MODEL_REQUIRED:-ternary-bonsai:4}"
+    # No bogus default embed model (was "ternary-bonsai:4", never present, so it
+    # warned on every deploy). Only check an embed model if one is actually
+    # configured via EMBED_MODEL or localAIStack/.env. See issue #46.
     set -e
 
-    for model in "llama3" "$EMBED_MODEL_REQUIRED"; do
+    for model in "llama3" ${EMBED_MODEL_REQUIRED:+"$EMBED_MODEL_REQUIRED"}; do
         MATCH=$(echo "$TAGS_JSON" | python3 -c \
             "import json,sys
 ms=[m['name'] for m in json.load(sys.stdin).get('models',[]) if '$model' in m['name']]
