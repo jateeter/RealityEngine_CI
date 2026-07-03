@@ -2084,7 +2084,11 @@ else
         done
 
         info "Starting OpenClaw (gateway :$OCS_GW_PORT, webui :$OCS_UI_PORT)..."
-        (cd "$OCS_DIR" && ./scripts/start.sh > /tmp/ocs_start.log 2>&1) || \
+        # env -u MACHINES_DIR: CI's MACHINES_DIR is the RealityEngine_Machines
+        # repo root, but OpenClaw's machine-behaviors tooling interprets the
+        # same variable as the machines/ directory itself — let the stack's
+        # own config resolve the corpus path instead of inheriting ours.
+        (cd "$OCS_DIR" && env -u MACHINES_DIR ./scripts/start.sh > /tmp/ocs_start.log 2>&1) || \
             die "OpenClaw startup failed\n$(tail -20 /tmp/ocs_start.log 2>/dev/null)"
 
         if poll_http "http://localhost:${OCS_GW_PORT}/healthz" "openclaw-gateway ready" 30 "-sf"; then
