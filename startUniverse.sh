@@ -1550,7 +1550,11 @@ if [ "$LOCAL_AI_ENABLED" = true ]; then
     EMBED_MODEL_REQUIRED="${EMBED_MODEL_REQUIRED:-ternary-bonsai:4}"
     set -e
 
-    for model in "llama3" "$EMBED_MODEL_REQUIRED"; do
+    # llama3 is a required expectation; the embed model is optional —
+    # environments provision different embedders (ternary-bonsai, nomic,
+    # bonsai-8b), so a missing embed model is an informational note rather
+    # than a deploy warning (#46).
+    for model in "llama3"; do
         MATCH=$(echo "$TAGS_JSON" | python3 -c \
             "import json,sys
 ms=[m['name'] for m in json.load(sys.stdin).get('models',[]) if '$model' in m['name']]
@@ -1560,6 +1564,13 @@ print(ms[0] if ms else '')" 2>/dev/null || echo "")
              warn "Model not found: $model"
         fi
     done
+    EMBED_MATCH=$(echo "$TAGS_JSON" | python3 -c \
+        "import json,sys
+ms=[m['name'] for m in json.load(sys.stdin).get('models',[]) if '$EMBED_MODEL_REQUIRED' in m['name']]
+print(ms[0] if ms else '')" 2>/dev/null || echo "")
+    if [ -n "$EMBED_MATCH" ]; then ok "Model: $EMBED_MATCH"
+    else info "Embed model '$EMBED_MODEL_REQUIRED' not present (optional) — pull with:  ollama pull $EMBED_MODEL_REQUIRED"
+    fi
 fi
 
 # =============================================================================
