@@ -32,7 +32,31 @@ import fs from 'node:fs';
 import path from 'node:path';
 
 const ROOT = path.resolve(path.dirname(new URL(import.meta.url).pathname), '..');
-const MACHINES_DIR = path.join(ROOT, 'examples', 'machines');
+const MACHINES_DIR = process.env.MACHINES_DIR
+  ? path.resolve(process.env.MACHINES_DIR)
+  : path.join(ROOT, '..', 'RealityEngine_Machines', 'machines');
+
+// Corpus files live in domain subdirectories (machines/domains/<name>/);
+// walk recursively, keyed by basename (globally unique across the corpus).
+function corpusFileMap() {
+  const map = new Map();
+  const walk = (dir) => {
+    for (const e of fs.readdirSync(dir, { withFileTypes: true })) {
+      const p = path.join(dir, e.name);
+      if (e.isDirectory()) walk(p);
+      else if (e.name.endsWith('.json')) map.set(e.name, p);
+    }
+  };
+  walk(MACHINES_DIR);
+  return map;
+}
+const CORPUS_FILES = corpusFileMap();
+function corpusPath(basename) {
+  const p = CORPUS_FILES.get(basename);
+  if (!p) throw new Error(`machine file not found in corpus: ${basename}`);
+  return p;
+}
+
 const DEFAULT_OUT  = path.join(ROOT, 'examples', 'contracts.json');
 const MAX_CHAIN_DEPTH = 4;   // same cap as cesgen-oracles
 
@@ -54,7 +78,7 @@ function parseArgs(argv) {
 // ── Chain enumeration (same algorithm as cesgen-oracles) ─────────────────────
 
 function enumerateChains(machineFile) {
-  const raw = JSON.parse(fs.readFileSync(path.join(MACHINES_DIR, machineFile), 'utf8'));
+  const raw = JSON.parse(fs.readFileSync(corpusPath(machineFile), 'utf8'));
   const m = raw.machine ?? raw;
   const mapping = m.perceptualMapping;
   if (!mapping?.input || !mapping?.output) return [];
@@ -95,8 +119,16 @@ function enumerateChains(machineFile) {
 // ── Engine runner ────────────────────────────────────────────────────────────
 
 async function loadEngine() {
-  const sim = await import(path.join(ROOT, 'dist', 'engine', 'PerceptualSpaceSimulator.js'));
-  const loader = await import(path.join(ROOT, 'dist', 'services', 'MachineLoader.js'));
+  // The replay engine is the compiled TypeScript reference implementation.
+  // Default to this repo's dist; fall back to the sibling RealityEngine_AI
+  // build (ENGINE_DIST overrides both).
+  const engineDist = process.env.ENGINE_DIST
+    ? path.resolve(process.env.ENGINE_DIST)
+    : fs.existsSync(path.join(ROOT, 'dist', 'engine'))
+      ? path.join(ROOT, 'dist')
+      : path.join(ROOT, '..', 'RealityEngine_AI', 'dist');
+  const sim = await import(path.join(engineDist, 'engine', 'PerceptualSpaceSimulator.js'));
+  const loader = await import(path.join(engineDist, 'services', 'MachineLoader.js'));
   return { sim, loader };
 }
 
@@ -139,7 +171,7 @@ function projectEventBus(eb) {
 }
 
 async function runChain(machineFile, chain, sim, loader) {
-  const rawJson = fs.readFileSync(path.join(MACHINES_DIR, machineFile), 'utf8');
+  const rawJson = fs.readFileSync(corpusPath(machineFile), 'utf8');
   const machine = loader.MachineLoader.loadFromJSON(rawJson, `contract::${chain.id}::${Date.now()}::${Math.random()}`);
   const s = new sim.PerceptualSpaceSimulator(0);
   s.addMachine(machine);
@@ -168,7 +200,7 @@ function silenceConsole(fn) {
 
 async function main() {
   const args = parseArgs(process.argv.slice(2));
-  const files = fs.readdirSync(MACHINES_DIR).filter(f => f.endsWith('.json')).sort();
+  const files = [...CORPUS_FILES.keys()].sort();
   const selected = args.names ? files.filter(f => args.names.has(f.replace(/\.json$/, ''))) : files;
 
   const { sim, loader } = await loadEngine();

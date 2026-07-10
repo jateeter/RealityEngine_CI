@@ -38,7 +38,31 @@ import fs from 'node:fs';
 import path from 'node:path';
 
 const ROOT = path.resolve(path.dirname(new URL(import.meta.url).pathname), '..');
-const MACHINES_DIR = path.join(ROOT, 'examples', 'machines');
+const MACHINES_DIR = process.env.MACHINES_DIR
+  ? path.resolve(process.env.MACHINES_DIR)
+  : path.join(ROOT, '..', 'RealityEngine_Machines', 'machines');
+
+// Corpus files live in domain subdirectories (machines/domains/<name>/);
+// walk recursively, keyed by basename (globally unique across the corpus).
+function corpusFileMap() {
+  const map = new Map();
+  const walk = (dir) => {
+    for (const e of fs.readdirSync(dir, { withFileTypes: true })) {
+      const p = path.join(dir, e.name);
+      if (e.isDirectory()) walk(p);
+      else if (e.name.endsWith('.json')) map.set(e.name, p);
+    }
+  };
+  walk(MACHINES_DIR);
+  return map;
+}
+const CORPUS_FILES = corpusFileMap();
+function corpusPath(basename) {
+  const p = CORPUS_FILES.get(basename);
+  if (!p) throw new Error(`machine file not found in corpus: ${basename}`);
+  return p;
+}
+
 
 // ── CLI ──────────────────────────────────────────────────────────────────────
 
@@ -87,7 +111,7 @@ function safeIdent(s) {
 }
 
 function listMachineFiles(args) {
-  const all = fs.readdirSync(MACHINES_DIR).filter(f => f.endsWith('.json')).sort();
+  const all = [...CORPUS_FILES.keys()].sort();
   if (args.all) return all;
   const picked = new Set();
   for (const name of args.names) {
@@ -389,7 +413,7 @@ function main() {
     process.exit(2);
   }
 
-  const specs = files.map(f => normalize(path.join(MACHINES_DIR, f)));
+  const specs = files.map(f => normalize(corpusPath(f)));
   let ok = true;
 
   for (const spec of specs) {
@@ -429,7 +453,7 @@ function listOnDiskSpecs(outTs) {
     .filter(f => f.endsWith('.ts') && f !== 'index.ts')
     .map(f => f.replace(/\.ts$/, ''))
     .sort();
-  return slugs.map(slug => normalize(path.join(MACHINES_DIR, `${slug}.json`)));
+  return slugs.map(slug => normalize(corpusPath(`${slug}.json`)));
 }
 
 main();

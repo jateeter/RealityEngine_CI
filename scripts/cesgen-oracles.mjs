@@ -38,7 +38,31 @@ import fs from 'node:fs';
 import path from 'node:path';
 
 const ROOT = path.resolve(path.dirname(new URL(import.meta.url).pathname), '..');
-const MACHINES_DIR = path.join(ROOT, 'examples', 'machines');
+const MACHINES_DIR = process.env.MACHINES_DIR
+  ? path.resolve(process.env.MACHINES_DIR)
+  : path.join(ROOT, '..', 'RealityEngine_Machines', 'machines');
+
+// Corpus files live in domain subdirectories (machines/domains/<name>/);
+// walk recursively, keyed by basename (globally unique across the corpus).
+function corpusFileMap() {
+  const map = new Map();
+  const walk = (dir) => {
+    for (const e of fs.readdirSync(dir, { withFileTypes: true })) {
+      const p = path.join(dir, e.name);
+      if (e.isDirectory()) walk(p);
+      else if (e.name.endsWith('.json')) map.set(e.name, p);
+    }
+  };
+  walk(MACHINES_DIR);
+  return map;
+}
+const CORPUS_FILES = corpusFileMap();
+function corpusPath(basename) {
+  const p = CORPUS_FILES.get(basename);
+  if (!p) throw new Error(`machine file not found in corpus: ${basename}`);
+  return p;
+}
+
 const DEFAULT_OUT  = path.join(ROOT, 'examples', 'oracles.json');
 
 // Deep chains explode combinatorially; 4 input steps is enough to cover the
@@ -59,7 +83,7 @@ function parseArgs(argv) {
 }
 
 function loadMachineFile(file) {
-  return JSON.parse(fs.readFileSync(path.join(MACHINES_DIR, file), 'utf8'));
+  return JSON.parse(fs.readFileSync(corpusPath(file), 'utf8'));
 }
 
 // Build oracles for one machine.  Returns an array of oracle entries.
@@ -120,7 +144,7 @@ function buildOracles(file) {
 
 function main() {
   const args = parseArgs(process.argv.slice(2));
-  const files = fs.readdirSync(MACHINES_DIR).filter(f => f.endsWith('.json')).sort();
+  const files = [...CORPUS_FILES.keys()].sort();
 
   const allOracles = [];
   for (const f of files) allOracles.push(...buildOracles(f));
