@@ -246,6 +246,7 @@ services:
       - OPENCLAW_ACP_SESSION
       - ACP_TARGET_AGENT
       - ACP_COMPLETION_SOURCE_MAPPING_ID
+      - HEALTHKIT_BRIDGE_TOKEN
       - INTEGRATIONS_CONFIG=/app/config/integrations.json
       - AUDIT_LOG_ENABLED=true
       - AUDIT_LOG_LEVEL=2
