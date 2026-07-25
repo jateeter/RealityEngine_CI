@@ -4,6 +4,7 @@
 .universe-engine-selection
 nginx/conf.d/
 config/integrations.json
+config/.healthkit-bridge-token
 
 # Deployment-validation agent runtime state (logs, run records, issue drafts)
 .deploy-validate/

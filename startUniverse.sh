@@ -92,6 +92,7 @@ POST_START_FULL_CORPUS="off" # off | seed
 PE_SOURCE_BOOTSTRAP="auto"   # auto | off
 VALIDATE_CORPUS="once"       # once | off
 MANAGER_NATIVE=false
+HEALTHKIT_TOKEN_ENABLED=true   # PE HealthKit ingest requires a bridge token by default
 DRY_RUN=false
 RE_ENGINE="${RE_ENGINE:-ai}"       # ai | cpp | lsp
 PE_ENGINE="${PE_ENGINE:-ai}"       # ai | cpp | lsp
@@ -142,6 +143,11 @@ startUniverse.sh — engine-selectable CI orchestrator
   --mqtt-mappings=PATH          Path to MQTT mappings JSON file
   --openclaw                    Force-start OpenClaw even if auto-detect would skip it
   --no-openclaw                 Skip OpenClaw startup
+  --healthkit-token=VALUE       Pin the PE HealthKit ingest bridge token (default: reuse
+                                HEALTHKIT_BRIDGE_TOKEN, else generate + persist a stable one
+                                at config/.healthkit-bridge-token)
+  --no-healthkit-token          Disable HealthKit ingest auth (dev mode: unauthenticated
+                                ingest accepted; /status reports auth "none")
   --no-local-ai                 Skip Ollama and localAIStack API startup
   --no-mcp-http                 Skip RealityEngine MCP Streamable HTTP service startup
   --no-openapi-swagger          Skip OpenAPI/Swagger portal startup
@@ -176,6 +182,8 @@ for arg in "$@"; do
     --mqtt-mappings=*)     MQTT_MAPPINGS_OVERRIDE="${arg#*=}" ;;
     --openclaw)            OPENCLAW=yes ;;
     --no-openclaw)         OPENCLAW=no ;;
+    --healthkit-token=*)   HEALTHKIT_BRIDGE_TOKEN="${arg#*=}"; HEALTHKIT_TOKEN_ENABLED=true ;;
+    --no-healthkit-token)  HEALTHKIT_TOKEN_ENABLED=false ;;
     --no-local-ai)         LOCAL_AI_ENABLED=false ;;
     --no-mcp-http)         MCP_HTTP_ENABLED=false ;;
     --no-openapi-swagger)  OPENAPI_SWAGGER_ENABLED=false ;;
@@ -259,8 +267,34 @@ configure_openclaw_acp_defaults() {
     export INTEGRATIONS_CONFIG="$CI_INTEGRATIONS_CONFIG"
 }
 
+# HealthKit ingest auth is enabled by default so the on-device iOS bridge (and
+# the M5 device leg) authenticate via `Authorization: Bearer <token>`.
+# Precedence: a preset HEALTHKIT_BRIDGE_TOKEN (shell/.env) wins; otherwise a
+# stable token is generated once and persisted to config/.healthkit-bridge-token
+# (gitignored) so the value survives restarts — the paired device must be
+# provisioned with the same token. `--no-healthkit-token` opts out (dev mode:
+# the PE accepts unauthenticated ingest and /status reports auth "none").
+configure_healthkit_bridge_token() {
+    if [ "$HEALTHKIT_TOKEN_ENABLED" = false ]; then
+        unset HEALTHKIT_BRIDGE_TOKEN
+        info "HealthKit ingest auth disabled (--no-healthkit-token) — PE accepts unauthenticated ingest"
+        return
+    fi
+    if [ -z "${HEALTHKIT_BRIDGE_TOKEN:-}" ]; then
+        local token_file="$CI_DIR/config/.healthkit-bridge-token"
+        if [ ! -s "$token_file" ]; then
+            ( umask 177; printf 'hk-%s\n' "$(openssl rand -hex 16)" > "$token_file" )
+            info "Generated a stable HealthKit bridge token at config/.healthkit-bridge-token"
+        fi
+        HEALTHKIT_BRIDGE_TOKEN="$(cat "$token_file")"
+    fi
+    export HEALTHKIT_BRIDGE_TOKEN
+    ok "HealthKit ingest auth enabled (Authorization: Bearer / bridgeToken) — token in config/.healthkit-bridge-token"
+}
+
 ensure_ci_integrations_config() {
     configure_openclaw_acp_defaults
+    configure_healthkit_bridge_token
     [ -f "$CI_INTEGRATIONS_EXAMPLE" ] || die "Integration registry template missing: $CI_INTEGRATIONS_EXAMPLE"
     if [ "$DRY_RUN" = true ]; then
         info "Dry-run: would generate integration registry at $CI_INTEGRATIONS_CONFIG"
@@ -988,6 +1022,7 @@ spawn_scala_instance() {
     REALITY_ENGINE_URL="http://$HOST_IP:$re_port" \
     MACHINES_DIR="$MACHINES_DIR/machines" \
     INTEGRATIONS_CONFIG="$INTEGRATIONS_CONFIG" \
+    HEALTHKIT_BRIDGE_TOKEN="${HEALTHKIT_BRIDGE_TOKEN:-}" \
     ACP_ENABLED="$ACP_ENABLED" \
     ACP_GATEWAY_URL="$ACP_GATEWAY_URL" \
     OPENCLAW_GATEWAY_URL="$OPENCLAW_GATEWAY_URL" \
@@ -1033,6 +1068,7 @@ spawn_cpp_instance() {
     PERCEPTION_ENGINE_PORT="$pe_port" \
     MACHINES_DIR="$MACHINES_DIR/machines" \
     INTEGRATIONS_CONFIG="$INTEGRATIONS_CONFIG" \
+    HEALTHKIT_BRIDGE_TOKEN="${HEALTHKIT_BRIDGE_TOKEN:-}" \
     ACP_ENABLED="$ACP_ENABLED" \
     ACP_GATEWAY_URL="$ACP_GATEWAY_URL" \
     OPENCLAW_GATEWAY_URL="$OPENCLAW_GATEWAY_URL" \
@@ -1078,6 +1114,7 @@ spawn_lsp_instance() {
     PERCEPTION_ENGINE_PORT="$pe_port" \
     MACHINES_DIR="$MACHINES_DIR/machines" \
     INTEGRATIONS_CONFIG="$INTEGRATIONS_CONFIG" \
+    HEALTHKIT_BRIDGE_TOKEN="${HEALTHKIT_BRIDGE_TOKEN:-}" \
     ACP_ENABLED="$ACP_ENABLED" \
     ACP_GATEWAY_URL="$ACP_GATEWAY_URL" \
     OPENCLAW_GATEWAY_URL="$OPENCLAW_GATEWAY_URL" \
