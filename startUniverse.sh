@@ -292,30 +292,9 @@ configure_healthkit_bridge_token() {
     ok "HealthKit ingest auth enabled (Authorization: Bearer / bridgeToken) — token in config/.healthkit-bridge-token"
 }
 
-# Integration env shared by every native PE launch (scala/cpp/lsp). Built once
-# after the ACP + HealthKit config functions populate their vars, then applied
-# via `env "${PE_INTEGRATION_ENV[@]}"` in each spawn_* function — so a new
-# integration adds one line here instead of editing three spawn blocks.
-configure_pe_integration_env() {
-    PE_INTEGRATION_ENV=(
-        INTEGRATIONS_CONFIG="$INTEGRATIONS_CONFIG"
-        HEALTHKIT_BRIDGE_TOKEN="${HEALTHKIT_BRIDGE_TOKEN:-}"
-        ACP_ENABLED="$ACP_ENABLED"
-        ACP_GATEWAY_URL="$ACP_GATEWAY_URL"
-        OPENCLAW_GATEWAY_URL="$OPENCLAW_GATEWAY_URL"
-        ACP_SESSION_KEY="$ACP_SESSION_KEY"
-        OPENCLAW_ACP_SESSION="$OPENCLAW_ACP_SESSION"
-        ACP_TARGET_AGENT="$ACP_TARGET_AGENT"
-        ACP_COMPLETION_SOURCE_MAPPING_ID="$ACP_COMPLETION_SOURCE_MAPPING_ID"
-        TRIGGERS_ENABLED="$TRIGGERS_ENABLED"
-        TRIGGER_DISPATCH_MODE="$TRIGGER_DISPATCH_MODE"
-    )
-}
-
 ensure_ci_integrations_config() {
     configure_openclaw_acp_defaults
     configure_healthkit_bridge_token
-    configure_pe_integration_env
     [ -f "$CI_INTEGRATIONS_EXAMPLE" ] || die "Integration registry template missing: $CI_INTEGRATIONS_EXAMPLE"
     if [ "$DRY_RUN" = true ]; then
         info "Dry-run: would generate integration registry at $CI_INTEGRATIONS_CONFIG"
@@ -1042,7 +1021,6 @@ spawn_scala_instance() {
     PERCEPTION_ENGINE_PORT="$pe_port" \
     REALITY_ENGINE_URL="http://$HOST_IP:$re_port" \
     MACHINES_DIR="$MACHINES_DIR/machines" \
-        env "${PE_INTEGRATION_ENV[@]}" \
         nohup bash "$SCALA_DIR/start.sh" \
         > "/tmp/re-${id}.log" 2>&1 &
     local pid_re=$!
@@ -1078,7 +1056,6 @@ spawn_cpp_instance() {
     REALITY_ENGINE_PORT="$re_port" \
     PERCEPTION_ENGINE_PORT="$pe_port" \
     MACHINES_DIR="$MACHINES_DIR/machines" \
-        env "${PE_INTEGRATION_ENV[@]}" \
         nohup bash "$CPP_DIR/start.sh" \
         > "/tmp/re-${id}.log" 2>&1 &
     local pid_re=$!
@@ -1114,7 +1091,6 @@ spawn_lsp_instance() {
     REALITY_ENGINE_PORT="$re_port" \
     PERCEPTION_ENGINE_PORT="$pe_port" \
     MACHINES_DIR="$MACHINES_DIR/machines" \
-        env "${PE_INTEGRATION_ENV[@]}" \
         nohup bash "$LSP_DIR/start.sh" \
         > "/tmp/re-${id}.log" 2>&1 &
     local pid_re=$!
