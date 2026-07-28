@@ -247,6 +247,12 @@ services:
       - ACP_TARGET_AGENT
       - ACP_COMPLETION_SOURCE_MAPPING_ID
       - HEALTHKIT_BRIDGE_TOKEN
+      # Trigger dispatch config — propagated from host shell (startUniverse.sh
+      # exports TRIGGERS_ENABLED/TRIGGER_DISPATCH_MODE). Without these the
+      # Dockerized PE silently boots with triggers disabled.
+      - TRIGGERS_ENABLED
+      - TRIGGER_DISPATCH_MODE
+      - TRIGGER_GRAPHQL_URL
       - INTEGRATIONS_CONFIG=/app/config/integrations.json
       - AUDIT_LOG_ENABLED=true
       - AUDIT_LOG_LEVEL=2
