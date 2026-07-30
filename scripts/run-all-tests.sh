@@ -267,6 +267,31 @@ run_semantic_parity_smoke() {
     rm -f "$log"
 }
 
+run_audit_chain_e2e() {
+    local label="PE->RE->PE semantic audit chain"
+    if [ ! -x "$CI_DIR/scripts/verify-audit-chain.sh" ]; then
+        skip_suite "$label" "verify-audit-chain.sh missing or not executable"
+        return
+    fi
+    local registry_url="${RE_REGISTRY_URL:-http://127.0.0.1:5999/re-registry.json}"
+    if ! curl -sf --max-time 5 "$registry_url" >/dev/null 2>&1; then
+        skip_suite "$label" "registry not reachable at $registry_url"
+        return
+    fi
+    local log; log="$(mktemp -t re-audit-chain.XXXXXX)"
+    info "Running: $label"
+    if "$CI_DIR/scripts/verify-audit-chain.sh" >"$log" 2>&1; then
+        ok "$label - PASS"
+        sed 's/^/    /' "$log"
+        record PASS "$label"
+    else
+        warn "$label - FAIL (last 20 lines):"
+        tail -20 "$log" | sed 's/^/    /'
+        record FAIL "$label" "audit chain did not join to corpus IRIs"
+    fi
+    rm -f "$log"
+}
+
 run_openclaw_integration_e2e() {
     local label="OpenClaw PE integration e2e"
     if [ ! -x "$CI_DIR/scripts/test-openclaw-integration.sh" ]; then
@@ -464,6 +489,7 @@ run_e2e() {
     run_playwright_e2e
     run_openclaw_smoke
     run_semantic_parity_smoke
+    run_audit_chain_e2e
     run_openclaw_integration_e2e
 }
 
