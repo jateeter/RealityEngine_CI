@@ -484,6 +484,8 @@ run_mcp() {
   run_cmd "mcp-smoke" node "$ci/scripts/regression-mcp-smoke.mjs" \
     --mcp-url "$MCP_URL" \
     --registry /tmp/re-registry/re-registry.json \
+    --manifest "$ci/mcp/manifest.json" \
+    --profile "$ci/mcp/openai-mcp-profile.json" \
     --out "$REPORT_DIR/mcp-smoke.json"
 }
 

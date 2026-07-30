@@ -34,6 +34,9 @@ MCP-native projection of those contracts.
 | `trigger.replay` | PE | ✓ | `POST /api/triggers/replay/:dispatchId` |
 | `dispatch.update_record` | PE | ✓ | `PATCH /api/dispatch/records/:id` |
 | `integrations.completion` | PE | ✓ | `POST /api/integrations/completions` |
+| `integrations.dispatch_provider` | PE | ✓ | `POST /api/integrations/:provider/dispatch` |
+| `integrations.dispatch_openai` | PE | ✓ | `POST /api/integrations/openai/dispatch` |
+| `integrations.dispatch_ollama` | PE | ✓ | `POST /api/integrations/ollama/dispatch` |
 
 **Resources**
 
@@ -113,6 +116,41 @@ blocks (stdio, single-endpoint, and HTTP).
 ```bash
 npm run manifest:gen      # regenerate after editing tools
 npm run manifest:check    # CI guard — fails if manifest.json is stale
+```
+
+## OpenAI Responses API MCP profile
+
+[`openai-mcp-profile.json`](openai-mcp-profile.json) is generated from
+[`manifest.json`](manifest.json) and the normalized MCP registry hints in
+[`../config/integrations.example.json`](../config/integrations.example.json).
+It emits both a local Streamable HTTP profile and a secure-tunnel placeholder
+for hosted OpenAI Responses API use:
+
+```bash
+npm run openai-profile:gen
+npm run openai-profile:check
+```
+
+The generated tool block follows the OpenAI MCP tool shape:
+`type: "mcp"`, `server_label`, `server_url`, `allowed_tools`,
+`require_approval`, and optional `defer_loading` / `headers`.
+Mutating RealityEngine tools are listed under `require_approval.always` by
+default. Generation fails if an allowed tool is not in `manifest.json`, or if a
+mutating tool would be configured with `require_approval: "never"` without the
+explicit unsafe test override.
+
+```js
+import OpenAI from "openai";
+import { readFileSync } from "node:fs";
+
+const client = new OpenAI();
+const profile = JSON.parse(readFileSync("mcp/openai-mcp-profile.json", "utf8"));
+
+const response = await client.responses.create({
+  model: "gpt-5",
+  input: "Inspect the RealityEngine PE integration status.",
+  tools: profile.profiles.local.tools
+});
 ```
 
 ## Docker

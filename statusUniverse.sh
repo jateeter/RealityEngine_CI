@@ -150,14 +150,29 @@ fi
 
 # ── Output ────────────────────────────────────────────────────────────────────
 if [ "$JSON_OUT" = true ]; then
-  python3 - "${ROWS[@]}" <<'PYEOF'
+  python3 - "$MANIFEST" "${ROWS[@]}" <<'PYEOF'
 import json, sys
 rows = []
-for r in sys.argv[1:]:
+manifest_path = sys.argv[1]
+manifest = {}
+try:
+    with open(manifest_path) as f:
+        manifest = json.load(f)
+except Exception:
+    manifest = {}
+for r in sys.argv[2:]:
     parts = r.split("|")
     rows.append({"engine": parts[0], "id": parts[1], "stamped": parts[2],
                  "registry": parts[3], "health": parts[4], "ports": parts[5]})
-print(json.dumps({"services": rows}, indent=2))
+print(json.dumps({
+    "services": rows,
+    "manifest": {
+        "path": manifest_path,
+        "started_at": manifest.get("started_at", ""),
+        "mcp_http_url": manifest.get("mcp_http_url", ""),
+        "openai_mcp_profile": manifest.get("openai_mcp_profile", {"status": "not-run"})
+    }
+}, indent=2))
 PYEOF
   exit "$OVERALL"
 fi

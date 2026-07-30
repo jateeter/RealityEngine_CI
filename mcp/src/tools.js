@@ -22,6 +22,31 @@ const region = z
   .object({ offset: z.number().int().nonnegative(), length: z.number().int().positive() })
   .describe('Perceptual-space slice { offset, length }.');
 
+const providerDispatchInput = {
+  instance,
+  dispatchId: z.string().optional().describe('Recorded dispatch id.'),
+  dispatch_id: z.string().optional().describe('Recorded dispatch id (snake_case alias).'),
+  prompt: z.string().optional().describe('Optional provider prompt override.'),
+  model: z.string().optional().describe('Optional provider model override.'),
+  options: z.record(z.any()).optional().describe('Optional provider-specific adapter options.'),
+};
+
+function dispatchIdFromArgs(args) {
+  return args.dispatchId || args.dispatch_id;
+}
+
+function providerDispatchBody(args, provider = undefined) {
+  const dispatchId = dispatchIdFromArgs(args);
+  if (!dispatchId) throw new Error('dispatchId is required');
+  return {
+    dispatchId,
+    ...(args.prompt ? { prompt: args.prompt } : {}),
+    ...(args.model ? { model: args.model } : {}),
+    ...(provider ? { provider } : {}),
+    ...(args.options ? { options: args.options } : {}),
+  };
+}
+
 export const TOOLS = [
   // ---- Reality Engine: read ----
   {
@@ -278,6 +303,51 @@ export const TOOLS = [
         ...(a.ttlMs ? { ttlMs: a.ttlMs } : {}),
         ...(a.triggerPush !== undefined ? { triggerPush: a.triggerPush } : {}),
       },
+    }),
+  },
+  {
+    name: 'integrations.dispatch_provider',
+    title: 'PE: dispatch a recorded envelope to a provider',
+    description:
+      'Dispatch a recorded trigger envelope to a configured provider adapter. The provider result must still return through integrations.completion.',
+    target: 'pe',
+    mutating: true,
+    input: {
+      provider: z.enum(['openai', 'ollama']).describe('Provider adapter id.'),
+      ...providerDispatchInput,
+    },
+    build: (a) => ({
+      method: 'POST',
+      path: `/api/integrations/${encodeURIComponent(a.provider)}/dispatch`,
+      body: providerDispatchBody(a, a.provider),
+    }),
+  },
+  {
+    name: 'integrations.dispatch_openai',
+    title: 'PE: dispatch a recorded envelope to OpenAI',
+    description:
+      'Dispatch a recorded trigger envelope through the OpenAI-compatible adapter. The provider result must still return through integrations.completion.',
+    target: 'pe',
+    mutating: true,
+    input: providerDispatchInput,
+    build: (a) => ({
+      method: 'POST',
+      path: '/api/integrations/openai/dispatch',
+      body: providerDispatchBody(a, 'openai'),
+    }),
+  },
+  {
+    name: 'integrations.dispatch_ollama',
+    title: 'PE: dispatch a recorded envelope to Ollama',
+    description:
+      'Dispatch a recorded trigger envelope through the Ollama adapter. The provider result must still return through integrations.completion.',
+    target: 'pe',
+    mutating: true,
+    input: providerDispatchInput,
+    build: (a) => ({
+      method: 'POST',
+      path: '/api/integrations/ollama/dispatch',
+      body: providerDispatchBody(a, 'ollama'),
     }),
   },
 ];

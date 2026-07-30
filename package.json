@@ -21,6 +21,9 @@
     "mcp": "node mcp/bin/realityengine-mcp.js",
     "mcp:http": "node mcp/src/http-server.js",
     "mcp:tools": "node mcp/bin/realityengine-mcp.js --list-tools",
+    "mcp:manifest:check": "npm --prefix mcp run manifest:check",
+    "mcp:openai-profile:gen": "npm --prefix mcp run openai-profile:gen",
+    "mcp:openai-profile:check": "npm --prefix mcp run openai-profile:check",
     "test:report": "playwright show-report e2e-report"
   },
   "engines": {

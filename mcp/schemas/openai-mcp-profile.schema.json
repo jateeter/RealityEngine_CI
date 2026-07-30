@@ -1,0 +1,115 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://realityengine.local/schemas/openai-mcp-profile.schema.json",
+  "title": "RealityEngine OpenAI MCP Profile",
+  "type": "object",
+  "required": [
+    "$schema",
+    "_generated",
+    "name",
+    "version",
+    "manifest",
+    "profiles"
+  ],
+  "additionalProperties": false,
+  "properties": {
+    "$schema": { "type": "string" },
+    "_generated": { "type": "string" },
+    "name": { "type": "string" },
+    "version": { "type": "string" },
+    "manifest": {
+      "type": "object",
+      "required": ["name", "version", "toolCount"],
+      "additionalProperties": false,
+      "properties": {
+        "name": { "type": "string" },
+        "version": { "type": "string" },
+        "toolCount": { "type": "integer", "minimum": 1 }
+      }
+    },
+    "profiles": {
+      "type": "object",
+      "required": ["local", "secureTunnel"],
+      "additionalProperties": {
+        "$ref": "#/$defs/profile"
+      },
+      "properties": {
+        "local": { "$ref": "#/$defs/profile" },
+        "secureTunnel": { "$ref": "#/$defs/profile" }
+      }
+    }
+  },
+  "$defs": {
+    "profile": {
+      "type": "object",
+      "required": ["description", "environment", "tools"],
+      "additionalProperties": false,
+      "properties": {
+        "description": { "type": "string" },
+        "environment": {
+          "type": "object",
+          "additionalProperties": { "type": "string" }
+        },
+        "tools": {
+          "type": "array",
+          "minItems": 1,
+          "items": { "$ref": "#/$defs/openaiMcpTool" }
+        }
+      }
+    },
+    "openaiMcpTool": {
+      "type": "object",
+      "required": [
+        "type",
+        "server_label",
+        "server_description",
+        "server_url",
+        "allowed_tools",
+        "require_approval"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "type": { "const": "mcp" },
+        "server_label": { "type": "string" },
+        "server_description": { "type": "string" },
+        "server_url": { "type": "string", "pattern": "^https?://" },
+        "allowed_tools": {
+          "type": "array",
+          "minItems": 1,
+          "items": { "type": "string" },
+          "uniqueItems": true
+        },
+        "require_approval": {
+          "oneOf": [
+            { "enum": ["always", "never"] },
+            {
+              "type": "object",
+              "additionalProperties": false,
+              "properties": {
+                "always": { "$ref": "#/$defs/toolFilter" },
+                "never": { "$ref": "#/$defs/toolFilter" }
+              }
+            }
+          ]
+        },
+        "defer_loading": { "type": "boolean" },
+        "headers": {
+          "type": "object",
+          "additionalProperties": { "type": "string" }
+        }
+      }
+    },
+    "toolFilter": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "tool_names": {
+          "type": "array",
+          "items": { "type": "string" },
+          "uniqueItems": true
+        },
+        "read_only": { "type": "boolean" }
+      }
+    }
+  }
+}
