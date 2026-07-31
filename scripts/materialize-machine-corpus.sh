@@ -6,11 +6,14 @@ usage() {
   cat <<'USAGE'
 materialize-machine-corpus.sh SOURCE_ROOT MANIFEST OUTPUT_ROOT
 
-SOURCE_ROOT must contain machines/*.json.
-MANIFEST lists machine JSON filenames, one per line. Blank lines and comments
-starting with # are ignored.
-OUTPUT_ROOT will be recreated with a machines/ directory containing the selected
-machine files.
+SOURCE_ROOT must contain a machines/ directory.
+MANIFEST lists machine JSON filenames (basenames), one per line. Blank lines
+and comments starting with # are ignored. Entries are resolved against
+machines/ first, then by a recursive basename search so the manifest stays
+valid across corpus reorganisations (the corpus is domain-organized and
+filenames are globally unique).
+OUTPUT_ROOT will be recreated with a flat machines/ directory containing the
+selected machine files.
 USAGE
 }
 
@@ -36,6 +39,8 @@ rm -rf "$output_root"
 mkdir -p "$output_machines"
 
 count=0
+missing=""
+ambiguous=""
 while IFS= read -r raw || [ -n "$raw" ]; do
   line="${raw%%#*}"
   line="$(printf '%s' "$line" | sed -E 's/^[[:space:]]+//; s/[[:space:]]+$//')"
@@ -43,11 +48,33 @@ while IFS= read -r raw || [ -n "$raw" ]; do
   case "$line" in
     */*|*..*) echo "invalid corpus entry: $line" >&2; exit 1 ;;
   esac
+  # Flat path first, then a recursive basename search — the corpus is
+  # domain-organized (machines/domains/<domain>/) and filenames are globally
+  # unique, so the manifest can stay basename-only and survive reorganisation.
   src="$source_machines/$line"
-  [ -f "$src" ] || { echo "selected machine not found: $src" >&2; exit 1; }
+  if [ ! -f "$src" ]; then
+    matches="$(find "$source_machines" -type f -name "$line" 2>/dev/null)"
+    match_count="$(printf '%s' "$matches" | grep -c . || true)"
+    if [ "$match_count" -eq 0 ]; then
+      missing="$missing  $line"$'\n'
+      continue
+    elif [ "$match_count" -gt 1 ]; then
+      ambiguous="$ambiguous  $line -> $(printf '%s' "$matches" | tr '\n' ' ')"$'\n'
+      continue
+    fi
+    src="$(printf '%s' "$matches" | head -n 1)"
+  fi
   cp "$src" "$output_machines/$line"
   count=$((count + 1))
 done < "$manifest"
+
+# Report every unresolved entry at once — aborting on the first turns a
+# corpus-wide reorganisation into a one-at-a-time debugging session.
+if [ -n "$missing" ] || [ -n "$ambiguous" ]; then
+  [ -n "$missing" ] && printf 'selected machine(s) not found under %s:\n%s' "$source_machines" "$missing" >&2
+  [ -n "$ambiguous" ] && printf 'ambiguous corpus entr(ies) — filenames must be globally unique:\n%s' "$ambiguous" >&2
+  exit 1
+fi
 
 [ "$count" -gt 0 ] || { echo "manifest selected no machines: $manifest" >&2; exit 1; }
 cp "$manifest" "$output_root/standard-deployment-corpus.txt"
