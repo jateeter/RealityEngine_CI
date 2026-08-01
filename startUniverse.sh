@@ -1006,8 +1006,26 @@ fi
 
 # ── Multi-engine spawn helpers ────────────────────────────────────────────
 
+# Readiness budget for a natively spawned engine, in 2s attempts.
+#
+# Engines that load the corpus before binding their HTTP port cannot answer
+# /api/health until loading finishes, so a fixed budget fails on large corpora:
+# the Scala RE loads 1321 machines and was being killed at 90s despite logging
+# "Machine loading complete: 1321 loaded, 0 failed" and binding successfully.
+# Scale with corpus size (~1 extra second per 20 machines) and let
+# NATIVE_HEALTH_ATTEMPTS override outright.
+_native_health_attempts() {
+    if [ -n "${NATIVE_HEALTH_ATTEMPTS:-}" ]; then
+        echo "$NATIVE_HEALTH_ATTEMPTS"; return
+    fi
+    local machines="${_MACHINE_CORPUS_COUNT:-0}"
+    case "$machines" in (*[!0-9]*|"") machines=0 ;; esac
+    # 45 attempts (90s) floor, plus one attempt per 40 machines.
+    echo $(( 45 + machines / 40 ))
+}
+
 _poll_native_health() {
-    local url="$1" label="$2" max="${3:-${NATIVE_HEALTH_ATTEMPTS:-45}}"
+    local url="$1" label="$2" max="${3:-$(_native_health_attempts)}"
     local n=0
     while [ "$n" -lt "$max" ]; do
         if curl -sf --max-time 2 "$url" > /dev/null 2>&1; then
@@ -1016,7 +1034,7 @@ _poll_native_health() {
         fi
         n=$((n+1)); echo -n "."; sleep 2
     done
-    echo ""; warn "$label — did not respond after $((max*2))s"
+    echo ""; warn "$label — did not respond after $((max*2))s (corpus: ${_MACHINE_CORPUS_COUNT:-?} machines; raise NATIVE_HEALTH_ATTEMPTS to extend)"
     return 1
 }
 
