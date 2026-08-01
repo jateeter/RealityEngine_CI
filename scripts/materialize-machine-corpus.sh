@@ -6,9 +6,9 @@ usage() {
   cat <<'USAGE'
 materialize-machine-corpus.sh SOURCE_ROOT MANIFEST OUTPUT_ROOT
 
-SOURCE_ROOT must contain machines/*.json.
-MANIFEST lists machine JSON filenames, one per line. Blank lines and comments
-starting with # are ignored.
+SOURCE_ROOT must contain machines/**/*.json.
+MANIFEST lists machine JSON paths relative to SOURCE_ROOT/machines, one per
+line. Blank lines and comments starting with # are ignored.
 OUTPUT_ROOT will be recreated with a machines/ directory containing the selected
 machine files.
 USAGE
@@ -41,10 +41,11 @@ while IFS= read -r raw || [ -n "$raw" ]; do
   line="$(printf '%s' "$line" | sed -E 's/^[[:space:]]+//; s/[[:space:]]+$//')"
   [ -z "$line" ] && continue
   case "$line" in
-    */*|*..*) echo "invalid corpus entry: $line" >&2; exit 1 ;;
+    /*|*..*) echo "invalid corpus entry: $line" >&2; exit 1 ;;
   esac
   src="$source_machines/$line"
   [ -f "$src" ] || { echo "selected machine not found: $src" >&2; exit 1; }
+  mkdir -p "$(dirname "$output_machines/$line")"
   cp "$src" "$output_machines/$line"
   count=$((count + 1))
 done < "$manifest"

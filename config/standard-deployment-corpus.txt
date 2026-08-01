@@ -5,15 +5,15 @@
 # integration fixtures available during deployment validation. The full corpus
 # remains the authoritative production corpus and can be loaded after stack
 # completion.
-DLX011_req-ack-handshake.json
-DLX017_start-busy-done.json
-DLX034_watchdog-kick-window.json
-DLX041_one-hot-grant.json
-DCMemoryAlertFF.json
-DCNetworkThrottleFF.json
-OpenClawCompletionE2E.json
-DocumentSigningWorkflowMonitor.json
-QualificationVerificationMonitor.json
-HomeTransportationBarrierMonitor.json
-DataCenterDcx001010Interconnect.json
-DigitalLogicDlx021030Interconnect.json
+domains/digital-logic/DLX011_req-ack-handshake.json
+domains/digital-logic/DLX017_start-busy-done.json
+domains/digital-logic/DLX034_watchdog-kick-window.json
+domains/digital-logic/DLX041_one-hot-grant.json
+domains/data-center/DCMemoryAlertFF.json
+domains/data-center/DCNetworkThrottleFF.json
+domains/digital-logic/OpenClawCompletionE2E.json
+domains/community-services/DocumentSigningWorkflowMonitor.json
+domains/community-services/QualificationVerificationMonitor.json
+domains/health-personal/HomeTransportationBarrierMonitor.json
+domains/data-center/DataCenterDcx001010Interconnect.json
+domains/digital-logic/DigitalLogicDlx021030Interconnect.json
