@@ -788,6 +788,7 @@ validate_mcp_and_openapi() {
     set +e
     if [ "$MCP_HTTP_ENABLED" = "true" ]; then
         local mcp_url="http://${RE_MCP_HTTP_HOST}:${RE_MCP_HTTP_PORT}"
+        local openai_profile_status="/tmp/realityengine-openai-mcp-profile-check.json"
         if curl -sf --max-time 5 "$mcp_url/healthz" >/dev/null 2>&1; then
             ok "MCP HTTP health: $mcp_url/healthz"
         else
@@ -805,6 +806,21 @@ validate_mcp_and_openapi() {
             2*) ok "MCP Streamable HTTP initialize accepted" ;;
             *)  add_warn "MCP Streamable HTTP initialize failed (HTTP $init_code) — see /tmp/realityengine-mcp-init.json" ;;
         esac
+        if (cd "$CI_DIR/mcp" && npm run -s manifest:check >/tmp/realityengine-mcp-manifest-check.txt 2>&1 && npm run -s openai-profile:check >/tmp/realityengine-openai-mcp-profile-check.txt 2>&1); then
+            ok "OpenAI MCP profile matches manifest"
+            python3 - "$openai_profile_status" <<'PYEOF'
+import json, sys
+with open(sys.argv[1], "w") as f:
+    json.dump({"status": "passed", "profile": "mcp/openai-mcp-profile.json", "manifest": "mcp/manifest.json"}, f, indent=2)
+PYEOF
+        else
+            add_warn "OpenAI MCP profile or manifest check failed — see /tmp/realityengine-openai-mcp-profile-check.txt and /tmp/realityengine-mcp-manifest-check.txt"
+            python3 - "$openai_profile_status" <<'PYEOF'
+import json, sys
+with open(sys.argv[1], "w") as f:
+    json.dump({"status": "failed", "profile": "mcp/openai-mcp-profile.json", "manifest": "mcp/manifest.json"}, f, indent=2)
+PYEOF
+        fi
     fi
 
     if [ "$OPENAPI_SWAGGER_ENABLED" = "true" ]; then
@@ -2517,6 +2533,14 @@ _ollama_started=false
 [ -f /tmp/ollama_universe.pid ] && _ollama_started=true
 python3 - <<MANIFEST_EOF
 import json, os
+if "$MCP_HTTP_ENABLED" == "true":
+    try:
+        with open("/tmp/realityengine-openai-mcp-profile-check.json") as f:
+            openai_mcp_profile = json.load(f)
+    except Exception:
+        openai_mcp_profile = {"status": "not-run", "profile": "mcp/openai-mcp-profile.json", "manifest": "mcp/manifest.json"}
+else:
+    openai_mcp_profile = {"status": "skipped", "reason": "MCP HTTP disabled", "profile": "mcp/openai-mcp-profile.json", "manifest": "mcp/manifest.json"}
 manifest = {
     "started_at":              "$(date -u +%FT%TZ)",
     "mode":                    "multi-engine" if "$MULTI_ENGINE_MODE" == "true" else "docker",
@@ -2544,6 +2568,7 @@ manifest = {
     "mcp_http_enabled":        "$MCP_HTTP_ENABLED" == "true",
     "mcp_http_started":        "$MCP_HTTP_STARTED" == "true",
     "mcp_http_url":            "http://${RE_MCP_HTTP_HOST}:${RE_MCP_HTTP_PORT}/mcp",
+    "openai_mcp_profile":      openai_mcp_profile,
     "openapi_swagger_enabled": "$OPENAPI_SWAGGER_ENABLED" == "true",
     "openapi_swagger_started": "$OPENAPI_SWAGGER_STARTED" == "true",
     "openapi_swagger_url":     "http://${OPENAPI_SWAGGER_HOST}:${OPENAPI_SWAGGER_PORT}/",

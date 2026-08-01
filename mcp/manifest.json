@@ -134,6 +134,21 @@
       "name": "integrations.completion",
       "target": "pe",
       "mutating": true
+    },
+    {
+      "name": "integrations.dispatch_provider",
+      "target": "pe",
+      "mutating": true
+    },
+    {
+      "name": "integrations.dispatch_openai",
+      "target": "pe",
+      "mutating": true
+    },
+    {
+      "name": "integrations.dispatch_ollama",
+      "target": "pe",
+      "mutating": true
     }
   ]
 }

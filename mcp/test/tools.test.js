@@ -1,5 +1,6 @@
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
+import { spawnSync } from 'node:child_process';
 import { test } from 'node:test';
 
 import { describeTools, TOOLS, toolByName } from '../src/server.js';
@@ -38,6 +39,20 @@ test('canonical RE and PE read tools build the expected requests', () => {
   });
 });
 
+test('provider dispatch tools build canonical OpenAI/Ollama requests', () => {
+  assert.deepEqual(toolByName('integrations.dispatch_openai').build({ dispatchId: 'd/1' }), {
+    method: 'POST',
+    path: '/api/integrations/openai/dispatch',
+    body: { dispatchId: 'd/1', provider: 'openai' },
+  });
+  assert.deepEqual(toolByName('integrations.dispatch_ollama').build({ dispatch_id: 'd/2', model: 'gpt-oss:20b' }), {
+    method: 'POST',
+    path: '/api/integrations/ollama/dispatch',
+    body: { dispatchId: 'd/2', model: 'gpt-oss:20b', provider: 'ollama' },
+  });
+  assert.throws(() => toolByName('integrations.dispatch_provider').build({ provider: 'openai' }), /dispatchId is required/);
+});
+
 test('mutating tools are disabled by default in the tool description', () => withEnv({
   RE_MCP_ALLOW_MUTATION: undefined,
   RE_MCP_ALLOWED_TOOLS: undefined,
@@ -55,3 +70,41 @@ test('mutation allowlist enables only the named mutating tool', () => withEnv({
   assert.equal(tools.find((tool) => tool.name === 'pe.push_signal')?.enabled, true);
   assert.equal(tools.find((tool) => tool.name === 'pe.enqueue_push')?.enabled, false);
 }));
+
+test('OpenAI MCP profile pins mutating tools behind approval policy', () => {
+  const profile = JSON.parse(readFileSync(new URL('../openai-mcp-profile.json', import.meta.url), 'utf8'));
+  const manifest = JSON.parse(readFileSync(new URL('../manifest.json', import.meta.url), 'utf8'));
+  const toolNames = new Set(manifest.tools.map((tool) => tool.name));
+  const mutatingToolNames = manifest.tools.filter((tool) => tool.mutating).map((tool) => tool.name).sort();
+  const localTool = profile.profiles.local.tools[0];
+  assert.equal(localTool.type, 'mcp');
+  assert.deepEqual(localTool.allowed_tools, [...localTool.allowed_tools].sort());
+  assert.deepEqual(localTool.allowed_tools.filter((name) => !toolNames.has(name)), []);
+  assert.deepEqual(localTool.require_approval.always.tool_names, mutatingToolNames);
+  assert.equal(localTool.defer_loading, true);
+});
+
+test('OpenAI MCP profile generation rejects stale or unsafe inputs', () => {
+  const script = new URL('../scripts/gen-openai-profile.mjs', import.meta.url);
+  const badTool = spawnSync(process.execPath, [
+    script.pathname,
+    '--allowed-tools',
+    'missing.tool',
+    '--out',
+    '/tmp/realityengine-bad-openai-profile.json',
+  ], { encoding: 'utf8' });
+  assert.notEqual(badTool.status, 0);
+  assert.match(badTool.stderr, /unknown MCP tool/);
+
+  const unsafeNever = spawnSync(process.execPath, [
+    script.pathname,
+    '--require-approval',
+    'never',
+    '--allowed-tools',
+    're.read_state,integrations.completion',
+    '--out',
+    '/tmp/realityengine-unsafe-openai-profile.json',
+  ], { encoding: 'utf8' });
+  assert.notEqual(unsafeNever.status, 0);
+  assert.match(unsafeNever.stderr, /refusing require_approval=never/);
+});

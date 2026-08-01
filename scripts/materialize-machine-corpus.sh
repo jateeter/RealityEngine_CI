@@ -6,14 +6,14 @@ usage() {
   cat <<'USAGE'
 materialize-machine-corpus.sh SOURCE_ROOT MANIFEST OUTPUT_ROOT
 
-SOURCE_ROOT must contain a machines/ directory.
-MANIFEST lists machine JSON filenames (basenames), one per line. Blank lines
-and comments starting with # are ignored. Entries are resolved against
-machines/ first, then by a recursive basename search so the manifest stays
-valid across corpus reorganisations (the corpus is domain-organized and
-filenames are globally unique).
-OUTPUT_ROOT will be recreated with a flat machines/ directory containing the
-selected machine files.
+SOURCE_ROOT must contain machines/**/*.json.
+MANIFEST lists machine JSON paths relative to SOURCE_ROOT/machines, one per
+line, or globally unique basenames. Blank lines and comments starting with #
+are ignored. Basename entries are resolved against machines/ first, then by a
+recursive basename search so the manifest stays valid across corpus
+reorganisations.
+OUTPUT_ROOT will be recreated with a machines/ directory containing the selected
+machine files.
 USAGE
 }
 
@@ -46,11 +46,10 @@ while IFS= read -r raw || [ -n "$raw" ]; do
   line="$(printf '%s' "$line" | sed -E 's/^[[:space:]]+//; s/[[:space:]]+$//')"
   [ -z "$line" ] && continue
   case "$line" in
-    */*|*..*) echo "invalid corpus entry: $line" >&2; exit 1 ;;
+    /*|*..*) echo "invalid corpus entry: $line" >&2; exit 1 ;;
   esac
-  # Flat path first, then a recursive basename search — the corpus is
-  # domain-organized (machines/domains/<domain>/) and filenames are globally
-  # unique, so the manifest can stay basename-only and survive reorganisation.
+  # Direct relative path first, then a recursive basename search for manifests
+  # that intentionally stay basename-only across corpus reorganisations.
   src="$source_machines/$line"
   if [ ! -f "$src" ]; then
     matches="$(find "$source_machines" -type f -name "$line" 2>/dev/null)"
@@ -64,6 +63,7 @@ while IFS= read -r raw || [ -n "$raw" ]; do
     fi
     src="$(printf '%s' "$matches" | head -n 1)"
   fi
+  mkdir -p "$(dirname "$output_machines/$line")"
   cp "$src" "$output_machines/$line"
   count=$((count + 1))
 done < "$manifest"

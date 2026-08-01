@@ -16,6 +16,8 @@
     "list-tools": "node bin/realityengine-mcp.js --list-tools",
     "manifest:gen": "node scripts/gen-manifest.mjs",
     "manifest:check": "node scripts/gen-manifest.mjs --check",
+    "openai-profile:gen": "node scripts/gen-openai-profile.mjs",
+    "openai-profile:check": "node scripts/gen-openai-profile.mjs --check",
     "test": "node --test test/*.js"
   },
   "engines": {
