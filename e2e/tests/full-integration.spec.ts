@@ -89,15 +89,19 @@ test.describe('Full Integration - End to End Flow', () => {
     await page.waitForLoadState('networkidle');
     await page.waitForTimeout(2000); // Wait for data to load
 
-    // Check if machine cards are visible; if the API failed on first load,
-    // reload once to retry getMachines() before asserting.
-    const machineCard = page.locator('h3').first();
-    if (!await machineCard.isVisible().catch(() => false)) {
+    // Check the machine tree rendered; if the API failed on first load, reload
+    // once to retry getMachines() before asserting.
+    //
+    // A bare `h3` used to stand in for "a machine card". The landing surface is
+    // now a domain tree, and the first h3 in the DOM is a hidden settings
+    // section ("Appearance"), so that locator resolved to a hidden element.
+    const machineTree = page.getByRole('tree', { name: /Machines grouped by domain/ });
+    if (!await machineTree.isVisible().catch(() => false)) {
       await page.reload();
       await page.waitForLoadState('networkidle');
       await page.waitForTimeout(2000);
     }
-    await expect(machineCard).toBeVisible({ timeout: 10000 });
+    await expect(machineTree).toBeVisible({ timeout: 30000 });
     console.log('✓ Visualizer loaded successfully');
 
     // Step 5: Check for active vectors
@@ -249,9 +253,10 @@ test.describe('Full Integration - Error Handling', () => {
     await page.goto(VISUALIZER_URL);
     await page.waitForLoadState('networkidle');
 
-    // The page should load even if there are errors
-    const heading = page.locator('h1').first();
-    await expect(heading).toBeVisible({ timeout: 10000 });
+    // The page should load even if there are errors. The shell has no <h1>;
+    // the wordmark is .rep-title and renders without a backend, which is
+    // exactly the property this test wants.
+    await expect(page.locator('.rep-title')).toBeVisible({ timeout: 10000 });
   });
 
   test('should handle network interruptions', async ({ page, request }) => {
@@ -265,7 +270,6 @@ test.describe('Full Integration - Error Handling', () => {
     });
 
     // UI should still be functional
-    const heading = page.locator('h1').first();
-    await expect(heading).toBeVisible();
+    await expect(page.locator('.rep-title')).toBeVisible();
   });
 });

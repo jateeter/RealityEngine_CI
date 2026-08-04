@@ -465,17 +465,23 @@ jobs:
         working-directory: RealityEngine_CI
         run: npm ci
 
-      # Staged non-blocking for its first runs: this suite has never executed
-      # in hosted CI, so its baseline is unknown. Flip `continue-on-error` off
-      # once a run proves it green, otherwise it becomes another gate that
-      # reports success without meaning it.
-      - name: Run CI e2e suite (canonical app-level specs)
+      # This job runs a single-engine Docker universe, so it runs exactly the
+      # specs that target that shape. The multi-engine spec
+      # (tree-to-pe-manager-equivalence) needs engines this job never spawns —
+      # it asked for lsp-1 and got a 404. scripts/lib/ci-e2e-specs.sh is the
+      # single source of truth for that split; it runs in multi-engine-tests.
+      - name: Run CI e2e suite (single-engine specs)
         working-directory: RealityEngine_CI
         continue-on-error: true
         env:
           REUSE_SERVICES: 'true'
           PLAYWRIGHT_BASE_URL: 'https://localhost:5173'
-        run: npx playwright test --project=chromium --workers=1 --reporter=list
+        run: |
+          . scripts/lib/ci-e2e-specs.sh
+          specs="$(ci_e2e_single_engine_specs | tr '\n' ' ')"
+          echo "Running single-engine specs: $specs"
+          # shellcheck disable=SC2086
+          npx playwright test $specs --project=chromium --workers=1 --reporter=list
 
       - name: Upload test results
         if: always()

@@ -1,4 +1,8 @@
 import { test, expect } from '@playwright/test';
+import { skipUnlessMachines } from '../helpers/require-machines';
+
+/** Digital-logic fixtures this suite drives; absent from standard-deployment. */
+const REQUIRED_MACHINES = ['MultiStep', 'RS2', 'RSFlipFlop'];
 
 /**
  * Perceptual Space Interconnection E2E Test
@@ -43,6 +47,10 @@ test.describe('Perceptual Space Interconnection - Multi-Step → RS2 + RSFlipFlo
   let perceptionEngineIntervalMs = 1000;
 
   test.beforeEach(async ({ page }) => {
+    // A standard-deployment universe does not load these fixtures. Skip with a
+    // reason rather than failing on a 404 the corpus never promised to serve.
+    await skipUnlessMachines(page.request, API_URL, REQUIRED_MACHINES);
+
     // Stop perception engine auto-push to avoid corrupting simulation state
     try {
       const stateResp = await page.request.get(`${PERCEPTION_ENGINE_URL}/api/state`);
