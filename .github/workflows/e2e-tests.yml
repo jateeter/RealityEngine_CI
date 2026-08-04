@@ -186,6 +186,10 @@ jobs:
         working-directory: RealityEngine_CI
         run: bash scripts/tests/test-allocate-ports.sh
 
+      - name: Run CI e2e spec-selection unit tests
+        working-directory: RealityEngine_CI
+        run: bash scripts/tests/test-ci-e2e-specs.sh
+
   # ── Phase 4: Dry-run pre-flight validation ──────────────────────────────────
   dry-run-validate:
     name: Dry-Run Validate
@@ -450,6 +454,28 @@ jobs:
           REUSE_SERVICES: 'true'
           SKIP_GLOBAL_SETUP: 'true'
         run: npx playwright test tests/e2e --reporter=list
+
+      # The canonical app-level specs live in RealityEngine_CI/e2e/tests/ and
+      # had no hosted execution path (see #78). This job runs the Docker
+      # universe, which is the shape those specs target — they resolve
+      # https://localhost:5001 (RE) and :3004 (PE) directly.
+      #
+      # Chromium is already installed system-wide by the Playwright step above.
+      - name: Install CI Playwright deps
+        working-directory: RealityEngine_CI
+        run: npm ci
+
+      # Staged non-blocking for its first runs: this suite has never executed
+      # in hosted CI, so its baseline is unknown. Flip `continue-on-error` off
+      # once a run proves it green, otherwise it becomes another gate that
+      # reports success without meaning it.
+      - name: Run CI e2e suite (canonical app-level specs)
+        working-directory: RealityEngine_CI
+        continue-on-error: true
+        env:
+          REUSE_SERVICES: 'true'
+          PLAYWRIGHT_BASE_URL: 'https://localhost:5173'
+        run: npx playwright test --project=chromium --workers=1 --reporter=list
 
       - name: Upload test results
         if: always()

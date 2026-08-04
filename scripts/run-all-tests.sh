@@ -28,6 +28,12 @@ MACHINES_DIR="$WS/RealityEngine_Machines"
 LOCALAI_DIR="$WS/localAIStack"
 OPENCLAW_DIR="$WS/localOpenClawStack"
 
+# -- CI e2e spec selection -------------------------------------------------
+# Which Playwright specs are safe for which universe shape. See the library
+# header for why multi-engine runs a subset.
+# shellcheck source=lib/ci-e2e-specs.sh
+. "$SCRIPT_DIR/lib/ci-e2e-specs.sh"
+
 # -- Logging ---------------------------------------------------------------
 GREEN='\033[0;32m'; YELLOW='\033[1;33m'; RED='\033[0;31m'
 CYAN='\033[0;36m'; BOLD='\033[1m'; NC='\033[0m'
@@ -547,7 +553,16 @@ run_playwright_e2e() {
     if [ -d "$CI_DIR/node_modules" ]; then
         if [ "$multi_engine" = "true" ]; then
             run_shell_suite "CI e2e (Playwright, multi-engine)" "$CI_DIR" \
-                "REUSE_SERVICES=true MULTI_ENGINE_E2E=true PLAYWRIGHT_BASE_URL='${PLAYWRIGHT_BASE_URL:-http://localhost:5173}' CI=true npx playwright test e2e/tests/tree-to-pe-manager-equivalence.spec.ts --project=chromium --workers=1"
+                "REUSE_SERVICES=true MULTI_ENGINE_E2E=true PLAYWRIGHT_BASE_URL='${PLAYWRIGHT_BASE_URL:-http://localhost:5173}' CI=true npx playwright test $CI_E2E_MULTI_ENGINE_SPECS --project=chromium --workers=1"
+            # Everything else in e2e/tests/ is single-engine only. Report each
+            # one rather than letting the narrowed run imply full coverage.
+            local _skipped
+            while IFS= read -r _skipped; do
+                [ -n "$_skipped" ] || continue
+                skip_suite "CI e2e: $(basename "$_skipped")" "$CI_E2E_SINGLE_ENGINE_REASON"
+            done <<EOF
+$(ci_e2e_single_engine_specs)
+EOF
         else
             run_suite "CI e2e (Playwright)" "$CI_DIR" npx playwright test
         fi
