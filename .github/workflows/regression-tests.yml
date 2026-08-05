@@ -84,9 +84,13 @@ jobs:
         env:
           SCHEDULE_ENABLED: ${{ vars.REGRESSION_SCHEDULE_ENABLED }}
           RUNNER_LABELS: ${{ vars.REGRESSION_RUNNER_LABELS }}
+          TIMEOUT_MINUTES: ${{ vars.REGRESSION_TIMEOUT_MINUTES }}
+          RUN_MODE: ${{ vars.REGRESSION_SCHEDULE_RUN_MODE }}
         run: |
-          echo "REGRESSION_SCHEDULE_ENABLED = ${SCHEDULE_ENABLED:-<unset>}"
-          echo "REGRESSION_RUNNER_LABELS    = ${RUNNER_LABELS:-<unset, defaults to [\"self-hosted\"]>}"
+          echo "REGRESSION_SCHEDULE_ENABLED   = ${SCHEDULE_ENABLED:-<unset>}"
+          echo "REGRESSION_RUNNER_LABELS      = ${RUNNER_LABELS:-<unset, defaults to [\"ubuntu-latest\"]>}"
+          echo "REGRESSION_TIMEOUT_MINUTES    = ${TIMEOUT_MINUTES:-<unset, defaults to 350>}"
+          echo "REGRESSION_SCHEDULE_RUN_MODE  = ${RUN_MODE:-<unset, defaults to full>}"
           echo
 
           if [ "${SCHEDULE_ENABLED:-}" = "true" ]; then
@@ -101,20 +105,24 @@ jobs:
           With it unset, every scheduled run reports "skipped", which reads as
           coverage in the run list while proving nothing.
 
-          To enable, both of these must hold:
+          The runner and timeout blockers are now fixed in the workflow itself:
+          it defaults to ubuntu-latest (proven: the tri-runtime-parity job
+          brings cpp + lsp + scala to healthy there in under 6 minutes) with a
+          350-minute timeout that fits inside GitHub-hosted's 6h cap.
 
-            1. Set the repo variable:
-                 gh variable set REGRESSION_SCHEDULE_ENABLED --body true
+          So enabling is one variable:
 
-            2. Provide a runner. The job defaults to runs-on: ["self-hosted"]
-               and this repo currently has zero registered runners, so it would
-               queue indefinitely. Either register one, or set:
-                 gh variable set REGRESSION_RUNNER_LABELS --body '["ubuntu-latest"]'
+              gh variable set REGRESSION_SCHEDULE_ENABLED --body true
 
-               Note: timeout-minutes is 480 (8h) but GitHub-hosted jobs are
-               capped at 6h, and a hosted tri-runtime run additionally needs a
-               Quicklisp bootstrap for the LSP engine (RealityEngine_LSP's
-               quicklisp/ is untracked). See the hosted-certification issue.
+          Consider staging the first scheduled run, since `full` has never
+          executed and creates an issue on failure:
+
+              gh variable set REGRESSION_SCHEDULE_RUN_MODE --body build-only
+
+          On a self-hosted runner, override both defaults:
+
+              gh variable set REGRESSION_RUNNER_LABELS   --body '["self-hosted"]'
+              gh variable set REGRESSION_TIMEOUT_MINUTES --body 480
 
           If regression is meant to stay operator-triggered, remove the
           `schedule:` trigger so this workflow stops emitting daily runs.
@@ -124,9 +132,22 @@ jobs:
   regression:
     name: Regression workflow
     if: ${{ github.event_name == 'workflow_dispatch' || vars.REGRESSION_SCHEDULE_ENABLED == 'true' }}
-    runs-on: ${{ fromJSON(vars.REGRESSION_RUNNER_LABELS || '["self-hosted"]') }}
+    # Blocker 2: this defaulted to ["self-hosted"] with zero runners registered,
+    # so enabling the schedule would have queued forever rather than run. A
+    # hosted runner is now a proven target — the tri-runtime-parity job brings
+    # cpp + lsp + scala to healthy on ubuntu-latest in under 6 minutes, LSP
+    # included via the Quicklisp bootstrap. Set REGRESSION_RUNNER_LABELS to
+    # override once a self-hosted runner exists.
+    runs-on: ${{ fromJSON(vars.REGRESSION_RUNNER_LABELS || '["ubuntu-latest"]') }}
+    # Kept: this environment does not exist on the repo yet, so it is currently
+    # a no-op label rather than a gate — but it is the natural place to scope
+    # regression-only secrets or a required reviewer later.
     environment: regression-live
-    timeout-minutes: 480
+    # Blocker 3: 480 (8h) exceeded GitHub-hosted's 6h cap, so a hosted run would
+    # have been killed by the platform with no useful message. 350 keeps our own
+    # timeout inside that ceiling so the job reports its own failure. Raise via
+    # REGRESSION_TIMEOUT_MINUTES on a self-hosted runner, where 8h is fine.
+    timeout-minutes: ${{ fromJSON(vars.REGRESSION_TIMEOUT_MINUTES || '350') }}
 
     steps:
       - name: Checkout RealityEngine_CI
