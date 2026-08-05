@@ -166,6 +166,65 @@ jobs:
           done
           exit $FAIL
 
+  # ── Phase 2d: Machine corpus gates ─────────────────────────────────────────
+  # RealityEngine_Machines has no workflows of its own — verification of the
+  # shared corpus is owned here, like the rest of the universe. These gates are
+  # fast, need no live stack, and guard the contract data every engine loads,
+  # but until now they ran only on a developer laptop (jateeter/RealityEngine_Machines#44).
+  corpus-gates:
+    name: Corpus Gates (Machines)
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    steps:
+      - name: Checkout RealityEngine_Machines
+        uses: actions/checkout@v4
+        with:
+          repository: ${{ github.repository_owner }}/RealityEngine_Machines
+          path: RealityEngine_Machines
+          token: ${{ secrets.REPO_ACCESS_TOKEN || github.token }}
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '25.5'
+          cache: 'npm'
+          cache-dependency-path: RealityEngine_Machines/package.json
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      # ajv is what turns validate-schemas.mjs from SKIPPED into a real check.
+      - name: Install corpus tooling
+        working-directory: RealityEngine_Machines
+        run: npm ci
+
+      # Schema validity, corpus index, region allocation, semantic-bus
+      # inventory, and OWL manifest drift across all ~1,300 machines.
+      - name: Validate corpus
+        working-directory: RealityEngine_Machines
+        run: npm run validate
+
+      # OWL semantics parity gates: regeneration determinism, vocabulary
+      # closure, sequence/trigger parity, life-safety typing, RED ⇒ escalation.
+      - name: Corpus contract tests
+        working-directory: RealityEngine_Machines
+        run: npm run test:contracts
+
+      # `npm run validate` prints "reason-owl: SKIPPED (ROBOT not installed)".
+      # That is deliberate for now: ROBOT's default report profile currently
+      # yields 3,418 ERROR-level violations on this corpus, all OBO style rules
+      # (missing_label, missing_definition) rather than logical inconsistency —
+      # `report` fails before the reasoner runs at all. Installing ROBOT here
+      # would fail the job for reasons unrelated to semantic correctness.
+      # Tracked in jateeter/RealityEngine_Machines#46.
+      - name: Note OWL reasoning status
+        run: |
+          echo "::notice::OWL reasoning (reason-owl) is skipped — ROBOT not installed."
+          echo "::notice::See jateeter/RealityEngine_Machines#46 before enabling it."
+
   # ── Phase 3: Unit tests for helper scripts ──────────────────────────────────
   scripts-unit-tests:
     name: Scripts Unit Tests
@@ -725,7 +784,7 @@ jobs:
   test-summary:
     name: Test Summary
     runs-on: ubuntu-latest
-    needs: [shellcheck, dockerfile-security, surface-spec-drift, scripts-unit-tests, dry-run-validate, smoke-tests, e2e-tests, multi-engine-tests]
+    needs: [shellcheck, dockerfile-security, surface-spec-drift, corpus-gates, scripts-unit-tests, dry-run-validate, smoke-tests, e2e-tests, multi-engine-tests]
     if: always()
 
     steps:
