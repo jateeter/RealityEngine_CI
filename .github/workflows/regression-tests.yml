@@ -64,6 +64,63 @@ permissions:
   actions: read
 
 jobs:
+  # ── Configuration signal ───────────────────────────────────────────────────
+  # The scheduled run used to report `skipped` every day, which in a run list
+  # is indistinguishable from coverage. It was skipped because
+  # REGRESSION_SCHEDULE_ENABLED is unset — the certification suite has never
+  # executed once.
+  #
+  # This job always runs on the schedule and reports the truth: it fails when
+  # regression is not runnable, so the daily cron produces a real signal
+  # instead of a comfortable one. It costs seconds and starts no services.
+  preflight:
+    name: Regression Preflight (config check)
+    if: ${{ github.event_name == 'schedule' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+
+    steps:
+      - name: Report regression configuration
+        env:
+          SCHEDULE_ENABLED: ${{ vars.REGRESSION_SCHEDULE_ENABLED }}
+          RUNNER_LABELS: ${{ vars.REGRESSION_RUNNER_LABELS }}
+        run: |
+          echo "REGRESSION_SCHEDULE_ENABLED = ${SCHEDULE_ENABLED:-<unset>}"
+          echo "REGRESSION_RUNNER_LABELS    = ${RUNNER_LABELS:-<unset, defaults to [\"self-hosted\"]>}"
+          echo
+
+          if [ "${SCHEDULE_ENABLED:-}" = "true" ]; then
+            echo "::notice::Scheduled regression is enabled; the regression job runs in this workflow."
+            exit 0
+          fi
+
+          echo "::error::Scheduled regression certification is NOT enabled — it has never run."
+          cat <<'MSG'
+
+          The `regression` job is gated on REGRESSION_SCHEDULE_ENABLED == 'true'.
+          With it unset, every scheduled run reports "skipped", which reads as
+          coverage in the run list while proving nothing.
+
+          To enable, both of these must hold:
+
+            1. Set the repo variable:
+                 gh variable set REGRESSION_SCHEDULE_ENABLED --body true
+
+            2. Provide a runner. The job defaults to runs-on: ["self-hosted"]
+               and this repo currently has zero registered runners, so it would
+               queue indefinitely. Either register one, or set:
+                 gh variable set REGRESSION_RUNNER_LABELS --body '["ubuntu-latest"]'
+
+               Note: timeout-minutes is 480 (8h) but GitHub-hosted jobs are
+               capped at 6h, and a hosted tri-runtime run additionally needs a
+               Quicklisp bootstrap for the LSP engine (RealityEngine_LSP's
+               quicklisp/ is untracked). See the hosted-certification issue.
+
+          If regression is meant to stay operator-triggered, remove the
+          `schedule:` trigger so this workflow stops emitting daily runs.
+          MSG
+          exit 1
+
   regression:
     name: Regression workflow
     if: ${{ github.event_name == 'workflow_dispatch' || vars.REGRESSION_SCHEDULE_ENABLED == 'true' }}
