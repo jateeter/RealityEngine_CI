@@ -1,4 +1,8 @@
 import { test, expect } from '@playwright/test';
+import { skipUnlessMachines } from '../helpers/require-machines';
+
+/** Digital-logic fixtures this suite drives; absent from standard-deployment. */
+const REQUIRED_MACHINES = ['MultiStep', 'RS2', 'RSFlipFlop'];
 
 /**
  * Multi-Step State Machine E2E Test
@@ -113,6 +117,10 @@ test.describe('Multi-Step State Machine - Output Workflow', () => {
   let perceptionEngineIntervalMs = 1000;
 
   test.beforeEach(async ({ page }) => {
+    // A standard-deployment universe does not load these fixtures. Skip with a
+    // reason rather than failing on a 404 the corpus never promised to serve.
+    await skipUnlessMachines(page.request, PERCEPTUAL_API_URL, REQUIRED_MACHINES);
+
     // Stop perception engine auto-push so it cannot corrupt perceptual space
     // during simulation steps. Capture current state so we can restore it.
     try {
@@ -553,6 +561,10 @@ test.describe('Multi-Step State Machine - Output Workflow', () => {
 // API Verification — legacy sequence structure (unchanged)
 // ===========================================================================
 test.describe('Multi-Step State Machine - API Verification', () => {
+  test.beforeEach(async ({ request }) => {
+    await skipUnlessMachines(request, PERCEPTUAL_API_URL, REQUIRED_MACHINES);
+  });
+
   test('should verify sequences are correctly loaded via API', async ({ request }) => {
     console.log('Verifying Multi-Step sequences via API...');
 

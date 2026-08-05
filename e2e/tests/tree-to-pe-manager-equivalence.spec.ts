@@ -311,8 +311,37 @@ async function writeCaptureBodies(runs: EngineRun[], testInfo: TestInfo) {
   return manifest;
 }
 
+/**
+ * Engine ids this comparison needs. Byte equivalence is only meaningful across
+ * distinct runtimes, so all three must be present — a `--engines=scala:2`
+ * universe cannot substitute.
+ */
+async function missingEngines(request: APIRequestContext): Promise<string[]> {
+  try {
+    const res = await request.get('/api/engines');
+    if (!res.ok()) return ENGINES.map(e => e.id);
+    const body = await res.json();
+    const list: Array<{ id?: string }> = Array.isArray(body) ? body : (body.engines ?? body.instances ?? []);
+    const present = new Set(list.map(e => e?.id).filter(Boolean));
+    return ENGINES.filter(e => !present.has(e.id)).map(e => e.id);
+  } catch {
+    return ENGINES.map(e => e.id);
+  }
+}
+
 test('tree view to PE Manager verifies all sources on and compares captured API response bytes across all engines', async ({ page, request }, testInfo: TestInfo) => {
   test.setTimeout(300_000);
+
+  // Skip rather than 404 on a universe that never spawned these runtimes.
+  // Needs `startUniverse.sh --engines=cpp:1,lsp:1,scala:1`; no hosted job
+  // provides a tri-runtime universe today (see #79).
+  const absent = await missingEngines(request);
+  test.skip(
+    absent.length > 0,
+    `registry is missing ${absent.join(', ')} — byte equivalence needs a tri-runtime ` +
+      'universe (--engines=cpp:1,lsp:1,scala:1)',
+  );
+
   const runs: EngineRun[] = [];
 
   for (const engine of ENGINES) {
