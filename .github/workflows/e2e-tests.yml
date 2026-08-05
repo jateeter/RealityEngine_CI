@@ -626,6 +626,63 @@ jobs:
           npx playwright test tests/integration/multi-instance.spec.ts \
             --reporter=list
 
+      # Cross-runtime contract specs. These were dropped from the hosted
+      # allowlist in the e2e job (#77) even though none of them touch localAI;
+      # they belong here because this is the job with a registry.
+      #
+      # They are skip-safe by design, so a run where all of them skip must fail
+      # — otherwise this step reports success while enforcing nothing, which is
+      # the exact failure mode #78/#79 were about.
+      #
+      # HEALTHKIT_BRIDGE_TOKEN is deliberately NOT set. The spec's auth arm
+      # asserts 401/200 against a token the PE itself must be launched with; a
+      # dummy value here would make the PE (which has no token configured)
+      # answer 200 to everything and fail the arm. It self-skips without one,
+      # and the two parity tests — endpoint contract and resolved/unmapped
+      # counts — still run.
+      - name: Run cross-runtime contract specs
+        working-directory: RealityEngine_Machines
+        env:
+          REUSE_SERVICES: 'true'
+          RE_REGISTRY_URL: 'http://localhost:5999/re-registry.json'
+          VIZ_BASE_URL: 'http://127.0.0.1:3001'
+          INTEGRATIONS_CONFIG: ${{ github.workspace }}/RealityEngine_CI/config/integrations.json
+          PLAYWRIGHT_JSON_OUTPUT_NAME: contract-results.json
+        run: |
+          stamp="${{ github.workspace }}/RealityEngine_CI/.universe-engine-selection"
+          # machine-json-listing compares json/list against the corpus the
+          # universe actually booted. This job boots the standard-deployment
+          # subset, not the repo's full tree.
+          MACHINES_CORPUS_DIR="$(sed -n 's/^MACHINE_CORPUS_ACTIVE_DIR=//p' "$stamp" 2>/dev/null)"
+          export MACHINES_CORPUS_DIR
+          echo "Active corpus: ${MACHINES_CORPUS_DIR:-<repo default>}"
+
+          pw_exit=0
+          npx playwright test \
+            tests/integration/healthkit-ingest-contract.spec.ts \
+            tests/integration/machine-json-listing.spec.ts \
+            tests/integration/pe-source-lane-compliance.spec.ts \
+            --reporter=list,json || pw_exit=$?
+
+          node -e '
+            const fs = require("fs");
+            const f = "contract-results.json";
+            if (!fs.existsSync(f)) {
+              console.error("::error::no Playwright JSON report — cannot prove these specs ran");
+              process.exit(1);
+            }
+            const s = JSON.parse(fs.readFileSync(f, "utf8")).stats || {};
+            const ran = (s.expected || 0) + (s.unexpected || 0) + (s.flaky || 0);
+            console.log(`executed=${ran} skipped=${s.skipped || 0}`);
+            if (ran === 0) {
+              console.error("::error::every cross-runtime contract spec skipped — " +
+                "this step enforced nothing. Check RE_REGISTRY_URL, the registry, " +
+                "and INTEGRATIONS_CONFIG.");
+              process.exit(1);
+            }
+          '
+          exit "$pw_exit"
+
       - name: Upload multi-engine results
         if: always()
         uses: actions/upload-artifact@v4
@@ -634,6 +691,7 @@ jobs:
           path: |
             RealityEngine_Machines/e2e-report/
             RealityEngine_Machines/test-results/
+            RealityEngine_Machines/contract-results.json
           retention-days: 7
 
       - name: Show registry and engine logs on failure
