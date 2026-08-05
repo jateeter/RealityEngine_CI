@@ -527,6 +527,11 @@ jobs:
     timeout-minutes: 30
     needs: smoke-tests
 
+    env:
+      # The PE and the contract spec must agree on this value — see the
+      # startUniverse and contract-spec steps below. Throwaway, job-scoped.
+      HEALTHKIT_BRIDGE_TOKEN: hk-ci-multi-engine-contract
+
     steps:
       - name: Checkout RealityEngine_CI
         uses: actions/checkout@v4
@@ -614,7 +619,14 @@ jobs:
           NATIVE_HEALTH_ATTEMPTS: '180'
           HOST_IP_OVERRIDE: 127.0.0.1
         run: |
-          ./startUniverse.sh --no-openclaw --no-local-ai --skip-seed --machine-corpus=standard-deployment --engines=scala:2
+          # HealthKit ingest auth is on by default; without an explicit token
+          # startUniverse generates a random one into config/.healthkit-bridge-token
+          # and the contract spec gets 401. Pinning it here lets the spec send the
+          # token the PE was actually launched with, which is the only way its auth
+          # arm can mean anything. Not a secret — a throwaway for this job.
+          ./startUniverse.sh --no-openclaw --no-local-ai --skip-seed \
+            --machine-corpus=standard-deployment --engines=scala:2 \
+            --healthkit-token="$HEALTHKIT_BRIDGE_TOKEN"
 
       - name: Run multi-instance integration tests
         working-directory: RealityEngine_Machines
@@ -634,12 +646,10 @@ jobs:
       # — otherwise this step reports success while enforcing nothing, which is
       # the exact failure mode #78/#79 were about.
       #
-      # HEALTHKIT_BRIDGE_TOKEN is deliberately NOT set. The spec's auth arm
-      # asserts 401/200 against a token the PE itself must be launched with; a
-      # dummy value here would make the PE (which has no token configured)
-      # answer 200 to everything and fail the arm. It self-skips without one,
-      # and the two parity tests — endpoint contract and resolved/unmapped
-      # counts — still run.
+      # HEALTHKIT_BRIDGE_TOKEN is the job-level value the universe was launched
+      # with. It must match: ingest auth is on by default, so an unset token
+      # gets 401 and an arbitrary one gets 401 too. Passing the real value is
+      # what lets the auth arm assert 401-without / 200-with for real.
       - name: Run cross-runtime contract specs
         working-directory: RealityEngine_Machines
         env:
