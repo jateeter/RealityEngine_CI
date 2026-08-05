@@ -35,7 +35,10 @@ test.describe('Visualizer UI - Stable Behavior', () => {
     await expect(page.locator('.rep-subtitle')).toBeVisible();
     // .rep-nav-interconnect disambiguates from the "Interconnects" filter chip.
     await expect(page.locator('.rep-nav-interconnect')).toBeVisible();
-    await expect(page.getByRole('button', { name: /PE Manager/ })).toBeVisible();
+    // The PE nav button is labelled "Perception", not "PE Manager". Its title
+    // is the stable handle — the visible text sits next to a ◎ icon span.
+    await expect(page.getByTitle('Open Perception Engine management')).toBeVisible();
+    // Icon-only button; "Help" is its aria-label.
     await expect(page.getByRole('button', { name: 'Help' })).toBeVisible();
   });
 

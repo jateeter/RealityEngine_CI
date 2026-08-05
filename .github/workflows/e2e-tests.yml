@@ -472,7 +472,6 @@ jobs:
       # single source of truth for that split; it runs in multi-engine-tests.
       - name: Run CI e2e suite (single-engine specs)
         working-directory: RealityEngine_CI
-        continue-on-error: true
         env:
           REUSE_SERVICES: 'true'
           PLAYWRIGHT_BASE_URL: 'https://localhost:5173'
