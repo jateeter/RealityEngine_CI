@@ -859,14 +859,18 @@ jobs:
         with:
           node-version: '25.5'
 
-      # ── cpp toolchain: g++ is preinstalled; the engine links OpenSSL ────────
+      # ── cpp toolchain ──────────────────────────────────────────────────────
+      # g++ is preinstalled. The engine links OpenSSL (-lssl -lcrypto) and
+      # includes boost/asio.hpp. libboost-dev is enough: LDFLAGS carries no
+      # -lboost_*, so only the headers are needed, not the compiled libraries.
       # ── lsp toolchain: SBCL from apt; Quicklisp bootstrapped below ─────────
-      - name: Install native toolchains (OpenSSL, SBCL)
+      - name: Install native toolchains (OpenSSL, Boost, SBCL)
         run: |
           sudo apt-get update -qq
-          sudo apt-get install -y --no-install-recommends libssl-dev sbcl
+          sudo apt-get install -y --no-install-recommends libssl-dev libboost-dev sbcl
           g++ --version | head -1
           sbcl --version
+          echo "boost/asio.hpp: $(ls /usr/include/boost/asio.hpp 2>/dev/null || echo MISSING)"
 
       - name: Setup Java for native Scala engines
         uses: actions/setup-java@v4
