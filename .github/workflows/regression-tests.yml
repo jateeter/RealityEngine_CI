@@ -212,6 +212,59 @@ jobs:
           fetch-depth: 0
           token: ${{ secrets.REPO_ACCESS_TOKEN || github.token }}
 
+      # ── Native toolchains ──────────────────────────────────────────────────
+      # This workflow had no provisioning at all: it was written for a
+      # self-hosted runner where these were already present. The first hosted
+      # run got through all eight worktrees and then died on
+      # `RealityEngine_CPP && make all` (exit 2) for want of Boost headers.
+      #
+      # Gated on runner.environment so a self-hosted runner — which may not
+      # permit sudo, and which already has these — is untouched.
+      - name: Setup Node.js
+        if: runner.environment == 'github-hosted'
+        uses: actions/setup-node@v4
+        with:
+          node-version: '25.5'
+
+      - name: Install native toolchains (OpenSSL, Boost, SBCL)
+        if: runner.environment == 'github-hosted'
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y --no-install-recommends libssl-dev libboost-dev sbcl
+          g++ --version | head -1
+          sbcl --version
+          echo "boost/asio.hpp: $(ls /usr/include/boost/asio.hpp 2>/dev/null || echo MISSING)"
+
+      - name: Setup Java for native Scala engines
+        if: runner.environment == 'github-hosted'
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '21'
+
+      - name: Setup sbt for native Scala engines
+        if: runner.environment == 'github-hosted'
+        run: |
+          curl -fsSL https://github.com/sbt/sbt/releases/download/v1.12.8/sbt-1.12.8.tgz -o /tmp/sbt-1.12.8.tgz
+          sudo tar -xzf /tmp/sbt-1.12.8.tgz -C /opt
+          echo "/opt/sbt/bin" >> "$GITHUB_PATH"
+
+      # The regression run builds from its own worktrees, so bootstrap Quicklisp
+      # into $HOME — start.sh falls back there when the worktree has no
+      # repo-local quicklisp/, which a fresh worktree never does.
+      - name: Cache Quicklisp
+        if: runner.environment == 'github-hosted'
+        uses: actions/cache@v4
+        with:
+          path: ~/quicklisp
+          key: quicklisp-home-${{ runner.os }}-${{ hashFiles('RealityEngine_LSP/reality-engine-lsp.asd') }}
+          restore-keys: quicklisp-home-${{ runner.os }}-
+
+      - name: Bootstrap Quicklisp
+        if: runner.environment == 'github-hosted'
+        working-directory: RealityEngine_LSP
+        run: bash scripts/bootstrap-quicklisp.sh --home
+
       - name: Run regression workflow
         id: regression
         working-directory: RealityEngine_CI
