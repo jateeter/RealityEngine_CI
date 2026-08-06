@@ -2062,7 +2062,11 @@ else
     fi
     tail -n 5 "$_api_build_log"
     info "Starting localAIStack API (lifespan hooks register machines + sensors)..."
-    (cd "$LAS_DIR" && docker compose up -d --force-recreate --wait \
+    # --no-build: the image was just built above with its own error capture.
+    # Without this, `up --wait` will implicitly rebuild a missing or stale
+    # image *inside* the 120s health window, so a slow build eats the timeout
+    # and stage 5 fails spuriously even though the build itself succeeded.
+    (cd "$LAS_DIR" && docker compose up -d --force-recreate --no-build --wait \
         --wait-timeout 120 api 2>&1) || \
         die "localAIStack API failed to reach healthy state\n  Check:  docker logs localai_api"
     (cd "$LAS_DIR" && docker compose up -d open-webui) > /dev/null 2>&1 || true
