@@ -943,7 +943,13 @@ CPP
     warn "C++ build prerequisites check FAILED — the native CPP engine will not build:"
     head -8 "$errlog" | sed 's/^/    /'
     if grep -qiE "boost/asio|boost/" "$errlog"; then
-        warn "  → Boost headers missing.  Fix:  brew install boost"
+        # Platform-aware: this preflight also runs on Linux CI runners, where
+        # "brew install boost" is not actionable advice.
+        if [ "$(uname -s)" = "Darwin" ]; then
+            warn "  → Boost headers missing.  Fix:  brew install boost"
+        else
+            warn "  → Boost headers missing.  Fix:  sudo apt-get install -y libboost-dev"
+        fi
     fi
     if grep -qiE "'atomic'|'cctype'|<atomic>|<cctype>|file not found" "$errlog"; then
         warn "  → libc++ umbrella headers missing from the active SDK toolchain."

@@ -781,10 +781,257 @@ jobs:
         working-directory: RealityEngine_CI
         run: ./stopUniverse.sh --engines-only 2>/dev/null || ./stopUniverse.sh --all || true
 
+  # ── Tri-runtime parity ─────────────────────────────────────────────────────
+  # The only job that spawns cpp + lsp + scala together.
+  #
+  # Byte equivalence is only meaningful across *distinct* runtimes, so
+  # `--engines=scala:2` in multi-engine-tests cannot substitute: it compares
+  # scala-1 to scala-2. tree-to-pe-manager-equivalence.spec.ts hardcodes lsp-1,
+  # scala-1 and cpp-1 and self-skipped everywhere until this job existed —
+  # the gap left open in #77/#80.
+  #
+  # Deliberately scoped to the parity specs rather than the full regression
+  # certification: that suite carries a 480-minute timeout and GitHub-hosted
+  # jobs cap at 6h (#79, #87).
+  tri-runtime-parity:
+    name: Tri-Runtime Parity (cpp + lsp + scala)
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+    needs: smoke-tests
+
+    steps:
+      - name: Checkout RealityEngine_CI
+        uses: actions/checkout@v4
+        with:
+          path: RealityEngine_CI
+
+      - name: Checkout RealityEngine_Scala
+        uses: actions/checkout@v4
+        with:
+          repository: ${{ github.repository_owner }}/RealityEngine_Scala
+          path: RealityEngine_Scala
+          token: ${{ secrets.REPO_ACCESS_TOKEN || github.token }}
+
+      - name: Checkout RealityEngine_CPP
+        uses: actions/checkout@v4
+        with:
+          repository: ${{ github.repository_owner }}/RealityEngine_CPP
+          path: RealityEngine_CPP
+          token: ${{ secrets.REPO_ACCESS_TOKEN || github.token }}
+
+      - name: Checkout RealityEngine_LSP
+        uses: actions/checkout@v4
+        with:
+          repository: ${{ github.repository_owner }}/RealityEngine_LSP
+          path: RealityEngine_LSP
+          token: ${{ secrets.REPO_ACCESS_TOKEN || github.token }}
+
+      - name: Checkout RealityEngine_Manager
+        uses: actions/checkout@v4
+        with:
+          repository: ${{ github.repository_owner }}/RealityEngine_Manager
+          path: RealityEngine_Manager
+          token: ${{ secrets.REPO_ACCESS_TOKEN || github.token }}
+
+      - name: Checkout RealityEngine_Machines
+        uses: actions/checkout@v4
+        with:
+          repository: ${{ github.repository_owner }}/RealityEngine_Machines
+          path: RealityEngine_Machines
+          token: ${{ secrets.REPO_ACCESS_TOKEN || github.token }}
+
+      - name: Checkout localAIStack
+        uses: actions/checkout@v4
+        with:
+          repository: ${{ github.repository_owner }}/localAIStack
+          path: localAIStack
+          token: ${{ secrets.REPO_ACCESS_TOKEN || github.token }}
+
+      - name: Checkout localOpenClawStack
+        uses: actions/checkout@v4
+        with:
+          repository: ${{ github.repository_owner }}/localOpenClawStack
+          path: localOpenClawStack
+          token: ${{ secrets.REPO_ACCESS_TOKEN || github.token }}
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '25.5'
+
+      # ── cpp toolchain ──────────────────────────────────────────────────────
+      # g++ is preinstalled. The engine links OpenSSL (-lssl -lcrypto) and
+      # includes boost/asio.hpp. libboost-dev is enough: LDFLAGS carries no
+      # -lboost_*, so only the headers are needed, not the compiled libraries.
+      # ── lsp toolchain: SBCL from apt; Quicklisp bootstrapped below ─────────
+      - name: Install native toolchains (OpenSSL, Boost, SBCL)
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y --no-install-recommends libssl-dev libboost-dev sbcl
+          g++ --version | head -1
+          sbcl --version
+          echo "boost/asio.hpp: $(ls /usr/include/boost/asio.hpp 2>/dev/null || echo MISSING)"
+
+      - name: Setup Java for native Scala engines
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '21'
+
+      - name: Setup sbt for native Scala engines
+        run: |
+          curl -fsSL https://github.com/sbt/sbt/releases/download/v1.12.8/sbt-1.12.8.tgz -o /tmp/sbt-1.12.8.tgz
+          sudo tar -xzf /tmp/sbt-1.12.8.tgz -C /opt
+          echo "/opt/sbt/bin" >> "$GITHUB_PATH"
+
+      # RealityEngine_LSP/quicklisp/ is gitignored, so a fresh checkout has none
+      # and start.sh exits with "Missing Quicklisp". Cached on the ASDF system
+      # definition, since that is what determines the dependency set.
+      - name: Cache Quicklisp
+        uses: actions/cache@v4
+        with:
+          path: RealityEngine_LSP/quicklisp
+          key: quicklisp-${{ runner.os }}-${{ hashFiles('RealityEngine_LSP/reality-engine-lsp.asd') }}
+          restore-keys: quicklisp-${{ runner.os }}-
+
+      - name: Bootstrap Quicklisp
+        working-directory: RealityEngine_LSP
+        run: bash scripts/bootstrap-quicklisp.sh
+
+      - name: Install Playwright + deps (Machines)
+        working-directory: RealityEngine_Machines
+        run: |
+          npm ci
+          npx playwright install --with-deps chromium
+
+      # tree-to-pe-manager-equivalence lives in this repo's canonical suite.
+      - name: Install Playwright deps (CI)
+        working-directory: RealityEngine_CI
+        run: npm ci
+
+      - name: Install Loki Docker logging plugin
+        working-directory: RealityEngine_CI
+        run: |
+          docker plugin install grafana/loki-docker-driver:latest --alias loki --grant-all-permissions || \
+            docker plugin enable loki
+
+      - name: Run setup (env + certs)
+        working-directory: RealityEngine_CI
+        run: |
+          cp .env.example .env
+          bash certs/generate-dev-certs.sh
+
+      - name: Start tri-runtime universe
+        working-directory: RealityEngine_CI
+        env:
+          # MACHINES_DIR is the only one of these startUniverse.sh honours from
+          # the environment; SCALA_DIR/CPP_DIR/LSP_DIR/MGR_DIR are derived from
+          # CI_DIR/../<repo>, which the sibling checkout layout already
+          # satisfies. Setting them here would look meaningful and do nothing.
+          MACHINES_DIR: ${{ github.workspace }}/RealityEngine_Machines
+          # Three native runtimes to build and boot, two of them from source.
+          NATIVE_HEALTH_ATTEMPTS: '240'
+          HOST_IP_OVERRIDE: 127.0.0.1
+        run: |
+          ./startUniverse.sh --no-openclaw --no-local-ai --skip-seed \
+            --machine-corpus=standard-deployment --engines=cpp:1,lsp:1,scala:1
+
+      - name: Show registry
+        if: always()
+        run: |
+          echo "=== registry ==="
+          cat /tmp/re-registry/re-registry.json 2>/dev/null || echo "no registry"
+
+      # The prize: byte equivalence across three distinct runtimes. This spec
+      # self-skips when the registry lacks cpp-1/lsp-1/scala-1, so the step
+      # asserts it actually executed rather than trusting a green exit.
+      # continue-on-error covers only pre-existing product drift, not the
+      # skip: the guard below still fails hard when the spec does not execute,
+      # so this step cannot silently no-op. The first run of this spec — ever,
+      # in any environment — found six endpoints whose bytes differ across
+      # cpp/lsp/scala while all return 200. Fixing that means changing
+      # serialization in three engines and deciding which is canonical, so it
+      # is tracked in #91 rather than blocking this job from landing.
+      # The flag comes off when #91 closes.
+      - name: Byte-equivalence parity across runtimes
+        continue-on-error: true
+        working-directory: RealityEngine_CI
+        env:
+          REUSE_SERVICES: 'true'
+          MULTI_ENGINE_E2E: 'true'
+          PLAYWRIGHT_BASE_URL: 'http://localhost:5173'
+          PLAYWRIGHT_JSON_OUTPUT_NAME: tri-runtime-results.json
+        run: |
+          pw_exit=0
+          npx playwright test e2e/tests/tree-to-pe-manager-equivalence.spec.ts \
+            --project=chromium --workers=1 --reporter=list,json || pw_exit=$?
+
+          node -e '
+            const fs = require("fs");
+            const f = "tri-runtime-results.json";
+            if (!fs.existsSync(f)) {
+              console.error("::error::no Playwright JSON report — the parity spec did not run");
+              process.exit(1);
+            }
+            const s = JSON.parse(fs.readFileSync(f, "utf8")).stats || {};
+            const ran = (s.expected || 0) + (s.unexpected || 0) + (s.flaky || 0);
+            console.log(`executed=${ran} skipped=${s.skipped || 0}`);
+            if (ran === 0) {
+              console.error("::error::the tri-runtime parity spec skipped — this job " +
+                "spawned a universe for nothing. Check that cpp-1, lsp-1 and scala-1 " +
+                "are all in the registry.");
+              process.exit(1);
+            }
+          '
+          exit "$pw_exit"
+
+      # Corpus addressing across three runtimes rather than two of the same.
+      - name: Corpus addressing parity across runtimes
+        working-directory: RealityEngine_Machines
+        env:
+          REUSE_SERVICES: 'true'
+          RE_REGISTRY_URL: 'http://localhost:5999/re-registry.json'
+          VIZ_BASE_URL: 'http://127.0.0.1:3001'
+        run: |
+          stamp="${{ github.workspace }}/RealityEngine_CI/.universe-engine-selection"
+          MACHINES_CORPUS_DIR="$(sed -n 's/^MACHINE_CORPUS_ACTIVE_DIR=//p' "$stamp" 2>/dev/null)"
+          export MACHINES_CORPUS_DIR
+          echo "Active corpus: ${MACHINES_CORPUS_DIR:-<repo default>}"
+          npx playwright test tests/integration/machine-json-listing.spec.ts \
+            --project=chromium --workers=1 --reporter=list
+
+      - name: Upload tri-runtime artifacts
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: tri-runtime-report
+          path: |
+            RealityEngine_CI/tri-runtime-results.json
+            RealityEngine_CI/e2e-report/
+            RealityEngine_CI/test-results/
+            RealityEngine_Machines/test-results/
+          retention-days: 14
+
+      - name: Show engine logs on failure
+        if: failure()
+        run: |
+          for f in /tmp/re-*.log /tmp/pe-*.log; do
+            [ -f "$f" ] && { echo "--- $f ---"; tail -60 "$f"; } || true
+          done
+          echo "=== LSP engine logs ==="
+          for f in RealityEngine_LSP/logs/*.log; do
+            [ -f "$f" ] && { echo "--- $f ---"; tail -60 "$f"; } || true
+          done
+
+      - name: Stop tri-runtime universe
+        if: always()
+        working-directory: RealityEngine_CI
+        run: ./stopUniverse.sh --engines-only 2>/dev/null || ./stopUniverse.sh --all || true
+
   test-summary:
     name: Test Summary
     runs-on: ubuntu-latest
-    needs: [shellcheck, dockerfile-security, surface-spec-drift, corpus-gates, scripts-unit-tests, dry-run-validate, smoke-tests, e2e-tests, multi-engine-tests]
+    needs: [shellcheck, dockerfile-security, surface-spec-drift, corpus-gates, scripts-unit-tests, dry-run-validate, smoke-tests, e2e-tests, multi-engine-tests, tri-runtime-parity]
     if: always()
 
     steps:
