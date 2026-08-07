@@ -398,8 +398,12 @@ jobs:
             RealityEngine_CI/.regression-tests/runs/*/manifest.json
             RealityEngine_CI/.regression-tests/runs/*/reports/service-inventory.json
             RealityEngine_CI/.regression-tests/runs/*/reports/regression-comparison.json
-            RealityEngine_CI/.regression-tests/runs/*/responses/universal-vectors/selected-events.json
-            RealityEngine_CI/.regression-tests/runs/*/responses/universal-vectors/normalized-comparison.json
+            # The whole directory, not just the two summary files: the stage
+            # also writes one <event>-<instance>.json per runtime holding the
+            # actual response. When a runtime answered HTTP 400 those bodies
+            # were the diagnosis and none of them were uploaded, so the cause
+            # had to be recovered by reading the runtime's source instead.
+            RealityEngine_CI/.regression-tests/runs/*/responses/universal-vectors/*.json
             RealityEngine_CI/.regression-tests/runs/*/reports/mqtt-yuma*.json
             RealityEngine_CI/.regression-tests/runs/*/reports/mcp-smoke.json
             RealityEngine_CI/.regression-tests/runs/*/reports/openclaw*.json
