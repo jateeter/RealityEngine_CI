@@ -265,6 +265,18 @@ jobs:
         working-directory: RealityEngine_LSP
         run: bash scripts/bootstrap-quicklisp.sh --home
 
+      # The compose files pin the Loki logging driver, so `docker compose up`
+      # fails with `error looking up logging plugin loki: plugin "loki" not
+      # found` before a single container starts. The tri-runtime-parity job
+      # installs it; this workflow did not, and the failure landed 27 seconds
+      # into universe startup. Self-hosted runners keep it installed.
+      - name: Install Loki Docker logging plugin
+        if: runner.environment == 'github-hosted'
+        working-directory: RealityEngine_CI
+        run: |
+          docker plugin install grafana/loki-docker-driver:latest --alias loki --grant-all-permissions || \
+            docker plugin enable loki
+
       - name: Run regression workflow
         id: regression
         working-directory: RealityEngine_CI
@@ -396,6 +408,19 @@ jobs:
             # hosted lane configures no secrets and startUniverse.sh does not
             # echo credentials or dump the environment.
             RealityEngine_CI/.regression-tests/runs/**/logs/*.log
+
+      # No teardown existed. On an ephemeral hosted runner that is harmless —
+      # the VM is destroyed — but the local lane runs on hardware that persists
+      # between runs, where a left-running universe holds the ports the next
+      # run pre-checks and turns one bad run into every subsequent one failing.
+      # continue-on-error because failing to clean up is a hygiene problem, not
+      # a certification result: it must be visible without turning a green run
+      # red or a red run green.
+      - name: Stop universe
+        if: always()
+        continue-on-error: true
+        working-directory: RealityEngine_CI
+        run: ./stopUniverse.sh
 
       - name: Create or update regression failure issue
         if: ${{ failure() && (github.event_name == 'schedule' || github.event.inputs.create_issue_on_failure == 'true') }}

@@ -106,9 +106,17 @@ working branches directly. It should:
    branch avoids conflicts when previous run worktrees are retained for
    inspection.
 6. Build from those worktrees only.
-7. Start the universe from the CI worktree.
-8. Write a manifest containing repo remote URL, source `main` SHA, regression
-   branch SHA, build status, test status, and artifact paths.
+7. Provision runtime config into the CI worktree — `.env` and the four TLS
+   artifacts under `certs/`. Both are gitignored, so a worktree created from
+   `origin/main` never has them, and `startUniverse.sh` exits on the first
+   missing one. On the local lane the operator's own `.env` is copied when it
+   exists, since it carries the broker URLs and gateway keys the local stack
+   needs; otherwise `.env.example` is used. Neither is overwritten if already
+   present, so `--no-cold-start` against a real checkout is non-destructive.
+8. Start the universe from the CI worktree.
+9. Write a manifest containing repo remote URL, source `main` SHA, regression
+   branch SHA, build status, test status, artifact paths, and the lane
+   (`profile` plus the `coverage` it implies).
 
 For provenance and build certification without a deployed universe, use
 `--build-only`. That mode still creates the run-local worktrees and executes the
