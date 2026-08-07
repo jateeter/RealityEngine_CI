@@ -104,7 +104,13 @@ def stable_sequence_id(seq: dict[str, Any], fallback: str) -> str:
 
 def discover_events(machine_dir: Path, limit: int) -> list[dict[str, Any]]:
     events: list[dict[str, Any]] = []
-    for path in sorted(machine_dir.glob("*.json")):
+    # rglob, not glob: the corpus keeps every machine under machines/core/ and
+    # machines/domains/<name>/, and nothing at the top level. A non-recursive
+    # glob matched zero files out of 1,321, so this stage failed with
+    # "discovered 0 suitable universal events" on every run that reached it.
+    # sorted() over the recursive walk keeps the selection deterministic, which
+    # the "deterministic-corpus-scan" selection policy depends on.
+    for path in sorted(machine_dir.rglob("*.json")):
         try:
             root = load_json(path)
         except Exception:

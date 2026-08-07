@@ -16,7 +16,30 @@ COLD_START=true
 BUILD=true
 START=true
 LIVE_TESTS=true
-OPENCLAW_FLAG="--openclaw"
+
+# Lane profile. The hosted GitHub-Actions lane and the local lane differ in
+# what they are *permitted* to start, not merely in what they happen to start:
+#
+#   hosted — never localAI/Ollama, never OpenClaw, never the full corpus.
+#            None can be honestly exercised on a hosted runner with no GPU,
+#            no local stack, and a six-hour platform ceiling.
+#   local  — the whole stack on operator hardware, no exclusions.
+#
+# The hosted profile refuses a conflicting flag instead of quietly correcting
+# it. Correcting hides the mistake; a silently-enabled Ollama on a hosted
+# runner presents as a 350-minute timeout, not as anything readable.
+PROFILE="local"
+OPENCLAW_FLAG=""             # resolved from PROFILE unless set explicitly
+LOCAL_AI=""                  # true|false, resolved from PROFILE
+MACHINE_CORPUS=""            # full|standard-deployment, resolved from PROFILE
+OPENCLAW_SET=false
+LOCAL_AI_SET=false
+MACHINE_CORPUS_SET=false
+
+# Mirrors startUniverse.sh's default; where the standard-deployment subset is
+# materialised and booted from.
+MACHINE_CORPUS_WORK_DIR="${MACHINE_CORPUS_WORK_DIR:-/tmp/realityengine-standard-deployment-corpus}"
+
 MQTT_BROKER_URL="${MQTT_BROKER_URL:-}"
 MQTT_MAPPINGS="${MQTT_MAPPINGS:-}"
 MCP_URL="${MCP_URL:-http://127.0.0.1:7331}"
@@ -46,6 +69,10 @@ Usage:
 
 Options:
   --execute                 Run the workflow. Default is plan-only.
+  --profile hosted|local    Lane profile. Default: local
+                              hosted — no localAI, no OpenClaw, standard-deployment
+                                       corpus. Refuses any flag asking otherwise.
+                              local  — localAI, OpenClaw, full corpus.
   --branch NAME             Regression branch name for run-local worktrees.
   --history-dir DIR         Run-history root. Default: .regression-tests
   --run-id ID               Override generated run id.
@@ -58,8 +85,11 @@ Options:
   --mqtt-mappings PATH      Yuma MQTT mappings file.
   --mcp-url URL             MCP HTTP base URL. Default: http://127.0.0.1:7331
   --swagger-url URL         OpenAPI Swagger base URL. Default: http://127.0.0.1:8088
-  --openclaw                Require OpenClaw. Default.
-  --no-openclaw             Skip OpenClaw.
+  --openclaw                Require OpenClaw. Default under --profile local.
+  --no-openclaw             Skip OpenClaw. Forced under --profile hosted.
+  --local-ai                Start Ollama and localAIStack. Default under --profile local.
+  --no-local-ai             Skip both. Forced under --profile hosted.
+  --machine-corpus CORPUS   full | standard-deployment. Default: per profile.
   --retain N                Keep latest N local run histories. Default: 20
   --compare RUN_ID          Compare against a previous run id. Default: latest completed run.
   --archive PATH            Copy certification artifacts to PATH/<run-id>.
@@ -70,6 +100,8 @@ USAGE
 while [ $# -gt 0 ]; do
   case "$1" in
     --execute) EXECUTE=true; shift ;;
+    --profile=*) PROFILE="${1#*=}"; shift ;;
+    --profile) PROFILE="$2"; shift 2 ;;
     --branch=*) BRANCH_NAME="${1#*=}"; shift ;;
     --branch) BRANCH_NAME="$2"; shift 2 ;;
     --history-dir=*) HISTORY_DIR="${1#*=}"; shift ;;
@@ -90,8 +122,12 @@ while [ $# -gt 0 ]; do
     --mcp-url) MCP_URL="$2"; shift 2 ;;
     --swagger-url=*) SWAGGER_URL="${1#*=}"; shift ;;
     --swagger-url) SWAGGER_URL="$2"; shift 2 ;;
-    --openclaw) OPENCLAW_FLAG="--openclaw"; shift ;;
-    --no-openclaw) OPENCLAW_FLAG="--no-openclaw"; shift ;;
+    --openclaw) OPENCLAW_FLAG="--openclaw"; OPENCLAW_SET=true; shift ;;
+    --no-openclaw) OPENCLAW_FLAG="--no-openclaw"; OPENCLAW_SET=true; shift ;;
+    --local-ai) LOCAL_AI=true; LOCAL_AI_SET=true; shift ;;
+    --no-local-ai) LOCAL_AI=false; LOCAL_AI_SET=true; shift ;;
+    --machine-corpus=*) MACHINE_CORPUS="${1#*=}"; MACHINE_CORPUS_SET=true; shift ;;
+    --machine-corpus) MACHINE_CORPUS="$2"; MACHINE_CORPUS_SET=true; shift 2 ;;
     --retain=*) RETAIN="${1#*=}"; shift ;;
     --retain) RETAIN="$2"; shift 2 ;;
     --compare=*) COMPARE_RUN="${1#*=}"; shift ;;
@@ -102,6 +138,54 @@ while [ $# -gt 0 ]; do
     *) echo "Unknown argument: $1" >&2; usage; exit 2 ;;
   esac
 done
+
+# ── Profile resolution ───────────────────────────────────────────────────────
+# An unset knob takes the profile's value; a knob the caller set is checked
+# against the profile and, on the hosted lane, refused. Six independent
+# variables can drift out of agreement with each other. One profile cannot.
+FRESH_FLAG=""
+PROFILE_CONFLICT=false
+profile_refuse() {
+  printf 'error: --profile hosted will not %s\n' "$1" >&2
+  PROFILE_CONFLICT=true
+}
+
+case "$PROFILE" in
+  hosted)
+    # No --fresh. It runs `docker builder prune -af` and rebuilds five images
+    # with --no-cache to clear state a persistent host accumulates. A hosted
+    # runner is pristine by construction, so that buys nothing and spends the
+    # disk headroom the no-cache rebuild itself warns about running out of.
+    FRESH_FLAG=""
+    [ "$OPENCLAW_SET" = true ]       || OPENCLAW_FLAG="--no-openclaw"
+    [ "$LOCAL_AI_SET" = true ]       || LOCAL_AI=false
+    [ "$MACHINE_CORPUS_SET" = true ] || MACHINE_CORPUS="standard-deployment"
+    [ "$OPENCLAW_FLAG" = "--no-openclaw" ] || profile_refuse "run OpenClaw (--openclaw)"
+    [ "$LOCAL_AI" = false ] || profile_refuse "run localAI/Ollama (--local-ai)"
+    [ "$MACHINE_CORPUS" = "standard-deployment" ] ||
+      profile_refuse "load the '$MACHINE_CORPUS' corpus (--machine-corpus=$MACHINE_CORPUS)"
+    if [ "$PROFILE_CONFLICT" = true ]; then
+      echo "       These never run on a hosted runner. Use --profile local," >&2
+      echo "       which runs the full stack on operator hardware." >&2
+      exit 2
+    fi
+    ;;
+  local)
+    FRESH_FLAG="--fresh"
+    [ "$OPENCLAW_SET" = true ]       || OPENCLAW_FLAG="--openclaw"
+    [ "$LOCAL_AI_SET" = true ]       || LOCAL_AI=true
+    [ "$MACHINE_CORPUS_SET" = true ] || MACHINE_CORPUS="full"
+    ;;
+  *)
+    echo "Unsupported --profile: $PROFILE (hosted|local)" >&2
+    exit 2
+    ;;
+esac
+
+case "$MACHINE_CORPUS" in
+  full|standard-deployment) ;;
+  *) echo "Unsupported --machine-corpus: $MACHINE_CORPUS (full|standard-deployment)" >&2; exit 2 ;;
+esac
 
 RUN_DIR="$HISTORY_DIR/runs/$RUN_ID"
 LOG_DIR="$RUN_DIR/logs"
@@ -120,14 +204,28 @@ worktree_path() {
   printf '%s/%s\n' "$WORKTREE_DIR" "$1"
 }
 
+# Every command's output goes to a log file, so a failure otherwise surfaces as
+# a bare exit code with the explanation sitting in a file nobody can reach —
+# on CI the run directory is discarded when the job ends. Print the tail.
+dump_log_tail() {
+  local label="$1" status="$2" log_file="$3"
+  echo "" >&2
+  echo "--- $label failed (exit $status) — last 80 lines of $log_file ---" >&2
+  tail -n 80 "$log_file" >&2 2>/dev/null || echo "(no log file)" >&2
+  echo "--- end $label ---" >&2
+}
+
 run_cmd() {
   local label="$1"; shift
   local log_file="$LOG_DIR/${label//[^A-Za-z0-9_.-]/_}.log"
+  local status=0
   log "+ $*"
   if [ "$EXECUTE" = false ]; then
     return 0
   fi
-  "$@" > "$log_file" 2>&1
+  "$@" > "$log_file" 2>&1 || status=$?
+  [ "$status" -eq 0 ] || dump_log_tail "$label" "$status" "$log_file"
+  return "$status"
 }
 
 record_repo_provenance() {
@@ -233,22 +331,34 @@ run_repo_cmd() {
   status=$?
   set -e
   record_command_result "$repo" "$phase" "$label" "$*" "$status" "$log_rel"
+  [ "$status" -eq 0 ] || dump_log_tail "$label" "$status" "$log_file"
   return "$status"
 }
 
 record_manifest() {
   mkdir -p "$RUN_DIR"
-  python3 - "$RUN_DIR/manifest.json" "$RUN_ID" "$BRANCH_NAME" "$WORKTREE_BRANCH" "$ENGINES_SPEC" <<'PYEOF'
+  python3 - "$RUN_DIR/manifest.json" "$RUN_ID" "$BRANCH_NAME" "$WORKTREE_BRANCH" "$ENGINES_SPEC" \
+    "$PROFILE" "$LOCAL_AI" "$MACHINE_CORPUS" "$OPENCLAW_FLAG" <<'PYEOF'
 import json
 import sys
 from pathlib import Path
 
-path, run_id, branch, worktree_branch, engines = sys.argv[1:]
+(path, run_id, branch, worktree_branch, engines,
+ profile, local_ai, machine_corpus, openclaw_flag) = sys.argv[1:]
 payload = {
     "runId": run_id,
     "branch": branch,
     "worktreeBranch": worktree_branch,
     "engineSpec": engines,
+    # The lane is part of the evidence. A hosted run and a local run are not
+    # interchangeable certifications, and a reader of this artifact should not
+    # have to infer which one produced it.
+    "profile": profile,
+    "coverage": {
+        "localAI": local_ai == "true",
+        "openclaw": openclaw_flag == "--openclaw",
+        "machineCorpus": machine_corpus,
+    },
     "status": "planned",
     "repos": [],
     "artifacts": {
@@ -283,6 +393,7 @@ PYEOF
 plan() {
   step "Regression Test Plan"
   log "run id:       $RUN_ID"
+  log "profile:      $PROFILE"
   log "history dir:  $HISTORY_DIR"
   log "branch:       $BRANCH_NAME"
   log "run branch:   $WORKTREE_BRANCH"
@@ -292,6 +403,8 @@ plan() {
   log "start:        $START"
   log "live tests:   $LIVE_TESTS"
   log "openclaw:     $OPENCLAW_FLAG"
+  log "local ai:     $LOCAL_AI"
+  log "corpus:       $MACHINE_CORPUS"
   log "mqtt broker:  ${MQTT_BROKER_URL:-<not configured>}"
   log "mcp url:      $MCP_URL"
   log "swagger url:  $SWAGGER_URL"
@@ -368,19 +481,67 @@ build_repos() {
   run_repo_cmd "localOpenClawStack" "build" "build-openclaw-compose" bash -lc "cd '$(repo_root localOpenClawStack)' && docker compose build"
 }
 
+# startUniverse.sh dies without $CI_DIR/.env and four TLS artifacts under
+# certs/. Both are gitignored, so a cold-start worktree — which is every
+# regression run — never has them, and $CI_DIR is the worktree, not the
+# checkout. This is why the full lane has never started a universe on any
+# runner: it dies at ".env not found" before the first engine.
+prepare_runtime_config() {
+  [ "$START" = true ] || return 0
+  step "Runtime config for the run worktree"
+  local ci src_ci
+  ci="$(repo_root RealityEngine_CI)"
+  src_ci="$(repo_path RealityEngine_CI)"
+
+  if [ "$EXECUTE" = false ]; then
+    log "+ provision $ci/.env and $ci/certs/"
+    return 0
+  fi
+
+  if [ -f "$ci/.env" ]; then
+    log ".env already present"
+  elif [ "$PROFILE" = "local" ] && [ -f "$src_ci/.env" ]; then
+    # The operator's .env carries what the local stack actually needs — broker
+    # URLs, gateway session keys. Seeding from .env.example instead would
+    # certify a universe other than the one being certified.
+    cp "$src_ci/.env" "$ci/.env"
+    log ".env copied from $src_ci"
+  else
+    cp "$ci/.env.example" "$ci/.env"
+    log ".env seeded from .env.example"
+  fi
+
+  local missing=false f
+  for f in certs/server.crt certs/server.key certs/ca.crt certs/keystore.p12; do
+    [ -f "$ci/$f" ] || missing=true
+  done
+  if [ "$missing" = true ]; then
+    run_cmd "generate-dev-certs" bash -lc "cd '$ci' && bash certs/generate-dev-certs.sh"
+  else
+    log "dev certs already present"
+  fi
+}
+
 start_universe() {
   [ "$START" = true ] || return 0
   step "Cold-start standard multi-engine universe"
   local ci
   ci="$(repo_root RealityEngine_CI)"
-  local args=(
-    "--fresh"
+  # This argument list was hardcoded, so --machine-corpus and --no-local-ai
+  # had no way to reach startUniverse.sh: every run took its defaults, which
+  # are the full corpus and localAI on — exactly the two things the hosted
+  # lane must never do.
+  local args=()
+  [ -n "$FRESH_FLAG" ] && args+=("$FRESH_FLAG")
+  args+=(
     "--engines=$ENGINES_SPEC"
     "--machine-load=runtime"
     "--pe-source-bootstrap=auto"
+    "--machine-corpus=$MACHINE_CORPUS"
     "$OPENCLAW_FLAG"
     "--warn-only"
   )
+  [ "$LOCAL_AI" = true ] || args+=("--no-local-ai")
   [ -n "$MQTT_BROKER_URL" ] && args+=("--mqtt-broker-url=$MQTT_BROKER_URL")
   [ -n "$MQTT_MAPPINGS" ] && args+=("--mqtt-mappings=$MQTT_MAPPINGS")
   run_cmd "start-universe" bash -lc "cd '$ci' && ./startUniverse.sh ${args[*]}"
@@ -402,11 +563,24 @@ run_service_inventory() {
   run_cmd "service-inventory" python3 "$ci/scripts/regression-service-inventory.py" "${args[@]}"
 }
 
+# The corpus the running engines actually loaded. Under
+# --machine-corpus=standard-deployment, startUniverse.sh materialises the
+# subset into MACHINE_CORPUS_WORK_DIR and boots from that; scanning the full
+# worktree corpus instead would build parity events out of machines no running
+# engine has ever seen.
+active_machines_dir() {
+  if [ "$MACHINE_CORPUS" = "standard-deployment" ]; then
+    printf '%s/machines\n' "$MACHINE_CORPUS_WORK_DIR"
+  else
+    printf '%s/machines\n' "$(repo_root RealityEngine_Machines)"
+  fi
+}
+
 run_universal_vectors() {
   step "Universal input event vector parity"
   local ci machines
   ci="$(repo_root RealityEngine_CI)"
-  machines="$(repo_root RealityEngine_Machines)/machines"
+  machines="$(active_machines_dir)"
   run_cmd "universal-vectors" python3 "$ci/scripts/regression-universal-vectors.py" \
     --registry /tmp/re-registry/re-registry.json \
     --machines "$machines" \
@@ -569,6 +743,7 @@ prepare_history
 create_worktrees
 build_repos
 if [ "$LIVE_TESTS" = true ]; then
+  prepare_runtime_config
   start_universe
   run_service_inventory
   run_universal_vectors

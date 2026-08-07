@@ -43,7 +43,14 @@ while IFS='|' read -r _ repo version branch _; do
     [[ "$repo" =~ ^-+$ || "$repo" == "Repo" || -z "$repo" ]] && continue
 
     REPO_DIR="$CI_DIR/../$repo"
-    if [ ! -d "$REPO_DIR/.git" ]; then
+    # -e, not -d: in a git worktree .git is a file holding a gitdir: pointer,
+    # not a directory. With -d every repo in a worktree layout was "not found
+    # (skipping)", every repo was skipped, ERRORS stayed 0, and the script
+    # printed "All sibling repos on compatible refs" — reporting success
+    # precisely because it had checked nothing. The regression suite builds
+    # cold-start worktrees for every run, so that is the one context where
+    # this check has never once run.
+    if [ ! -e "$REPO_DIR/.git" ]; then
         warn "$repo — not found at $REPO_DIR (skipping)"
         continue
     fi
@@ -54,7 +61,20 @@ while IFS='|' read -r _ repo version branch _; do
 
     BRANCH_OK=true
     VERSION_OK=true
-    [ -n "$branch" ] && [ "$CURRENT_BRANCH" != "$branch" ] && BRANCH_OK=false
+    if [ -n "$branch" ] && [ "$CURRENT_BRANCH" != "$branch" ]; then
+        # A regression run checks each repo out on its own run-local branch
+        # created from origin/<branch>, so the name differs while the commit is
+        # exactly the expected one. Compatibility is about the commit, not the
+        # label, so only call it a mismatch when the commit differs too.
+        EXPECTED_SHA=$(git -C "$REPO_DIR" rev-parse --verify -q "origin/$branch" 2>/dev/null || \
+                       git -C "$REPO_DIR" rev-parse --verify -q "$branch" 2>/dev/null || echo "")
+        HEAD_SHA=$(git -C "$REPO_DIR" rev-parse HEAD 2>/dev/null || echo "-")
+        if [ -n "$EXPECTED_SHA" ] && [ "$HEAD_SHA" = "$EXPECTED_SHA" ]; then
+            CURRENT_BRANCH="$CURRENT_BRANCH (at $branch)"
+        else
+            BRANCH_OK=false
+        fi
+    fi
     [ -n "$version" ] && [ "$version" != "any" ] && [ "$CURRENT_REF" != "$version" ] && VERSION_OK=false
 
     if [ "$BRANCH_OK" = true ] && [ "$VERSION_OK" = true ]; then
