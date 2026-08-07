@@ -312,16 +312,42 @@ Best practices:
 - Keep raw logs local or artifact-scoped, never committed to repo history.
 
 The executable automation lives in
-`.github/workflows/regression-tests.yml`. It is intentionally self-hosted
-because the full regression profile depends on Docker, local service ports,
-toolchains, localAIStack, Ollama, and optional OpenClaw credentials that are not
-available on a generic hosted runner.
+`.github/workflows/regression-tests.yml`.
+
+## Two Lanes
+
+Regression runs in one of two lanes, selected by `--profile`. They are not
+depth settings of one another: three things never run on a hosted runner, by
+decision rather than by circumstance.
+
+| | `--profile hosted` | `--profile local` |
+|---|---|---|
+| Runner | `ubuntu-latest` | operator hardware / self-hosted |
+| Machine corpus | `standard-deployment` (12) | `full` (~1,300) |
+| localAI + Ollama | never | yes |
+| OpenClaw | never | yes |
+| HealthKit bridge | never | yes (simulator) |
+
+`local` is the default, so an operator running the script by hand gets the
+whole stack, and it is what the script has always done.
+
+The hosted profile **refuses** a flag that contradicts it — `--openclaw`,
+`--local-ai` or `--machine-corpus=full` exit 2 with the conflict named. It does
+not silently correct them. A quietly-enabled Ollama on a hosted runner does not
+present as a mistake; it presents as a 350-minute timeout.
+
+The workflow picks the lane from `runner.environment`, so registering a
+self-hosted runner is sufficient to move a run to the local lane. Each run
+records its lane and exclusions in `manifest.json` under `profile` and
+`coverage`, because a hosted pass and a local pass are not interchangeable
+certifications and the artifact should say which one it is.
 
 Manual `workflow_dispatch` inputs:
 
 - `run_mode`: `plan`, `build-only`, or `full`.
 - `engine_spec`: default `cpp:1,lsp:1,scala:1`.
-- `openclaw`: explicit opt-in for OpenClaw async integration checks.
+- `openclaw`: explicit opt-in for OpenClaw async integration checks. Setting it
+  on a hosted runner fails the run — see Two Lanes above.
 - `mqtt_broker_url` and `mqtt_mappings`: Yuma MQTT stream configuration.
 - `mcp_url`: MCP Streamable HTTP service base URL.
 - `swagger_url`: OpenAPI Swagger service base URL.
@@ -336,7 +362,8 @@ Scheduled execution is present but gated by repository configuration. Set
 schedule uses these optional repository variables:
 
 - `REGRESSION_RUNNER_LABELS`: JSON runner label array; defaults to
-  `["self-hosted"]`.
+  `["ubuntu-latest"]`. Setting it to a self-hosted label array also switches
+  the run to the local lane, since the lane follows `runner.environment`.
 - `REGRESSION_SCHEDULE_RUN_MODE`: defaults to `full`.
 - `REGRESSION_ENGINE_SPEC`: defaults to `cpp:1,lsp:1,scala:1`.
 - `REGRESSION_OPENCLAW`: defaults to `false`.

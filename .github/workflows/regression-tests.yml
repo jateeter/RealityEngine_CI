@@ -269,6 +269,21 @@ jobs:
         id: regression
         working-directory: RealityEngine_CI
         env:
+          # The lane, decided by where we are rather than by a variable someone
+          # has to remember to set. `hosted` forbids localAI, OpenClaw and the
+          # full corpus; asking for any of them fails the run rather than being
+          # quietly corrected.
+          PROFILE: ${{ runner.environment == 'github-hosted' && 'hosted' || 'local' }}
+          # Matches the tri-runtime-parity job, which is the only job that has
+          # actually brought cpp+lsp+scala up on a hosted runner. It sets these
+          # two; this workflow set neither, on the same engine spec and the same
+          # runner class, and the default health window is sized for one engine.
+          NATIVE_HEALTH_ATTEMPTS: '240'
+          HOST_IP_OVERRIDE: 127.0.0.1
+          # MACHINES_DIR is deliberately NOT set. startUniverse.sh honours it
+          # from the environment, and the regression run starts from its own
+          # cold-start worktrees — pinning it to the top-level checkout would
+          # test the checkout while the manifest recorded worktree SHAs.
           INPUT_RUN_MODE: ${{ github.event.inputs.run_mode }}
           INPUT_ENGINE_SPEC: ${{ github.event.inputs.engine_spec }}
           INPUT_OPENCLAW: ${{ github.event.inputs.openclaw }}
@@ -319,6 +334,7 @@ jobs:
 
           args=(
             --run-id "$run_id"
+            --profile "${PROFILE:-hosted}"
             --engines "$engine_spec"
             --retain "$retain"
             --mcp-url "$mcp_url"
@@ -350,6 +366,8 @@ jobs:
           [ -n "$mqtt_mappings" ] && args+=(--mqtt-mappings "$mqtt_mappings")
           [ -n "$compare_run" ] && args+=(--compare "$compare_run")
           [ "$archive_artifacts" = "true" ] && args+=(--archive "$PWD/.regression-tests/archive")
+
+          echo "::notice::Regression lane '${PROFILE:-hosted}' — run mode $run_mode, engines $engine_spec"
 
           echo "run_id=$run_id" >> "$GITHUB_OUTPUT"
           echo "run_dir=.regression-tests/runs/$run_id" >> "$GITHUB_OUTPUT"
