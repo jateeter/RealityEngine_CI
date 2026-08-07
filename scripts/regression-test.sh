@@ -139,6 +139,7 @@ done
 # An unset knob takes the profile's value; a knob the caller set is checked
 # against the profile and, on the hosted lane, refused. Six independent
 # variables can drift out of agreement with each other. One profile cannot.
+FRESH_FLAG=""
 PROFILE_CONFLICT=false
 profile_refuse() {
   printf 'error: --profile hosted will not %s\n' "$1" >&2
@@ -147,6 +148,11 @@ profile_refuse() {
 
 case "$PROFILE" in
   hosted)
+    # No --fresh. It runs `docker builder prune -af` and rebuilds five images
+    # with --no-cache to clear state a persistent host accumulates. A hosted
+    # runner is pristine by construction, so that buys nothing and spends the
+    # disk headroom the no-cache rebuild itself warns about running out of.
+    FRESH_FLAG=""
     [ "$OPENCLAW_SET" = true ]       || OPENCLAW_FLAG="--no-openclaw"
     [ "$LOCAL_AI_SET" = true ]       || LOCAL_AI=false
     [ "$MACHINE_CORPUS_SET" = true ] || MACHINE_CORPUS="standard-deployment"
@@ -161,6 +167,7 @@ case "$PROFILE" in
     fi
     ;;
   local)
+    FRESH_FLAG="--fresh"
     [ "$OPENCLAW_SET" = true ]       || OPENCLAW_FLAG="--openclaw"
     [ "$LOCAL_AI_SET" = true ]       || LOCAL_AI=true
     [ "$MACHINE_CORPUS_SET" = true ] || MACHINE_CORPUS="full"
@@ -470,6 +477,47 @@ build_repos() {
   run_repo_cmd "localOpenClawStack" "build" "build-openclaw-compose" bash -lc "cd '$(repo_root localOpenClawStack)' && docker compose build"
 }
 
+# startUniverse.sh dies without $CI_DIR/.env and four TLS artifacts under
+# certs/. Both are gitignored, so a cold-start worktree — which is every
+# regression run — never has them, and $CI_DIR is the worktree, not the
+# checkout. This is why the full lane has never started a universe on any
+# runner: it dies at ".env not found" before the first engine.
+prepare_runtime_config() {
+  [ "$START" = true ] || return 0
+  step "Runtime config for the run worktree"
+  local ci src_ci
+  ci="$(repo_root RealityEngine_CI)"
+  src_ci="$(repo_path RealityEngine_CI)"
+
+  if [ "$EXECUTE" = false ]; then
+    log "+ provision $ci/.env and $ci/certs/"
+    return 0
+  fi
+
+  if [ -f "$ci/.env" ]; then
+    log ".env already present"
+  elif [ "$PROFILE" = "local" ] && [ -f "$src_ci/.env" ]; then
+    # The operator's .env carries what the local stack actually needs — broker
+    # URLs, gateway session keys. Seeding from .env.example instead would
+    # certify a universe other than the one being certified.
+    cp "$src_ci/.env" "$ci/.env"
+    log ".env copied from $src_ci"
+  else
+    cp "$ci/.env.example" "$ci/.env"
+    log ".env seeded from .env.example"
+  fi
+
+  local missing=false f
+  for f in certs/server.crt certs/server.key certs/ca.crt certs/keystore.p12; do
+    [ -f "$ci/$f" ] || missing=true
+  done
+  if [ "$missing" = true ]; then
+    run_cmd "generate-dev-certs" bash -lc "cd '$ci' && bash certs/generate-dev-certs.sh"
+  else
+    log "dev certs already present"
+  fi
+}
+
 start_universe() {
   [ "$START" = true ] || return 0
   step "Cold-start standard multi-engine universe"
@@ -479,8 +527,9 @@ start_universe() {
   # had no way to reach startUniverse.sh: every run took its defaults, which
   # are the full corpus and localAI on — exactly the two things the hosted
   # lane must never do.
-  local args=(
-    "--fresh"
+  local args=()
+  [ -n "$FRESH_FLAG" ] && args+=("$FRESH_FLAG")
+  args+=(
     "--engines=$ENGINES_SPEC"
     "--machine-load=runtime"
     "--pe-source-bootstrap=auto"
@@ -677,6 +726,7 @@ prepare_history
 create_worktrees
 build_repos
 if [ "$LIVE_TESTS" = true ]; then
+  prepare_runtime_config
   start_universe
   run_service_inventory
   run_universal_vectors
