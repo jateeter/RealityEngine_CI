@@ -394,20 +394,20 @@ jobs:
           if-no-files-found: warn
           retention-days: 30
           path: |
-            RealityEngine_CI/.regression-tests/runs/**/summary.md
-            RealityEngine_CI/.regression-tests/runs/**/manifest.json
-            RealityEngine_CI/.regression-tests/runs/**/reports/service-inventory.json
-            RealityEngine_CI/.regression-tests/runs/**/reports/regression-comparison.json
-            RealityEngine_CI/.regression-tests/runs/**/responses/universal-vectors/selected-events.json
-            RealityEngine_CI/.regression-tests/runs/**/responses/universal-vectors/normalized-comparison.json
-            RealityEngine_CI/.regression-tests/runs/**/reports/mqtt-yuma*.json
-            RealityEngine_CI/.regression-tests/runs/**/reports/mcp-smoke.json
-            RealityEngine_CI/.regression-tests/runs/**/reports/openclaw*.json
+            RealityEngine_CI/.regression-tests/runs/*/summary.md
+            RealityEngine_CI/.regression-tests/runs/*/manifest.json
+            RealityEngine_CI/.regression-tests/runs/*/reports/service-inventory.json
+            RealityEngine_CI/.regression-tests/runs/*/reports/regression-comparison.json
+            RealityEngine_CI/.regression-tests/runs/*/responses/universal-vectors/selected-events.json
+            RealityEngine_CI/.regression-tests/runs/*/responses/universal-vectors/normalized-comparison.json
+            RealityEngine_CI/.regression-tests/runs/*/reports/mqtt-yuma*.json
+            RealityEngine_CI/.regression-tests/runs/*/reports/mcp-smoke.json
+            RealityEngine_CI/.regression-tests/runs/*/reports/openclaw*.json
             # Command logs. Without these a failed stage is an exit code and
             # nothing else — the run directory dies with the runner. The
             # hosted lane configures no secrets and startUniverse.sh does not
             # echo credentials or dump the environment.
-            RealityEngine_CI/.regression-tests/runs/**/logs/*.log
+            RealityEngine_CI/.regression-tests/runs/*/logs/*.log
 
       # No teardown existed. On an ephemeral hosted runner that is harmless —
       # the VM is destroyed — but the local lane runs on hardware that persists

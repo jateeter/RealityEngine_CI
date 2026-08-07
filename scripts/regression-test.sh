@@ -36,6 +36,10 @@ OPENCLAW_SET=false
 LOCAL_AI_SET=false
 MACHINE_CORPUS_SET=false
 
+# Mirrors startUniverse.sh's default; where the standard-deployment subset is
+# materialised and booted from.
+MACHINE_CORPUS_WORK_DIR="${MACHINE_CORPUS_WORK_DIR:-/tmp/realityengine-standard-deployment-corpus}"
+
 MQTT_BROKER_URL="${MQTT_BROKER_URL:-}"
 MQTT_MAPPINGS="${MQTT_MAPPINGS:-}"
 MCP_URL="${MCP_URL:-http://127.0.0.1:7331}"
@@ -559,11 +563,24 @@ run_service_inventory() {
   run_cmd "service-inventory" python3 "$ci/scripts/regression-service-inventory.py" "${args[@]}"
 }
 
+# The corpus the running engines actually loaded. Under
+# --machine-corpus=standard-deployment, startUniverse.sh materialises the
+# subset into MACHINE_CORPUS_WORK_DIR and boots from that; scanning the full
+# worktree corpus instead would build parity events out of machines no running
+# engine has ever seen.
+active_machines_dir() {
+  if [ "$MACHINE_CORPUS" = "standard-deployment" ]; then
+    printf '%s/machines\n' "$MACHINE_CORPUS_WORK_DIR"
+  else
+    printf '%s/machines\n' "$(repo_root RealityEngine_Machines)"
+  fi
+}
+
 run_universal_vectors() {
   step "Universal input event vector parity"
   local ci machines
   ci="$(repo_root RealityEngine_CI)"
-  machines="$(repo_root RealityEngine_Machines)/machines"
+  machines="$(active_machines_dir)"
   run_cmd "universal-vectors" python3 "$ci/scripts/regression-universal-vectors.py" \
     --registry /tmp/re-registry/re-registry.json \
     --machines "$machines" \
