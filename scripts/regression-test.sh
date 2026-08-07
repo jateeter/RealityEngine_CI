@@ -193,14 +193,28 @@ worktree_path() {
   printf '%s/%s\n' "$WORKTREE_DIR" "$1"
 }
 
+# Every command's output goes to a log file, so a failure otherwise surfaces as
+# a bare exit code with the explanation sitting in a file nobody can reach —
+# on CI the run directory is discarded when the job ends. Print the tail.
+dump_log_tail() {
+  local label="$1" status="$2" log_file="$3"
+  echo "" >&2
+  echo "--- $label failed (exit $status) — last 80 lines of $log_file ---" >&2
+  tail -n 80 "$log_file" >&2 2>/dev/null || echo "(no log file)" >&2
+  echo "--- end $label ---" >&2
+}
+
 run_cmd() {
   local label="$1"; shift
   local log_file="$LOG_DIR/${label//[^A-Za-z0-9_.-]/_}.log"
+  local status=0
   log "+ $*"
   if [ "$EXECUTE" = false ]; then
     return 0
   fi
-  "$@" > "$log_file" 2>&1
+  "$@" > "$log_file" 2>&1 || status=$?
+  [ "$status" -eq 0 ] || dump_log_tail "$label" "$status" "$log_file"
+  return "$status"
 }
 
 record_repo_provenance() {
@@ -306,6 +320,7 @@ run_repo_cmd() {
   status=$?
   set -e
   record_command_result "$repo" "$phase" "$label" "$*" "$status" "$log_rel"
+  [ "$status" -eq 0 ] || dump_log_tail "$label" "$status" "$log_file"
   return "$status"
 }
 

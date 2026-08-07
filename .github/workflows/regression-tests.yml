@@ -391,6 +391,11 @@ jobs:
             RealityEngine_CI/.regression-tests/runs/**/reports/mqtt-yuma*.json
             RealityEngine_CI/.regression-tests/runs/**/reports/mcp-smoke.json
             RealityEngine_CI/.regression-tests/runs/**/reports/openclaw*.json
+            # Command logs. Without these a failed stage is an exit code and
+            # nothing else — the run directory dies with the runner. The
+            # hosted lane configures no secrets and startUniverse.sh does not
+            # echo credentials or dump the environment.
+            RealityEngine_CI/.regression-tests/runs/**/logs/*.log
 
       - name: Create or update regression failure issue
         if: ${{ failure() && (github.event_name == 'schedule' || github.event.inputs.create_issue_on_failure == 'true') }}
