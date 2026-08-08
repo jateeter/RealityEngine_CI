@@ -481,6 +481,24 @@ build_repos() {
   run_repo_cmd "localOpenClawStack" "build" "build-openclaw-compose" bash -lc "cd '$(repo_root localOpenClawStack)' && docker compose build"
 }
 
+# With a broker configured but no mapping registry, the bridge starts and
+# subscribes to nothing, so the MQTT stage waits out its full timeout for
+# sensor sources that were never going to appear. Defaults to the run's own
+# worktree copy of the registry rather than the checkout's, so the mappings
+# are the ones this run is certifying. Runs after the worktrees exist.
+resolve_mqtt_mappings() {
+  [ -n "$MQTT_BROKER_URL" ] || return 0
+  [ -z "$MQTT_MAPPINGS" ] || return 0
+  local default_mappings
+  default_mappings="$(repo_root RealityEngine_CPP)/config/mqtt-mappings.yuma.json"
+  if [ -f "$default_mappings" ]; then
+    MQTT_MAPPINGS="$default_mappings"
+    log "mqtt mappings defaulted to $MQTT_MAPPINGS"
+  else
+    log "WARN: MQTT broker configured but no mapping registry at $default_mappings"
+  fi
+}
+
 # startUniverse.sh dies without $CI_DIR/.env and four TLS artifacts under
 # certs/. Both are gitignored, so a cold-start worktree — which is every
 # regression run — never has them, and $CI_DIR is the worktree, not the
@@ -497,6 +515,7 @@ prepare_runtime_config() {
     log "+ provision $ci/.env and $ci/certs/"
     return 0
   fi
+
 
   if [ -f "$ci/.env" ]; then
     log ".env already present"
@@ -743,6 +762,7 @@ prepare_history
 create_worktrees
 build_repos
 if [ "$LIVE_TESTS" = true ]; then
+  resolve_mqtt_mappings
   prepare_runtime_config
   start_universe
   run_service_inventory
