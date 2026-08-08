@@ -753,6 +753,24 @@ retain_history() {
   fi
 }
 
+# Stages are independent measurements, so one failing must not stop the rest.
+# Under plain `set -e` the first failure aborted the run and every later stage
+# produced nothing at all — so a suite with five stages surfaced its problems
+# strictly one per run, and each run costs about half an hour. The suite still
+# fails; it just reports everything it learned before doing so.
+STAGE_FAILURES=()
+run_stage() {
+  local name="$1"; shift
+  local status=0
+  "$@" || status=$?
+  if [ "$status" -ne 0 ]; then
+    STAGE_FAILURES+=("$name")
+    log ""
+    log "STAGE FAILED: $name (exit $status) — continuing so the later stages still report"
+  fi
+  return 0
+}
+
 plan
 if [ "$EXECUTE" = false ]; then
   exit 0
@@ -764,20 +782,32 @@ build_repos
 if [ "$LIVE_TESTS" = true ]; then
   resolve_mqtt_mappings
   prepare_runtime_config
+  # start_universe stays fatal: with no universe the later stages have nothing
+  # to measure, and their failures would say nothing about the runtimes.
   start_universe
-  run_service_inventory
-  run_universal_vectors
-  run_mqtt_yuma
-  run_mcp
-  run_openclaw
+  run_stage "service-inventory" run_service_inventory
+  run_stage "universal-vectors" run_universal_vectors
+  run_stage "mqtt-yuma"         run_mqtt_yuma
+  run_stage "mcp"               run_mcp
+  run_stage "openclaw"          run_openclaw
 else
   log ""
   log "Live tests skipped (--build-only)."
 fi
-update_manifest_status completed
+if [ "${#STAGE_FAILURES[@]}" -gt 0 ]; then
+  update_manifest_status failed
+else
+  update_manifest_status completed
+fi
 generate_regression_report
 retain_history
 
 log ""
 log "Regression workflow executed."
 log "Run directory: $RUN_DIR"
+
+if [ "${#STAGE_FAILURES[@]}" -gt 0 ]; then
+  log ""
+  log "FAILED stages (${#STAGE_FAILURES[@]}): ${STAGE_FAILURES[*]}"
+  exit 1
+fi
