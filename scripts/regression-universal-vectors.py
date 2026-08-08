@@ -246,11 +246,22 @@ def signature_diff(baseline: Any, actual: Any) -> dict[str, Any]:
 def run_event(instance: dict[str, str], event: dict[str, Any], run_id: str) -> tuple[int, Any]:
     pe_url = instance["pe_url"]
     source_id = f"regression-{run_id}-{event['id']}-{instance['runtime']}"
+    # "test" is the canonical source shape (C++ is the definition,
+    # RealityEngine_CI#91) and is what a region + inputs + loop source is.
+    # This posted type "regression", which is not a source type at all: the
+    # Scala PE decodes SourceConfig on a type discriminator of
+    # test|simulated|sensor and answered every event with
+    # "Unknown source type: regression" as an HTTP 400, while C++ and LSP
+    # accepted it. The harness was the divergent party, and it made the Scala
+    # runtime unmeasurable rather than revealing anything about it.
     source = {
         "id": source_id,
-        "type": "regression",
+        "type": "test",
         "name": f"Regression {event['id']} {event['machineName']}",
         "active": True,
+        "machineId": event["machineId"],
+        "machineName": event["machineName"],
+        "sequenceName": event["sequenceName"],
         "region": event["region"],
         "inputs": [event["values"]],
         "loop": False,
