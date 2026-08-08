@@ -277,6 +277,50 @@ jobs:
           docker plugin install grafana/loki-docker-driver:latest --alias loki --grant-all-permissions || \
             docker plugin enable loki
 
+      # The MQTT stage waits for the PE to auto-create sensor sources, which
+      # only happens once messages arrive on the mapped topics — a reachable
+      # broker is not enough, it has to be carrying traffic. The live Yuma
+      # broker carries it, but a certification run should not go red because a
+      # third party was down. A local broker seeded from the same mapping
+      # registry the engines are configured with is deterministic and offline.
+      #
+      # Published retained, which is what makes this reliable rather than a
+      # race: the mappings set acceptRetained, so an engine subscribing after
+      # the publish still receives the last value immediately.
+      - name: Start MQTT broker and seed retained readings
+        if: runner.environment == 'github-hosted'
+        run: |
+          set -euo pipefail
+          # Config mounted read-only rather than written inside the container:
+          # the image runs as an unprivileged user, so an in-container write to
+          # /mosquitto/config depends on image-specific ownership. A mount does
+          # not, and it leaves the image's own entrypoint and command in place.
+          mkdir -p "$RUNNER_TEMP/mosquitto"
+          printf 'listener 1883 0.0.0.0\nallow_anonymous true\n' > "$RUNNER_TEMP/mosquitto/mosquitto.conf"
+          docker run -d --name regression-mqtt -p 1883:1883 \
+            -v "$RUNNER_TEMP/mosquitto/mosquitto.conf:/mosquitto/config/mosquitto.conf:ro" \
+            eclipse-mosquitto:2
+
+          for i in $(seq 1 30); do
+            if docker exec regression-mqtt mosquitto_pub -h 127.0.0.1 -t healthz -m up 2>/dev/null; then
+              echo "broker ready after ${i}s"; break
+            fi
+            [ "$i" = "30" ] && { echo "::error::MQTT broker did not become ready"; docker logs regression-mqtt; exit 1; }
+            sleep 1
+          done
+
+          published=0
+          while IFS="$(printf '\t')" read -r topic payload; do
+            [ -n "$topic" ] || continue
+            docker exec regression-mqtt mosquitto_pub -h 127.0.0.1 -r -t "$topic" -m "$payload"
+            echo "  retained $topic"
+            published=$((published + 1))
+          done < <(python3 RealityEngine_CI/scripts/seed-mqtt-fixtures.py \
+                     RealityEngine_CPP/config/mqtt-mappings.yuma.json)
+
+          [ "$published" -gt 0 ] || { echo "::error::no MQTT fixtures published"; exit 1; }
+          echo "::notice::MQTT broker seeded with $published retained topic(s)"
+
       - name: Run regression workflow
         id: regression
         working-directory: RealityEngine_CI
@@ -292,6 +336,10 @@ jobs:
           # runner class, and the default health window is sized for one engine.
           NATIVE_HEALTH_ATTEMPTS: '240'
           HOST_IP_OVERRIDE: 127.0.0.1
+          # The broker seeded above. Only a fallback — an explicit dispatch
+          # input or REGRESSION_MQTT_BROKER_URL still wins, so pointing a run
+          # at the live Yuma broker remains one field away.
+          HOSTED_MQTT_BROKER_URL: ${{ runner.environment == 'github-hosted' && 'mqtt://127.0.0.1:1883' || '' }}
           # MACHINES_DIR is deliberately NOT set. startUniverse.sh honours it
           # from the environment, and the regression run starts from its own
           # cold-start worktrees — pinning it to the top-level checkout would
@@ -342,6 +390,13 @@ jobs:
             compare_run="${SCHEDULE_COMPARE:-}"
             retain="${SCHEDULE_RETAIN:-20}"
             archive_artifacts="${SCHEDULE_ARCHIVE_ARTIFACTS:-true}"
+          fi
+
+          # Neither the input nor the schedule variable named a broker, so use
+          # the one this job started. Without a broker the stage writes a skip
+          # report and passes, which is indistinguishable from coverage.
+          if [ -z "$mqtt_broker_url" ]; then
+            mqtt_broker_url="${HOSTED_MQTT_BROKER_URL:-}"
           fi
 
           args=(
@@ -425,6 +480,13 @@ jobs:
         continue-on-error: true
         working-directory: RealityEngine_CI
         run: ./stopUniverse.sh
+
+      - name: Stop MQTT broker
+        if: always()
+        continue-on-error: true
+        run: |
+          docker logs regression-mqtt 2>&1 | tail -30 || true
+          docker rm -f regression-mqtt || true
 
       - name: Create or update regression failure issue
         if: ${{ failure() && (github.event_name == 'schedule' || github.event.inputs.create_issue_on_failure == 'true') }}

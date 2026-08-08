@@ -481,6 +481,24 @@ build_repos() {
   run_repo_cmd "localOpenClawStack" "build" "build-openclaw-compose" bash -lc "cd '$(repo_root localOpenClawStack)' && docker compose build"
 }
 
+# With a broker configured but no mapping registry, the bridge starts and
+# subscribes to nothing, so the MQTT stage waits out its full timeout for
+# sensor sources that were never going to appear. Defaults to the run's own
+# worktree copy of the registry rather than the checkout's, so the mappings
+# are the ones this run is certifying. Runs after the worktrees exist.
+resolve_mqtt_mappings() {
+  [ -n "$MQTT_BROKER_URL" ] || return 0
+  [ -z "$MQTT_MAPPINGS" ] || return 0
+  local default_mappings
+  default_mappings="$(repo_root RealityEngine_CPP)/config/mqtt-mappings.yuma.json"
+  if [ -f "$default_mappings" ]; then
+    MQTT_MAPPINGS="$default_mappings"
+    log "mqtt mappings defaulted to $MQTT_MAPPINGS"
+  else
+    log "WARN: MQTT broker configured but no mapping registry at $default_mappings"
+  fi
+}
+
 # startUniverse.sh dies without $CI_DIR/.env and four TLS artifacts under
 # certs/. Both are gitignored, so a cold-start worktree — which is every
 # regression run — never has them, and $CI_DIR is the worktree, not the
@@ -497,6 +515,7 @@ prepare_runtime_config() {
     log "+ provision $ci/.env and $ci/certs/"
     return 0
   fi
+
 
   if [ -f "$ci/.env" ]; then
     log ".env already present"
@@ -734,6 +753,24 @@ retain_history() {
   fi
 }
 
+# Stages are independent measurements, so one failing must not stop the rest.
+# Under plain `set -e` the first failure aborted the run and every later stage
+# produced nothing at all — so a suite with five stages surfaced its problems
+# strictly one per run, and each run costs about half an hour. The suite still
+# fails; it just reports everything it learned before doing so.
+STAGE_FAILURES=()
+run_stage() {
+  local name="$1"; shift
+  local status=0
+  "$@" || status=$?
+  if [ "$status" -ne 0 ]; then
+    STAGE_FAILURES+=("$name")
+    log ""
+    log "STAGE FAILED: $name (exit $status) — continuing so the later stages still report"
+  fi
+  return 0
+}
+
 plan
 if [ "$EXECUTE" = false ]; then
   exit 0
@@ -743,21 +780,34 @@ prepare_history
 create_worktrees
 build_repos
 if [ "$LIVE_TESTS" = true ]; then
+  resolve_mqtt_mappings
   prepare_runtime_config
+  # start_universe stays fatal: with no universe the later stages have nothing
+  # to measure, and their failures would say nothing about the runtimes.
   start_universe
-  run_service_inventory
-  run_universal_vectors
-  run_mqtt_yuma
-  run_mcp
-  run_openclaw
+  run_stage "service-inventory" run_service_inventory
+  run_stage "universal-vectors" run_universal_vectors
+  run_stage "mqtt-yuma"         run_mqtt_yuma
+  run_stage "mcp"               run_mcp
+  run_stage "openclaw"          run_openclaw
 else
   log ""
   log "Live tests skipped (--build-only)."
 fi
-update_manifest_status completed
+if [ "${#STAGE_FAILURES[@]}" -gt 0 ]; then
+  update_manifest_status failed
+else
+  update_manifest_status completed
+fi
 generate_regression_report
 retain_history
 
 log ""
 log "Regression workflow executed."
 log "Run directory: $RUN_DIR"
+
+if [ "${#STAGE_FAILURES[@]}" -gt 0 ]; then
+  log ""
+  log "FAILED stages (${#STAGE_FAILURES[@]}): ${STAGE_FAILURES[*]}"
+  exit 1
+fi
