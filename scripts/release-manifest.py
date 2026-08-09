@@ -44,6 +44,13 @@ from typing import Any
 
 SCHEMA_VERSION = 1
 
+# The harness's terminal success state, set at scripts/regression-test.sh:819
+# when no stage recorded a failure. It writes exactly "completed" or "failed" —
+# not "passed", which is the vocabulary used for individual commands and stage
+# reports. Any other value is treated as uncertified rather than guessed at: a
+# status this tool does not recognise is the case where it must not pin.
+CERTIFIED_RUN_STATUS = "completed"
+
 
 def git(path: Path, *args: str) -> str:
     try:
@@ -145,9 +152,12 @@ def cmd_generate(args: argparse.Namespace) -> int:
     run_manifest = load_json(manifest_path)
     run_status = run_manifest.get("status", "unknown")
 
-    if run_status != "passed" and not args.allow_unverified:
+    certified = run_status == CERTIFIED_RUN_STATUS
+
+    if not certified and not args.allow_unverified:
         print(
-            f"refusing to pin from a run with status '{run_status}'.\n"
+            f"refusing to pin from a run with status '{run_status}' "
+            f"(certified runs report '{CERTIFIED_RUN_STATUS}').\n"
             "A release manifest asserts the pinned set was certified; pinning a run\n"
             "that did not pass makes it indistinguishable from one that did.\n"
             "Pass --allow-unverified to record a provisional manifest anyway.",
@@ -176,7 +186,7 @@ def cmd_generate(args: argparse.Namespace) -> int:
         },
         "repos": sorted(entries, key=lambda e: e["name"]),
     }
-    if run_status != "passed" or problems:
+    if not certified or problems:
         manifest["provisional"] = {
             "reason": f"generated with --allow-unverified from a '{run_status}' run",
             "problems": problems,

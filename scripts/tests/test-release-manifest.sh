@@ -34,7 +34,11 @@ TMP="$(mktemp -d)"
 trap 'rm -rf "$TMP"' EXIT
 
 # ── Fixtures ────────────────────────────────────────────────────────────────
-# Shaped as scripts/regression-test.sh records provenance.
+# Shaped as scripts/regression-test.sh records provenance. The terminal status
+# vocabulary is that harness's: "completed" on success, "failed" otherwise
+# (regression-test.sh:817-819). It is deliberately not "passed" — that is the
+# per-command vocabulary, and an earlier draft of this tool assumed it, which
+# meant it refused every green run.
 
 make_run() {                 # $1=dir  $2=status  $3=worktreeSha  $4=originMainSha
   mkdir -p "$1/reports"
@@ -64,7 +68,7 @@ SHA_A="aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
 echo "release-manifest generate"
 
 # A green run pins cleanly.
-make_run "$TMP/green" "passed" "$SHA_A" "$SHA_A"
+make_run "$TMP/green" "completed" "$SHA_A" "$SHA_A"
 OUT="$(python3 "$TOOL" generate --run-dir "$TMP/green" --version v9.9.9 --out "$TMP/green.json" 2>&1)"
 assert_contains "$OUT" "2 repos pinned" "green run pins every repo"
 assert_eq "$(python3 -c "import json;print(json.load(open('$TMP/green.json'))['repos'][0]['sha'])")" \
@@ -95,13 +99,22 @@ assert_contains "$OUT" "provisional" "override announces the manifest is provisi
 assert_contains "$(cat "$TMP/red.json")" "\"provisional\"" "records the override in the manifest"
 
 # Building something other than the branch tip must be visible, not averaged away.
-make_run "$TMP/drifted" "passed" "$SHA_A" "cccccccccccccccccccccccccccccccccccccccc"
+make_run "$TMP/drifted" "completed" "$SHA_A" "cccccccccccccccccccccccccccccccccccccccc"
 set +e
 OUT="$(python3 "$TOOL" generate --run-dir "$TMP/drifted" --version v9.9.9 --out "$TMP/d.json" 2>&1)"
 CODE=$?
 set -e
 assert_eq "$CODE" "2" "refuses when the build and the branch tip disagree"
 assert_contains "$OUT" "but origin/main was" "names the disagreement"
+
+# A status the harness never emits is uncertified, not assumed good.
+make_run "$TMP/odd" "passed" "$SHA_A" "$SHA_A"
+set +e
+OUT="$(python3 "$TOOL" generate --run-dir "$TMP/odd" --version v9.9.9 --out "$TMP/odd.json" 2>&1)"
+CODE=$?
+set -e
+assert_eq "$CODE" "2" "an unrecognised run status is refused, not guessed"
+assert_contains "$OUT" "certified runs report 'completed'" "names the status it expects"
 
 echo "release-manifest verify"
 

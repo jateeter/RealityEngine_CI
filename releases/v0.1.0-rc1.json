@@ -1,0 +1,84 @@
+{
+  "certifiedBy": {
+    "coverage": {
+      "localAI": false,
+      "machineCorpus": "standard-deployment",
+      "openclaw": false
+    },
+    "engineSpec": "cpp:1,lsp:1,scala:1",
+    "profile": "hosted",
+    "runId": "gha-31297685782-1",
+    "serviceInventoryStatus": "passed",
+    "stages": {
+      "mcp-smoke": "passed",
+      "mqtt-yuma-cpp-1": "passed",
+      "mqtt-yuma-lsp-1": "passed",
+      "mqtt-yuma-scala-1": "passed",
+      "openclaw-skipped": "skipped",
+      "regression-comparison": "not-compared",
+      "service-inventory": "passed"
+    },
+    "status": "completed"
+  },
+  "generatedAt": "2026-08-09T06:23:29Z",
+  "repos": [
+    {
+      "buildStatus": "passed",
+      "name": "RealityEngine_CI",
+      "originMainShaAtRun": "4bd2180a84ea159babb2a73418755300d78bb36d",
+      "remoteUrl": "https://github.com/jateeter/RealityEngine_CI",
+      "sha": "4bd2180a84ea159babb2a73418755300d78bb36d"
+    },
+    {
+      "buildStatus": "passed",
+      "name": "RealityEngine_CPP",
+      "originMainShaAtRun": "2d5a4561f1653295149e1b1e3c385cbcad8183fc",
+      "remoteUrl": "https://github.com/jateeter/RealityEngine_CPP",
+      "sha": "2d5a4561f1653295149e1b1e3c385cbcad8183fc"
+    },
+    {
+      "buildStatus": "passed",
+      "name": "RealityEngine_LSP",
+      "originMainShaAtRun": "e66d6e5a0feaa9a8721fce91bab6d080d86d2d66",
+      "remoteUrl": "https://github.com/jateeter/RealityEngine_LSP",
+      "sha": "e66d6e5a0feaa9a8721fce91bab6d080d86d2d66"
+    },
+    {
+      "buildStatus": "passed",
+      "name": "RealityEngine_Machines",
+      "originMainShaAtRun": "6c7cda5f3d3263c419b088cba521393f04e08884",
+      "remoteUrl": "https://github.com/jateeter/RealityEngine_Machines",
+      "sha": "6c7cda5f3d3263c419b088cba521393f04e08884"
+    },
+    {
+      "buildStatus": "passed",
+      "name": "RealityEngine_Manager",
+      "originMainShaAtRun": "83f68bc4083233c47800f25a2932e61b9b431e71",
+      "remoteUrl": "https://github.com/jateeter/RealityEngine_Manager",
+      "sha": "83f68bc4083233c47800f25a2932e61b9b431e71"
+    },
+    {
+      "buildStatus": "passed",
+      "name": "RealityEngine_Scala",
+      "originMainShaAtRun": "0828a2ec3724b88fa519a421cdce908631a0d9d3",
+      "remoteUrl": "https://github.com/jateeter/RealityEngine_Scala",
+      "sha": "0828a2ec3724b88fa519a421cdce908631a0d9d3"
+    },
+    {
+      "buildStatus": "passed",
+      "name": "localAIStack",
+      "originMainShaAtRun": "cb87f26589ef625dfa9cc8c41641d5384943f3df",
+      "remoteUrl": "https://github.com/jateeter/localAIStack",
+      "sha": "cb87f26589ef625dfa9cc8c41641d5384943f3df"
+    },
+    {
+      "buildStatus": "passed",
+      "name": "localOpenClawStack",
+      "originMainShaAtRun": "1639dde8d9b9d8c6cb00e0d8c33efa046be7bc6a",
+      "remoteUrl": "https://github.com/jateeter/localOpenClawStack",
+      "sha": "1639dde8d9b9d8c6cb00e0d8c33efa046be7bc6a"
+    }
+  ],
+  "schemaVersion": 1,
+  "version": "v0.1.0-rc1"
+}
