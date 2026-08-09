@@ -59,6 +59,11 @@ REPOS=(
   RealityEngine_Manager
   localAIStack
   localOpenClawStack
+  # In the MVP since G4 (docs/MVP_ROADMAP.md). Added so its TypeScript is
+  # typechecked here, and so the release manifest pins it with everything
+  # else — a repo the MVP depends on that the manifest does not pin is a hole
+  # in the reproducibility claim.
+  OpenCommons-Health---Personal-Information-Management
 )
 
 usage() {
@@ -490,6 +495,12 @@ build_repos() {
   run_repo_cmd "RealityEngine_LSP" "build" "build-lsp" bash -lc "cd '$(repo_root RealityEngine_LSP)' && make build"
   run_repo_cmd "RealityEngine_Scala" "build" "build-scala" bash -lc "cd '$(repo_root RealityEngine_Scala)' && sbt clean compile"
   run_repo_cmd "RealityEngine_Machines" "build" "validate-machines" bash -lc "cd '$(repo_root RealityEngine_Machines)' && bash scripts/validate-corpus.sh"
+  # TypeScript is typechecked explicitly rather than relied on as a side effect
+  # of bundling. Playwright transpiles specs without typechecking them, so
+  # these suites had never been checked at all — adding this surfaced a derived
+  # fixture type that resolved to `never`, silently unchecking every use of it.
+  run_repo_cmd "RealityEngine_Machines" "build" "typecheck-machines" bash -lc "cd '$(repo_root RealityEngine_Machines)' && npm ci && npm run typecheck"
+  run_repo_cmd "RealityEngine_CI" "build" "typecheck-ci" bash -lc "cd '$(repo_root RealityEngine_CI)' && npm run typecheck"
   for package_dir in \
     "visualizer/backend" \
     "visualizer/frontend" \
@@ -497,7 +508,13 @@ build_repos() {
     "perception-engine/frontend"; do
     run_repo_cmd "RealityEngine_Manager" "build" "build-manager-${package_dir//\//-}" bash -lc \
       "cd '$(repo_root RealityEngine_Manager)/$package_dir' && npm ci && npm run build"
+    run_repo_cmd "RealityEngine_Manager" "build" "typecheck-manager-${package_dir//\//-}" bash -lc \
+      "cd '$(repo_root RealityEngine_Manager)/$package_dir' && npm run typecheck"
   done
+  # PIM joined the MVP at G4. It already had a typecheck script; nothing ran it
+  # from here, because the harness did not know the repo existed.
+  run_repo_cmd "OpenCommons-Health---Personal-Information-Management" "build" "typecheck-pim" bash -lc \
+    "cd '$(repo_root OpenCommons-Health---Personal-Information-Management)' && npm ci && npm run typecheck"
   run_repo_cmd "localAIStack" "build" "build-localai-compose" bash -lc "cd '$(repo_root localAIStack)' && docker compose build"
   run_repo_cmd "localOpenClawStack" "build" "build-openclaw-compose" bash -lc "cd '$(repo_root localOpenClawStack)' && docker compose build"
 }

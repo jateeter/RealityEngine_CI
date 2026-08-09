@@ -1,4 +1,5 @@
 import { test, expect } from '@playwright/test';
+import type { Page } from '@playwright/test';
 import { skipUnlessMachines } from '../helpers/require-machines';
 
 /** Digital-logic fixtures this suite drives; absent from standard-deployment. */
@@ -33,7 +34,7 @@ const API_URL = 'https://localhost:5001';              // Reality Engine direct 
 const PERCEPTION_ENGINE_URL = 'https://localhost:3004'; // Perception Engine backend
 
 /** Load all three machines required for the interconnection test. */
-async function loadMachines(page: Parameters<Parameters<typeof test>[1]>[0]['page']) {
+async function loadMachines(page: Page) {
   const multiStep = await page.request.get(`${PERCEPTUAL_API_URL}/api/machines/json/MultiStep`);
   expect(multiStep.ok()).toBeTruthy();
 
@@ -46,7 +47,7 @@ async function loadMachines(page: Parameters<Parameters<typeof test>[1]>[0]['pag
 
 /** Configure the perceptual simulation with a 3-element-per-step input sequence. */
 async function configureSim(
-  page: Parameters<Parameters<typeof test>[1]>[0]['page'],
+  page: Page,
   inputSequence: number[][],
   stepDelayMs = 500
 ) {
@@ -71,7 +72,7 @@ async function configureSim(
 }
 
 /** Execute one manual step and return the step result. */
-async function stepSim(page: Parameters<Parameters<typeof test>[1]>[0]['page']) {
+async function stepSim(page: Page) {
   const resp = await page.request.post(`${PERCEPTUAL_API_URL}/api/perceptual-simulation/step`);
   expect(resp.ok()).toBeTruthy();
   const body = await resp.json();
@@ -85,7 +86,7 @@ async function stepSim(page: Parameters<Parameters<typeof test>[1]>[0]['page']) 
  * perceivers (e.g. Perception Engine auto-push).
  */
 async function waitForCompletion(
-  page: Parameters<Parameters<typeof test>[1]>[0]['page'],
+  page: Page,
   expectedSteps: number,
   timeoutMs = 5000
 ): Promise<void> {
@@ -103,7 +104,7 @@ async function waitForCompletion(
 }
 
 /** Fetch the current perceptual space vector. */
-async function getPerceptualSpace(page: Parameters<Parameters<typeof test>[1]>[0]['page']): Promise<number[]> {
+async function getPerceptualSpace(page: Page): Promise<number[]> {
   const resp = await page.request.get(`${PERCEPTUAL_API_URL}/api/perceptual-simulation/state`);
   expect(resp.ok()).toBeTruthy();
   const body = await resp.json();
