@@ -13,6 +13,7 @@ reports and obsolete fixed-vector notes have been removed.
 | [../PERCEPTUAL_SPACE_ARCHITECTURE.md](../PERCEPTUAL_SPACE_ARCHITECTURE.md) | Dynamic perceptual-vector model. |
 | [ACRONYMS.md](ACRONYMS.md) | Acronym definitions. |
 | [INTEGRATION_ARCHITECTURE.md](INTEGRATION_ARCHITECTURE.md) | Provider-neutral PE integration, trigger dispatch, source mapping, and MCP architecture. |
+| [MVP_ROADMAP.md](MVP_ROADMAP.md) | Route from the baseline tag to a tagged MVP release, and current gate status. |
 | [BIBLIOGRAPHY.md](BIBLIOGRAPHY.md) | External and project references. |
 
 ## APIs And Operations

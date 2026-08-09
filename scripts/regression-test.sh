@@ -737,6 +737,19 @@ generate_regression_report() {
   [ -n "$COMPARE_RUN" ] && args+=("--compare-run" "$COMPARE_RUN")
   [ -n "$ARCHIVE_DIR" ] && args+=("--archive" "$ARCHIVE_DIR")
   run_cmd "regression-report" python3 "$ci/scripts/regression-report.py" "${args[@]}"
+
+  # Candidate release manifest: pin every repo to the commit this run actually
+  # built. Emitted on every run so a green one yields a ready-to-tag manifest
+  # with no separate step to remember; --allow-unverified keeps a red run from
+  # aborting the report, and marks the result provisional so it cannot be
+  # mistaken for a certified pin.
+  python3 "$ci/scripts/release-manifest.py" generate \
+    --run-dir "$RUN_DIR" \
+    --version "${RELEASE_VERSION:-untagged}" \
+    --out "$RUN_DIR/release-manifest.json" \
+    --allow-unverified >/dev/null 2>&1 \
+    && echo "release manifest → $RUN_DIR/release-manifest.json" \
+    || echo "release manifest skipped (could not pin this run)"
 }
 
 retain_history() {
