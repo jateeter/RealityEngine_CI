@@ -44,6 +44,7 @@ MQTT_BROKER_URL="${MQTT_BROKER_URL:-}"
 MQTT_MAPPINGS="${MQTT_MAPPINGS:-}"
 MCP_URL="${MCP_URL:-http://127.0.0.1:7331}"
 SWAGGER_URL="${SWAGGER_URL:-http://127.0.0.1:8088}"
+LOCAL_AI_URL="${LOCAL_AI_URL:-http://localhost:4000}"
 ENGINES_SPEC="cpp:1,lsp:1,scala:1"
 RETAIN=20
 COMPARE_RUN=""
@@ -175,6 +176,19 @@ case "$PROFILE" in
     [ "$OPENCLAW_SET" = true ]       || OPENCLAW_FLAG="--openclaw"
     [ "$LOCAL_AI_SET" = true ]       || LOCAL_AI=true
     [ "$MACHINE_CORPUS_SET" = true ] || MACHINE_CORPUS="full"
+    # Pin one model for every engine on this lane.
+    #
+    # The runtimes do not agree on a default — cpp and lsp resolve
+    # gpt-oss:20b, scala resolves llama3.2 (RealityEngine_Scala#38) — so
+    # without this the three engines answer from different models and any
+    # cross-runtime comparison of provider output is meaningless. On the first
+    # live run none of those defaults was even installed, so every dispatch
+    # would have failed while all three reported reachable:true.
+    #
+    # Exported rather than passed as a flag: startUniverse spawns each engine
+    # with inherited environment, so one export reaches all three.
+    OLLAMA_MODEL="${OLLAMA_MODEL:-llama3.1:8b}"
+    export OLLAMA_MODEL
     ;;
   *)
     echo "Unsupported --profile: $PROFILE (hosted|local)" >&2
@@ -404,6 +418,7 @@ plan() {
   log "live tests:   $LIVE_TESTS"
   log "openclaw:     $OPENCLAW_FLAG"
   log "local ai:     $LOCAL_AI"
+  [ "$LOCAL_AI" = true ] && log "ollama model: ${OLLAMA_MODEL:-<engine default>}"
   log "corpus:       $MACHINE_CORPUS"
   log "mqtt broker:  ${MQTT_BROKER_URL:-<not configured>}"
   log "mcp url:      $MCP_URL"
@@ -688,6 +703,113 @@ run_mcp() {
     --out "$REPORT_DIR/mcp-smoke.json"
 }
 
+# A stage that does not run must say so in a report, not just in the log. A
+# silent skip is indistinguishable from coverage when someone reads the run
+# afterwards — which is how four checks in this harness passed for months
+# without checking anything.
+write_skip_report() {
+  local report="$1" reason="$2"
+  mkdir -p "$REPORT_DIR"
+  python3 - "$REPORT_DIR/$report" "$reason" <<'PYEOF'
+import json
+import sys
+from pathlib import Path
+Path(sys.argv[1]).write_text(
+    json.dumps({"status": "skipped", "reason": sys.argv[2]}, indent=2, sort_keys=True) + "\n",
+    encoding="utf-8",
+)
+PYEOF
+}
+
+# ── Local lane only ─────────────────────────────────────────────────────────
+# The hosted profile refuses local AI, OpenClaw, the full corpus and the
+# HealthKit bridge (see the profile block). The two stages below are what the
+# local lane exists to exercise: without them, --profile local enables those
+# surfaces and then tests nothing that the hosted lane does not already cover.
+
+run_local_ai() {
+  step "Local AI provider reachability"
+  if [ "$LOCAL_AI" != true ]; then
+    log "SKIP local AI: disabled on this profile"
+    write_skip_report "local-ai-skipped.json" "local AI disabled (--profile $PROFILE)"
+    return 0
+  fi
+  local ci
+  ci="$(repo_root RealityEngine_CI)"
+  run_cmd "local-ai-probe" python3 "$ci/scripts/regression-local-ai.py" \
+    --registry /tmp/re-registry/re-registry.json \
+    --localai-url "$LOCAL_AI_URL" \
+    --out "$REPORT_DIR/local-ai.json"
+}
+
+run_healthkit_bridge() {
+  step "HealthKit bridge simulator leg"
+  if [ "$PROFILE" != "local" ]; then
+    log "SKIP HealthKit bridge: hosted profile refuses the bridge"
+    write_skip_report "healthkit-bridge-skipped.json" "hosted profile refuses the HealthKit bridge"
+    return 0
+  fi
+
+  local bridge
+  bridge="$(cd "$CI_DIR/.." && pwd)/localHealthkitBridge"
+  if [ ! -x "$bridge/scripts/e2e_simulator.sh" ]; then
+    log "SKIP HealthKit bridge: localHealthkitBridge not checked out beside this repo"
+    write_skip_report "healthkit-bridge-skipped.json" "localHealthkitBridge not checked out"
+    return 0
+  fi
+
+  # Xcode and an iOS runtime are macOS-only. Report the reason rather than
+  # failing a lane that is otherwise valid on Linux.
+  local missing=""
+  for tool in xcrun xcodegen jq; do
+    command -v "$tool" >/dev/null 2>&1 || missing="$missing $tool"
+  done
+  if [ -n "$missing" ]; then
+    log "SKIP HealthKit bridge: missing toolchain —$missing"
+    write_skip_report "healthkit-bridge-skipped.json" "missing toolchain:$missing"
+    return 0
+  fi
+
+  # The bridge posts to one PE. Any runtime satisfies the ingest contract —
+  # RealityEngine_Machines/tests/integration/healthkit-ingest-contract.spec.ts
+  # enforces that — so the first live instance is enough, and the contract
+  # spec is what covers the other two.
+  local pe_url=""
+  while IFS='|' read -r instance_id runtime url; do
+    [ -n "$instance_id" ] || continue
+    pe_url="$url"
+    break
+  done < <(registry_instance_lines)
+
+  if [ -z "$pe_url" ]; then
+    log "SKIP HealthKit bridge: no running PE instances in registry"
+    write_skip_report "healthkit-bridge-skipped.json" "no running PE instances in registry"
+    return 0
+  fi
+
+  # HealthKit ingest auth is on by default: startUniverse generates a stable
+  # token, persists it to config/.healthkit-bridge-token and hands it to the
+  # PE. Launching the app without it gets a 401 the app reports as
+  # "deliver failed unauthorized" and the script reports only as
+  # "expected >=3 healthkit sensors, saw 0" — a real auth failure that reads
+  # like the bridge never ran.
+  local token="${HEALTHKIT_BRIDGE_TOKEN:-}"
+  if [ -z "$token" ] && [ -s "$CI_DIR/config/.healthkit-bridge-token" ]; then
+    token="$(cat "$CI_DIR/config/.healthkit-bridge-token")"
+  fi
+  if [ -z "$token" ]; then
+    # --no-healthkit-token is a legitimate configuration; the PE then accepts
+    # unauthenticated ingest. Say so rather than leaving the reason to be
+    # inferred from a 401 three layers down.
+    log "HealthKit bridge: no token configured — expecting the PE to accept unauthenticated ingest"
+  fi
+
+  log "HealthKit bridge simulator leg against $pe_url"
+  run_cmd "healthkit-bridge-simulator" \
+    env PE_BASE_URL="$pe_url" HEALTHKIT_BRIDGE_TOKEN="$token" \
+    bash "$bridge/scripts/e2e_simulator.sh"
+}
+
 run_openclaw() {
   step "OpenClaw async handoff and PE completion return"
   if [ "$OPENCLAW_FLAG" != "--openclaw" ]; then
@@ -808,7 +930,11 @@ if [ "$LIVE_TESTS" = true ]; then
   run_stage "universal-vectors" run_universal_vectors
   run_stage "mqtt-yuma"         run_mqtt_yuma
   run_stage "mcp"               run_mcp
+  run_stage "local-ai"          run_local_ai
   run_stage "openclaw"          run_openclaw
+  # Last: it drives a simulator and is the slowest stage, so a failure here
+  # should not delay the report on everything before it.
+  run_stage "healthkit-bridge"  run_healthkit_bridge
 else
   log ""
   log "Live tests skipped (--build-only)."
