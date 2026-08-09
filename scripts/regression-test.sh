@@ -511,6 +511,15 @@ build_repos() {
   run_repo_cmd "RealityEngine_CI" "build" "build-ci-mcp-routes-check" bash -lc \
     "cd '$(repo_root RealityEngine_CI)/mcp' && REALITY_ENGINE_CPP_DIR='$(repo_root RealityEngine_CPP)' npm run routes:check"
   run_repo_cmd "RealityEngine_CPP" "build" "build-cpp" bash -lc "cd '$(repo_root RealityEngine_CPP)' && make all"
+  # RealityEngine_LSP/quicklisp/ is untracked, so a cold-start worktree never
+  # has it and `make build` dies with "Missing Quicklisp". The hosted lane only
+  # worked because the *workflow* bootstrapped Quicklisp into $HOME before
+  # invoking this script — a harness that only runs when its caller happens to
+  # have prepared the environment is not a harness. Bootstrapping here makes
+  # every lane self-sufficient. The script is idempotent, so this is a no-op
+  # once $HOME/quicklisp exists.
+  run_repo_cmd "RealityEngine_LSP" "build" "bootstrap-quicklisp" bash -lc \
+    "cd '$(repo_root RealityEngine_LSP)' && bash scripts/bootstrap-quicklisp.sh --home"
   run_repo_cmd "RealityEngine_LSP" "build" "build-lsp" bash -lc "cd '$(repo_root RealityEngine_LSP)' && make build"
   run_repo_cmd "RealityEngine_Scala" "build" "build-scala" bash -lc "cd '$(repo_root RealityEngine_Scala)' && sbt clean compile"
   run_repo_cmd "RealityEngine_Machines" "build" "validate-machines" bash -lc "cd '$(repo_root RealityEngine_Machines)' && bash scripts/validate-corpus.sh"
