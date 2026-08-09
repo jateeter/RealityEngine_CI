@@ -13,7 +13,7 @@ released, and is the place to record gate status as it changes.
 
 | Gate | What it means | Status |
 |---|---|---|
-| **G1** | Certification runs and passes on every merge to main | **Done** — hosted green nightly (run 31297685782); local lane stages added, first operator run pending |
+| **G1** | Certification runs and passes on every merge to main | hosted **green nightly** (run 31297685782); local lane wired and validated, bridge leg failing |
 | **G2** | Versions pinned across repos, reproducibly | **Done** — first certified pin at `releases/v0.1.0-rc1.json` |
 | **G3** | Release documentation and process | **Done** — `RELEASE.md`, `scripts/cut-release.sh` |
 | **G4** | MVP scope decision: PIM vs HealthKit bridge | **Blocked on a product decision** |
@@ -115,8 +115,25 @@ three things that fail for different reasons:
 OpenClaw was already covered: `run_openclaw` runs whenever `--openclaw` is
 set, which is the local default.
 
+The lane pins `OLLAMA_MODEL=llama3.1:8b` for all three engines. Without a pin
+the runtimes answer from different models, which makes comparing their
+provider output meaningless before it starts.
+
 Results land in `.regression-tests/runs/<run-id>/` exactly as the hosted lane's
 do, so the two lanes are read the same way.
+
+**Validated live on 2026-08-09** against a real `cpp:1,lsp:1,scala:1` universe
+with Ollama and localAIStack running. The stage found three defects on its
+first run, none of which stub tests could have surfaced:
+
+| Finding | Where |
+|---|---|
+| Runtimes default to different Ollama models | RealityEngine_Scala#38 |
+| LSP let `integrations.json` override an explicit `OLLAMA_MODEL`, so the pin reached two of three engines | RealityEngine_LSP#44, fixed in #45 |
+| All three reported `reachable: true` while configured for models Ollama had never pulled — every dispatch would have failed against a passing stage | fixed in the probe itself |
+
+The third is the one worth remembering: the stage written to catch this class
+of problem had the same blind spot, and only a live run exposed it.
 
 ### G1.6 · Bridge simulator leg — done
 
@@ -138,6 +155,13 @@ Skips with a recorded reason, never silently, when: the profile is hosted, the
 bridge is not checked out beside this repo, the toolchain (`xcrun`,
 `xcodegen`, `jq`) is absent — Xcode is macOS-only and the lane is otherwise
 valid on Linux — or no PE is running.
+
+**Not yet green.** Run live on 2026-08-09 against a real iPhone 17 Pro Max
+simulator and the C++ PE: the app built, the simulator booted, the app
+launched, and **0 healthkit sensors reached the PE** against an expected 3.
+PE-side configuration was ruled out — the healthkit mappings are present and
+the PE reports `enabled: true` — so the fault is app-side and untraced. The
+wiring is done; the leg does not pass yet.
 
 ---
 
