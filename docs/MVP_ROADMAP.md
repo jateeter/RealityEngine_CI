@@ -82,9 +82,14 @@ build-only`, so no live stage runs on a schedule. Every green result so far
 comes from a manual dispatch.
 
 Deferred deliberately: scheduled runs default to `create_issue_on_failure`, so
-flipping this while a stage is red files an issue every night. **Flip once MCP
-is green.** This is the gate that turns certification from something we run into
-something that runs.
+flipping this while a stage is red files an issue every night. **MCP went green
+on run 31297685782, so the reason for deferring is gone** — this is now a
+one-variable change awaiting the call:
+
+    gh variable set REGRESSION_SCHEDULE_RUN_MODE --body full
+
+This is the gate that turns certification from something we run into something
+that runs, and it is the last piece of G1 that is not done.
 
 ### G1.5 · Local lane — not started
 
@@ -102,7 +107,7 @@ what is missing is running the actual client.
 
 ---
 
-## G2 · Version pinning — done, pending a green run to pin
+## G2 · Version pinning — done
 
 - `VERSION-COMPAT.md` records the compatible set.
 - `scripts/validate-versions.sh` runs in the harness and now actually inspects
