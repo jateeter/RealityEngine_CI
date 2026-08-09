@@ -184,6 +184,36 @@ Mutating tools must be policy-gated.
 
 ## Provider Adapters
 
+### Ollama model default and precedence
+
+**Canonical default: `llama3.1:8b`.** Every runtime — C++, LSP, Scala and the
+TypeScript PE — resolves this when nothing else is set. This file is the source
+of truth; each engine's code comment points here rather than restating it.
+
+Resolution order, identical on every runtime:
+
+| Rank | Source |
+|---|---|
+| 1 | `OLLAMA_MODEL` in the engine's environment — the per-engine override |
+| 2 | `model` on the `kind: "ollama"` entry in the integration registry |
+| 3 | the canonical default above |
+
+The same order applies to `OLLAMA_BASE_URL` and the registry's `baseUrl`.
+
+Two reasons the ordering is fixed rather than incidental. An explicit
+environment variable is an operator instruction and must outrank a file that
+ships with the repo — LSP and the TypeScript PE both had this inverted, so a
+pinned model silently reached some engines and not others
+(RealityEngine_LSP#44). And the runtimes must agree by default: they previously
+resolved `gpt-oss:20b`, `llama3.2` and empty string respectively, which makes
+comparing provider output across runtimes meaningless before it starts
+(RealityEngine_Scala#38).
+
+Overriding stays per engine. Setting `OLLAMA_MODEL` for one instance changes
+only that instance; the regression local lane exports it once so all three
+native engines share a model, and the `local-ai` stage fails if they disagree
+or if the resolved model is not installed in Ollama.
+
 ### OpenAI
 
 OpenAI dispatch uses the Responses API where hosted agentic behavior, remote MCP

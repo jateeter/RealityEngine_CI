@@ -178,12 +178,12 @@ case "$PROFILE" in
     [ "$MACHINE_CORPUS_SET" = true ] || MACHINE_CORPUS="full"
     # Pin one model for every engine on this lane.
     #
-    # The runtimes do not agree on a default — cpp and lsp resolve
-    # gpt-oss:20b, scala resolves llama3.2 (RealityEngine_Scala#38) — so
-    # without this the three engines answer from different models and any
-    # cross-runtime comparison of provider output is meaningless. On the first
-    # live run none of those defaults was even installed, so every dispatch
-    # would have failed while all three reported reachable:true.
+    # The runtimes now share a canonical default (llama3.1:8b, see
+    # docs/INTEGRATION_ARCHITECTURE.md), so this pin no longer *corrects* a
+    # disagreement — it states the lane's choice explicitly and keeps the lane
+    # correct if a future default diverges again. The local-ai stage fails if
+    # the engines disagree or if the resolved model is not installed, so a
+    # regression here is caught rather than assumed away.
     #
     # Exported rather than passed as a flag: startUniverse spawns each engine
     # with inherited environment, so one export reaches all three.
