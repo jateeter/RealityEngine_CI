@@ -787,9 +787,27 @@ run_healthkit_bridge() {
     return 0
   fi
 
+  # HealthKit ingest auth is on by default: startUniverse generates a stable
+  # token, persists it to config/.healthkit-bridge-token and hands it to the
+  # PE. Launching the app without it gets a 401 the app reports as
+  # "deliver failed unauthorized" and the script reports only as
+  # "expected >=3 healthkit sensors, saw 0" — a real auth failure that reads
+  # like the bridge never ran.
+  local token="${HEALTHKIT_BRIDGE_TOKEN:-}"
+  if [ -z "$token" ] && [ -s "$CI_DIR/config/.healthkit-bridge-token" ]; then
+    token="$(cat "$CI_DIR/config/.healthkit-bridge-token")"
+  fi
+  if [ -z "$token" ]; then
+    # --no-healthkit-token is a legitimate configuration; the PE then accepts
+    # unauthenticated ingest. Say so rather than leaving the reason to be
+    # inferred from a 401 three layers down.
+    log "HealthKit bridge: no token configured — expecting the PE to accept unauthenticated ingest"
+  fi
+
   log "HealthKit bridge simulator leg against $pe_url"
   run_cmd "healthkit-bridge-simulator" \
-    env PE_BASE_URL="$pe_url" bash "$bridge/scripts/e2e_simulator.sh"
+    env PE_BASE_URL="$pe_url" HEALTHKIT_BRIDGE_TOKEN="$token" \
+    bash "$bridge/scripts/e2e_simulator.sh"
 }
 
 run_openclaw() {

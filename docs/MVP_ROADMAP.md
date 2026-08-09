@@ -156,12 +156,28 @@ bridge is not checked out beside this repo, the toolchain (`xcrun`,
 `xcodegen`, `jq`) is absent — Xcode is macOS-only and the lane is otherwise
 valid on Linux — or no PE is running.
 
-**Not yet green.** Run live on 2026-08-09 against a real iPhone 17 Pro Max
-simulator and the C++ PE: the app built, the simulator booted, the app
-launched, and **0 healthkit sensors reached the PE** against an expected 3.
-PE-side configuration was ruled out — the healthkit mappings are present and
-the PE reports `enabled: true` — so the fault is app-side and untraced. The
-wiring is done; the leg does not pass yet.
+**Green live on 2026-08-09** against a real iPhone 17 Pro Max simulator and the
+C++ PE:
+
+```
+  healthkit.sleep    @ [4340:4344] = [0.72, 0.222, 0.556, 1]
+  healthkit.bp       @ [4320:4324] = [0.6, 0.65, 0.32, 1]
+  healthkit.exercise @ [4330:4334] = [0.107, 0.35, 0.61, 1]
+PASS: 3 healthkit sensor sources live on the PE
+```
+
+The first run failed with 0 sensors. The cause was authentication, not the
+bridge: `startUniverse` enables HealthKit ingest auth by default, generating a
+stable token into `config/.healthkit-bridge-token` and handing it to the PE.
+The stage launched the app without it, so every ingest was rejected 401.
+
+That failure was badly legible, which is the part worth keeping in mind. The
+app said `deliver failed unauthorized`, but that print goes to stdout, which
+`simctl launch` only surfaces with `--console`. All the script could see was
+`expected >=3 healthkit sensors, saw 0` — a 401 presenting as "the bridge
+never ran". The stage now reads the token from the environment or the
+persisted file, and says so explicitly when no token is configured, since
+`--no-healthkit-token` is a legitimate mode.
 
 ---
 
