@@ -159,10 +159,18 @@ set +e
 OUT="$(python3 "$TOOL" verify --manifest "$TMP/pin.json" --workspace "$WS" 2>&1)"; CODE=$?
 set -e
 assert_eq "$CODE" "1" "uncommitted changes count as drift"
-assert_contains "$OUT" "uncommitted change" "explains the dirty tree"
+assert_contains "$OUT" "modified tracked file" "explains the dirty tree"
 
 OUT="$(python3 "$TOOL" verify --manifest "$TMP/pin.json" --workspace "$WS" --allow-dirty 2>&1)"; CODE=$?
 assert_eq "$CODE" "0" "--allow-dirty tolerates it"
+
+# Untracked files are build output, not divergence from the commit.
+git -C "$WS/RepoB" checkout -q -- f
+touch "$WS/RepoB/compile_commands.json" "$WS/RepoB/.DS_Store"
+OUT="$(python3 "$TOOL" verify --manifest "$TMP/pin.json" --workspace "$WS" 2>&1)"; CODE=$?
+assert_eq "$CODE" "0" "untracked files are not drift"
+assert_contains "$OUT" "matching: 2/2" "untracked files leave the repo matching"
+rm -f "$WS/RepoB/compile_commands.json" "$WS/RepoB/.DS_Store"
 
 # A pinned commit absent from the checkout must not read as clean.
 git -C "$WS/RepoB" checkout -q -- f
