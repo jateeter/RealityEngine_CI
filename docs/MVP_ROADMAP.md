@@ -13,7 +13,7 @@ released, and is the place to record gate status as it changes.
 
 | Gate | What it means | Status |
 |---|---|---|
-| **G1** | Certification runs and passes on every merge to main | **All live stages green** (run 31297685782) — schedule still `build-only` |
+| **G1** | Certification runs and passes on every merge to main | **Done** — all stages green (run 31297685782), running nightly |
 | **G2** | Versions pinned across repos, reproducibly | **Done** — first certified pin at `releases/v0.1.0-rc1.json` |
 | **G3** | Release documentation and process | Not started |
 | **G4** | MVP scope decision: PIM vs HealthKit bridge | **Blocked on a product decision** |
@@ -75,21 +75,22 @@ the new coverage rather than by the failure being chased:
 | `/api/machines/:id` → 500, unbound variable | LSP#42 | new catalogue-driven smoke, first run |
 | Completion ingest rejected a self-describing envelope | CPP#24 | the original failure |
 
-### G1.4 · Nightly certification runs `full` — not done
+### G1.4 · Nightly certification runs `full` — done
 
 `REGRESSION_SCHEDULE_ENABLED = true`, but `REGRESSION_SCHEDULE_RUN_MODE =
 build-only`, so no live stage runs on a schedule. Every green result so far
 comes from a manual dispatch.
 
-Deferred deliberately: scheduled runs default to `create_issue_on_failure`, so
-flipping this while a stage is red files an issue every night. **MCP went green
-on run 31297685782, so the reason for deferring is gone** — this is now a
-one-variable change awaiting the call:
+`REGRESSION_SCHEDULE_ENABLED = true` and, since 2026-08-09,
+`REGRESSION_SCHEDULE_RUN_MODE = full`. Certification runs nightly at
+`17 9 * * *` UTC against main.
 
-    gh variable set REGRESSION_SCHEDULE_RUN_MODE --body full
+It was deferred while a stage was red, because scheduled runs default to
+`create_issue_on_failure` and would have filed an issue every night. Run
+31297685782 went fully green, which removed the reason.
 
 This is the gate that turns certification from something we run into something
-that runs, and it is the last piece of G1 that is not done.
+that runs. Every green result before this one came from a manual dispatch.
 
 ### G1.5 · Local lane — not started
 
