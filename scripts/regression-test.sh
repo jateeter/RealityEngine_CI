@@ -59,11 +59,16 @@ REPOS=(
   RealityEngine_Manager
   localAIStack
   localOpenClawStack
-  # In the MVP since G4 (docs/MVP_ROADMAP.md). Added so its TypeScript is
-  # typechecked here, and so the release manifest pins it with everything
-  # else — a repo the MVP depends on that the manifest does not pin is a hole
-  # in the reproducibility claim.
+  # The non-hosted members of the universe. Both are in the MVP since G4
+  # (docs/MVP_ROADMAP.md), and both are cloned on every lane so the release
+  # manifest pins them with everything else — a repo the MVP depends on that
+  # the manifest does not pin is a hole in the reproducibility claim.
+  #
+  # What they *build* is lane-dependent, not what they pin: PIM's image
+  # rebuild and the bridge's Swift toolchain need Docker and Xcode, so those
+  # run on the local lane and record a skip reason on the hosted one.
   OpenCommons-Health---Personal-Information-Management
+  localHealthkitBridge
 )
 
 usage() {
@@ -512,9 +517,30 @@ build_repos() {
       "cd '$(repo_root RealityEngine_Manager)/$package_dir' && npm run typecheck"
   done
   # PIM joined the MVP at G4. It already had a typecheck script; nothing ran it
-  # from here, because the harness did not know the repo existed.
+  # from here, because the harness did not know the repo existed. Typecheck is
+  # cheap and lane-independent, so it runs everywhere.
   run_repo_cmd "OpenCommons-Health---Personal-Information-Management" "build" "typecheck-pim" bash -lc \
     "cd '$(repo_root OpenCommons-Health---Personal-Information-Management)' && npm ci && npm run typecheck"
+
+  # ── Non-hosted members ────────────────────────────────────────────────────
+  # PIM's images and the bridge's Swift package need Docker and Xcode. The
+  # hosted lane has neither in a usable form, so these build on the local lane
+  # and record why they did not on the hosted one. A build that quietly does
+  # not happen is the same failure as a stage that quietly does not run.
+  if [ "$PROFILE" = "local" ]; then
+    run_repo_cmd "OpenCommons-Health---Personal-Information-Management" "build" "build-pim-compose" bash -lc \
+      "cd '$(repo_root OpenCommons-Health---Personal-Information-Management)' && docker compose build"
+    run_repo_cmd "localHealthkitBridge" "build" "build-healthkit-bridge" bash -lc \
+      "cd '$(repo_root localHealthkitBridge)' && swift build"
+    run_repo_cmd "localHealthkitBridge" "build" "test-healthkit-bridge" bash -lc \
+      "cd '$(repo_root localHealthkitBridge)' && swift test"
+  else
+    write_skip_report "build-pim-compose-skipped.json" \
+      "PIM image rebuild needs Docker; hosted lane runs typecheck only"
+    write_skip_report "build-healthkit-bridge-skipped.json" \
+      "Swift/Xcode toolchain is macOS-only; hosted lane cannot build the bridge"
+    log "SKIP PIM image rebuild and HealthKit bridge build — hosted profile"
+  fi
   run_repo_cmd "localAIStack" "build" "build-localai-compose" bash -lc "cd '$(repo_root localAIStack)' && docker compose build"
   run_repo_cmd "localOpenClawStack" "build" "build-openclaw-compose" bash -lc "cd '$(repo_root localOpenClawStack)' && docker compose build"
 }
@@ -767,11 +793,15 @@ run_healthkit_bridge() {
     return 0
   fi
 
+  # The bridge is a repos-group member, so this drives the cold-start worktree
+  # at the pinned commit rather than whatever the operator's checkout happens
+  # to contain. Testing the working copy would certify something the manifest
+  # does not pin.
   local bridge
-  bridge="$(cd "$CI_DIR/.." && pwd)/localHealthkitBridge"
+  bridge="$(repo_root localHealthkitBridge)"
   if [ ! -x "$bridge/scripts/e2e_simulator.sh" ]; then
-    log "SKIP HealthKit bridge: localHealthkitBridge not checked out beside this repo"
-    write_skip_report "healthkit-bridge-skipped.json" "localHealthkitBridge not checked out"
+    log "SKIP HealthKit bridge: localHealthkitBridge worktree has no e2e_simulator.sh"
+    write_skip_report "healthkit-bridge-skipped.json" "localHealthkitBridge worktree missing e2e_simulator.sh"
     return 0
   fi
 
