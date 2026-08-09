@@ -102,8 +102,23 @@ function parseArgs(argv) {
   }
   if (!args.out) throw new Error('missing --out');
   if (!Number.isFinite(args.timeoutMs) || args.timeoutMs <= 0) throw new Error('invalid --timeout-ms');
-  if (args.tools.length === 0) args.tools = [...READ_ONLY_SMOKE_TOOLS];
+  // Tool selection is resolved after the manifest loads — see
+  // readOnlyToolsFrom(). An explicit --tool still wins.
   return args;
+}
+
+/**
+ * Every non-mutating tool the manifest declares, so the smoke covers the whole
+ * read surface instead of a hand-picked few.
+ *
+ * The hardcoded list exercised 4 of 21 tools, which is how re.read_state
+ * shipped pointing at a Reality Engine path no runtime serves. A tool absent
+ * from the smoke is a tool nothing proves against a live engine.
+ */
+function readOnlyToolsFrom(manifest) {
+  const tools = Array.isArray(manifest?.tools) ? manifest.tools : [];
+  const readOnly = tools.filter((t) => t && t.mutating === false).map((t) => t.name);
+  return readOnly.length ? readOnly.sort() : [...READ_ONLY_SMOKE_TOOLS];
 }
 
 async function readRegistry(path) {
@@ -390,6 +405,7 @@ async function main() {
     initialize: null,
     toolCatalogue: null,
     smokeTools: [],
+    toolCoverage: { exercised: [], advertised: [], unexercised: [] },
     mutationPolicy: null,
     providerSurfaces: [],
     completionIngest: [],
@@ -438,6 +454,15 @@ async function main() {
   const available = new Set(report.toolCatalogue.toolNames || []);
   const manifest = await readJson(args.manifest);
   const profile = await readJson(args.profile);
+
+  // Default to the whole read surface. An explicit --tool overrides.
+  if (args.tools.length === 0) args.tools = readOnlyToolsFrom(manifest.body);
+  report.toolCoverage = {
+    exercised: [...args.tools],
+    advertised: [...available].sort(),
+    unexercised: [...available].filter((name) => !args.tools.includes(name)).sort()
+  };
+
   validateManifestAndProfile({
     manifest,
     profile,
@@ -474,15 +499,77 @@ async function main() {
 
   const instances = report.instances.length ? report.instances : [{ id: '', runtime: 'default' }];
   let nextId = 10;
+
+  // Some read tools address a specific entity. Discover a real id per instance
+  // rather than probing with a synthetic one, which would report a genuine
+  // 404 as a tool defect.
+  const callTool = async (toolName, toolArgs) => {
+    const res = await postMcp(
+      args.mcpUrl,
+      jsonRpc(nextId++, 'tools/call', { name: toolName, arguments: toolArgs }),
+      sessionId,
+      args.timeoutMs
+    );
+    return res;
+  };
+
+  const firstIdFrom = (result, ...keys) => {
+    const text = result?.body?.result?.content?.map((c) => c.text).join('') ?? '';
+    let parsed;
+    try {
+      parsed = JSON.parse(text);
+    } catch {
+      return '';
+    }
+    // Tool results wrap the engine payload as
+    // { instance, target, request, result: <engine body> }.
+    const payload = parsed?.result ?? parsed;
+    for (const key of keys) {
+      const list = Array.isArray(payload) ? payload : payload?.[key];
+      if (Array.isArray(list) && list.length) {
+        const entry = list[0];
+        const id = typeof entry === 'string' ? entry : entry?.id ?? entry?.dispatchId;
+        if (id) return String(id);
+      }
+    }
+    return '';
+  };
+
+  const probeArgsFor = async (toolName, instance) => {
+    const base = instance.id ? { instance: instance.id } : {};
+    if (toolName === 're.read_machine') {
+      const listed = await callTool('re.list_machines', base);
+      const id = firstIdFrom(listed, 'machines');
+      return id ? { ...base, id } : null;
+    }
+    if (toolName === 'dispatch.read_record') {
+      const ledger = await callTool('dispatch.read_ledger', base);
+      const id = firstIdFrom(ledger, 'records', 'ledger', 'dispatches');
+      return id ? { ...base, id } : null;
+    }
+    return base;
+  };
+
   for (const toolName of args.tools) {
     if (!available.has(toolName)) {
       report.smokeTools.push({ tool: toolName, status: 'skipped', reason: 'tool not advertised' });
       continue;
     }
     for (const instance of instances) {
-      const toolArgs = instance.id ? { instance: instance.id } : {};
-      const result = await postMcp(args.mcpUrl, jsonRpc(nextId, 'tools/call', { name: toolName, arguments: toolArgs }), sessionId, args.timeoutMs);
-      nextId += 1;
+      const toolArgs = await probeArgsFor(toolName, instance);
+      if (!toolArgs) {
+        // Nothing of this kind exists yet on a cold universe. Not a defect,
+        // but recorded so an empty run cannot masquerade as coverage.
+        report.smokeTools.push({
+          tool: toolName,
+          instance: instance.id || 'default',
+          runtime: instance.runtime,
+          status: 'skipped',
+          reason: 'no entity available to address on this instance'
+        });
+        continue;
+      }
+      const result = await callTool(toolName, toolArgs);
       const error = bodyError(result);
       const status = result.ok && !error ? 'passed' : 'failed';
       report.smokeTools.push({

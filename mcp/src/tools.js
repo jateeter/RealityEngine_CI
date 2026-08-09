@@ -52,11 +52,15 @@ export const TOOLS = [
   {
     name: 're.read_state',
     title: 'RE: read engine state',
-    description: 'Read the Reality Engine current state (perceptual space, config, last step).',
+    description: 'Read the Reality Engine current state (perceptual space, current step, running flag, machines).',
     target: 're',
     mutating: false,
     input: { instance },
-    build: () => ({ method: 'GET', path: '/api/state' }),
+    // /api/state is a Perception Engine path. No Reality Engine serves it —
+    // not C++, not LSP, not Scala — so this tool returned isError against
+    // every runtime from the day it was written. The RE's state surface is
+    // /api/perceptual-simulation/state, which all three serve.
+    build: () => ({ method: 'GET', path: '/api/perceptual-simulation/state' }),
   },
   {
     name: 're.list_machines',
@@ -225,19 +229,13 @@ export const TOOLS = [
       body: { values: a.values },
     }),
   },
-  {
-    name: 'trigger.replay',
-    title: 'PE: replay a trigger envelope',
-    description: 'Re-dispatch a recorded trigger envelope by dispatchId (audit replay; does not drive RE state).',
-    target: 'pe',
-    mutating: true,
-    input: { instance, dispatchId: z.string() },
-    build: (a) => ({
-      method: 'POST',
-      path: `/api/triggers/replay/${encodeURIComponent(a.dispatchId)}`,
-      body: {},
-    }),
-  },
+  // trigger.replay is intentionally absent. It advertised
+  // POST /api/triggers/replay/:dispatchId, which no runtime serves — C++,
+  // LSP and Scala all expose only /api/triggers/status. LSP has
+  // replay-dispatch-record implemented but wired to no route. Being a
+  // mutating tool it was refused before dispatch by default, so it never
+  // surfaced as a failure; it would have 404'd against every engine. It comes
+  // back when the engines expose the endpoint — see RealityEngine_CI#100.
   {
     name: 'dispatch.update_record',
     title: 'PE: annotate dispatch delivery metadata',

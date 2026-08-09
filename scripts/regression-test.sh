@@ -465,6 +465,12 @@ build_repos() {
   done
   run_repo_cmd "RealityEngine_CI" "build" "build-ci-npm-install" bash -lc "cd '$(repo_root RealityEngine_CI)' && npm ci"
   run_repo_cmd "RealityEngine_CI" "build" "build-ci-mcp-test" bash -lc "cd '$(repo_root RealityEngine_CI)/mcp' && npm install && npm test"
+  # The engine route table the MCP e2e asserts against is generated from the
+  # C++ runtime. If the engine adds or moves a route and the fixture is not
+  # regenerated, the e2e is checking a stale contract — catch that here, where
+  # both repos are checked out at the run's pinned SHAs.
+  run_repo_cmd "RealityEngine_CI" "build" "build-ci-mcp-routes-check" bash -lc \
+    "cd '$(repo_root RealityEngine_CI)/mcp' && REALITY_ENGINE_CPP_DIR='$(repo_root RealityEngine_CPP)' npm run routes:check"
   run_repo_cmd "RealityEngine_CPP" "build" "build-cpp" bash -lc "cd '$(repo_root RealityEngine_CPP)' && make all"
   run_repo_cmd "RealityEngine_LSP" "build" "build-lsp" bash -lc "cd '$(repo_root RealityEngine_LSP)' && make build"
   run_repo_cmd "RealityEngine_Scala" "build" "build-scala" bash -lc "cd '$(repo_root RealityEngine_Scala)' && sbt clean compile"

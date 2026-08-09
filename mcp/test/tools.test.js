@@ -31,7 +31,14 @@ test('manifest tool list matches the live tool catalogue', () => {
 });
 
 test('canonical RE and PE read tools build the expected requests', () => {
-  assert.deepEqual(toolByName('re.read_state').build({}), { method: 'GET', path: '/api/state' });
+  // The RE and PE do not share a state path. /api/state is the PE's; the RE
+  // serves /api/perceptual-simulation/state. This assertion previously
+  // claimed both were /api/state, so it agreed with the bug instead of
+  // catching it — see the live-route coverage in mcp-e2e.test.js.
+  assert.deepEqual(toolByName('re.read_state').build({}), {
+    method: 'GET',
+    path: '/api/perceptual-simulation/state',
+  });
   assert.deepEqual(toolByName('pe.read_state').build({}), { method: 'GET', path: '/api/state' });
   assert.deepEqual(toolByName('re.read_machine').build({ id: 'machine/a' }), {
     method: 'GET',
