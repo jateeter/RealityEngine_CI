@@ -3,6 +3,13 @@
 Deployment, compatibility, and CI tooling for the integrated RealityEngine
 system.
 
+## Start Here
+
+- [Why this system exists](wiki/Why-This-System-Exists.md) states the system's purpose,
+  its design commitments, and what it declines to be.
+- [System document index](wiki/System-Document-Index.md) maps the documentation across
+  all ten repositories and opens with a reading order for a new reader.
+
 ## Authoritative Specifications
 
 - [Deployable system wiki](wiki/Deployable-System-Documentation.md) is the
