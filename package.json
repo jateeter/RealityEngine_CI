@@ -24,7 +24,8 @@
     "mcp:manifest:check": "npm --prefix mcp run manifest:check",
     "mcp:openai-profile:gen": "npm --prefix mcp run openai-profile:gen",
     "mcp:openai-profile:check": "npm --prefix mcp run openai-profile:check",
-    "test:report": "playwright show-report e2e-report"
+    "test:report": "playwright show-report e2e-report",
+    "typecheck": "tsc --noEmit"
   },
   "engines": {
     "node": ">=25.5.0",
@@ -32,6 +33,7 @@
   },
   "devDependencies": {
     "@playwright/test": "^1.45.0",
+    "@types/node": "^22.10.0",
     "typescript": "^5.4.0"
   }
 }
