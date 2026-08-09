@@ -176,6 +176,19 @@ case "$PROFILE" in
     [ "$OPENCLAW_SET" = true ]       || OPENCLAW_FLAG="--openclaw"
     [ "$LOCAL_AI_SET" = true ]       || LOCAL_AI=true
     [ "$MACHINE_CORPUS_SET" = true ] || MACHINE_CORPUS="full"
+    # Pin one model for every engine on this lane.
+    #
+    # The runtimes do not agree on a default — cpp and lsp resolve
+    # gpt-oss:20b, scala resolves llama3.2 (RealityEngine_Scala#38) — so
+    # without this the three engines answer from different models and any
+    # cross-runtime comparison of provider output is meaningless. On the first
+    # live run none of those defaults was even installed, so every dispatch
+    # would have failed while all three reported reachable:true.
+    #
+    # Exported rather than passed as a flag: startUniverse spawns each engine
+    # with inherited environment, so one export reaches all three.
+    OLLAMA_MODEL="${OLLAMA_MODEL:-llama3.1:8b}"
+    export OLLAMA_MODEL
     ;;
   *)
     echo "Unsupported --profile: $PROFILE (hosted|local)" >&2
@@ -405,6 +418,7 @@ plan() {
   log "live tests:   $LIVE_TESTS"
   log "openclaw:     $OPENCLAW_FLAG"
   log "local ai:     $LOCAL_AI"
+  [ "$LOCAL_AI" = true ] && log "ollama model: ${OLLAMA_MODEL:-<engine default>}"
   log "corpus:       $MACHINE_CORPUS"
   log "mqtt broker:  ${MQTT_BROKER_URL:-<not configured>}"
   log "mcp url:      $MCP_URL"

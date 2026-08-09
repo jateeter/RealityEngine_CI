@@ -14,6 +14,11 @@ Three things are checked, and they fail for different reasons:
      to be up on this lane, so a well-formed "not reachable" is still a defect.
   3. Every PE agrees on which model it is configured for. Runtimes disagreeing
      about the model would make any downstream comparison meaningless.
+  4. The model each PE is configured for is actually installed. `reachable`
+     only proves Ollama's HTTP surface answers — on the first live run of this
+     probe all three PEs reported reachable while pointing at models the local
+     Ollama did not have, so every dispatch would have failed against a stage
+     that passed.
 
 A provider that is merely absent is reported as such rather than silently
 passing, because that is the state the hosted lane is already in.
@@ -61,6 +66,8 @@ def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--registry", type=Path, default=Path("/tmp/re-registry/re-registry.json"))
     parser.add_argument("--localai-url", default="http://localhost:4000")
+    parser.add_argument("--ollama-url", default="http://localhost:11434",
+                        help="Fallback when no PE reports an Ollama baseUrl.")
     parser.add_argument("--timeout", type=float, default=20.0)
     parser.add_argument("--out", type=Path, required=True)
     args = parser.parse_args()
@@ -99,6 +106,7 @@ def main() -> int:
                 "httpStatus": status,
                 "reachable": reachable,
                 "model": model,
+                "baseUrl": (body.get("baseUrl") if isinstance(body, dict) else "") or "",
                 "error": err or (body.get("error") if isinstance(body, dict) else "") or "",
             }
         )
@@ -117,6 +125,39 @@ def main() -> int:
     report["modelAgreement"] = {"models": models, "distinct": distinct}
     if len(distinct) > 1:
         failures.append(f"runtimes disagree on the Ollama model: {models}")
+
+    # 4 — the configured model has to exist. A PE can report reachable:true
+    # against an Ollama that has never pulled the model it is set to use, and
+    # then fail every dispatch. Ask Ollama directly rather than trusting the
+    # PE's own view of itself.
+    base_urls = {
+        p["instance"]: (p.get("baseUrl") or "")
+        for p in report["providers"]
+        if p.get("baseUrl")
+    }
+    ollama_base = next(iter(base_urls.values()), "") or args.ollama_url
+    installed: list[str] = []
+    if ollama_base and distinct:
+        status, body, err = get_json(f"{ollama_base.rstrip('/')}/api/tags", args.timeout)
+        if isinstance(body, dict):
+            installed = [str(m.get("name", "")) for m in body.get("models", []) if m.get("name")]
+        report["installedModels"] = installed
+        if not installed:
+            failures.append(f"could not list installed models at {ollama_base}: {err or status}")
+        else:
+            # Ollama reports "name" and "name:latest" interchangeably.
+            def present(model: str) -> bool:
+                return any(
+                    tag == model or tag.split(":")[0] == model.split(":")[0]
+                    for tag in installed
+                )
+
+            for instance, model in sorted(models.items()):
+                if not present(model):
+                    failures.append(
+                        f"{instance}: configured for model '{model}', which is not installed "
+                        f"(available: {', '.join(installed)})"
+                    )
 
     report["status"] = "failed" if failures else "passed"
     args.out.parent.mkdir(parents=True, exist_ok=True)

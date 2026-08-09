@@ -61,14 +61,23 @@ registry() {                  # $1=out  $2..=pe ports
 echo "local-ai probe"
 
 printf '{"status":"ok"}\n' > "$TMP/stack-ok.json"
-printf '{"reachable":true,"model":"gpt-oss:20b","baseUrl":"http://127.0.0.1:11434"}\n' > "$TMP/pe-ok.json"
+# baseUrl points at the stub Ollama, filled in once its port is known.
 printf '{"reachable":false,"model":"gpt-oss:20b","error":"connection refused"}\n' > "$TMP/pe-down.json"
-printf '{"reachable":true,"model":"llama3.2"}\n' > "$TMP/pe-othermodel.json"
+# pe-othermodel.json is written after the Ollama stub port is known too.
+
+# A stub Ollama that has gpt-oss:20b installed but not llama3.2.
+printf '{"models":[{"name":"gpt-oss:20b"},{"name":"nomic-embed-text:latest"}]}\n' > "$TMP/ollama.json"
+OLLAMA=$(spawn "$TMP/ollama.json")
+
+printf '{"reachable":true,"model":"gpt-oss:20b","baseUrl":"http://127.0.0.1:%s"}\n' "$OLLAMA" > "$TMP/pe-ok.json"
+printf '{"reachable":true,"model":"llama3.2","baseUrl":"http://127.0.0.1:%s"}\n' "$OLLAMA" > "$TMP/pe-othermodel.json"
+printf '{"reachable":true,"model":"missing-model:70b","baseUrl":"http://127.0.0.1:%s"}\n' "$OLLAMA" > "$TMP/pe-nomodel.json"
 
 STACK=$(spawn "$TMP/stack-ok.json")
 PE_OK=$(spawn "$TMP/pe-ok.json")
 PE_DOWN=$(spawn "$TMP/pe-down.json")
 PE_OTHER=$(spawn "$TMP/pe-othermodel.json")
+PE_NOMODEL=$(spawn "$TMP/pe-nomodel.json")
 
 # Healthy: stack up, every PE reachable, one model.
 registry "$TMP/reg-ok.json" "$PE_OK" "$PE_OK"
@@ -93,6 +102,17 @@ OUT="$(python3 "$TOOL" --registry "$TMP/reg-split.json" --localai-url "http://12
 set -e
 assert_eq "$CODE" "1" "model disagreement fails"
 assert_contains "$OUT" "disagree on the Ollama model" "names the disagreement"
+
+# reachable:true is not enough — the configured model has to exist. This is
+# the real-world case: on the first live run all three PEs reported reachable
+# while pointing at models the local Ollama had never pulled.
+registry "$TMP/reg-nomodel.json" "$PE_NOMODEL"
+set +e
+OUT="$(python3 "$TOOL" --registry "$TMP/reg-nomodel.json" --localai-url "http://127.0.0.1:$STACK" --out "$TMP/nomodel.json" 2>&1)"; CODE=$?
+set -e
+assert_eq "$CODE" "1" "a reachable provider missing the configured model fails"
+assert_contains "$OUT" "which is not installed" "names the missing model"
+assert_contains "$OUT" "gpt-oss:20b" "lists what is available instead"
 
 # Stack down, providers fine.
 registry "$TMP/reg-ok2.json" "$PE_OK"
