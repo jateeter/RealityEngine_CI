@@ -16,7 +16,7 @@ released, and is the place to record gate status as it changes.
 | **G1** | Certification runs and passes on every merge to main | **Done** — hosted green nightly (run 31297685782); local lane validated live, all stages green |
 | **G2** | Versions pinned across repos, reproducibly | **Done** — first certified pin at `releases/v0.1.0-rc1.json` |
 | **G3** | Release documentation and process | **Done** — `RELEASE.md`, `scripts/cut-release.sh` |
-| **G4** | MVP scope decision: PIM vs HealthKit bridge | **Blocked on a product decision** |
+| **G4** | MVP scope: PIM and HealthKit bridge | **Decided** — both in; SCS POD is authoritative |
 
 ---
 
@@ -245,12 +245,58 @@ Two gaps closed while writing it:
 
 ---
 
-## G4 · MVP scope — needs a decision
+## G4 · MVP scope — decided 2026-08-09
 
-`OpenCommons-Health---Personal-Information-Management` and
-`localHealthkitBridge` both claim the health-data surface of the MVP, and the
-roadmaps disagree about which one an MVP ships. This is a product call, not a
-technical one, and it gates G1.6 and G3.
+**Both PIM and the HealthKit bridge are in the MVP.** They were never
+alternatives; what was missing was a written boundary between them and a rule
+for which copy of the data wins.
+
+### Ownership
+
+| Component | Owns |
+|---|---|
+| `OpenCommons-Health---Personal-Information-Management` | the **Solid Community Server**, and the POD(s) it maintains |
+| `localHealthkitBridge` | a device-side pod, **mirrored into** the POD in the SCS |
+
+### The authority rule
+
+**The authoritative information repository is the POD(s) within the Solid
+Community Server.**
+
+The bridge's pod is a source that mirrors into it, not a second system of
+record. Where the two disagree, the SCS POD is correct — that is what makes
+`mirrorState: .conflict` in the bridge's `MobilePodModel` a resolvable state
+rather than an ambiguous one. Nothing downstream should read the device pod as
+authoritative, and nothing should treat a successful device-side write as
+durable until it has mirrored.
+
+### What this settles
+
+The two repos had drifted into implying different MVPs. PIM's
+`docs/LOCALHOST_MVP_SCOPE.md` excluded native iOS and HealthKit outright, while
+the bridge had already shipped its host app (M3), simulator e2e (M4) and
+iPhone Patient Monitor UX (M7). Neither was wrong about its own work; neither
+deferred to the other.
+
+They divide cleanly: PIM does not implement native iOS — the bridge does — and
+the bridge does not own durable storage — the SCS does. PIM's exclusion of
+native iOS work is a statement about *PIM*, not about the MVP.
+
+Both surfaces are already exercised. The bridge leg is green on the local lane
+(G1.6), and PIM already exposes `GET /api/pod/healthkit/status` over the
+pod-side `health-pim/healthkit/observations/` container.
+
+### Follow-on work, not blocking this decision
+
+- Specify the mirror seam: who writes to the SCS POD, on what trigger, and how
+  `pendingMirror` and `conflict` resolve. The bridge models these states
+  already; the contract between the two sides is not written down.
+- Add a mirror leg to the local lane once that contract exists, so the
+  authority rule is enforced by a test rather than by agreement.
+
+This decision is the single source of truth for the boundary. PIM's and the
+bridge's own roadmaps point here rather than restating it, because two copies
+of a boundary is what produced this gate.
 
 ---
 
