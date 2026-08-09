@@ -10,11 +10,23 @@ Use `any` for Version to pin only the branch; leave Branch blank to pin only the
 
 | Repo | Version/Tag | Branch |
 |---|---|---|
+| RealityEngine_CPP      | any | main |
+| RealityEngine_LSP      | any | main |
 | RealityEngine_Scala    | any | main |
 | RealityEngine_Manager  | any | main |
 | RealityEngine_Machines | any | main |
 | localAIStack           | any | main |
 | localOpenClawStack     | any | main |
+
+`RealityEngine_CPP` and `RealityEngine_LSP` were absent from this table until
+2026-08-09. Only repos listed here are checked, so the gate reported
+"All sibling repos on compatible refs" while never looking at two of the three
+runtimes — the two that cross-runtime parity is measured against. A gate that
+silently covers less than it appears to is the failure mode this whole
+verification posture exists to avoid.
+
+Every repo the release manifest pins is now listed, except `RealityEngine_CI`
+itself, which is the repo running the check.
 
 ## Usage
 

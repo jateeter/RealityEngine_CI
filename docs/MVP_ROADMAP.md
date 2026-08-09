@@ -15,7 +15,7 @@ released, and is the place to record gate status as it changes.
 |---|---|---|
 | **G1** | Certification runs and passes on every merge to main | **Done** — all stages green (run 31297685782), running nightly |
 | **G2** | Versions pinned across repos, reproducibly | **Done** — first certified pin at `releases/v0.1.0-rc1.json` |
-| **G3** | Release documentation and process | Not started |
+| **G3** | Release documentation and process | **Done** — `RELEASE.md`, `scripts/cut-release.sh` |
 | **G4** | MVP scope decision: PIM vs HealthKit bridge | **Blocked on a product decision** |
 
 ---
@@ -140,13 +140,35 @@ from it is a decision, not a task.
 
 ---
 
-## G3 · Release documentation — not started
+## G3 · Release documentation — done
 
-- `RELEASE.md`: what an MVP release contains, how it is cut, how it is verified.
-- Record whether certification is hosted, self-hosted or operator-run, and at
-  what cadence (an open acceptance criterion of #87).
-- Publish the API references already generated under `docs/openapi/`.
-- Note that `v0.0.1-baseline` tags are intentionally local and unpushed.
+[`RELEASE.md`](../RELEASE.md) defines a release as *a set of commits across
+eight repos certified together by one regression run* — there is no build
+artifact, because the application is composed from source at run time. It
+covers cutting, certifying, verifying, tag conventions and rollback, and ends
+in a checklist.
+
+`scripts/cut-release.sh` makes the process executable rather than prose:
+dry-run by default, refuses a provisional manifest, refuses a drifted
+workspace, and treats pushing tags as a separate opt-in from creating them.
+
+Certification is recorded as **hosted GitHub Actions, nightly at `17 9 * * *`
+UTC plus manual dispatch** — the open acceptance criterion of #87.
+
+`RELEASE.md` is explicit that a green hosted run does **not** cover the full
+corpus, Ollama, OpenClaw or the HealthKit bridge, so the release notes cannot
+imply coverage the lane refuses to provide.
+
+Two gaps closed while writing it:
+
+- `VERSION-COMPAT.md` listed five repos and omitted `RealityEngine_CPP` and
+  `RealityEngine_LSP`, so `validate-versions.sh` reported "All sibling repos on
+  compatible refs" while never checking two of the three runtimes — the two
+  parity is measured against. Now seven.
+- `release-manifest.py verify` counted untracked build output as drift, which
+  made every real developer machine look drifted and would have trained people
+  to pass `--allow-dirty` reflexively. It now counts only modified *tracked*
+  files.
 
 ---
 

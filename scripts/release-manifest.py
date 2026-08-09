@@ -233,10 +233,16 @@ def cmd_verify(args: argparse.Namespace) -> int:
             drift.append(f"{name}: HEAD {head[:12]} != pinned {pinned[:12]}")
             continue
 
-        dirty = git(repo_path, "status", "--porcelain")
+        # Only tracked modifications count. Untracked files are build output and
+        # editor state — they do not change what the commit contains, and
+        # treating them as drift makes every real developer machine look
+        # drifted, which trains people to pass --allow-dirty reflexively.
+        dirty = git(repo_path, "status", "--porcelain", "--untracked-files=no")
         if dirty and not args.allow_dirty:
             count = len(dirty.splitlines())
-            drift.append(f"{name}: at the pinned commit but has {count} uncommitted change(s)")
+            drift.append(
+                f"{name}: at the pinned commit but has {count} modified tracked file(s)"
+            )
             continue
 
         ok += 1
