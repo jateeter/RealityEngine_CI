@@ -235,7 +235,7 @@ export const TOOLS = [
   // replay-dispatch-record implemented but wired to no route. Being a
   // mutating tool it was refused before dispatch by default, so it never
   // surfaced as a failure; it would have 404'd against every engine. It comes
-  // back when the engines expose the endpoint — see RealityEngine_CI#98.
+  // back when the engines expose the endpoint — see RealityEngine_CI#100.
   {
     name: 'dispatch.update_record',
     title: 'PE: annotate dispatch delivery metadata',
