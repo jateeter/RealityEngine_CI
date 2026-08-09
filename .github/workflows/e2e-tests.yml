@@ -249,6 +249,10 @@ jobs:
         working-directory: RealityEngine_CI
         run: bash scripts/tests/test-ci-e2e-specs.sh
 
+      - name: Run release-manifest unit tests
+        working-directory: RealityEngine_CI
+        run: bash scripts/tests/test-release-manifest.sh
+
   # ── Phase 4: Dry-run pre-flight validation ──────────────────────────────────
   dry-run-validate:
     name: Dry-Run Validate
