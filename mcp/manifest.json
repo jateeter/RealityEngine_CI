@@ -121,11 +121,6 @@
       "mutating": true
     },
     {
-      "name": "trigger.replay",
-      "target": "pe",
-      "mutating": true
-    },
-    {
       "name": "dispatch.update_record",
       "target": "pe",
       "mutating": true
