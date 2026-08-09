@@ -48,7 +48,7 @@
       "kind": "ollama",
       "enabled": false,
       "baseUrl": "http://localhost:11434",
-      "model": "gpt-oss:20b",
+      "model": "llama3.1:8b",
       "apiMode": "native",
       "completionSourceMappingId": "agent-completion-risk",
       "mcp": {
