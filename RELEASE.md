@@ -76,10 +76,22 @@ in:
 - OpenClaw
 - the HealthKit bridge
 
-Those belong to the **local lane** (`--profile local`), which is operator-run
-and not yet built — see `docs/MVP_ROADMAP.md` G1.5 and G1.6. **A hosted
-certification therefore does not certify those surfaces.** Do not read a green
-hosted run as covering them.
+Those belong to the **local lane**, which is operator-run on hardware that has
+Docker, Ollama and Xcode:
+
+```bash
+bash scripts/regression-test.sh --execute --profile local
+```
+
+It runs everything the hosted lane runs, plus two stages the hosted lane
+cannot: `local-ai` (localAIStack health, every PE reporting Ollama reachable,
+and the runtimes agreeing on the model) and `healthkit-bridge` (the bridge's
+simulator e2e against a live PE). Results land in
+`.regression-tests/runs/<run-id>/` in the same shape as a hosted run.
+
+**A hosted certification does not certify those surfaces.** Do not read a green
+hosted run as covering them — the manifest records `coverage.localAI` and
+`coverage.openclaw`, and on a hosted run both are `false`.
 
 ### Stages a green run proves
 

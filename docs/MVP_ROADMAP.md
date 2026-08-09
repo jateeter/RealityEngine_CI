@@ -13,7 +13,7 @@ released, and is the place to record gate status as it changes.
 
 | Gate | What it means | Status |
 |---|---|---|
-| **G1** | Certification runs and passes on every merge to main | **Done** — all stages green (run 31297685782), running nightly |
+| **G1** | Certification runs and passes on every merge to main | **Done** — hosted green nightly (run 31297685782); local lane stages added, first operator run pending |
 | **G2** | Versions pinned across repos, reproducibly | **Done** — first certified pin at `releases/v0.1.0-rc1.json` |
 | **G3** | Release documentation and process | **Done** — `RELEASE.md`, `scripts/cut-release.sh` |
 | **G4** | MVP scope decision: PIM vs HealthKit bridge | **Blocked on a product decision** |
@@ -92,19 +92,52 @@ It was deferred while a stage was red, because scheduled runs default to
 This is the gate that turns certification from something we run into something
 that runs. Every green result before this one came from a manual dispatch.
 
-### G1.5 · Local lane — not started
+### G1.5 · Local lane — done
 
-The counterpart to G1.1. Covers what the hosted lane refuses: full corpus, local
-Ollama (now pinned to v0.32.0 by localAIStack#30), OpenClaw, and the iPhone
-simulator bridge leg. Needs an operator-run entrypoint and a place to record
-results.
+    bash scripts/regression-test.sh --execute --profile local
 
-### G1.6 · Bridge simulator leg — not started
+The profile already enabled OpenClaw, local AI and the full corpus. What was
+missing is that **nothing tested them**: the lane started Ollama and
+localAIStack and then ran only the stages the hosted lane already runs, so
+`--profile local` bought a slower run rather than more coverage.
 
-`localHealthkitBridge` against the PE ingest contract, on the local lane.
-Contract parity is already enforced by
-`RealityEngine_Machines/tests/integration/healthkit-ingest-contract.spec.ts`;
-what is missing is running the actual client.
+`scripts/regression-local-ai.py` (stage `local-ai`) closes that. It checks
+three things that fail for different reasons:
+
+1. localAIStack answers `/health`.
+2. Every PE reports Ollama **reachable**. A PE that answers cleanly with
+   `reachable: false` is a *failure* here — on a lane whose purpose is running
+   that provider, an orderly "not there" is a defect, and accepting it would
+   let the stage pass in exactly the state the hosted lane is already in.
+3. Every runtime agrees which model it is configured for. Disagreement makes
+   any downstream comparison meaningless.
+
+OpenClaw was already covered: `run_openclaw` runs whenever `--openclaw` is
+set, which is the local default.
+
+Results land in `.regression-tests/runs/<run-id>/` exactly as the hosted lane's
+do, so the two lanes are read the same way.
+
+### G1.6 · Bridge simulator leg — done
+
+Stage `healthkit-bridge` runs `localHealthkitBridge/scripts/e2e_simulator.sh`
+against a live PE from the registry, on the local lane only.
+
+The leg itself already existed — the bridge's M4 records `e2e_simulator.sh`
+and `e2e_seeded.sh` passing against both the TypeScript PE and the native C++
+PE. The gap was never building it; it was that no lane invoked it. This wires
+it in.
+
+It runs against one PE rather than all three, which is sufficient because
+`RealityEngine_Machines/tests/integration/healthkit-ingest-contract.spec.ts`
+enumerates every running instance and asserts the ingest contract holds *on
+every engine*. The bridge proves the client works; the contract spec proves
+the runtimes agree.
+
+Skips with a recorded reason, never silently, when: the profile is hosted, the
+bridge is not checked out beside this repo, the toolchain (`xcrun`,
+`xcodegen`, `jq`) is absent — Xcode is macOS-only and the lane is otherwise
+valid on Linux — or no PE is running.
 
 ---
 

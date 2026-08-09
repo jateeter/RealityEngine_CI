@@ -253,6 +253,10 @@ jobs:
         working-directory: RealityEngine_CI
         run: bash scripts/tests/test-release-manifest.sh
 
+      - name: Run local-AI probe unit tests
+        working-directory: RealityEngine_CI
+        run: bash scripts/tests/test-local-ai-probe.sh
+
   # ── Phase 4: Dry-run pre-flight validation ──────────────────────────────────
   dry-run-validate:
     name: Dry-Run Validate
