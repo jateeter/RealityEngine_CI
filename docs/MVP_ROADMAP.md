@@ -13,7 +13,7 @@ released, and is the place to record gate status as it changes.
 
 | Gate | What it means | Status |
 |---|---|---|
-| **G1** | Certification runs and passes on every merge to main | hosted **green nightly** (run 31297685782); local lane wired and validated, bridge leg failing |
+| **G1** | Certification runs and passes on every merge to main | **Done** — hosted green nightly (run 31297685782); local lane validated live, all stages green |
 | **G2** | Versions pinned across repos, reproducibly | **Done** — first certified pin at `releases/v0.1.0-rc1.json` |
 | **G3** | Release documentation and process | **Done** — `RELEASE.md`, `scripts/cut-release.sh` |
 | **G4** | MVP scope decision: PIM vs HealthKit bridge | **Blocked on a product decision** |
