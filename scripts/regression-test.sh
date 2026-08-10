@@ -228,6 +228,16 @@ worktree_path() {
   printf '%s/%s\n' "$WORKTREE_DIR" "$1"
 }
 
+# A member repo can legitimately be absent. The hosted lane checks out only the
+# repos its runner can use, so PIM and the HealthKit bridge are not there at
+# all, and create_worktrees skips them. Any stage bound to an absent member has
+# to skip with a recorded reason: running it anyway fails on `cd` into a
+# worktree that was never created, which reports the lane's own composition as
+# a regression in the code under test.
+repo_present() {
+  [ -d "$(repo_path "$1")/.git" ]
+}
+
 # Every command's output goes to a log file, so a failure otherwise surfaces as
 # a bare exit code with the explanation sitting in a file nobody can reach —
 # on CI the run directory is discarded when the job ends. Print the tail.
@@ -464,7 +474,11 @@ create_worktrees() {
     target="$(worktree_path "$repo")"
     record_repo_provenance "$repo"
     if [ ! -d "$source/.git" ]; then
+      # Recorded, not just logged: an absent member changes what this run
+      # certifies, and that belongs in the artifacts next to every other skip.
       log "SKIP $repo: missing git repo at $source"
+      write_skip_report "worktree-$repo-skipped.json" \
+        "missing git repo at $source; member not checked out on this lane"
       continue
     fi
     run_repo_cmd "$repo" "provenance" "fetch-$repo" git -C "$source" fetch origin main
@@ -518,28 +532,48 @@ build_repos() {
   done
   # PIM joined the MVP at G4. It already had a typecheck script; nothing ran it
   # from here, because the harness did not know the repo existed. Typecheck is
-  # cheap and lane-independent, so it runs everywhere.
-  run_repo_cmd "OpenCommons-Health---Personal-Information-Management" "build" "typecheck-pim" bash -lc \
-    "cd '$(repo_root OpenCommons-Health---Personal-Information-Management)' && npm ci && npm run typecheck"
+  # cheap and needs only npm, so it is lane-independent in cost — but not in
+  # availability. It runs wherever PIM is actually checked out, and records why
+  # it did not where PIM is not.
+  if repo_present "OpenCommons-Health---Personal-Information-Management"; then
+    run_repo_cmd "OpenCommons-Health---Personal-Information-Management" "build" "typecheck-pim" bash -lc \
+      "cd '$(repo_root OpenCommons-Health---Personal-Information-Management)' && npm ci && npm run typecheck"
+  else
+    write_skip_report "typecheck-pim-skipped.json" \
+      "PIM is not checked out on this lane; nothing to typecheck"
+    log "SKIP typecheck-pim — PIM not checked out"
+  fi
 
   # ── Non-hosted members ────────────────────────────────────────────────────
   # PIM's images and the bridge's Swift package need Docker and Xcode. The
   # hosted lane has neither in a usable form, so these build on the local lane
   # and record why they did not on the hosted one. A build that quietly does
   # not happen is the same failure as a stage that quietly does not run.
-  if [ "$PROFILE" = "local" ]; then
+  if [ "$PROFILE" = "local" ] && repo_present "OpenCommons-Health---Personal-Information-Management"; then
     run_repo_cmd "OpenCommons-Health---Personal-Information-Management" "build" "build-pim-compose" bash -lc \
       "cd '$(repo_root OpenCommons-Health---Personal-Information-Management)' && docker compose build"
+  elif [ "$PROFILE" = "local" ]; then
+    write_skip_report "build-pim-compose-skipped.json" \
+      "PIM is not checked out on this lane; nothing to build"
+    log "SKIP PIM image rebuild — PIM not checked out"
+  else
+    write_skip_report "build-pim-compose-skipped.json" \
+      "PIM image rebuild needs Docker; hosted lane runs typecheck only"
+    log "SKIP PIM image rebuild — hosted profile"
+  fi
+  if [ "$PROFILE" = "local" ] && repo_present "localHealthkitBridge"; then
     run_repo_cmd "localHealthkitBridge" "build" "build-healthkit-bridge" bash -lc \
       "cd '$(repo_root localHealthkitBridge)' && swift build"
     run_repo_cmd "localHealthkitBridge" "build" "test-healthkit-bridge" bash -lc \
       "cd '$(repo_root localHealthkitBridge)' && swift test"
+  elif [ "$PROFILE" = "local" ]; then
+    write_skip_report "build-healthkit-bridge-skipped.json" \
+      "localHealthkitBridge is not checked out on this lane; nothing to build"
+    log "SKIP HealthKit bridge build — bridge not checked out"
   else
-    write_skip_report "build-pim-compose-skipped.json" \
-      "PIM image rebuild needs Docker; hosted lane runs typecheck only"
     write_skip_report "build-healthkit-bridge-skipped.json" \
       "Swift/Xcode toolchain is macOS-only; hosted lane cannot build the bridge"
-    log "SKIP PIM image rebuild and HealthKit bridge build — hosted profile"
+    log "SKIP HealthKit bridge build — hosted profile"
   fi
   run_repo_cmd "localAIStack" "build" "build-localai-compose" bash -lc "cd '$(repo_root localAIStack)' && docker compose build"
   run_repo_cmd "localOpenClawStack" "build" "build-openclaw-compose" bash -lc "cd '$(repo_root localOpenClawStack)' && docker compose build"
