@@ -555,8 +555,12 @@ prepare_docker() {
   for stack in "$CI_DIR" "$WS/localAIStack" "$WS/localOpenClawStack" \
                "$WS/OpenCommons-Health---Personal-Information-Management"; do
     [ -f "$stack/docker-compose.yml" ] || [ -f "$stack/compose.yml" ] || continue
+    # MACHINES_DIR is the one variable the CI compose file requires outright
+    # (`:?MACHINES_DIR must be set`) rather than defaulting. Compose interpolates
+    # before it will enumerate what to remove, so without this the cleanup dies
+    # on config parsing and that stack's images silently survive the run.
     run_cmd "docker-preflight-rmi-$(basename "$stack")" bash -lc \
-      "cd '$stack' && docker compose down --rmi local --remove-orphans" || \
+      "cd '$stack' && MACHINES_DIR='$WS/RealityEngine_Machines' docker compose down --rmi local --remove-orphans" || \
       log "image cleanup for $(basename "$stack") returned non-zero — continuing"
   done
 
