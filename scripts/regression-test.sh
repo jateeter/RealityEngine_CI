@@ -483,6 +483,101 @@ prepare_history() {
   trap 'update_manifest_status failed' ERR
 }
 
+# ── Docker preflight (local lane) ───────────────────────────────────────────
+# build_repos runs `docker compose build` for three stacks and start_universe
+# needs the daemon for Loki, Qdrant and Redis. With the daemon down, both fail
+# in a way that reads as a broken build rather than a host that was not ready —
+# so the lane checks and starts it rather than discovering it 20 minutes in.
+#
+# Local-only. A hosted runner has a daemon by construction, and `open -a Docker`
+# is meaningless there.
+docker_ready() { docker info >/dev/null 2>&1; }
+
+start_docker_daemon() {
+  if docker_ready; then
+    log "Docker daemon already running"
+    return 0
+  fi
+  log "Docker daemon is down — starting it"
+  case "$(uname -s)" in
+    Darwin) open -a Docker >/dev/null 2>&1 || { log "ERROR: could not launch Docker Desktop"; return 1; } ;;
+    Linux)  systemctl start docker >/dev/null 2>&1 || sudo systemctl start docker >/dev/null 2>&1 || {
+              log "ERROR: could not start the docker service"; return 1; } ;;
+    *)      log "ERROR: no way to start Docker on $(uname -s)"; return 1 ;;
+  esac
+  local waited=0 limit="${DOCKER_START_TIMEOUT:-120}"
+  while [ "$waited" -lt "$limit" ]; do
+    if docker_ready; then
+      log "Docker daemon ready after ${waited}s"
+      return 0
+    fi
+    sleep 3
+    waited=$(( waited + 3 ))
+  done
+  log "ERROR: Docker daemon did not become ready within ${limit}s"
+  return 1
+}
+
+# The ports this lane needs free. Derived from the same bases startUniverse.sh
+# reads, including $CI_DIR/.env overrides — this host pins SCALA_PE_BASE=5100
+# precisely because macOS AirPlay squats on 5000, so hardcoding the defaults
+# here would check ports the run never uses and miss the ones it does.
+lane_ports() {
+  local cpp lsp scala
+  # shellcheck disable=SC1091
+  [ -f "$CI_DIR/.env" ] && . "$CI_DIR/.env" >/dev/null 2>&1 || true
+  cpp="${CPP_PE_BASE:-5300}"; lsp="${LSP_PE_BASE:-5600}"; scala="${SCALA_PE_BASE:-5000}"
+  printf '%s\n' "$cpp" "$(( cpp + 1 ))" "$lsp" "$(( lsp + 1 ))" "$scala" "$(( scala + 1 ))" \
+    3001 5173 5999 4000 18789 8080 7331 8088
+}
+
+prepare_docker() {
+  [ "$PROFILE" = "local" ] || return 0
+  step "Docker preflight"
+  start_docker_daemon || {
+    log "The local lane cannot build or start anything without Docker."
+    exit 1
+  }
+
+  # Teardown reuses stopUniverse.sh rather than reimplementing it: that path
+  # already knows every stack to compose-down and every engine port to sweep,
+  # including the guards that refuse to kill Docker's own proxy or the macOS
+  # AirPlay listener. Non-fatal — there may be nothing to stop.
+  run_cmd "docker-preflight-stop" bash -lc \
+    "cd '$CI_DIR' && ./stopUniverse.sh --stop-docker" || \
+    log "stopUniverse returned non-zero (likely nothing was running) — continuing"
+
+  # Drop the images this project built, so the run builds them again rather
+  # than certifying a layer cached from an earlier commit. `--rmi local` is
+  # scoped to images compose built without a custom tag, so unrelated images
+  # on the host are untouched.
+  local stack
+  for stack in "$CI_DIR" "$WS/localAIStack" "$WS/localOpenClawStack" \
+               "$WS/OpenCommons-Health---Personal-Information-Management"; do
+    [ -f "$stack/docker-compose.yml" ] || [ -f "$stack/compose.yml" ] || continue
+    run_cmd "docker-preflight-rmi-$(basename "$stack")" bash -lc \
+      "cd '$stack' && docker compose down --rmi local --remove-orphans" || \
+      log "image cleanup for $(basename "$stack") returned non-zero — continuing"
+  done
+
+  # Ports must be clear before start_universe, not discovered busy inside it.
+  local port busy=() holder
+  while read -r port; do
+    [ -n "$port" ] || continue
+    if lsof -ti ":$port" -sTCP:LISTEN >/dev/null 2>&1; then
+      holder="$(ps -o comm= -p "$(lsof -ti ":$port" -sTCP:LISTEN 2>/dev/null | head -1)" 2>/dev/null || echo unknown)"
+      busy+=("$port($holder)")
+    fi
+  done < <(lane_ports)
+  if [ "${#busy[@]}" -gt 0 ]; then
+    log "ERROR: ports still held after teardown: ${busy[*]}"
+    log "Free them before re-running; startUniverse would fail on these anyway."
+    write_skip_report "docker-preflight-ports.json" "ports still held: ${busy[*]}"
+    exit 1
+  fi
+  log "Lane ports are clear"
+}
+
 create_worktrees() {
   [ "$COLD_START" = true ] || return 0
   step "Cold-start worktrees"
@@ -1034,6 +1129,8 @@ if [ "$EXECUTE" = false ]; then
 fi
 
 prepare_history
+# Before any worktree or build: the build phase itself needs the daemon.
+prepare_docker
 create_worktrees
 build_repos
 if [ "$LIVE_TESTS" = true ]; then
