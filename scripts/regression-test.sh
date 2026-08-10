@@ -45,6 +45,15 @@ MQTT_MAPPINGS="${MQTT_MAPPINGS:-}"
 MCP_URL="${MCP_URL:-http://127.0.0.1:7331}"
 SWAGGER_URL="${SWAGGER_URL:-http://127.0.0.1:8088}"
 LOCAL_AI_URL="${LOCAL_AI_URL:-http://localhost:4000}"
+
+# Node is managed, not discovered. RealityEngine_Manager pins engines.node, the
+# hosted lane pins the same version with actions/setup-node, and the harness
+# activates it through nvm so every lane builds against one runtime.
+NODE_VERSION="${NODE_VERSION:-25.5}"
+NODE_ACTIVATE='export NVM_DIR="${NVM_DIR:-$HOME/.nvm}"; \
+  if [ -s "$NVM_DIR/nvm.sh" ]; then . "$NVM_DIR/nvm.sh" >/dev/null 2>&1; \
+    nvm use '"$NODE_VERSION"' >/dev/null 2>&1 || nvm install '"$NODE_VERSION"' >/dev/null 2>&1; fi; '
+
 ENGINES_SPEC="cpp:1,lsp:1,scala:1"
 RETAIN=20
 COMPARE_RUN=""
@@ -361,7 +370,16 @@ run_repo_cmd() {
     return 0
   fi
   set +e
-  "$@" > "$log_file" 2>&1
+  # Node comes from nvm, not from whatever a login shell happens to resolve.
+  # `bash -lc` picks up /etc/profile and path_helper on macOS, which floats
+  # system paths ahead of any version manager — so the harness activates the
+  # version it needs inside the shell rather than inspecting what it was
+  # handed. The hosted lane does the same thing with actions/setup-node.
+  if [ "$1" = "bash" ] && [ "$2" = "-lc" ]; then
+    "$1" "$2" "$NODE_ACTIVATE$3" > "$log_file" 2>&1
+  else
+    "$@" > "$log_file" 2>&1
+  fi
   status=$?
   set -e
   record_command_result "$repo" "$phase" "$label" "$*" "$status" "$log_rel"
@@ -511,6 +529,15 @@ build_repos() {
   run_repo_cmd "RealityEngine_CI" "build" "build-ci-mcp-routes-check" bash -lc \
     "cd '$(repo_root RealityEngine_CI)/mcp' && REALITY_ENGINE_CPP_DIR='$(repo_root RealityEngine_CPP)' npm run routes:check"
   run_repo_cmd "RealityEngine_CPP" "build" "build-cpp" bash -lc "cd '$(repo_root RealityEngine_CPP)' && make all"
+  # RealityEngine_LSP/quicklisp/ is untracked, so a cold-start worktree never
+  # has it and `make build` dies with "Missing Quicklisp". The hosted lane only
+  # worked because the *workflow* bootstrapped Quicklisp into $HOME before
+  # invoking this script — a harness that only runs when its caller happens to
+  # have prepared the environment is not a harness. Bootstrapping here makes
+  # every lane self-sufficient. The script is idempotent, so this is a no-op
+  # once $HOME/quicklisp exists.
+  run_repo_cmd "RealityEngine_LSP" "build" "bootstrap-quicklisp" bash -lc \
+    "cd '$(repo_root RealityEngine_LSP)' && bash scripts/bootstrap-quicklisp.sh --home"
   run_repo_cmd "RealityEngine_LSP" "build" "build-lsp" bash -lc "cd '$(repo_root RealityEngine_LSP)' && make build"
   run_repo_cmd "RealityEngine_Scala" "build" "build-scala" bash -lc "cd '$(repo_root RealityEngine_Scala)' && sbt clean compile"
   run_repo_cmd "RealityEngine_Machines" "build" "validate-machines" bash -lc "cd '$(repo_root RealityEngine_Machines)' && bash scripts/validate-corpus.sh"
@@ -550,6 +577,14 @@ build_repos() {
   # and record why they did not on the hosted one. A build that quietly does
   # not happen is the same failure as a stage that quietly does not run.
   if [ "$PROFILE" = "local" ] && repo_present "OpenCommons-Health---Personal-Information-Management"; then
+    # PIM's compose interpolates CSS_ACCOUNT_PASSWORD from .env, which is
+    # gitignored and so absent from a cold-start worktree — the build fails
+    # before a layer is read. Seed from .env.example, the same way this repo
+    # seeds its own, and deliberately *not* from the operator's real .env:
+    # copying that would pull live credentials into a run directory that gets
+    # archived as a certification artifact.
+    run_repo_cmd "OpenCommons-Health---Personal-Information-Management" "build" "prepare-pim-env" bash -lc \
+      "cd '$(repo_root OpenCommons-Health---Personal-Information-Management)' && { [ -f .env ] || cp .env.example .env; }"
     run_repo_cmd "OpenCommons-Health---Personal-Information-Management" "build" "build-pim-compose" bash -lc \
       "cd '$(repo_root OpenCommons-Health---Personal-Information-Management)' && docker compose build"
   elif [ "$PROFILE" = "local" ]; then
