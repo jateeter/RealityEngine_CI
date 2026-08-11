@@ -91,6 +91,15 @@ PE_ENGINE="${PE_ENGINE:-${STAMPED_PE_ENGINE:-ai}}"
 REGISTRY_FILE="/tmp/re-registry/re-registry.json"
 [ -f "$CI_DIR/scripts/registry.sh" ] && source "$CI_DIR/scripts/registry.sh" || true
 
+# startUniverse.sh sources .env *after* defaulting the port bases, so .env wins
+# and the engines bind where it says. Teardown never read it, so it swept the
+# defaults instead: on a host that sets SCALA_PE_BASE=5100 — which .env.example
+# recommends, to dodge macOS AirPlay on 5000 — this swept 5000/5001, warned that
+# AirPlay held a port it had no business touching, and left the actual Scala
+# engine running on 5100/5101 for the next start to collide with.
+# shellcheck source=/dev/null
+[ -f "$CI_DIR/.env" ] && source "$CI_DIR/.env" || true
+
 _term_and_wait() {
   local pid="$1" label="$2"
   [ -z "$pid" ] && return 0
@@ -158,7 +167,10 @@ _sweep_native_ports() {
   local _lsp_pe=${LSP_PE_BASE:-5600}
   local _sc_re=$(( ${SCALA_PE_BASE:-5000} + 1 ))
   local _sc_pe=${SCALA_PE_BASE:-5000}
-  for _p in $_cpp_re $_cpp_pe $_lsp_re $_lsp_pe $_sc_re $_sc_pe; do
+  # The registry shim outlives the engines it advertises: it is a bare
+  # python3 http.server, so nothing in the engine teardown reaches it and the
+  # next start finds :5999 already bound.
+  for _p in $_cpp_re $_cpp_pe $_lsp_re $_lsp_pe $_sc_re $_sc_pe "${REGISTRY_PORT:-5999}"; do
     _kill_port "$_p"
   done
 }
