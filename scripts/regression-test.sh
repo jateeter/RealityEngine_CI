@@ -762,6 +762,31 @@ prepare_runtime_config() {
     log ".env seeded from .env.example"
   fi
 
+  # OpenClaw's gateway is fatal without .env and a real OPENCLAW_GATEWAY_TOKEN.
+  # The file is gitignored, so a cold-start worktree never has it, and phase 5.5
+  # kills a universe that came up whole — three engines, Manager, Prometheus and
+  # localAIStack all healthy — for a config file nobody copied.
+  #
+  # Same reasoning as the CI .env above: on the local lane the operator's file is
+  # what makes this the universe under test, and .env.example's placeholder token
+  # would certify a gateway nobody runs.
+  local ocs src_ocs
+  ocs="$(repo_root localOpenClawStack)"
+  src_ocs="$(repo_path localOpenClawStack)"
+  if [ ! -d "$ocs" ]; then
+    log "SKIP OpenClaw .env: worktree not present"
+  elif [ -f "$ocs/.env" ]; then
+    log "OpenClaw .env already present"
+  elif [ "$PROFILE" = "local" ] && [ -f "$src_ocs/.env" ]; then
+    cp "$src_ocs/.env" "$ocs/.env"
+    log "OpenClaw .env copied from $src_ocs"
+  elif [ -f "$ocs/.env.example" ]; then
+    cp "$ocs/.env.example" "$ocs/.env"
+    log "OpenClaw .env seeded from .env.example — gateway token is a placeholder"
+  else
+    log "WARNING: no OpenClaw .env or .env.example; startUniverse will fail at phase 5.5"
+  fi
+
   local missing=false f
   for f in certs/server.crt certs/server.key certs/ca.crt certs/keystore.p12; do
     [ -f "$ci/$f" ] || missing=true
