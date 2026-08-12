@@ -331,13 +331,20 @@ decision rather than by circumstance.
 | | `--profile hosted` | `--profile local` |
 |---|---|---|
 | Runner | `ubuntu-latest` | operator hardware / self-hosted |
-| Machine corpus | `standard-deployment` (12) | `full` (~1,300) |
+| Machine corpus | `standard-deployment` (12) | `standard-deployment` (12) |
 | localAI + Ollama | never | yes |
 | OpenClaw | never | yes |
 | HealthKit bridge | never | yes (simulator) |
 
+The lanes differ in **which services they are permitted to start**, not in how
+much corpus they load. Both boot the same 12 machines, so a hosted-vs-local
+comparison carries one variable rather than two. The local lane can still opt
+into the full corpus explicitly with `--machine-corpus=full`; nothing does so
+by default, and full-corpus load behaviour is covered by dedicated scaling
+tests rather than by a lane default.
+
 `local` is the default, so an operator running the script by hand gets the
-whole stack, and it is what the script has always done.
+whole stack of services.
 
 The hosted profile **refuses** a flag that contradicts it — `--openclaw`,
 `--local-ai` or `--machine-corpus=full` exit 2 with the conflict named. It does

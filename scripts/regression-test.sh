@@ -23,7 +23,14 @@ LIVE_TESTS=true
 #   hosted — never localAI/Ollama, never OpenClaw, never the full corpus.
 #            None can be honestly exercised on a hosted runner with no GPU,
 #            no local stack, and a six-hour platform ceiling.
-#   local  — the whole stack on operator hardware, no exclusions.
+#   local  — the whole stack on operator hardware, no service exclusions.
+#
+# Both lanes boot the same machine corpus. The lanes are a statement about
+# which services may run, and a corpus that differed between them made every
+# hosted-vs-local comparison carry a second, unrelated variable. The local
+# lane may still opt into --machine-corpus=full explicitly; the hosted lane
+# may not. Full-corpus load behaviour belongs to dedicated scaling tests, not
+# to a lane default.
 #
 # The hosted profile refuses a conflicting flag instead of quietly correcting
 # it. Correcting hides the mistake; a silently-enabled Ollama on a hosted
@@ -90,9 +97,10 @@ Usage:
 Options:
   --execute                 Run the workflow. Default is plan-only.
   --profile hosted|local    Lane profile. Default: local
-                              hosted — no localAI, no OpenClaw, standard-deployment
-                                       corpus. Refuses any flag asking otherwise.
-                              local  — localAI, OpenClaw, full corpus.
+                              hosted — no localAI, no OpenClaw. Refuses any flag
+                                       asking otherwise.
+                              local  — localAI and OpenClaw.
+                            Both lanes boot the standard-deployment corpus.
   --branch NAME             Regression branch name for run-local worktrees.
   --history-dir DIR         Run-history root. Default: .regression-tests
   --run-id ID               Override generated run id.
@@ -109,7 +117,9 @@ Options:
   --no-openclaw             Skip OpenClaw. Forced under --profile hosted.
   --local-ai                Start Ollama and localAIStack. Default under --profile local.
   --no-local-ai             Skip both. Forced under --profile hosted.
-  --machine-corpus CORPUS   full | standard-deployment. Default: per profile.
+  --machine-corpus CORPUS   full | standard-deployment. Default: standard-deployment
+                            on both profiles. full is an explicit opt-in and is
+                            refused under --profile hosted.
   --retain N                Keep latest N local run histories. Default: 20
   --compare RUN_ID          Compare against a previous run id. Default: latest completed run.
   --archive PATH            Copy certification artifacts to PATH/<run-id>.
@@ -194,7 +204,9 @@ case "$PROFILE" in
     FRESH_FLAG="--fresh"
     [ "$OPENCLAW_SET" = true ]       || OPENCLAW_FLAG="--openclaw"
     [ "$LOCAL_AI_SET" = true ]       || LOCAL_AI=true
-    [ "$MACHINE_CORPUS_SET" = true ] || MACHINE_CORPUS="full"
+    # Same corpus as hosted. --machine-corpus=full stays available here as an
+    # explicit opt-in; it is no longer what an unflagged local run boots.
+    [ "$MACHINE_CORPUS_SET" = true ] || MACHINE_CORPUS="standard-deployment"
     # Pin one model for every engine on this lane.
     #
     # The runtimes now share a canonical default (llama3.1:8b, see

@@ -71,7 +71,6 @@ gh workflow run regression-tests.yml --ref main -f run_mode=full
 Enforced by refusal (exit 2), not by defaults, so a run cannot quietly opt back
 in:
 
-- the full 1,321-machine corpus (the hosted lane boots `standard-deployment`)
 - Ollama and any local-AI path
 - OpenClaw
 - the HealthKit bridge
@@ -82,6 +81,11 @@ Docker, Ollama and Xcode:
 ```bash
 bash scripts/regression-test.sh --execute --profile local
 ```
+
+The machine corpus is **not** a lane difference: both lanes boot
+`standard-deployment` (12 machines). `--machine-corpus=full` is an explicit
+opt-in available only on the local lane; full-corpus load behaviour is covered
+by dedicated scaling tests.
 
 It runs everything the hosted lane runs, plus two stages the hosted lane
 cannot: `local-ai` (localAIStack health, every PE reporting Ollama reachable,

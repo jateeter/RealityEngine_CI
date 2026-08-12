@@ -86,6 +86,10 @@ LOCAL_AI_ENABLED="${LOCAL_AI_ENABLED:-true}"
 FRESH_START=false
 MACHINE_LOAD="runtime"       # runtime | ci-seed | none
 MACHINE_CORPUS="full"        # full | standard-deployment
+# OpenClaw agent corpus, sized to the machine corpus unless set explicitly.
+# Loading 1320 machine-behavior agents to exercise 12 machines costs time and
+# memory on every start, so the agent profile follows --machine-corpus.
+AGENT_PROFILE=""             # resolved from MACHINE_CORPUS unless --agent-profile given
 MACHINE_CORPUS_MANIFEST="$CI_DIR/config/standard-deployment-corpus.txt"
 MACHINE_CORPUS_WORK_DIR="${MACHINE_CORPUS_WORK_DIR:-/tmp/realityengine-standard-deployment-corpus}"
 POST_START_FULL_CORPUS="off" # off | seed
@@ -122,6 +126,9 @@ startUniverse.sh — engine-selectable CI orchestrator
                                 Materialize and boot from config/standard-deployment-corpus.txt
   --machine-corpus-manifest=PATH
                                 Alternate manifest for --machine-corpus=standard-deployment
+  --agent-profile=NAME          OpenClaw machine-behavior agents to load (full | regression).
+                                  Default follows --machine-corpus: standard-deployment
+                                  selects 'regression' (12 agents), full selects 'full' (1320).
   --post-start-full-corpus=off  Do not load the full corpus after startup (default)
   --post-start-full-corpus=seed After stack completion, seed the full corpus into RE instances
   --pe-source-bootstrap=auto    After the machine-load phase, call POST /api/sources/bootstrap-from-machines
@@ -170,6 +177,7 @@ for arg in "$@"; do
     --machine-load=*)           MACHINE_LOAD="${arg#*=}" ;;
     --machine-corpus=*)         MACHINE_CORPUS="${arg#*=}" ;;
     --machine-corpus-manifest=*) MACHINE_CORPUS_MANIFEST="${arg#*=}" ;;
+    --agent-profile=*)          AGENT_PROFILE="${arg#*=}" ;;
     --post-start-full-corpus=*) POST_START_FULL_CORPUS="${arg#*=}" ;;
     --pe-source-bootstrap=*)    PE_SOURCE_BOOTSTRAP="${arg#*=}" ;;
     --validate-corpus=*)        VALIDATE_CORPUS="${arg#*=}" ;;
@@ -207,6 +215,16 @@ case "$MACHINE_LOAD" in
     runtime) _RE_LOAD_MACHINES=1 ;;
     *)       _RE_LOAD_MACHINES=0 ;;
 esac
+
+# Agent corpus follows the machine corpus unless the caller overrode it. Both
+# sides then describe the same run: 12 machines with the 12 agents bound to
+# them, or the whole corpus with all of its agents.
+if [ -z "$AGENT_PROFILE" ]; then
+    case "$MACHINE_CORPUS" in
+        standard-deployment) AGENT_PROFILE="regression" ;;
+        *)                   AGENT_PROFILE="full" ;;
+    esac
+fi
 
 if [ "$MACHINE_CORPUS" = "standard-deployment" ]; then
     bash "$CI_DIR/scripts/materialize-machine-corpus.sh" \
@@ -1512,6 +1530,7 @@ if [ "$DRY_RUN" = true ]; then
     printf "  %-28s %s\n" "Validate corpus"    "$VALIDATE_CORPUS"
     printf "  %-28s %s\n" "RE_LOAD_MACHINES"   "$_RE_LOAD_MACHINES"
     printf "  %-28s %s\n" "OpenClaw"           "$OPENCLAW"
+    printf "  %-28s %s\n" "OpenClaw agents"    "$AGENT_PROFILE"
     printf "  %-28s %s\n" "Host IP"    "$HOST_IP"
     if [ "$MULTI_ENGINE_MODE" = true ]; then
         echo ""
@@ -2136,7 +2155,8 @@ else
         # repo root, but OpenClaw's machine-behaviors tooling interprets the
         # same variable as the machines/ directory itself — let the stack's
         # own config resolve the corpus path instead of inheriting ours.
-        (cd "$OCS_DIR" && env -u MACHINES_DIR ./scripts/start.sh > /tmp/ocs_start.log 2>&1) || \
+        info "OpenClaw agent profile: $AGENT_PROFILE"
+        (cd "$OCS_DIR" && env -u MACHINES_DIR ./scripts/start.sh --agent-profile="$AGENT_PROFILE" > /tmp/ocs_start.log 2>&1) || \
             die "OpenClaw startup failed\n$(tail -20 /tmp/ocs_start.log 2>/dev/null)"
 
         if poll_http "http://localhost:${OCS_GW_PORT}/healthz" "openclaw-gateway ready" 30 "-sf"; then
