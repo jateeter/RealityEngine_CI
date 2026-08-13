@@ -201,8 +201,33 @@ jobs:
         working-directory: RealityEngine_Machines
         run: npm ci
 
-      # Schema validity, corpus index, region allocation, semantic-bus
-      # inventory, and OWL manifest drift across all ~1,300 machines.
+      # ROBOT is what turns reason-owl from SKIPPED into a real gate. Pinned
+      # deliberately: semantics/robot-report-profile.txt lists all 32 rules
+      # ROBOT ships rather than expressing a delta, so a rule cannot be dropped
+      # by omission — and a version bump that adds a rule surfaces as an
+      # unlisted-rule difference. That protection only works if the version is
+      # known. v1.9.10 is what the profile was validated against.
+      - name: Install ROBOT
+        run: |
+          set -euo pipefail
+          mkdir -p "$HOME/tools"
+          curl -sSL --retry 3 --fail \
+            -o "$HOME/tools/robot.jar" \
+            https://github.com/ontodev/robot/releases/download/v1.9.10/robot.jar
+          printf '#!/bin/bash\nexec java -jar "%s/tools/robot.jar" "$@"\n' "$HOME" > "$HOME/tools/robot"
+          chmod +x "$HOME/tools/robot"
+          echo "ROBOT_BIN=$HOME/tools/robot" >> "$GITHUB_ENV"
+          "$HOME/tools/robot" --version
+
+      # Schema validity, corpus index, region allocation, arbitration registry,
+      # semantic-bus inventory, and OWL manifest drift across all ~1,300
+      # machines — plus ROBOT report and reasoning now that ROBOT is present.
+      #
+      # reason-owl reports against the corpus's own profile (ERROR levels mean
+      # "wrong", not "unpublished") and reasons under both ELK and HermiT. Both
+      # are needed: ELK does not support functional properties and silently
+      # passes a corpus violating its own escalation invariant, which HermiT
+      # catches. See jateeter/RealityEngine_Machines#46.
       - name: Validate corpus
         working-directory: RealityEngine_Machines
         run: npm run validate
@@ -213,17 +238,50 @@ jobs:
         working-directory: RealityEngine_Machines
         run: npm run test:contracts
 
-      # `npm run validate` prints "reason-owl: SKIPPED (ROBOT not installed)".
-      # That is deliberate for now: ROBOT's default report profile currently
-      # yields 3,418 ERROR-level violations on this corpus, all OBO style rules
-      # (missing_label, missing_definition) rather than logical inconsistency —
-      # `report` fails before the reasoner runs at all. Installing ROBOT here
-      # would fail the job for reasons unrelated to semantic correctness.
-      # Tracked in jateeter/RealityEngine_Machines#46.
-      - name: Note OWL reasoning status
+      # A gate is only worth having if it has been seen to fail. This injects a
+      # logical contradiction into a copy of the merged ontology and asserts
+      # ROBOT rejects it, so a silently-degraded reasoner (wrong profile, wrong
+      # reasoner, ROBOT missing) is caught here rather than by shipping an
+      # inconsistent corpus that reported green.
+      - name: Verify the reasoner actually rejects an inconsistency
+        working-directory: RealityEngine_Machines
         run: |
-          echo "::notice::OWL reasoning (reason-owl) is skipped — ROBOT not installed."
-          echo "::notice::See jateeter/RealityEngine_Machines#46 before enabling it."
+          set -euo pipefail
+          work="$(mktemp -d)"
+          "$ROBOT_BIN" merge \
+            --input semantics/ontology/re-core.ttl \
+            $(for f in semantics/abox/health-personal/*.ttl; do printf -- '--input %s ' "$f"; done) \
+            --output "$work/merged.owl"
+          cat > "$work/contradiction.ttl" <<'TTL'
+          @prefix re:  <https://realityengine.example.org/ontology/re-core#> .
+          @prefix owl: <http://www.w3.org/2002/07/owl#> .
+          @prefix x:   <https://realityengine.example.org/ci-negative-test#> .
+          x:badDetermination a owl:NamedIndividual , re:Determination ;
+              re:prescribesAction re:EmergencyDispatch ;
+              re:hasRagStatus re:GREEN .
+          TTL
+          "$ROBOT_BIN" merge --input "$work/merged.owl" --input "$work/contradiction.ttl" \
+            --output "$work/bad.owl"
+          if "$ROBOT_BIN" reason --reasoner HermiT --input "$work/bad.owl" \
+               --output "$work/bad-reasoned.owl" 2>"$work/err"; then
+            echo "::error::The reasoner accepted a GREEN escalation determination."
+            echo "::error::re-core.ttl's escalation invariant is inert — the gate proves nothing."
+            exit 1
+          fi
+          echo "OK: the reasoner rejects a GREEN escalation determination as expected."
+
+      # Keep the evidence. A reasoner failure is otherwise only reproducible by
+      # rebuilding the merge locally.
+      - name: Upload OWL artifacts
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: owl-semantics
+          path: |
+            RealityEngine_Machines/semantics/abox-manifest.json
+            RealityEngine_Machines/semantics/robot-report-profile.txt
+          if-no-files-found: warn
+          retention-days: 14
 
   # ── Phase 3: Unit tests for helper scripts ──────────────────────────────────
   scripts-unit-tests:
