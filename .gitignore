@@ -5,6 +5,15 @@
 nginx/conf.d/
 config/integrations.json
 config/.healthkit-bridge-token
+config/.openclaw-regression-token
+
+# Editor autosaves of .env. `.env` itself is ignored above, but emacs writes
+# `#.env#` alongside it, which that pattern does not cover — an autosave of a
+# secrets file is exactly as sensitive as the file.
+\#*\#
+.#*
+# openssl serial files left by cert generation.
+*.srl
 
 # Deployment-validation agent runtime state (logs, run records, issue drafts)
 .deploy-validate/
