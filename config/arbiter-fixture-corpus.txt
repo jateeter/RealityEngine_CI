@@ -1,0 +1,8 @@
+# Arbiter conformance fixtures (ARBITER_CONTRACT.md §9) plus the propagation ring.
+domains/digital-logic/ArbitrationWriterA.json
+domains/digital-logic/ArbitrationWriterB.json
+domains/digital-logic/ArbitrationReader.json
+domains/digital-logic/ArbitrationProviderPeer.json
+domains/digital-logic/ArbitrationProviderTarget.json
+domains/digital-logic/RSRingLatchStageA.json
+domains/digital-logic/RSRingLatchStageB.json
