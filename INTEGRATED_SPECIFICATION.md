@@ -132,6 +132,7 @@ clean source state:
 | LSP HealthKit e2e | `make e2e-healthkit-spezi` in `RealityEngine_LSP` |
 | Manager frontend build | `npm run build` in `RealityEngine_Manager/visualizer/frontend` |
 | Machines corpus validation | `bash scripts/validate-corpus.sh` in `RealityEngine_Machines` |
+| Ingress/egress semantic guardrails | `bash scripts/validate-guardrails.sh` in `RealityEngine_Machines` |
 | CI shell lint | `bash -n startUniverse.sh stopUniverse.sh statusUniverse.sh scripts/*.sh scripts/tests/*.sh` in `RealityEngine_CI` |
 | Surface spec drift | `bash scripts/check-surface-specs.sh` in `RealityEngine_CI` |
 | Multi-engine conformance | `_CI/startUniverse.sh --no-openclaw --skip-seed --engines=scala:1,lsp:1` plus `RealityEngine_Machines/tests/integration/multi-instance.spec.ts` |
@@ -154,6 +155,10 @@ As of 2026-06-16, all deployment gates are green:
 - Manager frontend build: `npm run build`
 - Manager backend build: `npm run build`
 - Machines corpus validation: `bash scripts/validate-corpus.sh`
+- Ingress/egress semantic guardrails: `bash scripts/validate-guardrails.sh` — validates the
+  projected 941-lane ingress graph and the 50-case decision-parity suite against
+  `semantics/shapes/re-guardrails.shacl.ttl`. Skips with exit 0 when pyshacl is absent,
+  so CI containers must install it for the gate to be real.
 - CI shell lint: `bash -n startUniverse.sh stopUniverse.sh statusUniverse.sh scripts/check-surface-specs.sh scripts/*.sh scripts/tests/*.sh`
 - Surface spec drift: `bash scripts/check-surface-specs.sh`
 
