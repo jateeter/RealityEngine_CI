@@ -87,18 +87,27 @@ fi
 RE_ENGINE="${RE_ENGINE:-${STAMPED_RE_ENGINE:-ai}}"
 PE_ENGINE="${PE_ENGINE:-${STAMPED_PE_ENGINE:-ai}}"
 
-# Source registry helpers for multi-engine teardown
-REGISTRY_FILE="/tmp/re-registry/re-registry.json"
-[ -f "$CI_DIR/scripts/registry.sh" ] && source "$CI_DIR/scripts/registry.sh" || true
-
 # startUniverse.sh sources .env *after* defaulting the port bases, so .env wins
 # and the engines bind where it says. Teardown never read it, so it swept the
 # defaults instead: on a host that sets SCALA_PE_BASE=5100 — which .env.example
 # recommends, to dodge macOS AirPlay on 5000 — this swept 5000/5001, warned that
 # AirPlay held a port it had no business touching, and left the actual Scala
 # engine running on 5100/5101 for the next start to collide with.
+#
+# This MUST stay above the registry helpers below. registry.sh resolves
+# RE_REGISTRY_FILE and RE_REGISTRY_PORT into REGISTRY_FILE/REGISTRY_PORT at
+# source time, not at call time, so sourcing it first freezes both to their
+# defaults and .env can no longer be read — the same defaults-over-.env bug
+# this block exists to fix, one layer down. A deployment that relocates the
+# registry then has its shim survive teardown on the port nothing swept.
 # shellcheck source=/dev/null
 [ -f "$CI_DIR/.env" ] && source "$CI_DIR/.env" || true
+
+# Source registry helpers for multi-engine teardown. REGISTRY_FILE here is only
+# the fallback for a checkout with no registry.sh; when it is present it derives
+# its own from RE_REGISTRY_FILE, which .env may now set.
+REGISTRY_FILE="${REGISTRY_FILE:-/tmp/re-registry/re-registry.json}"
+[ -f "$CI_DIR/scripts/registry.sh" ] && source "$CI_DIR/scripts/registry.sh" || true
 
 _term_and_wait() {
   local pid="$1" label="$2"
