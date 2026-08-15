@@ -721,8 +721,27 @@ build_repos() {
       "Swift/Xcode toolchain is macOS-only; hosted lane cannot build the bridge"
     log "SKIP HealthKit bridge build — hosted profile"
   fi
-  run_repo_cmd "localAIStack" "build" "build-localai-compose" bash -lc "cd '$(repo_root localAIStack)' && docker compose build"
-  run_repo_cmd "localOpenClawStack" "build" "build-openclaw-compose" bash -lc "cd '$(repo_root localOpenClawStack)' && docker compose build"
+  # Build only what this lane can actually start. The hosted profile *refuses*
+  # --local-ai and --openclaw (see the profile block above), so building their
+  # images buys no coverage — it only widens the blast radius. On 2026-08-15 a
+  # dependabot base-image bump in localAIStack (python 3.11 -> 3.14, past the
+  # ceiling unstructured==0.25.2 declares) failed this build and took the whole
+  # scheduled run red before a single engine started. That break belongs to
+  # localAIStack's own CI, which builds the same image on every push.
+  if [ "$LOCAL_AI" = true ]; then
+    run_repo_cmd "localAIStack" "build" "build-localai-compose" bash -lc "cd '$(repo_root localAIStack)' && docker compose build"
+  else
+    write_skip_report "build-localai-compose-skipped.json" \
+      "this lane does not run localAI; its image is built by localAIStack CI"
+    log "SKIP localAI image build — lane does not run localAI"
+  fi
+  if [ "$OPENCLAW_FLAG" != "--no-openclaw" ]; then
+    run_repo_cmd "localOpenClawStack" "build" "build-openclaw-compose" bash -lc "cd '$(repo_root localOpenClawStack)' && docker compose build"
+  else
+    write_skip_report "build-openclaw-compose-skipped.json" \
+      "this lane does not run OpenClaw; its image is built by localOpenClawStack CI"
+    log "SKIP OpenClaw image build — lane does not run OpenClaw"
+  fi
 }
 
 # With a broker configured but no mapping registry, the bridge starts and
