@@ -214,7 +214,10 @@ jobs:
           curl -sSL --retry 3 --fail \
             -o "$HOME/tools/robot.jar" \
             https://github.com/ontodev/robot/releases/download/v1.9.10/robot.jar
-          printf '#!/bin/bash\nexec java -jar "%s/tools/robot.jar" "$@"\n' "$HOME" > "$HOME/tools/robot"
+          # Honour ROBOT_JAVA_ARGS. reason-owl.sh sets it for corpus-wide runs, whose
+          # merged graph will not fit the default JVM heap; a wrapper that drops it
+          # turns that into an OOM a long way from its cause.
+          printf '#!/bin/bash\nexec java ${ROBOT_JAVA_ARGS:-} -jar "%s/tools/robot.jar" "$@"\n' "$HOME" > "$HOME/tools/robot"
           chmod +x "$HOME/tools/robot"
           echo "ROBOT_BIN=$HOME/tools/robot" >> "$GITHUB_ENV"
           "$HOME/tools/robot" --version
@@ -231,6 +234,19 @@ jobs:
       - name: Validate corpus
         working-directory: RealityEngine_Machines
         run: npm run validate
+
+      # `npm run validate` reasons over one domain, which keeps the local loop
+      # fast. The gate is where coverage has to be complete: all twelve domains,
+      # both reasoners, ~3 minutes. Sharded rather than merged deliberately —
+      # corpus-wide HermiT is 88x ELK (1,061s against 12s) and finds nothing the
+      # shards do not, because the machine IRI scheme gives domains no shared
+      # individuals. That is true of the corpus as it stands, not permanently, so
+      # the merged run is scheduled weekly rather than dropped: see
+      # .github/workflows/owl-corpus-wide.yml and
+      # jateeter/RealityEngine_Machines#79.
+      - name: Reason every domain (ELK + HermiT)
+        working-directory: RealityEngine_Machines
+        run: npm run owl:reason:domains
 
       # OWL semantics parity gates: regeneration determinism, vocabulary
       # closure, sequence/trigger parity, life-safety typing, RED ⇒ escalation.

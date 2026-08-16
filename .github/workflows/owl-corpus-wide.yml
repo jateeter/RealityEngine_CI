@@ -1,0 +1,173 @@
+name: OWL Corpus-Wide Reasoning
+
+# The merged-graph check that the per-PR gate deliberately does not run.
+#
+# `corpus-gates` in e2e-tests.yml reasons over all twelve domains separately,
+# under both ELK and HermiT, in ~3 minutes. That is complete for anything whose
+# explanation lives inside one domain. What it cannot see is a contradiction
+# spanning two domains — and the only way to look for that is to merge the whole
+# corpus into one graph and reason over it, which costs 1,061s under HermiT
+# against 12s under ELK: 88x, and 96% of the run.
+#
+# As the corpus stands there is nothing there to find: machine IRIs are
+# .../machines/<domain>/<stem>#, so two domains share no individuals and cannot
+# contradict each other. That is a property of the corpus *now*, not a permanent
+# one. Cross-domain interaction is expected to grow, and when it does this run is
+# what notices. So it is scheduled rather than reasoned away.
+#
+# Raise the frequency as cross-domain interaction increases, and use
+# workflow_dispatch for a one-off run after any change that plausibly introduces
+# it. See jateeter/RealityEngine_Machines#79.
+
+on:
+  schedule:
+    # Mondays 07:00 UTC — after the corpus's weekly dependabot window, before
+    # the working week, and far from the 09:17 UTC regression cron so the two
+    # long jobs do not contend for runners.
+    - cron: '0 7 * * 1'
+  workflow_dispatch:
+    inputs:
+      reasoner:
+        description: 'Reasoner for the merged graph'
+        required: true
+        type: choice
+        default: both
+        options:
+          - both
+          - hermit
+          - elk
+      machines_ref:
+        description: 'RealityEngine_Machines ref (branch, tag or SHA). Empty = default branch.'
+        required: false
+        default: ''
+
+concurrency:
+  group: owl-corpus-wide
+  cancel-in-progress: false
+
+jobs:
+  corpus-wide:
+    name: Corpus-Wide Reasoning (merged graph)
+    runs-on: ubuntu-latest
+    # HermiT took 1,061s locally on an unloaded machine; a hosted runner is
+    # slower and shares CPU. 90 minutes is headroom, not an expectation — if a
+    # run approaches it, that is itself the signal to shard differently rather
+    # than to raise the ceiling.
+    timeout-minutes: 90
+
+    steps:
+      - name: Checkout RealityEngine_CI
+        uses: actions/checkout@v4
+
+      - name: Checkout RealityEngine_Machines
+        uses: actions/checkout@v4
+        with:
+          repository: ${{ github.repository_owner }}/RealityEngine_Machines
+          ref: ${{ inputs.machines_ref || '' }}
+          path: RealityEngine_Machines
+          token: ${{ secrets.REPO_ACCESS_TOKEN || github.token }}
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Install corpus tooling
+        working-directory: RealityEngine_Machines
+        run: npm ci
+
+      # Pinned to match corpus-gates. semantics/robot-report-profile.txt lists
+      # all 32 rules ROBOT ships rather than expressing a delta, so a version
+      # bump that adds a rule surfaces as an unlisted-rule difference — which
+      # only works if the version is known.
+      - name: Install ROBOT
+        run: |
+          set -euo pipefail
+          mkdir -p "$HOME/tools"
+          curl -sSL --retry 3 --fail \
+            -o "$HOME/tools/robot.jar" \
+            https://github.com/ontodev/robot/releases/download/v1.9.10/robot.jar
+          # Honour ROBOT_JAVA_ARGS: reason-owl.sh sets the heap for corpus-wide
+          # runs, and a wrapper that drops it turns that into an OOM a long way
+          # from its cause.
+          printf '#!/bin/bash\nexec java ${ROBOT_JAVA_ARGS:-} -jar "%s/tools/robot.jar" "$@"\n' "$HOME" > "$HOME/tools/robot"
+          chmod +x "$HOME/tools/robot"
+          echo "ROBOT_BIN=$HOME/tools/robot" >> "$GITHUB_ENV"
+
+      - name: Record what is being reasoned
+        working-directory: RealityEngine_Machines
+        run: |
+          set -euo pipefail
+          {
+            echo "### Corpus-wide OWL reasoning"
+            echo
+            echo "| | |"
+            echo "|---|---|"
+            echo "| corpus ref | \`$(git rev-parse --short HEAD)\` |"
+            echo "| describes | \`$(git describe --tags --always 2>/dev/null || echo n/a)\` |"
+            echo "| machines | $(find machines/domains -name '*.json' | wc -l | tr -d ' ') |"
+            echo "| ABox files | $(find semantics/abox -name '*.ttl' | wc -l | tr -d ' ') |"
+            echo "| reasoner | ${{ inputs.reasoner || 'both' }} |"
+            echo "| ROBOT | v1.9.10 |"
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      # ubuntu-latest has 16GB; -Xmx12g leaves room for the runner itself. The
+      # merged graph is ~96MB on disk and considerably more in memory.
+      - name: Merge and reason over the whole corpus
+        working-directory: RealityEngine_Machines
+        env:
+          ROBOT_JAVA_ARGS: -Xmx12g
+        run: |
+          set -euo pipefail
+          bash scripts/reason-owl.sh --all --reasoner "${{ inputs.reasoner || 'both' }}" \
+            | tee /tmp/corpus-wide.log
+
+      - name: Summarise
+        if: always()
+        run: |
+          set -euo pipefail
+          {
+            echo
+            echo '```'
+            tail -20 /tmp/corpus-wide.log 2>/dev/null || echo "no output captured"
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      # A scheduled job nobody is watching is a job whose failure nobody sees.
+      - name: Open or update an issue on failure
+        if: failure() && github.event_name == 'schedule'
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const title = 'Corpus-wide OWL reasoning failed';
+            const body = [
+              `The weekly merged-graph reasoning run failed.`,
+              ``,
+              `Run: ${context.serverUrl}/${context.repo.owner}/${context.repo.repo}/actions/runs/${context.runId}`,
+              ``,
+              `This is the check that looks for contradictions spanning two domains —`,
+              `the class the per-PR sharded gate structurally cannot see. A failure here`,
+              `with \`corpus-gates\` green is the signal that cross-domain interaction has`,
+              `become real, and that the schedule in jateeter/RealityEngine_Machines#79`,
+              `should be revisited.`,
+            ].join('\n');
+            const existing = await github.rest.issues.listForRepo({
+              owner: context.repo.owner, repo: context.repo.repo,
+              state: 'open', labels: 'owl-corpus-wide',
+            });
+            if (existing.data.length) {
+              await github.rest.issues.createComment({
+                owner: context.repo.owner, repo: context.repo.repo,
+                issue_number: existing.data[0].number, body,
+              });
+            } else {
+              await github.rest.issues.create({
+                owner: context.repo.owner, repo: context.repo.repo,
+                title, body, labels: ['owl-corpus-wide'],
+              });
+            }
