@@ -6,6 +6,7 @@
     "DELETE /api/machines/:machineId/checkpoints/:cpId",
     "DELETE /api/sequences/:id",
     "DELETE /api/vectors/:id",
+    "GET /api/arbitration",
     "GET /api/audit/semantics",
     "GET /api/buses/semantic",
     "GET /api/buses/semantic/:id",
