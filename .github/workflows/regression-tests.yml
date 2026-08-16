@@ -21,6 +21,15 @@ on:
         required: true
         type: boolean
         default: false
+      machine_corpus:
+        description: 'Corpus to boot. arbiter-fixture is what exercises the arbiter conformance stage.'
+        required: false
+        type: choice
+        default: standard-deployment
+        options:
+          - standard-deployment
+          - arbiter-fixture
+          - standard-deployment-plus-ring
       mqtt_broker_url:
         description: 'MQTT broker URL for the Yuma stream; empty skips MQTT live checks'
         required: false
@@ -352,6 +361,7 @@ jobs:
           INPUT_MCP_URL: ${{ github.event.inputs.mcp_url }}
           INPUT_SWAGGER_URL: ${{ github.event.inputs.swagger_url }}
           INPUT_COMPARE: ${{ github.event.inputs.compare }}
+          INPUT_MACHINE_CORPUS: ${{ github.event.inputs.machine_corpus }}
           INPUT_RETAIN: ${{ github.event.inputs.retain }}
           INPUT_ARCHIVE_ARTIFACTS: ${{ github.event.inputs.archive_artifacts }}
           SCHEDULE_RUN_MODE: ${{ vars.REGRESSION_SCHEDULE_RUN_MODE || 'full' }}
@@ -376,6 +386,7 @@ jobs:
           mcp_url="${INPUT_MCP_URL:-http://127.0.0.1:7331}"
           swagger_url="${INPUT_SWAGGER_URL:-http://127.0.0.1:8088}"
           compare_run="${INPUT_COMPARE:-}"
+          machine_corpus="${INPUT_MACHINE_CORPUS:-standard-deployment}"
           retain="${INPUT_RETAIN:-20}"
           archive_artifacts="${INPUT_ARCHIVE_ARTIFACTS:-true}"
 
@@ -388,6 +399,10 @@ jobs:
             mcp_url="${SCHEDULE_MCP_URL:-http://127.0.0.1:7331}"
             swagger_url="${SCHEDULE_SWAGGER_URL:-http://127.0.0.1:8088}"
             compare_run="${SCHEDULE_COMPARE:-}"
+            # The scheduled run stays on standard-deployment. The arbiter
+            # fixtures are a conformance corpus, not a deployment one; booting
+            # them nightly would change what every other stage measures.
+            machine_corpus="standard-deployment"
             retain="${SCHEDULE_RETAIN:-20}"
             archive_artifacts="${SCHEDULE_ARCHIVE_ARTIFACTS:-true}"
           fi
@@ -431,6 +446,7 @@ jobs:
 
           [ -n "$mqtt_broker_url" ] && args+=(--mqtt-broker-url "$mqtt_broker_url")
           [ -n "$mqtt_mappings" ] && args+=(--mqtt-mappings "$mqtt_mappings")
+          [ -n "$machine_corpus" ] && args+=(--machine-corpus "$machine_corpus")
           [ -n "$compare_run" ] && args+=(--compare "$compare_run")
           [ "$archive_artifacts" = "true" ] && args+=(--archive "$PWD/.regression-tests/archive")
 

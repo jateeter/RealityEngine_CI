@@ -1008,6 +1008,7 @@ run_arbiter() {
   run_cmd "arbiter" python3 "$ci/scripts/regression-arbiter.py" \
     --registry /tmp/re-registry/re-registry.json \
     --contributions "$ci/config/arbiter-contributions.json" \
+    --machines "$(repo_root RealityEngine_Machines)" \
     --out "$REPORT_DIR/arbiter.json"
 }
 

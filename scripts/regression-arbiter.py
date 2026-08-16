@@ -91,6 +91,64 @@ def http(method: str, url: str, payload: Any = None, timeout: int = 20) -> tuple
         return 0, str(exc)
 
 
+# Provider identity as the corpus spells it on a service lane, mapped to the
+# class the arbiter ranks. A surface names itself for humans; the arbiter ranks
+# by determinism class.
+LANE_PROVIDER_ALIASES = {
+    "openclaw acp": "acp",
+    "localaistack": "localai",
+    "healthkit": "healthkit",
+    "healthkit (e2e)": "healthkit",
+    "carekit": "carekit",
+}
+
+
+def provider_registry(machines_root: Path) -> dict[str, Any]:
+    """The providers the corpus declares, in the two tiers it declares them.
+
+    ARBITER_CONTRACT.md criterion 11: the suite is parameterised over the
+    provider registry, so a newly registered integration surface is exercised
+    without the suite being modified — and a surface that has registered but not
+    passed may not contribute. Hardcoding `acp` would mean every future surface
+    ships unexercised until someone remembered to edit this file, which is the
+    failure the criterion is written against.
+
+    Two tiers, because the corpus declares two different things:
+
+      ranked      providers appearing in arbitration-registry providerRanks.
+                  These are rankable under PRECEDENCE, so a contribution from
+                  one has a defined outcome and can be asserted.
+      registered  providers named on a region-allocation service lane. These are
+                  integration surfaces that exist; a surface with no ranked
+                  declaration cannot be asserted against a contended cell, and
+                  is reported rather than skipped silently.
+    """
+    ranked: set[str] = set()
+    arbitration = machines_root / "domains" / "arbitration-registry.json"
+    if arbitration.exists():
+        document = json.loads(arbitration.read_text(encoding="utf-8"))
+        for entry in document.get("entries", []):
+            ranked.update((entry.get("providerRanks") or {}).keys())
+
+    registered: set[str] = set()
+    allocation = machines_root / "domains" / "region-allocation.json"
+    if allocation.exists():
+        document = json.loads(allocation.read_text(encoding="utf-8"))
+        for lane in document.get("serviceLanes") or []:
+            name = str(lane.get("provider") or "").strip().lower()
+            if name:
+                registered.add(LANE_PROVIDER_ALIASES.get(name, name))
+
+    return {
+        "ranked": sorted(ranked),
+        "registered": sorted(registered),
+        # Registered but unrankable: the surface exists and no contended cell
+        # declares how to resolve it. Contract 5: an undeclared contended cell is
+        # a corpus error, so this is worth naming rather than passing over.
+        "unranked": sorted(registered - ranked),
+    }
+
+
 def load_instances(registry_path: Path) -> list[dict[str, str]]:
     """RE/PE base URLs per runtime, from the runtime registry."""
     document = json.loads(registry_path.read_text(encoding="utf-8"))
@@ -132,11 +190,27 @@ def main() -> int:
     parser.add_argument("--contributions", type=Path, required=True)
     parser.add_argument("--out", type=Path, required=True)
     parser.add_argument("--settle-ms", type=int, default=1500)
+    parser.add_argument("--machines", type=Path, required=True,
+                        help="RealityEngine_Machines root, for the provider registry")
     args = parser.parse_args()
 
     instances = load_instances(args.registry)
     replay = json.loads(args.contributions.read_text(encoding="utf-8"))
-    report: dict[str, Any] = {"status": "passed", "instances": [], "failures": []}
+    registry = provider_registry(args.machines)
+    report: dict[str, Any] = {"status": "passed", "instances": [], "failures": [],
+                              "providerRegistry": registry}
+
+    # Every ranked provider other than `machine` is a contributor class the
+    # arbiter must resolve against a machine determination. Driving the replay
+    # from the registry rather than a literal is what makes a newly ranked
+    # surface exercised without editing this file (criterion 11).
+    replay_providers = [p for p in registry["ranked"] if p != "machine"]
+    print(f"provider registry: ranked={registry['ranked']} "
+          f"registered={registry['registered']} unranked={registry['unranked']}")
+    if registry["unranked"]:
+        print(f"  note: registered surfaces with no ranked declaration: "
+              f"{registry['unranked']} — they cannot contribute to a contended "
+              "cell until one declares how to resolve them (contract 5)")
 
     if not instances:
         report.update(status="skipped", reason="no instances in the registry")
@@ -215,45 +289,53 @@ def main() -> int:
         source = replay["source"]
         region = replay["region"]
         entry["fixture9b"] = []
-        for case in replay["replays"]:
-            payload_source = {
-                "id": source["id"],
-                "type": source["type"],
-                "origin": source["origin"],
-                "region": region,
-                "values": case["values"],
-            }
-            code, _ = http("POST", f"{instance['pe']}/api/sources", payload_source)
-            if code not in (200, 201, 409):
-                print(f"  note: PE source replay unavailable ({code}); "
-                      f"9b value assertions skipped for {case['label']}")
-                entry["fixture9b"].append({"label": case["label"], "status": "unavailable"})
-                continue
-            ran_9b = True
-            http("POST", f"{instance['pe']}/api/push", {"sourceId": source["id"]})
-            http("POST", f"{instance['re']}/api/perceptual-simulation/step", {})
-            time.sleep(args.settle_ms / 1000.0)
-            _, current = http("GET", f"{instance['re']}/api/arbitration")
-            got = cell_records(current, CELLS_9B)
-            case_report = {"label": case["label"], "cells": {}}
-            for index, cell in enumerate(CELLS_9B):
-                record = got.get(cell)
-                if not record:
+        # One pass per ranked provider, per replayed value.
+        for provider in replay_providers:
+            origin = source["originTemplate"].format(provider=provider) \
+                if "originTemplate" in source else source["origin"]
+            for case in replay["replays"]:
+                payload_source = {
+                    "id": f"{source['id']}-{provider}",
+                    "type": source["type"],
+                    "origin": origin,
+                    "region": region,
+                    "values": case["values"],
+                }
+                code, _ = http("POST", f"{instance['pe']}/api/sources", payload_source)
+                if code not in (200, 201, 409):
+                    print(f"  note: PE source replay unavailable ({code}); "
+                          f"9b skipped for {provider}/{case['label']}")
+                    entry["fixture9b"].append(
+                        {"provider": provider, "label": case["label"],
+                         "status": "unavailable"})
                     continue
-                case_report["cells"][str(cell)] = record.get("resolved")
-                expected = case["expectResolved"][index]
-                if record.get("resolved") != expected:
-                    fail(f"{name}: 9b cell {cell} ({case['label']}) resolved "
-                         f"{record.get('resolved')!r}, expected {expected} — a generated "
-                         "contribution must never override a deterministic one (5a)")
-                providers = {c.get("provider") for c in record.get("suppressed") or []}
-                if replay["expectations"]["suppressedProvider"] not in providers and providers:
-                    fail(f"{name}: 9b cell {cell} suppressed {sorted(providers)}, "
-                         "expected the agent contribution to be the suppressed one "
-                         "and to stay attributable (§6)")
-                for problem in check_record_completeness(record):
-                    fail(f"{name}: {problem}")
-            entry["fixture9b"].append(case_report)
+                ran_9b = True
+                http("POST", f"{instance['pe']}/api/push",
+                     {"sourceId": f"{source['id']}-{provider}"})
+                http("POST", f"{instance['re']}/api/perceptual-simulation/step", {})
+                time.sleep(args.settle_ms / 1000.0)
+                _, current = http("GET", f"{instance['re']}/api/arbitration")
+                got = cell_records(current, CELLS_9B)
+                case_report = {"provider": provider, "label": case["label"], "cells": {}}
+                for index, cell in enumerate(CELLS_9B):
+                    record = got.get(cell)
+                    if not record:
+                        continue
+                    case_report["cells"][str(cell)] = record.get("resolved")
+                    expected = case["expectResolved"][index]
+                    if record.get("resolved") != expected:
+                        fail(f"{name}: 9b cell {cell} ({provider}/{case['label']}) "
+                             f"resolved {record.get('resolved')!r}, expected {expected} "
+                             "— a generated contribution must never override a "
+                             "deterministic one (5a)")
+                    suppressed = {c.get("provider") for c in record.get("suppressed") or []}
+                    if suppressed and provider not in suppressed:
+                        fail(f"{name}: 9b cell {cell} suppressed {sorted(suppressed)}, "
+                             f"expected the {provider} contribution to be the suppressed "
+                             "one and to stay attributable (§6)")
+                    for problem in check_record_completeness(record):
+                        fail(f"{name}: {problem}")
+                entry["fixture9b"].append(case_report)
 
         report["instances"].append(entry)
 
