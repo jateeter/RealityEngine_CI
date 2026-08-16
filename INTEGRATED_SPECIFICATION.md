@@ -136,6 +136,14 @@ clean source state:
 | CI shell lint | `bash -n startUniverse.sh stopUniverse.sh statusUniverse.sh scripts/*.sh scripts/tests/*.sh` in `RealityEngine_CI` |
 | Surface spec drift | `bash scripts/check-surface-specs.sh` in `RealityEngine_CI` |
 | Multi-engine conformance | `_CI/startUniverse.sh --no-openclaw --skip-seed --engines=scala:1,lsp:1` plus `RealityEngine_Machines/tests/integration/multi-instance.spec.ts` |
+| Corpus exit criteria | `python3 scripts/check-corpus-exit-criteria.py --machines RealityEngine_Machines --openclaw localOpenClawStack` in `RealityEngine_CI` |
+| OWL reasoning, every domain | `npm run owl:reason:domains` in `RealityEngine_Machines` (ELK + HermiT) |
+| Arbiter conformance | `bash scripts/regression-test.sh --execute --machine-corpus=arbiter-fixture` in `RealityEngine_CI` |
+
+The arbiter gate needs the fixture corpus, not `standard-deployment`. That corpus
+has zero contended cells, so a run against it reports success whether or not an
+arbiter exists — which is the gap RealityEngine_CI#123 was filed about, and the
+reason the stage refuses to claim a pass on a corpus it cannot exercise.
 
 ## Current Validation Snapshot
 

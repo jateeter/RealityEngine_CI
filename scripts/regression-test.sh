@@ -990,6 +990,27 @@ run_mqtt_yuma() {
   [ "$found" = true ] || { log "SKIP MQTT: no running PE instances in registry"; write_mqtt_skip_report "no running PE instances in registry"; return 0; }
 }
 
+# Arbiter conformance (ARBITER_CONTRACT.md 9). Runs only when the lane booted a
+# corpus that actually contains contended cells: standard-deployment has zero,
+# so on that corpus the stage would report success without exercising anything,
+# which is precisely the gap #123 was filed about.
+run_arbiter() {
+  step "Arbiter conformance (9a machine/machine, 9b machine/provider)"
+  local ci; ci="$(repo_root RealityEngine_CI)"
+  case "$MACHINE_CORPUS" in
+    arbiter-fixture|standard-deployment-plus-ring|full) ;;
+    *)
+      write_skip_report "arbiter-skipped.json" \
+        "corpus '$MACHINE_CORPUS' has no contended cells; run --machine-corpus=arbiter-fixture"
+      log "SKIP arbiter: corpus '$MACHINE_CORPUS' contains no contended cells"
+      return 0 ;;
+  esac
+  run_cmd "arbiter" python3 "$ci/scripts/regression-arbiter.py" \
+    --registry /tmp/re-registry/re-registry.json \
+    --contributions "$ci/config/arbiter-contributions.json" \
+    --out "$REPORT_DIR/arbiter.json"
+}
+
 run_mcp() {
   step "MCP open service"
   local ci
@@ -1235,6 +1256,7 @@ if [ "$LIVE_TESTS" = true ]; then
   run_stage "universal-vectors" run_universal_vectors
   run_stage "mqtt-yuma"         run_mqtt_yuma
   run_stage "mcp"               run_mcp
+  run_stage "arbiter"           run_arbiter
   run_stage "local-ai"          run_local_ai
   run_stage "openclaw"          run_openclaw
   # Last: it drives a simulator and is the slowest stage, so a failure here

@@ -1,0 +1,62 @@
+{
+  "$comment": [
+    "Recorded contribution set for the arbiter conformance stage.",
+    "",
+    "ARBITER_CONTRACT.md 8.0: byte equivalence is only defined over reproducible",
+    "contributions. A `generated` contribution is not reproducible by",
+    "construction, so fixture 9b is tested by replaying a recorded set or with",
+    "generated sources disabled — never by comparing two live agent runs and",
+    "expecting identical vectors, which is a misunderstanding of what",
+    "`generated` means.",
+    "",
+    "These are replayed through a real PE source, not injected past it. A source",
+    "whose origin names an ACP surface classifies as provider `acp` and so as",
+    "determinism `generated`, which is the path a live gateway would take.",
+    "Contract 2.1: nothing bypasses the arbiter, and a test harness that did",
+    "would be proving something other than the runtime."
+  ],
+  "schemaVersion": "1.0.0",
+  "fixture": "9b",
+  "region": { "offset": 16940, "length": 2 },
+  "machineWriter": {
+    "machine": "ArbitrationProviderPeer",
+    "note": "asserts [1,1] at AMBER; deterministic, providerRank 3"
+  },
+  "source": {
+    "id": "arb-9b-replay",
+    "type": "sensor",
+    "origin": "acp.openclaw.arbitration-provider-target.input-analyst.assessment",
+    "originId": "openclaw-arbitration-provider-target-native-input-projection",
+    "note": "origin names an ACP surface, so providerOf() classifies it `acp` -> `generated`, providerRank 1"
+  },
+  "replays": [
+    {
+      "label": "agent below the determination",
+      "values": [0.0, 0.0],
+      "expectResolved": [1.0, 1.0]
+    },
+    {
+      "label": "agent level with the determination",
+      "values": [0.5, 0.5],
+      "expectResolved": [1.0, 1.0]
+    },
+    {
+      "label": "agent at the ceiling — criterion 5a, at any value",
+      "values": [1.0, 1.0],
+      "expectResolved": [1.0, 1.0]
+    }
+  ],
+  "expectations": {
+    "suppressedProvider": "acp",
+    "contributorProvider": "machine",
+    "note": [
+      "The machine value is 1.0, the ceiling of the clamped range, so PRECEDENCE",
+      "and a naive MAX agree on the resolved value and cannot be told apart by it.",
+      "What separates them is the record: under PRECEDENCE the agent contribution",
+      "is suppressed because it lost on determinism class, and stays attributable",
+      "there (contract 6). A MAX at an equal value has no principled reason to",
+      "suppress the agent specifically. So the assertion is on the record, not",
+      "only on the value."
+    ]
+  }
+}
