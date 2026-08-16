@@ -144,7 +144,8 @@ def find_compare_run(history_dir: Path, current_run_id: str, compare_run: str) -
 def compare_runs(current: dict[str, Any], previous: dict[str, Any] | None, previous_id: str | None) -> dict[str, Any]:
     if previous is None:
         return {"status": "not-compared", "previousRunId": previous_id or "", "changes": [], "newFailures": [], "resolvedFailures": []}
-    sections = ["build", "serviceInventory", "universalVectors", "mqtt", "mcp", "openclaw", "deployment"]
+    sections = ["build", "serviceInventory", "universalVectors", "mqtt", "mcp",
+                "arbiter", "openclaw", "deployment"]
     changes = []
     new_failures = []
     resolved_failures = []
@@ -188,6 +189,7 @@ def summary_markdown(run_dir: Path, status: dict[str, Any], comparison: dict[str
         ("Universal vectors", "universalVectors"),
         ("MQTT Yuma", "mqtt"),
         ("MCP", "mcp"),
+        ("Arbiter conformance", "arbiter"),
         ("OpenClaw", "openclaw"),
         ("Deployment suite", "deployment"),
     ):
