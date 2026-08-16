@@ -177,6 +177,11 @@ jobs:
     timeout-minutes: 15
 
     steps:
+      # This job runs scripts from this repo (check-corpus-exit-criteria.py), so
+      # it needs its own checkout as well as the corpus.
+      - name: Checkout RealityEngine_CI
+        uses: actions/checkout@v4
+
       - name: Checkout RealityEngine_Machines
         uses: actions/checkout@v4
         with:
@@ -247,6 +252,28 @@ jobs:
       - name: Reason every domain (ELK + HermiT)
         working-directory: RealityEngine_Machines
         run: npm run owl:reason:domains
+
+      # The exit criteria are a cross-repo contract, so the gate needs both
+      # sides. corpus-gates saw only RealityEngine_Machines, which is exactly why
+      # the corpus<->agent boundary had no gate on either side of it. Checked out
+      # here rather than at the top of the job so it sits next to its only use.
+      - name: Checkout localOpenClawStack
+        uses: actions/checkout@v4
+        with:
+          repository: ${{ github.repository_owner }}/localOpenClawStack
+          path: localOpenClawStack
+          token: ${{ secrets.REPO_ACCESS_TOKEN || github.token }}
+
+      # corpus-exit-v1.0 §3.7 states what makes a dependent regeneration correct
+      # and nothing checked it. Regenerating the agent corpus produced two
+      # regressions the criteria caught by hand and this catches automatically:
+      # 1,328 agent specs instead of 1,323 — the arbitration fixtures must stay
+      # agent-free — and axis names drifting from the corpus that owns them.
+      - name: Enforce the corpus exit criteria
+        run: |
+          python3 scripts/check-corpus-exit-criteria.py \
+            --machines RealityEngine_Machines \
+            --openclaw localOpenClawStack
 
       # OWL semantics parity gates: regeneration determinism, vocabulary
       # closure, sequence/trigger parity, life-safety typing, RED ⇒ escalation.
