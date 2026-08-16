@@ -5,7 +5,7 @@
     "ARBITER_CONTRACT.md 8.0: byte equivalence is only defined over reproducible",
     "contributions. A `generated` contribution is not reproducible by",
     "construction, so fixture 9b is tested by replaying a recorded set or with",
-    "generated sources disabled — never by comparing two live agent runs and",
+    "generated sources disabled \u2014 never by comparing two live agent runs and",
     "expecting identical vectors, which is a misunderstanding of what",
     "`generated` means.",
     "",
@@ -13,11 +13,16 @@
     "whose origin names an ACP surface classifies as provider `acp` and so as",
     "determinism `generated`, which is the path a live gateway would take.",
     "Contract 2.1: nothing bypasses the arbiter, and a test harness that did",
-    "would be proving something other than the runtime."
+    "would be proving something other than the runtime.",
+    "",
+    "Providers are not listed here. They come from the corpus: every provider appearing in arbitration-registry providerRanks other than `machine`. Hardcoding `acp` would ship every future surface unexercised until someone remembered to edit this file, which is the failure criterion 11 is written against."
   ],
   "schemaVersion": "1.0.0",
   "fixture": "9b",
-  "region": { "offset": 16940, "length": 2 },
+  "region": {
+    "offset": 16940,
+    "length": 2
+  },
   "machineWriter": {
     "machine": "ArbitrationProviderPeer",
     "note": "asserts [1,1] at AMBER; deterministic, providerRank 3"
@@ -27,23 +32,42 @@
     "type": "sensor",
     "origin": "acp.openclaw.arbitration-provider-target.input-analyst.assessment",
     "originId": "openclaw-arbitration-provider-target-native-input-projection",
-    "note": "origin names an ACP surface, so providerOf() classifies it `acp` -> `generated`, providerRank 1"
+    "note": "origin is templated on the provider so the replay follows the corpus provider registry rather than a literal: a newly ranked surface is exercised without editing this file (contract criterion 11). The PE classifies by origin, so the template is what selects the class.",
+    "originTemplate": "{provider}.openclaw.arbitration-provider-target.input-analyst.assessment"
   },
   "replays": [
     {
       "label": "agent below the determination",
-      "values": [0.0, 0.0],
-      "expectResolved": [1.0, 1.0]
+      "values": [
+        0.0,
+        0.0
+      ],
+      "expectResolved": [
+        1.0,
+        1.0
+      ]
     },
     {
       "label": "agent level with the determination",
-      "values": [0.5, 0.5],
-      "expectResolved": [1.0, 1.0]
+      "values": [
+        0.5,
+        0.5
+      ],
+      "expectResolved": [
+        1.0,
+        1.0
+      ]
     },
     {
-      "label": "agent at the ceiling — criterion 5a, at any value",
-      "values": [1.0, 1.0],
-      "expectResolved": [1.0, 1.0]
+      "label": "agent at the ceiling \u2014 criterion 5a, at any value",
+      "values": [
+        1.0,
+        1.0
+      ],
+      "expectResolved": [
+        1.0,
+        1.0
+      ]
     }
   ],
   "expectations": {
