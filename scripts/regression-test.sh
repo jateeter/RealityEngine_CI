@@ -192,8 +192,13 @@ case "$PROFILE" in
     [ "$MACHINE_CORPUS_SET" = true ] || MACHINE_CORPUS="standard-deployment"
     [ "$OPENCLAW_FLAG" = "--no-openclaw" ] || profile_refuse "run OpenClaw (--openclaw)"
     [ "$LOCAL_AI" = false ] || profile_refuse "run localAI/Ollama (--local-ai)"
-    [ "$MACHINE_CORPUS" = "standard-deployment" ] ||
-      profile_refuse "load the '$MACHINE_CORPUS' corpus (--machine-corpus=$MACHINE_CORPUS)"
+    # What the hosted lane refuses is the *full* corpus, because full-corpus
+    # load behaviour belongs to dedicated scaling tests rather than to a lane
+    # default. A manifest-backed corpus is a named, bounded subset — the arbiter
+    # fixtures are seven machines — so there is nothing about a hosted runner
+    # that cannot boot one, and jateeter/RealityEngine_CI#123 needs exactly that.
+    [ "$MACHINE_CORPUS" != "full" ] ||
+      profile_refuse "load the full corpus (--machine-corpus=full)"
     if [ "$PROFILE_CONFLICT" = true ]; then
       echo "       These never run on a hosted runner. Use --profile local," >&2
       echo "       which runs the full stack on operator hardware." >&2
@@ -227,10 +232,36 @@ case "$PROFILE" in
     ;;
 esac
 
+# Any manifest in config/ is a corpus, not just the two that were hardcoded.
+#
+# config/arbiter-fixture-corpus.txt and config/standard-deployment-plus-ring-corpus.txt
+# were merged and then referenced by nothing — no script, workflow or doc in this
+# repo could select them, because this case statement rejected every name but
+# two. startUniverse.sh has taken --machine-corpus-manifest=PATH all along; the
+# harness simply never passed it. See jateeter/RealityEngine_CI#123.
+MACHINE_CORPUS_MANIFEST=""
 case "$MACHINE_CORPUS" in
-  full|standard-deployment) ;;
-  *) echo "Unsupported --machine-corpus: $MACHINE_CORPUS (full|standard-deployment)" >&2; exit 2 ;;
+  full) ;;
+  standard-deployment)
+    MACHINE_CORPUS_MANIFEST="$CI_DIR/config/standard-deployment-corpus.txt" ;;
+  *)
+    MACHINE_CORPUS_MANIFEST="$CI_DIR/config/$MACHINE_CORPUS-corpus.txt"
+    if [ ! -f "$MACHINE_CORPUS_MANIFEST" ]; then
+      echo "Unsupported --machine-corpus: $MACHINE_CORPUS" >&2
+      echo "Expected 'full', or a manifest at config/<name>-corpus.txt. Available:" >&2
+      for _m in "$CI_DIR"/config/*-corpus.txt; do
+        [ -f "$_m" ] || continue
+        _n="$(basename "$_m")"; _n="${_n%-corpus.txt}"
+        printf '  %s (%s machines)\n' "$_n" \
+          "$(grep -cvE '^\s*(#|$)' "$_m" 2>/dev/null || echo '?')" >&2
+      done
+      exit 2
+    fi
+    # Materialisation is what --machine-corpus=standard-deployment triggers in
+    # startUniverse.sh, so any manifest-backed corpus rides the same path.
+    MACHINE_CORPUS_BOOT="standard-deployment" ;;
 esac
+MACHINE_CORPUS_BOOT="${MACHINE_CORPUS_BOOT:-$MACHINE_CORPUS}"
 
 RUN_DIR="$HISTORY_DIR/runs/$RUN_ID"
 LOG_DIR="$RUN_DIR/logs"
@@ -844,11 +875,12 @@ start_universe() {
     "--engines=$ENGINES_SPEC"
     "--machine-load=runtime"
     "--pe-source-bootstrap=auto"
-    "--machine-corpus=$MACHINE_CORPUS"
+    "--machine-corpus=$MACHINE_CORPUS_BOOT"
     "$OPENCLAW_FLAG"
     "--warn-only"
   )
   [ "$LOCAL_AI" = true ] || args+=("--no-local-ai")
+  [ -n "$MACHINE_CORPUS_MANIFEST" ] && args+=("--machine-corpus-manifest=$MACHINE_CORPUS_MANIFEST")
   [ -n "$MQTT_BROKER_URL" ] && args+=("--mqtt-broker-url=$MQTT_BROKER_URL")
   [ -n "$MQTT_MAPPINGS" ] && args+=("--mqtt-mappings=$MQTT_MAPPINGS")
   run_cmd "start-universe" bash -lc "cd '$ci' && ./startUniverse.sh ${args[*]}"
@@ -876,7 +908,7 @@ run_service_inventory() {
 # worktree corpus instead would build parity events out of machines no running
 # engine has ever seen.
 active_machines_dir() {
-  if [ "$MACHINE_CORPUS" = "standard-deployment" ]; then
+  if [ "$MACHINE_CORPUS_BOOT" = "standard-deployment" ]; then
     printf '%s/machines\n' "$MACHINE_CORPUS_WORK_DIR"
   else
     printf '%s/machines\n' "$(repo_root RealityEngine_Machines)"
