@@ -154,11 +154,22 @@ def load_instances(registry_path: Path) -> list[dict[str, str]]:
     document = json.loads(registry_path.read_text(encoding="utf-8"))
     out = []
     for instance in document.get("instances", []):
+        # The registry writes snake_case: re_url / pe_url. This read camelCase,
+        # which yielded empty strings and produced `unknown url type:
+        # '/api/arbitration'` on the first real run. It passed locally because
+        # the fixture I tested against was hand-written to the shape I assumed —
+        # the field names were never checked against the registry the universe
+        # actually produces. camelCase is accepted as a fallback because
+        # regression-service-inventory.py re-emits the registry in that shape.
+        re_url = instance.get("re_url") or instance.get("reUrl") or ""
+        pe_url = instance.get("pe_url") or instance.get("peUrl") or ""
+        if not re_url:
+            continue
         out.append({
             "id": instance.get("id", "?"),
             "runtime": instance.get("runtime", "?"),
-            "re": (instance.get("reUrl") or "").rstrip("/"),
-            "pe": (instance.get("peUrl") or "").rstrip("/"),
+            "re": re_url.rstrip("/"),
+            "pe": pe_url.rstrip("/"),
         })
     return out
 
