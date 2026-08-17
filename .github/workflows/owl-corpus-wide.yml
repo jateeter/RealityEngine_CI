@@ -118,6 +118,12 @@ jobs:
 
       # ubuntu-latest has 16GB; -Xmx12g leaves room for the runner itself. The
       # merged graph is ~96MB on disk and considerably more in memory.
+      # All twelve domains, moved off the per-PR gate. Sharded, so this is the
+      # completeness check; the merged run below is the cross-domain one.
+      - name: Reason every domain (ELK + HermiT)
+        working-directory: RealityEngine_Machines
+        run: npm run owl:reason:domains
+
       - name: Merge and reason over the whole corpus
         working-directory: RealityEngine_Machines
         env:

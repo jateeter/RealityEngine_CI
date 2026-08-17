@@ -137,9 +137,21 @@ clean source state:
 | Surface spec drift | `bash scripts/check-surface-specs.sh` in `RealityEngine_CI` |
 | Multi-engine conformance | `_CI/startUniverse.sh --no-openclaw --skip-seed --engines=scala:1,lsp:1` plus `RealityEngine_Machines/tests/integration/multi-instance.spec.ts` |
 | Corpus exit criteria | `python3 scripts/check-corpus-exit-criteria.py --machines RealityEngine_Machines --openclaw localOpenClawStack` in `RealityEngine_CI` |
-| OWL reasoning, every domain | `npm run owl:reason:domains` in `RealityEngine_Machines` (ELK + HermiT) |
+| OWL reasoning, minimal corpus | `npm run owl:reason:corpus` in `RealityEngine_Machines` (ELK + HermiT, ~5s) |
+| OWL reasoning, every domain | `npm run owl:reason:domains` in `RealityEngine_Machines` — **cyclic, not per-PR** |
 | Arbiter conformance, 9a | `bash scripts/regression-test.sh --execute --profile hosted --machine-corpus=arbiter-fixture` in `RealityEngine_CI` |
 | Arbiter conformance, 9b | `bash scripts/regression-test.sh --execute --profile local --machine-corpus=arbiter-fixture` in `RealityEngine_CI` |
+
+**Routine validation never loads the full corpus.** The regression lanes boot a
+minimal provable corpus — chosen to be provable rather than merely small, since
+it carries the machine classes, the bus and the fixtures the contracts are
+stated against. Full-corpus validation runs manually or on a cycle: every domain
+and the corpus-wide merge both live in the weekly `owl-corpus-wide` workflow.
+
+That separation is load-bearing as the corpus grows. Domains, machines and CES
+all expand at MVP, and a gate whose cost scales with the thing it guards is a
+gate that eventually gets switched off — worse than a smaller gate that keeps
+running.
 
 Both arbiter gates need the fixture corpus, not `standard-deployment`. That
 corpus has zero contended cells, so a run against it reports success whether or
