@@ -55,17 +55,15 @@ from urllib import error, request
 # regions and then reads what the arbiter resolved. Without this the stage would
 # report a clean run having exercised nothing — the exact failure mode #123 was
 # filed about, reproduced one level up.
+# Long enough to address the fixture inputs. Not a claim about engine capacity:
+# the engines expand on demand, so this only has to reach the cells being driven.
+TRIGGER_VECTOR_LENGTH = 16960
+
 TRIGGER_CELLS = {
     16924: 1.0,  # ArbitrationWriterA  -> writes [1,1] at AMBER into 16930-16931
     16926: 1.0,  # ArbitrationWriterB  -> writes [0,0] at RED   into 16930-16931
     16936: 1.0,  # ArbitrationProviderPeer -> writes [1,1] into 16940-16941
 }
-
-# The fixtures occupy cells 16924-16943, above the 7680 default vector
-# dimension. An engine booted with the default silently has no such cells and
-# emits no records, which reads as a pass. startUniverse.sh must size the vector
-# for the corpus it boots; the stage asserts it rather than trusting it.
-MIN_VECTOR_DIMENSION = 16944
 
 CELLS_9A = [16930, 16931]
 CELLS_9B = [16940, 16941]
@@ -259,17 +257,25 @@ def main() -> int:
         print(f"  registry entries {payload.get('registryEntries')}  shards {payload.get('shards')}")
 
         # -- 9a: SEVERITY resolves to 0, not 1 ---------------------------------
-        status, config = http("GET", f"{instance['re']}/api/config")
-        dimension = (config or {}).get("vectorDimension") if isinstance(config, dict) else None
-        if isinstance(dimension, (int, float)) and dimension < MIN_VECTOR_DIMENSION:
-            fail(f"{name}: vectorDimension {int(dimension)} < {MIN_VECTOR_DIMENSION}; "
-                 "the arbiter fixtures live at cells 16924-16943 and do not exist in "
-                 "this vector, so an empty record set here would mean nothing")
-            report["instances"].append(entry)
-            continue
-        entry["vectorDimension"] = dimension
-
-        vector = [0.0] * int(dimension or MIN_VECTOR_DIMENSION)
+        # No precondition on vectorDimension.
+        #
+        # An earlier version failed the run when /api/config reported less than
+        # 16944, on the theory that the fixtures at cells 16924-16943 could not
+        # exist in a smaller vector. That is wrong: the engines grow the
+        # perceptual space on demand, which region-allocation.json states
+        # outright — "Engines grow the perceptual space on demand; this records
+        # the corpus footprint." The reported dimension is the configured value
+        # and does not move when the space expands.
+        #
+        # Verified: an engine booted at the 7680 default, driven at cells 16924+,
+        # emits `cell 16930 rule SEVERITY resolved 0` and still reports
+        # vectorDimension 7680. The guard blocked a working system.
+        #
+        # The real check is the one below — a contended cell that emits no record
+        # fails. That catches a vector too small *and* every other reason a
+        # fixture might not fire, without asserting a mechanism the runtimes do
+        # not use.
+        vector = [0.0] * TRIGGER_VECTOR_LENGTH
         for cell, value in TRIGGER_CELLS.items():
             vector[cell] = value
         http("POST", f"{instance['re']}/api/perceive", {"vector": vector})
