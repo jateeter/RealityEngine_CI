@@ -236,6 +236,27 @@ def extract_signature(payload: Any) -> Any:
     return payload
 
 
+def agreement_clusters(signatures: dict[str, Any], instance_order: list[str]) -> list[list[str]]:
+    """Group instances by identical signature, largest cluster first.
+
+    Byte equivalence is a property of the set, not of a designated member. This
+    replaced a comparison against instance_order[0] — whichever instance the
+    registry listed first, which was also the engine localAIStack writes to, so
+    two runtimes agreeing exactly with each other were both reported as
+    diverging (#138).
+
+    Ties are left tied: with runtimes split evenly there is no majority, and
+    resolving it arbitrarily would reinstate the designated-baseline problem.
+    """
+    clusters: dict[str, list[str]] = {}
+    for instance_key in instance_order:
+        clusters.setdefault(json.dumps(signatures.get(instance_key), sort_keys=True), []).append(instance_key)
+    return sorted(
+        (sorted(members) for members in clusters.values()),
+        key=lambda members: (-len(members), members),
+    )
+
+
 def signature_diff(baseline: Any, actual: Any) -> dict[str, Any]:
     return {
         "baselineSignature": baseline,
@@ -324,26 +345,57 @@ def main() -> int:
             )
             if status < 200 or status >= 300:
                 failures.append(f"{event['id']} {instance['id']} ({instance['runtime']}) HTTP {status}")
-        unique = {json.dumps(sig, sort_keys=True) for sig in signatures.values()}
-        if len(unique) != 1:
-            baseline_key = instance_order[0] if instance_order else ""
-            baseline = signatures.get(baseline_key)
-            for instance_key in instance_order[1:]:
-                actual = signatures.get(instance_key)
-                if json.dumps(actual, sort_keys=True) != json.dumps(baseline, sort_keys=True):
-                    comparison = {
+        # Byte equivalence is a property of the *set*, not of a designated
+        # member. This compared every runtime against instance_order[0] — which
+        # is whichever instance the registry happened to list first, and which
+        # is also the engine localAIStack's bridge writes to (#46). On
+        # 2026-08-17 that engine held 17 machines while the others held 7, so
+        # every comparison ran against the contaminated party: two runtimes that
+        # agreed exactly with each other were both reported as diverging, and
+        # RealityEngine_LSP#38 was filed on that reading. See #138.
+        #
+        # Group by signature instead. Agreement is reported either way, so a
+        # reader can tell "one runtime is the outlier" from "all three disagree"
+        # without knowing which instance came first.
+        agreement = agreement_clusters(signatures, instance_order)
+        summary.setdefault("agreement", []).append(
+            {"event": event["id"], "clusters": agreement}
+        )
+
+        if len(agreement) != 1:
+            # The largest cluster is the reference, and ties are reported as
+            # ties rather than resolved arbitrarily — with two runtimes
+            # disagreeing 1-1 there is no majority and saying so is the honest
+            # result.
+            largest = max(len(members) for members in agreement)
+            majorities = [m for m in agreement if len(m) == largest]
+            tied = len(majorities) > 1
+            reference_members = majorities[0]
+            reference_sig = signatures.get(reference_members[0])
+
+            for members in agreement:
+                if members is reference_members or members == reference_members:
+                    continue
+                actual = signatures.get(members[0])
+                comparisons.append(
+                    {
                         "event": event["id"],
                         "machineFile": event.get("machineFile"),
                         "machineId": event.get("machineId"),
                         "sequenceId": event.get("sequenceId"),
-                        "baselineInstance": baseline_key,
-                        "actualInstance": instance_key,
-                        **signature_diff(baseline, actual),
+                        "referenceInstances": reference_members,
+                        "divergentInstances": members,
+                        "referenceIsTied": tied,
+                        **signature_diff(reference_sig, actual),
                     }
-                    comparisons.append(comparison)
-                    failures.append(f"{event['id']} parity mismatch: {instance_key} differs from {baseline_key}")
-            if len(instance_order) == 1:
-                failures.append(f"{event['id']} parity mismatch with only one runtime signature")
+                )
+            shape = " | ".join("+".join(members) for members in agreement)
+            note = " (no majority — runtimes split evenly)" if tied else ""
+            failures.append(f"{event['id']} parity mismatch: {shape}{note}")
+        if len(instance_order) == 1:
+            # Unchanged in meaning, moved out of the mismatch branch: a single
+            # signature cannot demonstrate parity whether or not it "agrees".
+            failures.append(f"{event['id']} parity mismatch with only one runtime signature")
 
     summary["failures"] = failures
     (args.out / "summary.json").write_text(json.dumps(summary, indent=2, sort_keys=True), encoding="utf-8")
