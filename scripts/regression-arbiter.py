@@ -38,6 +38,21 @@ construction. Contributions are replayed through a real PE source — one whose
 origin names an ACP surface, which is the path a live gateway takes — because
 §2.1 says nothing bypasses the arbiter and a harness that did would be proving
 something other than the runtime.
+
+Lane split, and it is by design rather than by circumstance:
+
+    9a  machine/machine    both lanes. Needs the corpus and the engines, and
+                           nothing else.
+    9b  machine/provider   LOCAL ONLY. Its declared non-machine writer is an ACP
+                           source, and OpenClaw, Ollama and the HealthKit bridge
+                           run only on the local lane — the hosted profile
+                           refuses them outright. Replay removes the need for a
+                           live *gateway*; it does not conjure a PE integration
+                           surface the lane never started.
+
+So the hosted lane is not where machine/provider contention gets proven, and a
+hosted run reporting 9b unexercised is complete rather than partial. #123 argued
+the opposite and was wrong.
 """
 
 from __future__ import annotations
@@ -201,6 +216,9 @@ def main() -> int:
     parser.add_argument("--settle-ms", type=int, default=1500)
     parser.add_argument("--machines", type=Path, required=True,
                         help="RealityEngine_Machines root, for the provider registry")
+    parser.add_argument("--lane", choices=("hosted", "local"), default="hosted",
+                        help="local runs the full system (OpenClaw, Ollama, HealthKit "
+                             "bridge), so 9b is in scope there and only there")
     args = parser.parse_args()
 
     instances = load_instances(args.registry)
@@ -214,6 +232,32 @@ def main() -> int:
     # from the registry rather than a literal is what makes a newly ranked
     # surface exercised without editing this file (criterion 11).
     replay_providers = [p for p in registry["ranked"] if p != "machine"]
+
+    # 9b is a local-lane fixture, and that is structural rather than incidental.
+    #
+    # It asserts machine/provider contention, and its declared non-machine writer
+    # is an ACP source. The hosted profile *refuses* --openclaw, so the ACP
+    # surface is not running there at all:
+    #
+    #   SKIP OpenClaw: disabled
+    #
+    # ARBITER_CONTRACT.md 8.0 requires the contribution be replayed rather than
+    # taken from a live agent run, and that removes the need for a live
+    # *gateway* — it does not conjure a PE integration surface the lane never
+    # started. #123 claimed every substantive criterion was reachable on hosted;
+    # that was wrong, and this is where it shows.
+    #
+    # So on a lane without ACP the stage reports 9b out of scope, not
+    # unavailable. "Unavailable" reads as something broken and invites a fix;
+    # out-of-scope is the correct standing state for that lane.
+    if args.lane != "local":
+        # Do not attempt it. Reaching for a PE surface the lane never started
+        # produces a connection error that reads as a defect, which is how four
+        # hosted runs got spent on a fixture that cannot run there.
+        replay_providers = []
+        print("  9b: LOCAL LANE ONLY — machine/provider contention needs the ACP "
+              "surface, and OpenClaw, Ollama and the HealthKit bridge run only "
+              "on the local lane. Not attempted here.")
     print(f"provider registry: ranked={registry['ranked']} "
           f"registered={registry['registered']} unranked={registry['unranked']}")
     if registry["unranked"]:
@@ -364,9 +408,17 @@ def main() -> int:
     report["parity"] = {"runtimes": len(resolved_by_runtime), "agree": len(distinct) <= 1}
     report["fixtures"] = {"9a": "asserted", "9b": "asserted" if ran_9b else "not-run"}
     if report["status"] == "passed" and not ran_9b:
-        report["status"] = "partial"
-        report["reason"] = ("9b was not exercised: no PE accepted the replayed "
-                            "contribution set, so machine/provider contention is unproven")
+        if args.lane != "local":
+            # Complete, not partial: the lane did everything it can, and an
+            # amber light here would be permanent and meaningless.
+            report["fixtures"]["9b"] = "local-lane-only"
+            report["reason"] = ("9b needs the ACP surface; OpenClaw, Ollama and "
+                                "the HealthKit bridge run only on the local lane")
+        else:
+            report["status"] = "partial"
+            report["reason"] = ("9b was not exercised: the lane runs ACP but no "
+                                "PE accepted the replayed contribution set, so "
+                                "machine/provider contention is unproven")
 
     args.out.parent.mkdir(parents=True, exist_ok=True)
     args.out.write_text(json.dumps(report, indent=2, sort_keys=True) + "\n", encoding="utf-8")
@@ -378,6 +430,10 @@ def main() -> int:
     if report["status"] == "partial":
         print(f"arbiter: PARTIAL ({len(resolved_by_runtime)} runtime(s)) — 9a conforms; "
               "9b not exercised, no PE accepted the replay")
+        return 0
+    if report["fixtures"]["9b"] == "local-lane-only":
+        print(f"arbiter: OK ({len(resolved_by_runtime)} runtime(s)) — 9a conforms "
+              "on every runtime; 9b is a local-lane assertion")
         return 0
     print(f"arbiter: OK ({len(resolved_by_runtime)} runtime(s), 9a and 9b conform)")
     return 0

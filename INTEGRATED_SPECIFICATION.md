@@ -138,12 +138,26 @@ clean source state:
 | Multi-engine conformance | `_CI/startUniverse.sh --no-openclaw --skip-seed --engines=scala:1,lsp:1` plus `RealityEngine_Machines/tests/integration/multi-instance.spec.ts` |
 | Corpus exit criteria | `python3 scripts/check-corpus-exit-criteria.py --machines RealityEngine_Machines --openclaw localOpenClawStack` in `RealityEngine_CI` |
 | OWL reasoning, every domain | `npm run owl:reason:domains` in `RealityEngine_Machines` (ELK + HermiT) |
-| Arbiter conformance | `bash scripts/regression-test.sh --execute --machine-corpus=arbiter-fixture` in `RealityEngine_CI` |
+| Arbiter conformance, 9a | `bash scripts/regression-test.sh --execute --profile hosted --machine-corpus=arbiter-fixture` in `RealityEngine_CI` |
+| Arbiter conformance, 9b | `bash scripts/regression-test.sh --execute --profile local --machine-corpus=arbiter-fixture` in `RealityEngine_CI` |
 
-The arbiter gate needs the fixture corpus, not `standard-deployment`. That corpus
-has zero contended cells, so a run against it reports success whether or not an
-arbiter exists — which is the gap RealityEngine_CI#123 was filed about, and the
+Both arbiter gates need the fixture corpus, not `standard-deployment`. That
+corpus has zero contended cells, so a run against it reports success whether or
+not an arbiter exists — the gap RealityEngine_CI#123 was filed about, and the
 reason the stage refuses to claim a pass on a corpus it cannot exercise.
+
+**The two fixtures belong to different lanes, by design.** 9a is machine/machine
+contention: it needs the corpus and the engines and nothing else, so it runs on
+both lanes. 9b is machine/provider contention, and its declared non-machine
+writer is an ACP source — so it needs the **full system**, and OpenClaw, Ollama
+and the HealthKit bridge run **only on the local lane**. The hosted profile
+refuses all three outright.
+
+Replaying the contribution rather than taking it from a live agent run, which
+`ARBITER_CONTRACT.md` §8.0 requires, removes the need for a live *gateway*. It
+does not conjure a PE integration surface the lane never started. A hosted run
+reporting 9b unexercised is therefore complete, not partial, and
+machine/provider contention is proven on the local lane or not at all.
 
 ## Current Validation Snapshot
 

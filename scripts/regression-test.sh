@@ -1009,6 +1009,7 @@ run_arbiter() {
     --registry /tmp/re-registry/re-registry.json \
     --contributions "$ci/config/arbiter-contributions.json" \
     --machines "$(repo_root RealityEngine_Machines)" \
+    --lane "$PROFILE" \
     --out "$REPORT_DIR/arbiter.json"
 }
 
