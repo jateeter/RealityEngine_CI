@@ -1076,6 +1076,37 @@ run_local_ai() {
     --out "$REPORT_DIR/local-ai.json"
 }
 
+# localAIStack ships eight machine definitions of its own that the reality
+# bridge registers into the RE at runtime, alongside the corpus. They write real
+# positions in the universal vector, but they live outside RealityEngine_Machines
+# so the corpus gates never saw them — a 14-machine boot corpus was observed
+# loading as 24 (jateeter/localAIStack#38). A machine writing the vector that no
+# schema validated is a contributor the arbitration registry cannot account for.
+#
+# Local lane only, because the hosted profile does not run localAIStack at all.
+# The gate validates against the *canonical* schema using the canonical Ajv
+# setup from RealityEngine_Machines rather than a second implementation that
+# could drift from the corpus gate.
+run_localai_machines() {
+  step "localAI machine definitions against the canonical schema"
+  if [ "$LOCAL_AI" != true ]; then
+    log "SKIP localAI machine schema: local AI disabled on this profile"
+    write_skip_report "localai-machines-skipped.json" \
+      "local AI disabled (--profile $PROFILE)"
+    return 0
+  fi
+  if ! repo_present localAIStack; then
+    log "SKIP localAI machine schema: localAIStack not present"
+    write_skip_report "localai-machines-skipped.json" "localAIStack repo absent"
+    return 0
+  fi
+  local las machines
+  las="$(repo_root localAIStack)"
+  machines="$(repo_root RealityEngine_Machines)"
+  run_cmd "localai-machine-schema" env MACHINES_DIR="$machines" \
+    bash "$las/scripts/validate-machines.sh"
+}
+
 run_healthkit_bridge() {
   step "HealthKit bridge simulator leg"
   if [ "$PROFILE" != "local" ]; then
@@ -1271,6 +1302,7 @@ if [ "$LIVE_TESTS" = true ]; then
   run_stage "mqtt-yuma"         run_mqtt_yuma
   run_stage "mcp"               run_mcp
   run_stage "arbiter"           run_arbiter
+  run_stage "localai-machines"  run_localai_machines
   run_stage "local-ai"          run_local_ai
   run_stage "openclaw"          run_openclaw
   # Last: it drives a simulator and is the slowest stage, so a failure here
