@@ -208,6 +208,32 @@ def check_record_completeness(record: dict) -> list[str]:
     return problems
 
 
+def fixture_status(observed: int, expected: int) -> str:
+    """Status of a fixture from what was observed, never from what was attempted.
+
+    "asserted" means every reachable runtime produced an observation. Anything
+    less is said plainly: "partial" when some did, "not-run" when none did. An
+    empty result set must never reach "asserted" — see #135, where 9b reported
+    `asserted` with every instance returning no cells at all.
+    """
+    if not expected or not observed:
+        return "not-run"
+    return "asserted" if observed >= expected else "partial"
+
+
+def observed_counts(instances: list[dict]) -> dict[str, int]:
+    """Per-fixture observation counts across the reachable instances."""
+    reachable = [e for e in instances if e.get("reachable")]
+    return {
+        "reachable": len(reachable),
+        "9a": sum(1 for e in reachable if e.get("fixture9a")),
+        "9b": sum(
+            1 for e in reachable
+            if any(case.get("cells") for case in e.get("fixture9b") or [])
+        ),
+    }
+
+
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--registry", type=Path, required=True)
@@ -406,7 +432,26 @@ def main() -> int:
         fail("runtimes disagree on 9a resolved values: "
              + json.dumps(resolved_by_runtime, sort_keys=True))
     report["parity"] = {"runtimes": len(resolved_by_runtime), "agree": len(distinct) <= 1}
-    report["fixtures"] = {"9a": "asserted", "9b": "asserted" if ran_9b else "not-run"}
+
+    # A fixture's status is derived from what was *observed*, never from whether
+    # the stage attempted it. Attempting and observing are different claims, and
+    # only the second one is worth reporting: run 20260817T035849Z reported
+    # `9b: asserted` with every instance returning `cells: {}` and one runtime
+    # reporting the provider path unavailable — nothing had been measured, and
+    # the label said the criterion held (#135). The same applied to 9a, which
+    # was hardcoded `asserted` even when a runtime emitted no records at all.
+    #
+    # An empty result set must never reach "asserted".
+    cov = observed_counts(report["instances"])
+    report["fixtures"] = {
+        "9a": fixture_status(cov["9a"], cov["reachable"]),
+        "9b": fixture_status(cov["9b"], cov["reachable"]) if ran_9b else "not-run",
+    }
+    report["coverage"] = cov
+    # Which lane produced this artifact. 9b is local-lane-only by design (#134),
+    # so a report that does not say which lane it came from cannot be read after
+    # the fact — an absent 9b is expected on hosted and a regression on local.
+    report["lane"] = args.lane
     if report["status"] == "passed" and not ran_9b:
         if args.lane != "local":
             # Complete, not partial: the lane did everything it can, and an
@@ -435,7 +480,11 @@ def main() -> int:
         print(f"arbiter: OK ({len(resolved_by_runtime)} runtime(s)) — 9a conforms "
               "on every runtime; 9b is a local-lane assertion")
         return 0
-    print(f"arbiter: OK ({len(resolved_by_runtime)} runtime(s), 9a and 9b conform)")
+    # Print what was observed rather than a fixed "9a and 9b conform". A status
+    # line that cannot say less than "conform" is not a report.
+    print(f"arbiter: OK ({len(resolved_by_runtime)} runtime(s), lane {report['lane']}) — "
+          f"9a {report['fixtures']['9a']} ({cov['9a']}/{cov['reachable']}), "
+          f"9b {report['fixtures']['9b']} ({cov['9b']}/{cov['reachable']})")
     return 0
 
 
