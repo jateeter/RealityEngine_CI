@@ -1087,6 +1087,23 @@ run_local_ai() {
 # The gate validates against the *canonical* schema using the canonical Ajv
 # setup from RealityEngine_Machines rather than a second implementation that
 # could drift from the corpus gate.
+# The PE push response is how the Reality Engine's result travels back to the
+# Perception Engine. It was unspecified, and all three runtimes emitted different
+# key sets for an identical computation — which the universal-vector stage read
+# as engine divergence and which produced two issues filed against the wrong
+# runtimes. SURFACE_SPEC.md now fixes the shape; this asserts it on live engines.
+#
+# Runs on both lanes: it needs only a running PE/RE pair, and a contract that is
+# only checked locally is a contract the hosted lane can break.
+run_pe_step_contract() {
+  step "PE push response shape (SURFACE_SPEC)"
+  local ci; ci="$(repo_root RealityEngine_CI)"
+  run_cmd "pe-step-contract" python3 "$ci/scripts/regression-pe-step-contract.py" \
+    --registry /tmp/re-registry/re-registry.json \
+    --machines "$(repo_root RealityEngine_Machines)/machines" \
+    --out "$REPORT_DIR/pe-step-contract.json"
+}
+
 run_localai_machines() {
   step "localAI machine definitions against the canonical schema"
   if [ "$LOCAL_AI" != true ]; then
@@ -1298,6 +1315,7 @@ if [ "$LIVE_TESTS" = true ]; then
   # to measure, and their failures would say nothing about the runtimes.
   start_universe
   run_stage "service-inventory" run_service_inventory
+  run_stage "pe-step-contract" run_pe_step_contract
   run_stage "universal-vectors" run_universal_vectors
   run_stage "mqtt-yuma"         run_mqtt_yuma
   run_stage "mcp"               run_mcp
