@@ -249,9 +249,26 @@ jobs:
       # the merged run is scheduled weekly rather than dropped: see
       # .github/workflows/owl-corpus-wide.yml and
       # jateeter/RealityEngine_Machines#79.
-      - name: Reason every domain (ELK + HermiT)
+      # The minimal provable corpus, not the whole thing.
+      #
+      # This reasoned over all twelve domains — 1,328 machines, ~7m30s of every
+      # PR's gate — and that cost scales with the corpus. Domains, machines and
+      # CES all expand at MVP, and a gate that grows with the thing it guards is
+      # a gate that eventually gets switched off, which is worse than a smaller
+      # one that keeps running.
+      #
+      # Routine validation loads the minimal provable corpus; full-corpus checks
+      # run manually or on a cycle. Both reasoners run here because at 12
+      # machines completeness costs ~5s, and HermiT is the one that implements
+      # functional properties. All twelve domains stay in the weekly
+      # owl-corpus-wide workflow alongside the corpus-wide merge.
+      - name: Reason the minimal provable corpus (ELK + HermiT)
         working-directory: RealityEngine_Machines
-        run: npm run owl:reason:domains
+        run: npm run owl:reason:corpus
+
+      - name: Reason the arbiter fixtures (ELK + HermiT)
+        working-directory: RealityEngine_Machines
+        run: npm run owl:reason:arbiter
 
       # The exit criteria are a cross-repo contract, so the gate needs both
       # sides. corpus-gates saw only RealityEngine_Machines, which is exactly why

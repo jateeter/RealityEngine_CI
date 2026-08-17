@@ -994,11 +994,23 @@ run_mqtt_yuma() {
 # corpus that actually contains contended cells: standard-deployment has zero,
 # so on that corpus the stage would report success without exercising anything,
 # which is precisely the gap #123 was filed about.
+#
+# standard-deployment-plus-ring was on this list and does not belong: it is the
+# standard 12 plus RSRingLatchStageA/B, and the ring latches claim 16920-16924.
+# The 9a fixture reads 16930 and 9b uses 16936-16942, cells that only
+# ArbitrationWriterA/B, ArbitrationReader and ArbitrationProviderPeer/Target
+# write — and those five machines exist only in arbiter-fixture (and full).
+# Listing plus-ring here meant the stage ran against a corpus with no
+# arbitration machines in it and reported the absence as an engine defect:
+# "9a cell 16930 emitted no arbitration record". That is what the hosted cpp
+# run was reporting, and it was the corpus selection, not the runtime.
+#
+# A corpus that cannot satisfy the fixture must skip and say so, not fail.
 run_arbiter() {
   step "Arbiter conformance (9a machine/machine, 9b machine/provider)"
   local ci; ci="$(repo_root RealityEngine_CI)"
   case "$MACHINE_CORPUS" in
-    arbiter-fixture|standard-deployment-plus-ring|full) ;;
+    arbiter-fixture|full) ;;
     *)
       write_skip_report "arbiter-skipped.json" \
         "corpus '$MACHINE_CORPUS' has no contended cells; run --machine-corpus=arbiter-fixture"
@@ -1009,6 +1021,7 @@ run_arbiter() {
     --registry /tmp/re-registry/re-registry.json \
     --contributions "$ci/config/arbiter-contributions.json" \
     --machines "$(repo_root RealityEngine_Machines)" \
+    --lane "$PROFILE" \
     --out "$REPORT_DIR/arbiter.json"
 }
 
