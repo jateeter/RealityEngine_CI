@@ -194,11 +194,53 @@ def load_instances(registry: Path) -> list[dict[str, str]]:
     for item in data.get("instances", []):
         runtime = item.get("runtime")
         pe_url = item.get("pe_url")
+        re_url = item.get("re_url")
         if runtime and pe_url and item.get("status", "running") == "running":
-            instances.append({"id": item.get("id", runtime), "runtime": runtime, "pe_url": pe_url.rstrip("/")})
+            # re_url is carried so the stage can establish a known starting
+            # state; see reset_instances (#139).
+            instances.append({
+                "id": item.get("id", runtime),
+                "runtime": runtime,
+                "pe_url": pe_url.rstrip("/"),
+                "re_url": (re_url or "").rstrip("/"),
+            })
     if not instances:
         raise SystemExit(f"no running PE instances found in {registry}")
     return instances
+
+
+def reset_instances(instances: list[dict[str, str]]) -> list[dict[str, Any]]:
+    """Establish a known starting state before asserting anything.
+
+    The stage pushes five events against a persistent perceptual space and used
+    to assert on whatever state it found — a previous stage, ambient integration
+    traffic, or a prior run. A stage in that shape cannot distinguish a runtime
+    defect from leftover state, which is how "arbitration records are never
+    emitted" came to be filed and closed as not reproducible
+    (jateeter/RealityEngine_CPP#32, jateeter/RealityEngine_CI#139).
+
+    Reset is per-run, not per-event: the five-event sequence is cumulative by
+    design — each event's result depends on what the previous one wrote, and
+    that is the property the stage exists to compare. Resetting between events
+    would test five independent single-event runs instead.
+
+    Reported rather than assumed: a reset that silently failed would put the
+    stage back where it started, so the outcome per instance goes in the report.
+    """
+    outcomes: list[dict[str, Any]] = []
+    for instance in instances:
+        re_url = instance.get("re_url")
+        if not re_url:
+            outcomes.append({"instance": instance["id"], "reset": "skipped", "reason": "registry carries no re_url"})
+            continue
+        status, _ = post_json(f"{re_url}/api/engine/reset", {})
+        ok = 200 <= status < 300
+        outcomes.append({
+            "instance": instance["id"],
+            "reset": "ok" if ok else "failed",
+            "status": status,
+        })
+    return outcomes
 
 
 def safe_name(value: str) -> str:
@@ -308,6 +350,13 @@ def main() -> int:
     parser.add_argument("--event-fixture", type=Path, help="Pinned event fixture JSON. Defaults to deterministic corpus scan.")
     parser.add_argument("--out", type=Path, default=Path(".regression-tests/latest/universal-vectors"))
     parser.add_argument("--run-id", default=time.strftime("%Y%m%dT%H%M%SZ", time.gmtime()))
+    # On by default: a stage that asserts against whatever state it finds cannot
+    # tell a runtime defect from leftover state (#139).
+    parser.add_argument("--no-reset", dest="reset", action="store_false",
+                        help="Do not reset the engines first; measure accumulated state deliberately.")
+    parser.add_argument("--settle-ms", type=int, default=400,
+                        help="Pause after the reset before the first event.")
+    parser.set_defaults(reset=True)
     args = parser.parse_args()
 
     args.out.mkdir(parents=True, exist_ok=True)
@@ -317,6 +366,24 @@ def main() -> int:
     failures: list[str] = []
     comparisons: list[dict[str, Any]] = []
     summary: dict[str, Any] = {"runId": args.run_id, "events": events, "instances": instances, "results": [], "comparisons": comparisons}
+
+    # Known starting state before the first assertion (#139). Skippable for a
+    # caller deliberately measuring accumulated state.
+    if args.reset:
+        summary["reset"] = reset_instances(instances)
+        failed = [r for r in summary["reset"] if r.get("reset") == "failed"]
+        if failed:
+            # Not fatal: the run is still informative, and refusing to start
+            # would make a reset regression look like a parity regression. But
+            # it is recorded as a failure so the result is not read as clean.
+            for item in failed:
+                failures.append(
+                    f"engine reset failed on {item['instance']} (HTTP {item['status']}) — "
+                    "results below were measured against unknown prior state"
+                )
+        time.sleep(args.settle_ms / 1000.0)
+    else:
+        summary["reset"] = [{"reset": "disabled", "reason": "--no-reset"}]
 
     for event in events:
         signatures: dict[str, Any] = {}

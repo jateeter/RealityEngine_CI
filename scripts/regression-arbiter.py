@@ -310,6 +310,23 @@ def main() -> int:
     # reproducing it here would be worse than not having the stage.
     ran_9b = False
 
+    # Known starting state before the fixture fires. Without it the stage
+    # asserts against whatever touched the engine first, and whether the writer
+    # CESs are still armed depends on that. This stage reported "9a cell 16930
+    # emitted no arbitration record" against an engine whose writers had already
+    # advanced past their assert state — filed as a C++ defect and closed as not
+    # reproducible (jateeter/RealityEngine_CPP#32, jateeter/RealityEngine_CI#139).
+    reset_outcomes = []
+    for instance in instances:
+        status, _ = http("POST", f"{instance['re']}/api/engine/reset", {})
+        ok = 200 <= status < 300
+        reset_outcomes.append({"instance": instance["id"], "reset": "ok" if ok else "failed", "status": status})
+        if not ok:
+            fail(f"{instance['runtime']}:{instance['id']}: engine reset failed (HTTP {status}) — "
+                 "the fixture below was measured against unknown prior state")
+    report["reset"] = reset_outcomes
+    time.sleep(args.settle_ms / 1000.0)
+
     for instance in instances:
         name = f"{instance['runtime']}:{instance['id']}"
         entry: dict[str, Any] = {"instance": name, "re": instance["re"]}
