@@ -398,9 +398,32 @@ def main() -> int:
             origin = source["originTemplate"].format(provider=provider) \
                 if "originTemplate" in source else source["origin"]
             for case in replay["replays"]:
+                # Fully specified, because the runtimes disagree on what may be
+                # defaulted. C++ and LSP accept a minimal sensor source and fill
+                # the rest in; the Scala PE's decoder requires name, active,
+                # sensorId, ttlMs and lastValue and rejects the payload outright:
+                #   DecodingFailure at .name: Missing required field
+                # So 9b was skipped as "PE source replay unavailable (400)" on
+                # that runtime for as long as this fixture has existed, and the
+                # criterion it exists to prove was never exercised there (#123).
+                #
+                # The harness was the divergent party, as it was when it posted a
+                # source type of "regression" that no runtime defines. Sending
+                # every field is also the honest payload for a sensor source:
+                # sensorId and ttlMs are meaningful, not ceremony.
+                #
+                # That the three PEs disagree on which fields may be omitted is a
+                # separate parity question — the same class as the push response
+                # shape, on the source-creation side.
+                replay_id = f"{source['id']}-{provider}"
                 payload_source = {
-                    "id": f"{source['id']}-{provider}",
+                    "id": replay_id,
+                    "name": f"{provider} arbitration replay",
                     "type": source["type"],
+                    "active": True,
+                    "sensorId": replay_id,
+                    "ttlMs": 300_000,
+                    "lastValue": list(case["values"]),
                     "origin": origin,
                     "region": region,
                     "values": case["values"],
