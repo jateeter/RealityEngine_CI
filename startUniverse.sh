@@ -84,6 +84,7 @@ LOCAL_AI_ENABLED="${LOCAL_AI_ENABLED:-true}"
 
 # ── Flags ──────────────────────────────────────────────────────────────────
 FRESH_START=false
+FRESH_PROVIDER_CONTENT=false
 MACHINE_LOAD="runtime"       # runtime | ci-seed | none
 MACHINE_CORPUS="full"        # full | standard-deployment
 # OpenClaw agent corpus, sized to the machine corpus unless set explicitly.
@@ -115,7 +116,12 @@ print_usage() {
   cat <<'USAGE'
 startUniverse.sh — engine-selectable CI orchestrator
 
-  --fresh                       Wipe perception sources volume; rebuild images no-cache
+  --fresh                       New universe: clear persisted perception state (PE source
+                                  stores, Redis) and rebuild images no-cache. Does NOT clear
+                                  ingested content (Qdrant vectors, Open WebUI) — see
+                                  --fresh-provider-content
+  --fresh-provider-content      Everything --fresh does, plus the Qdrant vector store.
+                                  Ingested documents must be re-ingested afterwards.
   --machine-load=runtime        RE loads corpus from MACHINES_DIR at boot; CI never calls seed-machines.sh
                                   (default; sets RE_LOAD_MACHINES=1 on every native runtime wrapper)
   --machine-load=ci-seed        RE starts empty (RE_LOAD_MACHINES=0); CI calls seed-machines.sh --re-only
@@ -174,6 +180,7 @@ USAGE
 for arg in "$@"; do
   case "$arg" in
     --fresh)                    FRESH_START=true ;;
+    --fresh-provider-content)   FRESH_START=true; FRESH_PROVIDER_CONTENT=true ;;
     --machine-load=*)           MACHINE_LOAD="${arg#*=}" ;;
     --machine-corpus=*)         MACHINE_CORPUS="${arg#*=}" ;;
     --machine-corpus-manifest=*) MACHINE_CORPUS_MANIFEST="${arg#*=}" ;;
@@ -608,6 +615,9 @@ die()  { echo -e "\n${RED}✗  FATAL:${NC} $*\n"; exit 1; }
 
 WARNS=()
 add_warn() { WARNS+=("$*"); }
+
+source "$CI_DIR/scripts/lib/fresh-start.sh"
+
 
 poll_http() {
     local url="$1" label="$2" max="${3:-30}" flags="${4:--sf}"
@@ -1074,6 +1084,7 @@ spawn_scala_instance() {
 
     INSTANCE_ID="$id" \
     RE_LOAD_MACHINES="$_RE_LOAD_MACHINES" \
+    FRESH_START="$FRESH_START" \
     HOST="0.0.0.0" \
     REALITY_ENGINE_PORT="$re_port" \
     PERCEPTION_ENGINE_PORT="$pe_port" \
@@ -1110,6 +1121,7 @@ spawn_cpp_instance() {
 
     INSTANCE_ID="$id" \
     RE_LOAD_MACHINES="$_RE_LOAD_MACHINES" \
+    FRESH_START="$FRESH_START" \
     REALITY_ENGINE_HOST="$HOST_IP" \
     REALITY_ENGINE_PORT="$re_port" \
     PERCEPTION_ENGINE_PORT="$pe_port" \
@@ -1145,6 +1157,7 @@ spawn_lsp_instance() {
 
     INSTANCE_ID="$id" \
     RE_LOAD_MACHINES="$_RE_LOAD_MACHINES" \
+    FRESH_START="$FRESH_START" \
     REALITY_ENGINE_HOST="$HOST_IP" \
     REALITY_ENGINE_PORT="$re_port" \
     PERCEPTION_ENGINE_PORT="$pe_port" \
@@ -1505,7 +1518,8 @@ fi
 sleep 2
 fi
 
-[ "$FRESH_START" = true ] && warn "Fresh start — perception volume wiped; all images rebuilt no-cache"
+[ "$FRESH_START" = true ] && warn "Fresh start — persisted perception state cleared; all images rebuilt no-cache"
+[ "$FRESH_PROVIDER_CONTENT" = true ] && warn "Fresh provider content — Qdrant vector store cleared"
 
 # ── Dry-run: print plan and exit without starting anything ────────────────────
 if [ "$DRY_RUN" = true ]; then
@@ -1632,13 +1646,7 @@ hdr "3 · Infrastructure  (CI Loki + Qdrant + Redis)"
 # =============================================================================
 
 if [ "$FRESH_START" = true ]; then
-    PERCEPTION_VOL=$(docker volume ls --format "{{.Name}}" \
-        | grep "_perception_sources_data$" | head -1 || true)
-    if [ -n "$PERCEPTION_VOL" ]; then
-        info "Removing perception sources volume: $PERCEPTION_VOL"
-        docker volume rm "$PERCEPTION_VOL" > /dev/null 2>&1 || true
-        ok "Perception volume cleared"
-    fi
+    clear_perception_state
 fi
 
 info "Starting Loki (CI) + Qdrant + Redis..."
