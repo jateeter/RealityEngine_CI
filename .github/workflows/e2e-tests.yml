@@ -379,6 +379,10 @@ jobs:
         working-directory: RealityEngine_CI
         run: bash scripts/tests/test-arbiter-fixture-status.sh
 
+      - name: Run parity agreement unit tests
+        working-directory: RealityEngine_CI
+        run: bash scripts/tests/test-parity-agreement.sh
+
   # ── Phase 4: Dry-run pre-flight validation ──────────────────────────────────
   dry-run-validate:
     name: Dry-Run Validate
