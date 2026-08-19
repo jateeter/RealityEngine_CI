@@ -13,6 +13,14 @@ from typing import Any
 from urllib import error, request
 
 
+sys.path.insert(0, str(Path(__file__).resolve().parent / "lib"))
+from parity_identity import (  # noqa: E402
+    parity_signature,
+    shared_keys,
+    uniformity_violations,
+)
+
+
 def load_json(path: Path) -> Any:
     with path.open("r", encoding="utf-8") as handle:
         return json.load(handle)
@@ -247,35 +255,19 @@ def safe_name(value: str) -> str:
     return re.sub(r"[^A-Za-z0-9_.-]+", "_", value)
 
 
-def extract_signature(payload: Any) -> Any:
-    """Extract stable effect data while avoiding timestamps/ids."""
-    hits: list[Any] = []
+def extract_signature(payload: Any, shared: set[str] | None = None) -> Any:
+    """One runtime's comparable observation of a step.
 
-    def walk(value: Any) -> None:
-        if isinstance(value, dict):
-            if any(k in value for k in ("machineId", "sequenceId", "outputVector", "outputVectors", "mergeBatch")):
-                keep = {}
-                for key in ("machineId", "sequenceId", "vectorId", "outputVectorId", "status", "success", "pushed", "stepCount"):
-                    if key in value:
-                        keep[key] = value[key]
-                if "outputVector" in value:
-                    keep["outputVector"] = value["outputVector"]
-                if "outputVectors" in value:
-                    keep["outputVectors"] = value["outputVectors"]
-                if keep:
-                    hits.append(keep)
-            for child in value.values():
-                walk(child)
-        elif isinstance(value, list):
-            for child in value:
-                walk(child)
+    Delegates to scripts/lib/parity_identity.py so the observability rules are
+    stated once and applied at every probe point rather than re-invented here.
 
-    walk(payload)
-    if hits:
-        return sorted(hits, key=lambda item: json.dumps(item, sort_keys=True))
-    if isinstance(payload, dict):
-        return {key: payload.get(key) for key in sorted(payload) if key in {"success", "pushed", "stepCount", "count"}}
-    return payload
+    The whitelist this replaced kept `machineId` and dropped the region offsets.
+    Machine ids are minted per runtime — the corpus declares none — so every
+    event with a non-empty `activeRegions` split three ways unconditionally,
+    while payloads carrying no machineId fell through to `{"success": true}`
+    and passed trivially. Neither outcome measured anything (#146).
+    """
+    return parity_signature(payload, shared)
 
 
 def agreement_clusters(signatures: dict[str, Any], instance_order: list[str]) -> list[list[str]]:
@@ -388,13 +380,31 @@ def main() -> int:
     for event in events:
         signatures: dict[str, Any] = {}
         instance_order: list[str] = []
+        payloads: dict[str, Any] = {}
+        statuses: dict[str, int] = {}
         for instance in instances:
             status, payload = run_event(instance, event, args.run_id)
             instance_key = instance["id"]
             instance_order.append(instance_key)
+            payloads[instance_key] = payload
+            statuses[instance_key] = status
             response_file = args.out / f"{event['id']}-{safe_name(instance_key)}.json"
             response_file.write_text(json.dumps(payload, indent=2, sort_keys=True), encoding="utf-8")
-            signature = extract_signature(payload)
+
+        # Shared keys are a property of the set, so signatures cannot be built
+        # until every runtime has answered. Asymmetric keys are reported as
+        # contract violations rather than intersected away in silence (#146).
+        shared = shared_keys(payloads)
+        violations = uniformity_violations(payloads)
+        if violations:
+            summary.setdefault("uniformityViolations", []).append(
+                {"event": event["id"], "violations": violations}
+            )
+        for instance in instances:
+            instance_key = instance["id"]
+            payload = payloads[instance_key]
+            status = statuses[instance_key]
+            signature = extract_signature(payload, shared)
             signatures[instance_key] = signature
             summary["results"].append(
                 {
