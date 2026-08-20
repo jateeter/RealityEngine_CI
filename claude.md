@@ -28,6 +28,13 @@ npm run test:all
 npm run test:deployment
 ./startUniverse.sh --engines=cpp:1,lsp:1,scala:1 --openclaw --machine-load=runtime --pe-source-bootstrap=auto --warn-only
 ./stopUniverse.sh
+
+# Incremental corpus parity: boot with one machine, then add one corpus machine
+# per iteration over the RE/PE APIs and re-check trajectory parity after each.
+# Iteration n drives the engines with machines 1..n interned sequences merged.
+# See scripts/claude.md — currently blocked by cpp freezing interned sequences
+# at their first vector and lsp discarding sources on POST /api/reset.
+./scripts/test-corpus-parity-loop.sh --stop-on-fail
 ```
 
 ## Runtime Contract
