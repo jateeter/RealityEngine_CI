@@ -117,6 +117,68 @@ def read_machine(machines_root: Path, rel: str) -> tuple[dict[str, Any], dict[st
     return wrapper, machine
 
 
+def region_span(machine: dict[str, Any], side: str) -> tuple[int, int] | None:
+    """(start, end) of a machine's input or output region, or None."""
+    region = (machine.get("perceptualMapping") or {}).get(side)
+    if not isinstance(region, dict):
+        return None
+    try:
+        offset, length = int(region["offset"]), int(region["length"])
+    except (KeyError, TypeError, ValueError):
+        return None
+    return (offset, offset + length) if length > 0 else None
+
+
+def spans_overlap(a: tuple[int, int] | None, b: tuple[int, int] | None) -> bool:
+    return bool(a and b and a[0] < b[1] and b[0] < a[1])
+
+
+# Pairs whose feedback ring is deliberate. RSRingLatchStage A and B are a test
+# machine: an RS bistable split across two stages so the minimal provable
+# feedback ring can be exercised end to end. Their descriptions say so, but
+# nothing in the corpus marks it machine-readably, so the exemption is named
+# here rather than inferred.
+INTENTIONAL_RINGS: set[frozenset[str]] = {
+    frozenset({"RS Ring Latch Stage A", "RS Ring Latch Stage B"}),
+}
+
+
+def guardrail_violations(machine: dict[str, Any],
+                         loaded: dict[str, tuple[Any, Any]]) -> list[str]:
+    """Cycles where a machine's response overwrites the stimulus that caused it.
+
+    A response must never land on the cells that initiated it: that closes a
+    stimulation -> response -> stimulation loop which re-fires every step. It is
+    explorable on purpose in digital-logic and not permitted otherwise.
+
+    Reported as its own class. A loop is a corpus defect, and every runtime
+    would chase it identically, so surfacing it as a trajectory divergence would
+    name the wrong thing.
+
+    Upstream output feeding a *different* machine's input is the integration
+    mechanism and is not a violation — only the cycle back onto the initiator is.
+    """
+    name = machine.get("name") or ""
+    mine_in, mine_out = region_span(machine, "input"), region_span(machine, "output")
+    violations = []
+
+    if spans_overlap(mine_in, mine_out):
+        violations.append(
+            f"{name}: output {mine_out} overlaps its own input {mine_in} — self-stimulating")
+
+    for other_name, (other_in, other_out) in loaded.items():
+        if other_name == name:
+            continue
+        if spans_overlap(mine_out, other_in) and spans_overlap(other_out, mine_in):
+            if frozenset({name, other_name}) in INTENTIONAL_RINGS:
+                continue
+            violations.append(
+                f"{name} out{mine_out} -> in{other_in} {other_name}, and "
+                f"{other_name} out{other_out} -> in{mine_in} {name} — response "
+                f"overwrites the stimulus that caused it")
+    return violations
+
+
 def input_region(machine: dict[str, Any]) -> dict[str, int] | None:
     region = (machine.get("perceptualMapping") or {}).get("input")
     if not isinstance(region, dict):
@@ -411,12 +473,14 @@ def bootstrap_pe_sources(instances: list[dict[str, Any]]) -> list[str]:
 # ── one iteration ─────────────────────────────────────────────────────────────
 
 def run_iteration(instances: list[dict[str, Any]], machines_root: Path, rel: str,
-                  index: int, args: argparse.Namespace) -> dict[str, Any]:
+                  index: int, args: argparse.Namespace,
+                  loaded_regions: dict[str, tuple[Any, Any]] | None = None) -> dict[str, Any]:
     record: dict[str, Any] = {
         "index": index,
         "machineFile": rel,
         "startedAt": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
         "loadParity": {"ok": None, "failures": []},
+        "guardrail": {"ok": None, "failures": []},
         "capacity": {"ok": None, "failures": [], "space": {}},
         "sourceParity": {"ok": None, "failures": [], "counts": {}},
         "trajectoryParity": {"ok": None, "trajectories": {}, "failures": []},
@@ -431,6 +495,18 @@ def run_iteration(instances: list[dict[str, Any]], machines_root: Path, rel: str
         return record
     wrapper, machine = parsed
     record["machineName"] = machine.get("name")
+
+    # Checked before the machine is loaded: a machine that closes a
+    # response -> stimulus cycle with something already loaded is a corpus
+    # defect, and running it would re-fire every step on every runtime.
+    if loaded_regions is not None:
+        record["guardrail"]["failures"] = guardrail_violations(machine, loaded_regions)
+        record["guardrail"]["ok"] = not record["guardrail"]["failures"]
+        loaded_regions[machine.get("name") or rel] = (
+            region_span(machine, "input"), region_span(machine, "output"))
+        if not record["guardrail"]["ok"]:
+            record["status"] = "guardrail"
+            return record
 
     region = input_region(machine)
     if region is None:
@@ -687,14 +763,18 @@ def main() -> int:
             print(f"             {failure}")
     print()
 
-    tally = {"pass": 0, "fail": 0, "error": 0, "skipped": 0, "capacity": 0}
+    tally = {"pass": 0, "fail": 0, "error": 0, "skipped": 0, "capacity": 0, "guardrail": 0}
+    # Regions of every machine loaded so far, so a machine closing a
+    # response -> stimulus cycle is caught as it is added.
+    loaded_regions: dict[str, tuple] = {}
     reset_drift = {"iterations": 0, "byRuntime": {}}
     first_failure: dict[str, Any] | None = None
     started = time.time()
 
     with results_path.open("a", encoding="utf-8") as sink:
         for position, (index, rel) in enumerate(selected, start=1):
-            record = run_iteration(instances, args.machines_root, rel, index, args)
+            record = run_iteration(instances, args.machines_root, rel, index, args,
+                                   loaded_regions)
             # Written and flushed per iteration: a 1328-machine run is long
             # enough that partial results must be readable while it is running.
             sink.write(json.dumps(record, sort_keys=True) + "\n")
@@ -707,9 +787,10 @@ def main() -> int:
                 for name, count in activated.items():
                     reset_drift["byRuntime"][name] = reset_drift["byRuntime"].get(name, 0) + count
             marker = {"pass": "PASS", "fail": "FAIL", "error": "ERR ",
-                      "skipped": "SKIP", "capacity": "CAP "}[record["status"]]
+                      "skipped": "SKIP", "capacity": "CAP ", "guardrail": "LOOP"}[record["status"]]
             print(f"[{position}/{len(selected)}] {marker} {rel}")
             for failures in (record["loadParity"]["failures"],
+                             record["guardrail"]["failures"],
                              record["capacity"]["failures"],
                              record["sourceParity"]["failures"],
                              record["trajectoryParity"]["failures"],
