@@ -117,6 +117,53 @@ def read_machine(machines_root: Path, rel: str) -> tuple[dict[str, Any], dict[st
     return wrapper, machine
 
 
+def non_binary_reason(machine: dict[str, Any]) -> str | None:
+    """Why this machine is multi-valued, or None if it is binary.
+
+    A machine's `perceptualMapping.bitsPerElement` declares the width of an
+    element, and so the alphabet its cells range over. One bit is a Boolean
+    cell; more than one is a multi-valued cell, whatever values the machine
+    happens to use today.
+
+    That declaration is the discriminator, and it is trustworthy: across the
+    1328-machine corpus no machine declaring `bitsPerElement: 1` carries a
+    declared value above 1 anywhere in its elements or output vectors. 1273
+    machines declare 1, 54 declare 8, and 1 declares 4.
+
+    Segregating on the declaration rather than on observed values is
+    deliberate. 53 of the 55 wide machines currently use only 0 and 1, so a
+    value-based rule would admit them and then be surprised the first time one
+    of them emitted a 2 — which is exactly how FallDetection was reached at
+    machine #691 after 691 apparently clean passes.
+
+    Multi-valued machines are out of scope for this sweep and are collected for
+    separate study rather than tested and failed: the merge fold, the arbiter's
+    comparators and the ontology's gate semantics are all stated over Boolean
+    cells, so a multi-valued machine is not something these engines currently
+    claim to agree about (RealityEngine_CI#158).
+    """
+    bits = (machine.get("perceptualMapping") or {}).get("bitsPerElement")
+    if not isinstance(bits, (int, float)) or bits <= 1:
+        return None
+    # Noted separately because it distinguishes a machine that merely *may* be
+    # multi-valued from one that demonstrably *is*, which matters when picking
+    # where to start on the mathematics.
+    exercised = 0
+    for sequence in machine.get("sequences") or []:
+        for vector in sequence.get("vectors") or []:
+            for element in vector.get("elements") or []:
+                value = element.get("value")
+                if isinstance(value, (int, float)) and value > 1:
+                    exercised += 1
+            for output in vector.get("outputVectors") or []:
+                for cell in output.get("vector") or []:
+                    if isinstance(cell, (int, float)) and cell > 1:
+                        exercised += 1
+    if exercised:
+        return f"bitsPerElement={int(bits)}, {exercised} declared value(s) above 1"
+    return f"bitsPerElement={int(bits)}, all declared values 0/1"
+
+
 def region_span(machine: dict[str, Any], side: str) -> tuple[int, int] | None:
     """(start, end) of a machine's input or output region, or None."""
     region = (machine.get("perceptualMapping") or {}).get(side)
@@ -481,6 +528,7 @@ def run_iteration(instances: list[dict[str, Any]], machines_root: Path, rel: str
         "startedAt": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
         "loadParity": {"ok": None, "failures": []},
         "guardrail": {"ok": None, "failures": []},
+        "nonBinary": None,
         "capacity": {"ok": None, "failures": [], "space": {}},
         "sourceParity": {"ok": None, "failures": [], "counts": {}},
         "trajectoryParity": {"ok": None, "trajectories": {}, "failures": []},
@@ -495,6 +543,17 @@ def run_iteration(instances: list[dict[str, Any]], machines_root: Path, rel: str
         return record
     wrapper, machine = parsed
     record["machineName"] = machine.get("name")
+
+    # Multi-valued machines are set aside, not loaded and not tested. The sweep
+    # validates the binary corpus and collects the rest for separate study; the
+    # fold, the comparators and the ontology's gate semantics are all stated
+    # over Boolean cells, so these engines do not currently claim to agree about
+    # a multi-valued machine (#158).
+    reason = non_binary_reason(machine)
+    if reason is not None:
+        record["nonBinary"] = reason
+        record["status"] = "non-binary"
+        return record
 
     # Checked before the machine is loaded: a machine that closes a
     # response -> stimulus cycle with something already loaded is a corpus
@@ -763,7 +822,9 @@ def main() -> int:
             print(f"             {failure}")
     print()
 
-    tally = {"pass": 0, "fail": 0, "error": 0, "skipped": 0, "capacity": 0, "guardrail": 0}
+    tally = {"pass": 0, "fail": 0, "error": 0, "skipped": 0, "capacity": 0,
+             "guardrail": 0, "non-binary": 0}
+    non_binary: list[dict[str, Any]] = []
     # Regions of every machine loaded so far, so a machine closing a
     # response -> stimulus cycle is caught as it is added.
     loaded_regions: dict[str, tuple] = {}
@@ -781,13 +842,19 @@ def main() -> int:
             sink.flush()
 
             tally[record["status"]] = tally.get(record["status"], 0) + 1
+            if record["status"] == "non-binary":
+                non_binary.append({"index": record["index"],
+                                   "machineFile": record["machineFile"],
+                                   "machineName": record.get("machineName"),
+                                   "reason": record["nonBinary"]})
             activated = record["sourceParity"].get("reactivatedByReset") or {}
             if len(set(activated.values())) > 1:
                 reset_drift["iterations"] += 1
                 for name, count in activated.items():
                     reset_drift["byRuntime"][name] = reset_drift["byRuntime"].get(name, 0) + count
             marker = {"pass": "PASS", "fail": "FAIL", "error": "ERR ",
-                      "skipped": "SKIP", "capacity": "CAP ", "guardrail": "LOOP"}[record["status"]]
+                      "skipped": "SKIP", "capacity": "CAP ", "guardrail": "LOOP",
+                      "non-binary": "MVAL"}[record["status"]]
             print(f"[{position}/{len(selected)}] {marker} {rel}")
             for failures in (record["loadParity"]["failures"],
                              record["guardrail"]["failures"],
@@ -835,14 +902,20 @@ def main() -> int:
         "tally": tally,
         "firstFailure": first_failure,
         "resetSemanticsDrift": reset_drift,
+        "nonBinaryMachines": non_binary,
         "elapsedSeconds": round(time.time() - started, 1),
         "results": str(results_path),
     }
     summary_path.write_text(json.dumps(summary, indent=2, sort_keys=True), encoding="utf-8")
 
     print()
+    if non_binary:
+        listing = args.out / "non-binary-machines.json"
+        listing.write_text(json.dumps(non_binary, indent=2, sort_keys=True), encoding="utf-8")
+        print(f"\nset aside {len(non_binary)} multi-valued machine(s) -> {listing}")
     print(f"pass {tally['pass']}  fail {tally['fail']}  error {tally['error']}  "
-          f"capacity {tally['capacity']}  skipped {tally['skipped']}  "
+          f"capacity {tally['capacity']}  non-binary {tally['non-binary']}  "
+          f"skipped {tally['skipped']}  "
           f"({summary['elapsedSeconds']}s)")
     print(summary_path)
 
