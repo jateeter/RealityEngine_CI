@@ -872,7 +872,7 @@ start_universe() {
     log "RE_SKIP_PROVENANCE=1 — skipping (results will not distinguish build skew from engine defects)"
   else
     run_cmd "verify-build-provenance" bash -lc \
-      "cd '$(repo_root RealityEngine_CI)' && python3 scripts/verify-build-provenance.py --repos cpp,scala,lsp" || {
+      "cd '$(repo_root RealityEngine_CI)' && python3 scripts/verify-build-provenance.py --repos cpp,scala,lsp --lane $PROFILE" || {
       log "Engine build provenance failed. A parity result from this state attributes"
       log "build skew to the engines. Rebuild the flagged repos, or set RE_SKIP_PROVENANCE=1."
       exit 1

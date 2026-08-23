@@ -1696,7 +1696,7 @@ if [ "$MULTI_ENGINE_MODE" = true ]; then
     if [ "${RE_SKIP_PROVENANCE:-0}" = "1" ]; then
         warn "RE_SKIP_PROVENANCE=1 — engine build provenance not verified"
     else
-        python3 "$CI_DIR/scripts/verify-build-provenance.py" --repos cpp,scala,lsp \
+        python3 "$CI_DIR/scripts/verify-build-provenance.py" --repos cpp,scala,lsp --lane "${RE_PROVENANCE_LANE:-local}" \
             || die "engine build provenance failed — rebuild the engines, or set RE_SKIP_PROVENANCE=1 to override deliberately"
     fi
 

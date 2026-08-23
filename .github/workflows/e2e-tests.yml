@@ -1,5 +1,13 @@
 name: E2E Tests
 
+# This lane runs the engines from CI-built trees and containers, not from the
+# local working copies startUniverse.sh normally launches. The build-provenance
+# gate is about the local lane: here there is no checked-in artifact to be stale
+# against, so requiring one would fail every run for a condition that cannot
+# occur. Git state is still checked where a checkout exists.
+env:
+  RE_PROVENANCE_LANE: hosted
+
 on:
   push:
     branches: [main, develop]

@@ -120,10 +120,18 @@ def ago(seconds: float) -> str:
     return f"{seconds // 3600}h{(seconds % 3600) // 60:02d}m"
 
 
-def check_repo(key: str, spec: dict, branch: str, fetch: bool) -> list[str]:
+def check_repo(key: str, spec: dict, branch: str, fetch: bool, lane: str) -> list[str]:
     repo = WS / spec["dir"]
     failures: list[str] = []
+
+    # The hosted lane fetches siblings as tarballs and runs the engines as
+    # containers, so there is no git checkout and no local artifact to inspect.
+    # Nothing here applies, and failing would only teach people to bypass it.
+    # This check is about the local lane, where startUniverse.sh spawns the
+    # binaries and jars sitting in the working copies.
     if not (repo / ".git").is_dir():
+        if lane == "hosted":
+            return []
         return [f"{key}: {repo} is not a git repository"]
 
     code, current = git(repo, "rev-parse", "--abbrev-ref", "HEAD")
@@ -166,6 +174,10 @@ def check_repo(key: str, spec: dict, branch: str, fetch: bool) -> list[str]:
     for rel in spec.get("artifacts") or []:
         art = repo / rel
         if not art.exists():
+            # Containerised lanes never materialise these paths. Only the lane
+            # that launches them locally can meaningfully require them.
+            if lane == "hosted":
+                continue
             failures.append(f"{key}: artifact missing — {rel} (build it before launching)")
             continue
         art_mtime = art.stat().st_mtime
@@ -188,6 +200,10 @@ def main() -> int:
     parser.add_argument("--branch", default="main")
     parser.add_argument("--warn-only", action="store_true", help="report but always exit 0")
     parser.add_argument("--no-fetch", action="store_true", help="skip the origin comparison")
+    parser.add_argument("--lane", choices=("local", "hosted"), default="local",
+                        help="local launches native artifacts and is fully checked; hosted runs "
+                             "containers from tarball checkouts, where neither a git state nor a "
+                             "local artifact exists to verify")
     args = parser.parse_args()
 
     keys = [k.strip() for k in args.repos.split(",") if k.strip()] or list(TARGETS)
@@ -196,17 +212,20 @@ def main() -> int:
         print(f"[fail] unknown repo key(s): {', '.join(unknown)}", file=sys.stderr)
         return 2
 
-    print(f"build provenance — branch={args.branch} repos={len(keys)}")
+    print(f"build provenance — lane={args.lane} branch={args.branch} repos={len(keys)}")
     all_failures: list[str] = []
     for key in keys:
-        failures = check_repo(key, TARGETS[key], args.branch, not args.no_fetch)
+        failures = check_repo(key, TARGETS[key], args.branch, not args.no_fetch, args.lane)
         all_failures.extend(failures)
         if failures:
             for f in failures:
                 print(f"  FAIL {f}")
         else:
             arts = len(TARGETS[key].get("artifacts") or [])
-            note = f"{arts} artifact(s) current" if arts else "runs from source"
+            if args.lane == "hosted":
+                note = "hosted lane — containerised, nothing local to verify"
+            else:
+                note = f"{arts} artifact(s) current" if arts else "runs from source"
             print(f"  ok   {key}: {note}")
 
     if not all_failures:
