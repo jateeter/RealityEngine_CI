@@ -862,6 +862,23 @@ prepare_runtime_config() {
 
 start_universe() {
   [ "$START" = true ] || return 0
+
+  # Fail here rather than after the universe is up. startUniverse.sh gates this
+  # too, but by then the run has spent minutes on preflight and boot. It matters
+  # most under --skip-build, where nothing in this lane has rebuilt anything and
+  # whatever artifact is on disk is what gets certified.
+  step "Verify engine build provenance"
+  if [ "${RE_SKIP_PROVENANCE:-0}" = "1" ]; then
+    log "RE_SKIP_PROVENANCE=1 — skipping (results will not distinguish build skew from engine defects)"
+  else
+    run_cmd "verify-build-provenance" bash -lc \
+      "cd '$(repo_root RealityEngine_CI)' && python3 scripts/verify-build-provenance.py --repos cpp,scala,lsp --lane $PROFILE" || {
+      log "Engine build provenance failed. A parity result from this state attributes"
+      log "build skew to the engines. Rebuild the flagged repos, or set RE_SKIP_PROVENANCE=1."
+      exit 1
+    }
+  fi
+
   step "Cold-start standard multi-engine universe"
   local ci
   ci="$(repo_root RealityEngine_CI)"

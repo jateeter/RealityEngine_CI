@@ -1681,6 +1681,25 @@ if [ "$MULTI_ENGINE_MODE" = true ]; then
     hdr "3.5 · Instance Registry + Multi-Engine Spawn"
     info "Host LAN IP: $HOST_IP"
 
+    # Refuse to launch engines that are not built from their current source.
+    #
+    # This spawns each repo's checked-in artifact. A stale one produces a
+    # universe that looks correct and answers a different question: on
+    # 2026-08-22 both Scala jars predated that morning's merge, and the
+    # resulting three-engine divergence was investigated as an engine defect
+    # before the build skew was found. Only engines are gated — the corpus and
+    # the service repos run from source and cannot go stale this way.
+    # Deliberately NOT tied to --warn-only. That flag means "tolerate a sibling
+    # version mismatch", and the regression harness passes it on every run — so
+    # reusing it here would disable this check on precisely the lane that most
+    # needs it. Override is explicit and separate: RE_SKIP_PROVENANCE=1.
+    if [ "${RE_SKIP_PROVENANCE:-0}" = "1" ]; then
+        warn "RE_SKIP_PROVENANCE=1 — engine build provenance not verified"
+    else
+        python3 "$CI_DIR/scripts/verify-build-provenance.py" --repos cpp,scala,lsp --lane "${RE_PROVENANCE_LANE:-local}" \
+            || die "engine build provenance failed — rebuild the engines, or set RE_SKIP_PROVENANCE=1 to override deliberately"
+    fi
+
     # Initialise the registry file and start the REST shim on :5999
     rm -f "$REGISTRY_FILE"
     registry_start_server
