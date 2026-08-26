@@ -46,7 +46,7 @@
     },
     {
       "id": 2,
-      "title": "Total sequences",
+      "title": "Total Critical Event Sequences",
       "type": "stat",
       "datasource": { "type": "prometheus", "uid": "prometheus" },
       "gridPos": { "x": 4, "y": 0, "w": 4, "h": 4 },
@@ -55,7 +55,7 @@
     },
     {
       "id": 3,
-      "title": "Total vectors",
+      "title": "Total Reality Events",
       "type": "stat",
       "datasource": { "type": "prometheus", "uid": "prometheus" },
       "gridPos": { "x": 8, "y": 0, "w": 4, "h": 4 },
@@ -64,8 +64,8 @@
     },
     {
       "id": 4,
-      "title": "Unfired sequences (global)",
-      "description": "Sequences that have never emitted output since process start.\nGoal: drive this to zero in a healthy production deployment.\nRed when above zero.",
+      "title": "Unfired Critical Event Sequences (global)",
+      "description": "Critical Event Sequences that have never emitted output since process start.\nGoal: drive this to zero in a healthy production deployment.\nRed when above zero.",
       "type": "gauge",
       "datasource": { "type": "prometheus", "uid": "prometheus" },
       "gridPos": { "x": 12, "y": 0, "w": 6, "h": 4 },
@@ -87,8 +87,8 @@
     },
     {
       "id": 5,
-      "title": "Unfired vectors (global)",
-      "description": "Event vectors that have never matched or been activated.\nDistinct from unfired-sequences: a sequence can have outputs from one vector while other vectors in the same sequence remain dormant.",
+      "title": "Unfired Reality Events (global)",
+      "description": "Reality Events that have never matched or been activated.\nDistinct from unfired Critical Event Sequences: a Critical Event Sequence can have outputs from one Reality Event while other Reality Events in the same sequence remain dormant.",
       "type": "gauge",
       "datasource": { "type": "prometheus", "uid": "prometheus" },
       "gridPos": { "x": 18, "y": 0, "w": 6, "h": 4 },
@@ -142,8 +142,8 @@
 
     {
       "id": 8,
-      "title": "Unfired sequences by machine (top 25)",
-      "description": "Machines whose sequences are most underexercised.\nThese are the 'over-specified or unreachable' candidates from the operational-coverage spec.",
+      "title": "Unfired Critical Event Sequences by machine (top 25)",
+      "description": "Machines whose Critical Event Sequences are most underexercised.\nThese are the 'over-specified or unreachable' candidates from the operational-coverage spec.",
       "type": "table",
       "datasource": { "type": "prometheus", "uid": "prometheus" },
       "gridPos": { "x": 0, "y": 12, "w": 12, "h": 10 },
@@ -156,13 +156,13 @@
         }
       ],
       "transformations": [
-        { "id": "organize", "options": { "excludeByName": { "Time": true, "__name__": true, "job": true, "instance": true }, "renameByName": { "Value": "Unfired sequences" } } }
+        { "id": "organize", "options": { "excludeByName": { "Time": true, "__name__": true, "job": true, "instance": true }, "renameByName": { "Value": "Unfired Critical Event Sequences" } } }
       ]
     },
     {
       "id": 9,
-      "title": "Most-fired vectors (top 25)",
-      "description": "Hot path of the corpus — vectors firing most often.\nUseful for ranking which CESs carry production signal.",
+      "title": "Most-fired Reality Events (top 25)",
+      "description": "Hot path of the corpus — Reality Events firing most often.\nUseful for ranking which Critical Event Sequences carry production signal.",
       "type": "table",
       "datasource": { "type": "prometheus", "uid": "prometheus" },
       "gridPos": { "x": 12, "y": 12, "w": 12, "h": 10 },
@@ -182,7 +182,7 @@
     {
       "id": 10,
       "title": "Coverage % per machine",
-      "description": "Fraction of declared sequences that have emitted output since startup.\nGreen → all sequences exercised; red → some sequences never fired.",
+      "description": "Fraction of declared Critical Event Sequences that have emitted output since startup.\nGreen → all Critical Event Sequences exercised; red → some never fired.",
       "type": "bargauge",
       "datasource": { "type": "prometheus", "uid": "prometheus" },
       "gridPos": { "x": 0, "y": 22, "w": 24, "h": 10 },

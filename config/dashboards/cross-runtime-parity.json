@@ -38,7 +38,7 @@
     {
       "id": 2,
       "type": "stat",
-      "title": "Sequences total",
+      "title": "Critical Event Sequences total",
       "gridPos": { "h": 4, "w": 8, "x": 8, "y": 0 },
       "datasource": { "type": "prometheus", "uid": "prometheus" },
       "targets": [
@@ -49,7 +49,7 @@
     {
       "id": 3,
       "type": "stat",
-      "title": "Vectors total",
+      "title": "Reality Events total",
       "gridPos": { "h": 4, "w": 8, "x": 16, "y": 0 },
       "datasource": { "type": "prometheus", "uid": "prometheus" },
       "targets": [
@@ -60,7 +60,7 @@
     {
       "id": 4,
       "type": "timeseries",
-      "title": "Vector match rate by runtime",
+      "title": "Reality Event match rate by runtime",
       "gridPos": { "h": 9, "w": 12, "x": 0, "y": 4 },
       "description": "rate(ces_vector_matched_total) — should be near-identical across runtimes for the same input workload.  Visible divergence flags a semantic drift.",
       "datasource": { "type": "prometheus", "uid": "prometheus" },
@@ -72,7 +72,7 @@
     {
       "id": 5,
       "type": "timeseries",
-      "title": "Sequence output rate by runtime",
+      "title": "Critical Event Sequence output rate by runtime",
       "gridPos": { "h": 9, "w": 12, "x": 12, "y": 4 },
       "description": "rate(ces_sequence_outputs_total) — output emission rate.  Scala / CPP / LSP should track each other when fed identical inputs through the perception engine.",
       "datasource": { "type": "prometheus", "uid": "prometheus" },
@@ -96,9 +96,9 @@
     {
       "id": 7,
       "type": "timeseries",
-      "title": "Deprecated-sequence fires per minute by runtime",
+      "title": "Deprecated Critical Event Sequence fires per minute by runtime",
       "gridPos": { "h": 9, "w": 12, "x": 12, "y": 13 },
-      "description": "rate(ces_deprecated_fires_total) — any non-zero rate means a sequence past its deprecation date is still emitting outputs.  Use this to drive the stale-CES burn-down.",
+      "description": "rate(ces_deprecated_fires_total) — any non-zero rate means a Critical Event Sequence past its deprecation date is still emitting outputs.  Use this to drive the stale-CES burn-down.",
       "datasource": { "type": "prometheus", "uid": "prometheus" },
       "targets": [
         { "expr": "sum by (runtime) (rate(ces_deprecated_fires_total{runtime=~\"$runtime\"}[1m]) * 60)", "legendFormat": "{{runtime}}", "refId": "A" }
@@ -108,9 +108,9 @@
     {
       "id": 8,
       "type": "timeseries",
-      "title": "Unfired sequences by runtime",
+      "title": "Unfired Critical Event Sequences by runtime",
       "gridPos": { "h": 9, "w": 12, "x": 0, "y": 22 },
-      "description": "Sequences that have never emitted output, summed per runtime.  Should converge across runtimes; persistent divergence means one runtime is failing to fire something the others can.",
+      "description": "Critical Event Sequences that have never emitted output, summed per runtime.  Should converge across runtimes; persistent divergence means one runtime is failing to fire something the others can.",
       "datasource": { "type": "prometheus", "uid": "prometheus" },
       "targets": [
         { "expr": "sum by (runtime) (ces_unfired_sequences{runtime=~\"$runtime\"})", "legendFormat": "{{runtime}}", "refId": "A" }
