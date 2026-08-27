@@ -950,6 +950,61 @@ active_machines_dir() {
   fi
 }
 
+# Lowest input region in the booted corpus, as "offset length".
+#
+# The trajectory seed has to land on a region some machine actually reads.
+# regression-trajectory-parity.py defaults to [12:16], which no
+# standard-deployment machine owns — its lowest input is [928:932] — so a
+# defaulted run would drive dead space and compare three engines agreeing that
+# nothing happened.
+seed_region_for_corpus() {
+  python3 - "$(active_machines_dir)" <<'PYEOF'
+import json, pathlib, sys
+best = None
+for p in pathlib.Path(sys.argv[1]).rglob("*.json"):
+    try:
+        doc = json.loads(p.read_text(encoding="utf-8"))
+    except Exception:
+        continue
+    m = doc.get("machine", doc)
+    region = ((m.get("perceptualMapping") or {}).get("input") or {})
+    off, length = region.get("offset"), region.get("length")
+    if isinstance(off, int) and isinstance(length, int) and length > 0:
+        if best is None or off < best[0]:
+            best = (off, length)
+print(f"{best[0]} {best[1]}" if best else "12 4")
+PYEOF
+}
+
+# The parity gate. ISRE/OREV are the observation points the deployment's
+# equivalence claim is made at, and regression-trajectory-parity.py is the one
+# definition of what parity means — the corpus parity loop already reuses it as
+# a module rather than restating the comparison.
+#
+# universal-vectors below is NOT this. It compares single-step responses and
+# re-synchronises the engines between events, so two engines can agree at every
+# step examined in isolation and still be on different trajectories (#148). It
+# also diffs `step.perceptualSpace`, which every runtime flags as
+# `perceptualSpaceIsDebugProjection: true` — a debug rendering, not state — and
+# which nothing in the comparison strips. That is why it reports "no majority"
+# on every event regardless of what the engines did. It stays for the contract
+# checks it does perform; it is not the parity result.
+run_trajectory_parity() {
+  step "ISRE/OREV trajectory parity"
+  local ci seed offset length
+  ci="$(repo_root RealityEngine_CI)"
+  seed="$(seed_region_for_corpus)"
+  offset="${seed% *}"
+  length="${seed#* }"
+  log "seed region [$offset:$((offset + length))] (lowest input region in the booted corpus)"
+  run_cmd "trajectory-parity" python3 "$ci/scripts/regression-trajectory-parity.py" \
+    --registry /tmp/re-registry/re-registry.json \
+    --run-id "$RUN_ID" \
+    --offset "$offset" \
+    --length "$length" \
+    --out "$RUN_DIR/responses/trajectory-parity"
+}
+
 run_universal_vectors() {
   step "Universal input event vector parity"
   local ci machines
@@ -1351,6 +1406,12 @@ if [ "$LIVE_TESTS" = true ]; then
   start_universe
   run_stage "service-inventory" run_service_inventory
   run_stage "pe-step-contract" run_pe_step_contract
+  # Parity first: it is the result the multi-engine deployment rests on, and it
+  # runs on a freshly started universe before any other stage has registered
+  # sources or pushed. universal-vectors deletes and re-registers sources
+  # between events, so running it first would hand the parity gate a stack that
+  # something else had already driven.
+  run_stage "trajectory-parity" run_trajectory_parity
   run_stage "universal-vectors" run_universal_vectors
   run_stage "mqtt-yuma"         run_mqtt_yuma
   run_stage "mcp"               run_mcp

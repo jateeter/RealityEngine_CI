@@ -35,6 +35,10 @@ def collect_report_statuses(run_dir: Path) -> dict[str, Any]:
     manifest = load_json(run_dir / "manifest.json", {})
 
     service = load_json(reports / "service-inventory.json", {})
+    # The parity result. ISRE/OREV are the observation points the multi-engine
+    # equivalence claim is made at; universal-vectors below is a contract check,
+    # not a parity measurement (#148, and it diffs a debug projection).
+    trajectory = load_json(responses / "trajectory-parity" / "trajectory-summary.json", {})
     universal = load_json(responses / "universal-vectors" / "summary.json", {})
     vector_comparison = load_json(responses / "universal-vectors" / "normalized-comparison.json", {})
     mcp = load_json(reports / "mcp-smoke.json", {})
@@ -46,6 +50,7 @@ def collect_report_statuses(run_dir: Path) -> dict[str, Any]:
         "manifest": manifest,
         "build": build_status(manifest),
         "serviceInventory": section_status(service),
+        "trajectoryParity": section_status(trajectory, failure_key="failures"),
         "universalVectors": section_status(universal, failure_key="failures"),
         "universalVectorComparison": section_status(vector_comparison, failure_key="failures"),
         "mqtt": aggregate_reports(mqtt_reports),
@@ -54,6 +59,7 @@ def collect_report_statuses(run_dir: Path) -> dict[str, Any]:
         "deployment": {"status": "not-run", "reason": "deployment suite is not yet wired into regression-test.sh"},
         "reportFiles": {
             "serviceInventory": rel(run_dir, reports / "service-inventory.json"),
+            "trajectoryParity": rel(run_dir, responses / "trajectory-parity" / "trajectory-summary.json"),
             "universalVectors": rel(run_dir, responses / "universal-vectors" / "summary.json"),
             "universalVectorComparison": rel(run_dir, responses / "universal-vectors" / "normalized-comparison.json"),
             "mcp": rel(run_dir, reports / "mcp-smoke.json"),
@@ -144,7 +150,7 @@ def find_compare_run(history_dir: Path, current_run_id: str, compare_run: str) -
 def compare_runs(current: dict[str, Any], previous: dict[str, Any] | None, previous_id: str | None) -> dict[str, Any]:
     if previous is None:
         return {"status": "not-compared", "previousRunId": previous_id or "", "changes": [], "newFailures": [], "resolvedFailures": []}
-    sections = ["build", "serviceInventory", "universalVectors", "mqtt", "mcp",
+    sections = ["build", "serviceInventory", "trajectoryParity", "universalVectors", "mqtt", "mcp",
                 "arbiter", "openclaw", "deployment"]
     changes = []
     new_failures = []
@@ -186,7 +192,8 @@ def summary_markdown(run_dir: Path, status: dict[str, Any], comparison: dict[str
     for label, key in (
         ("Build", "build"),
         ("Service readiness", "serviceInventory"),
-        ("Universal vectors", "universalVectors"),
+        ("ISRE/OREV trajectory parity", "trajectoryParity"),
+        ("Universal vectors (contract)", "universalVectors"),
         ("MQTT Yuma", "mqtt"),
         ("MCP", "mcp"),
         ("Arbiter conformance", "arbiter"),
