@@ -124,12 +124,18 @@ def check_repo(key: str, spec: dict, branch: str, fetch: bool, lane: str) -> lis
     repo = WS / spec["dir"]
     failures: list[str] = []
 
-    # The hosted lane fetches siblings as tarballs and runs the engines as
-    # containers, so there is no git checkout and no local artifact to inspect.
-    # Nothing here applies, and failing would only teach people to bypass it.
-    # This check is about the local lane, where startUniverse.sh spawns the
-    # binaries and jars sitting in the working copies.
-    if not (repo / ".git").is_dir():
+    # A repository is `.git` as a directory (ordinary clone) or as a *file*
+    # holding a `gitdir:` pointer (a `git worktree add` checkout). The harness
+    # cold-starts into worktrees, so testing only for a directory rejected every
+    # repo it builds — the gate failed closed on every hosted regression run
+    # from 2026-08-24 onward, and the lane looked like it ran while never
+    # starting a universe (#173).
+    git_entry = repo / ".git"
+    is_worktree = git_entry.is_file()
+    if not (git_entry.is_dir() or is_worktree):
+        # The e2e lane fetches siblings as tarballs and runs the engines as
+        # containers, so there is no checkout and no local artifact to inspect.
+        # Nothing here applies, and failing would only teach people to bypass it.
         if lane == "hosted":
             return []
         return [f"{key}: {repo} is not a git repository"]
@@ -137,7 +143,13 @@ def check_repo(key: str, spec: dict, branch: str, fetch: bool, lane: str) -> lis
     code, current = git(repo, "rev-parse", "--abbrev-ref", "HEAD")
     if code != 0:
         return [f"{key}: cannot read HEAD ({current})"]
-    if current != branch:
+    # A harness worktree is deliberately on its own run-scoped branch
+    # (`Regression-Test-gha-<run-id>`), so asserting `main` here would reject
+    # the very trees the harness just built. What the gate is actually for —
+    # that the artifact corresponds to the source beside it — is unaffected and
+    # still enforced below: dirty-source and both artifact-freshness checks run
+    # for worktrees exactly as they do for a clone.
+    if not is_worktree and current != branch:
         failures.append(f"{key}: on '{current}', expected '{branch}'")
 
     # Only source counts as dirty. A generated artifact or a scratch file is not
@@ -155,7 +167,10 @@ def check_repo(key: str, spec: dict, branch: str, fetch: bool, lane: str) -> lis
             f"correspond to a commit: {', '.join(dirty[:3])}"
         )
 
-    if fetch:
+    # Same reasoning as the branch check: a run-scoped worktree branch has no
+    # meaningful ahead/behind relationship with origin/main, and the harness
+    # created it from a known commit moments earlier.
+    if fetch and not is_worktree:
         git(repo, "fetch", "--quiet", "origin", branch)
         code, counts = git(repo, "rev-list", "--left-right", "--count", f"origin/{branch}...HEAD")
         if code == 0 and "\t" in counts:
