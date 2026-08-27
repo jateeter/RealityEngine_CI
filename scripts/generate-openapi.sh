@@ -15,7 +15,7 @@ set -euo pipefail
 CI_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 WS="$(cd "$CI_DIR/.." && pwd)"
 SCRIPT="$CI_DIR/scripts/openapi/generate.py"
-SPEC="$WS/RealityEngine_CPP/SURFACE_SPEC.md"
+SPEC="$CI_DIR/SURFACE_SPEC.md"
 OVERLAY_DIR="$CI_DIR/scripts/openapi/overlays"
 OUT_DIR="$CI_DIR/docs/openapi"
 PROPAGATE=false
