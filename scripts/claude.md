@@ -40,6 +40,25 @@ This directory contains operational helpers for startup, testing, OpenAPI, and v
   that always fails is a harness stage everyone learns to ignore. Wire it in
   when the contract lands.
 
+  What it asserts about `active`, since this is the part that moved twice while
+  the issue settled and is easy to re-break:
+
+  | kind | validates active iff |
+  |---|---|
+  | sensor | it holds a value inside its TTL |
+  | test | its interned sequence is **non-empty** — not unconditional `true` |
+  | simulated | always |
+
+  Reset recomputes from those rules *alone*. It never reads the prior `active`
+  flag, so an operator pause is run state and does not survive a reset — the
+  stage pauses one test source and arms another before resetting, and both must
+  come back active. Sitting under all of it: **ingress is the only way an
+  integration source becomes active**, so a source that never received a value
+  reports inactive at every observation point, and the stage checks that at
+  registration, before the reset and after it. One clock read per validation
+  pass, with `--clock-margin-ms` skipping sensors too near their TTL boundary
+  to call either way.
+
   The TypeScript PE in `RealityEngine_Manager` is the fourth implementation of
   this surface and is not in the runtime registry; pass it with
   `--extra-runtime ts-1=<re_url>,<pe_url>`.

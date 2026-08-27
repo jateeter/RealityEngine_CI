@@ -19,11 +19,25 @@ declares.* (#163, as settled in comments; the issue body now carries it.)
 
 1. Registration happens at boot from declared configuration or dynamically at
    runtime, with one meaning either way.
-2. (a) Registration declares the source set immediately and completely.
-   (b) Activity is earned by the first value — lazy *by design*, and it stays.
+2. (a) Registration declares the source set immediately, completely, and
+   **inactive**. (b) Activity is earned by the first value — lazy *by design*,
+   and it stays. Stated at its strongest: **ingress is the only way a source
+   from an integration becomes active.** Not registration, not bootstrap, not
+   restore-from-store, not reset. A source that never received a value reports
+   inactive at every observation point, through any sequence of register, reset,
+   restart and restore.
 3. Membership and activity change on different events. Membership changes only
    on register and deregister. Reset does not *assign* activity, it *validates*
-   it: a sensor holding a value outside its TTL is not active.
+   it, recomputing from the rules for each kind **alone** — it never reads the
+   prior `active` flag and never carries it forward, so an operator pause is run
+   state and does not survive a reset:
+
+       sensor     active iff it holds a value inside its TTL
+       test       active iff its interned sequence is non-empty
+       simulated  always
+
+   The `test` rule is the one that quietly diverges: unconditional `true` is
+   wrong even though it agrees with the old code on every non-degenerate source.
 4. Reset is membership-neutral. It rewinds run state and manufactures nothing.
 5. The store caches run state — values and activity — never membership.
 6. The same configuration and the same registration sequence produce the same
@@ -55,19 +69,30 @@ is supposed to hold, never after something has had a chance to repair it.
    must be the first call after the reset** or C++'s lazy sync repairs the set
    before anyone looks at it, which is exactly how this defect stayed invisible.
    The set is compared against `declaredAtRegistration` (points 3 and 4) and
-   across runtimes (point 6). One test source is held back unarmed across the
-   reset as a control: it was never given a value, so no validation makes it
-   active, and a runtime reporting it active assigned activity rather than
-   validating it.
+   across runtimes (point 6), and every source's `active` is checked against the
+   rule for its kind. Two test sources are put into opposite states beforehand —
+   one explicitly paused, one explicitly armed — and both must come back active,
+   because a test source with a non-empty sequence validates active whatever it
+   held before. A runtime that leaves the paused one inactive read the prior
+   flag and carried it forward.
 5. **trajectory parity** — push and compare ISRE/OREV histories with **no
    bootstrap and no PATCH after the reset**. The comparison itself is
    `regression-trajectory-parity.py`, imported as a module. There is one
    definition of what parity means and this stage is not a second one.
-6. **TTL validation** (#166) — register a sensor, feed it a value with a short
-   TTL, wait the TTL out, reset, and read. `active` must be `false`. Today all
-   four runtimes answer `true`: none of them revalidate, and none of them clear
-   `lastValue`/`lastUpdated`, so the information needed to validate is sitting
-   right there unused.
+6. **TTL validation** (#166) — register a sensor and read: it must be declared
+   inactive, since nothing has arrived. Feed it a value: it must now be active,
+   because ingress earns activity wherever it arrives. Wait the TTL out, reset,
+   and read: `active` must be `false`. Today all four runtimes answer `true` to
+   the last one — none revalidate, and none clear `lastValue`/`lastUpdated`, so
+   the information needed to validate is sitting right there unused.
+
+   The middle assertion is not padding. In the TypeScript PE
+   `updateSensorValue()` stored the value and never set `active`; once reset
+   correctly validated an expired sensor inactive, the next value left it
+   inactive *and* outside the collection vector assembly iterates — stranded,
+   holding a fresh reading, contributing zeros. That is a correctness regression
+   strictly worse than the reported-state defect being fixed, and the narrow fix
+   would have shipped it.
 
 ## Result classes, kept apart
 
@@ -216,8 +241,120 @@ def source_map(sources: list[dict[str, Any]]) -> dict[str, dict[str, Any]]:
         key = membership_key(source)
         if key in out:
             key = f"{key}::dup{sum(1 for k in out if k.startswith(key))}"
-        out[key] = {"declared": declared(source), "active": bool(source.get("active"))}
+        out[key] = {
+            "declared": declared(source),
+            "active": bool(source.get("active")),
+            # Not part of the declared identity — it moves with the clock — but
+            # it is what the sensor rule validates against, and it is the only
+            # evidence that an ingress event ever happened.
+            "lastUpdated": source.get("lastUpdated"),
+        }
     return out
+
+
+# ── validation: what `active` must be, per kind ───────────────────────────────
+
+# Contract point 3, as settled. `active` is on the byte-compared source payload,
+# so these must produce identical answers on every runtime.
+#
+#   sensor     active iff it holds a value inside its TTL
+#   test       active iff its interned sequence is non-empty
+#   simulated  always
+#
+# The `test` rule is the one that quietly diverges. A test source with an empty
+# interned sequence can supply nothing, so reporting it active would be
+# assignment rather than validation — the exact behaviour point 3 replaces.
+# Unconditional `true` is wrong even though it agrees with the old code on every
+# non-degenerate source.
+#
+# Validation recomputes from the rules *alone*. It never reads the prior `active`
+# value and never carries it forward: an operator-paused source is run state,
+# and reset clears run state, so a pause does not survive a reset. Any
+# implementation consulting the old flag is preserving run state across a reset,
+# which is the thing being removed.
+
+
+def expected_active(entry: dict[str, Any], now_ms: float,
+                    margin_ms: int) -> bool | None:
+    """What `active` must be for this source. None where the answer is ambiguous.
+
+    Ambiguity is confined to one case: a sensor whose value sits within
+    `margin_ms` of its TTL boundary, where the engine's clock read and this
+    stage's are far enough apart that either answer is defensible. Those are
+    skipped rather than guessed, because a flaky assertion in a stage that is
+    supposed to fail for real reasons is worse than a missing one.
+
+    `now_ms` is passed in rather than read here: the whole set must be validated
+    against a single clock read, or two sensors with identical `lastUpdated` and
+    `ttlMs` validate differently because the loop crossed a millisecond boundary.
+    """
+    kind = entry["declared"].get("type")
+    if kind == "test":
+        inputs = entry["declared"].get("inputs")
+        return bool(inputs)
+    if kind == "sensor":
+        seen = entry.get("lastUpdated")
+        if not isinstance(seen, (int, float)):
+            # Never fed. The ingress invariant makes this unambiguous.
+            return False
+        ttl = entry["declared"].get("ttlMs")
+        if not isinstance(ttl, (int, float)):
+            return None
+        age = now_ms - float(seen)
+        if abs(age - float(ttl)) <= margin_ms:
+            return None
+        return age <= float(ttl)
+    # simulated, and any kind a runtime invents: it generates from `globalStep`,
+    # which the reset has zeroed, so it can always supply a value.
+    return True
+
+
+def validation_violations(runtime: str, entries: dict[str, dict[str, Any]],
+                          now_ms: float, margin_ms: int) -> list[str]:
+    """Every source whose `active` disagrees with the rule for its kind."""
+    failures = []
+    for key, entry in sorted(entries.items()):
+        want = expected_active(entry, now_ms, margin_ms)
+        if want is None or entry["active"] == want:
+            continue
+        kind = entry["declared"].get("type")
+        failures.append(
+            f"{runtime}: {key!r} reports active={entry['active']} after reset; the "
+            f"{kind} rule validates active={want} (point 3: reset recomputes from the "
+            f"rules alone and never carries the prior flag forward)")
+    return failures
+
+
+def ingress_violations(runtime: str, entries: dict[str, dict[str, Any]],
+                       where: str) -> list[str]:
+    """Sources active with no ingress in their history.
+
+    The invariant, stated at its strongest: **ingress is the only way a source
+    from an integration becomes active.** Not registration, not bootstrap, not
+    restore-from-store, not reset. An integration source's `active` state is
+    always traceable to an ingress event and expires with that value's TTL, so a
+    source that has never received a value must report inactive at every
+    observation point, through any sequence of register, reset, restart and
+    restore.
+
+    `lastUpdated` is the evidence: only ingress sets it. This is why reset
+    validating a fresh sensor active is not reset *activating* it — the activity
+    was earned by an earlier ingress and reset only confirms it has not expired.
+
+    Checked at every observation point rather than only after the reset, because
+    the paths that violate it are registration paths: an integration
+    constructing its source with `active = true` inline on first value skips the
+    declared-inactive state (point 2a) and is caught here at registration.
+    """
+    failures = []
+    for key, entry in sorted(entries.items()):
+        if entry["declared"].get("type") != "sensor":
+            continue
+        if entry["active"] and not isinstance(entry.get("lastUpdated"), (int, float)):
+            failures.append(
+                f"{runtime}: {key!r} is active {where} with no ingress in its history "
+                f"(lastUpdated is null) — activity must trace to a value having arrived")
+    return failures
 
 
 def compare_declared(sets: dict[str, dict[str, dict[str, Any]]]) -> list[str]:
@@ -372,26 +509,28 @@ def reset_then_read(instance: dict[str, Any]) -> tuple[dict[str, dict[str, Any]]
     return entries, failures
 
 
-def arm_fixture(instance: dict[str, Any]) -> tuple[dict[str, Any], list[str]]:
-    """Arm the harness's own test sources — all but one — once, *before* the reset.
+def set_controls(instance: dict[str, Any]) -> tuple[dict[str, Any], list[str]]:
+    """Put two test sources into opposite states before the reset.
 
-    Legitimate under the settled contract: the harness is choosing to arm its
-    own fixture, not compensating for a broken reset. The thing the contract
-    must make unnecessary is arming it *again afterwards*, so this runs here and
-    never after the reset phase, and whether the reset silently re-armed
-    anything is measured rather than corrected.
+    Both must validate `active` afterwards, because a test source with a
+    non-empty interned sequence validates active whatever it held before. That
+    is the observable form of "validation recomputes from the rules alone":
 
-    **One source is held back, deliberately inactive.** Without it, point 3 is
-    untestable on test sources: if the harness arms everything, a reset that
-    forces `active = true` is indistinguishable from a reset that validated an
-    already-active source and left it alone. The held-back source is the control
-    — after the reset it must still be inactive, because nothing gave it a
-    value. It is chosen by membership key, which carries no id, so every runtime
-    holds back the same machine's source and the stimulus stays equal.
+    * **paused** — explicitly deactivated, an operator pause. The ruling is that
+      an operator-deactivated source is *run state*, not configuration, and
+      reset clears run state. A runtime that leaves it inactive read the prior
+      flag and carried it forward.
+    * **armed** — explicitly activated. A runtime that leaves it active may have
+      validated it, or may simply have preserved it; on its own this control
+      proves nothing, and it is the pair that separates the two.
 
-    `CL.set_test_sources_active` is not reused here even though it does most of
-    this: it arms every source unconditionally, which is exactly the control
-    this phase needs to keep.
+    Controls are chosen by membership key, which carries no id, so every runtime
+    picks the same machine's source and the stimulus stays equal.
+
+    No arming pass beyond this. Under the settled contract the reset itself
+    leaves every test source with a non-empty sequence active, so the harness
+    has nothing to arm — which is the point of the exercise, and why
+    `CL.set_test_sources_active` is deliberately not reused here.
     """
     failures: list[str] = []
     sources, err = CL.pe_sources(instance)
@@ -400,47 +539,61 @@ def arm_fixture(instance: dict[str, Any]) -> tuple[dict[str, Any], list[str]]:
 
     tests = sorted((s for s in sources if s.get("type") == "test"), key=membership_key)
     if not tests:
-        return {"armed": 0, "total": 0, "heldBack": None}, []
+        return {"paused": None, "armed": None, "total": 0}, []
 
-    held, arming = tests[0], tests[1:]
-    armed = 0
-    for source in arming:
+    record: dict[str, Any] = {"paused": None, "armed": None, "total": len(tests)}
+    wanted = [(tests[0], False, "paused")]
+    if len(tests) > 1:
+        wanted.append((tests[-1], True, "armed"))
+
+    for source, value, role in wanted:
         sid = source.get("id")
-        if not sid or bool(source.get("active")):
+        if not sid:
             continue
-        status, _ = CL.patch_json(f"{instance['pe']}/api/sources/{sid}", {"active": True})
+        status, _ = CL.patch_json(f"{instance['pe']}/api/sources/{sid}", {"active": value})
         if status != 200:
             failures.append(f"{instance['id']}: PATCH /api/sources/{sid} returned {status}")
-        else:
-            armed += 1
+            continue
+        record[role] = membership_key(source)
 
     # Verify the writes survived a read. C++ answers this PATCH 200 with the new
     # value echoed back and then reports the old one on the next GET, because
     # its GET /api/sources rebuilds every test source at `sourceActivateOnLoad`.
     # A caller cannot tell from the response that nothing happened, so it is
-    # checked rather than assumed.
+    # checked rather than assumed — and if it did not stick, the controls below
+    # are measuring the rebuild rather than the reset.
     after, err = read_sources(instance)
     if err:
         failures.append(err)
-    else:
-        live = sum(1 for entry in after.values()
-                   if entry["declared"].get("type") == "test" and entry["active"])
-        if live != len(arming):
+        return record, failures
+    for source, value, role in wanted:
+        key = record.get(role)
+        if key and any(k.startswith(f"{key}::dup") for k in after):
+            # The runtime holds two sources this key cannot tell apart, so which
+            # one the PATCH landed on is unknowable. Reported once, by the
+            # duplicate check at the registration observation point, rather than
+            # guessed at here.
+            record[f"{role}Ambiguous"] = True
+            continue
+        if key and key in after and after[key]["active"] != value:
             failures.append(
-                f"{instance['id']}: arming did not persist — {live}/{len(arming)} test "
-                f"sources hold active=true after a re-read; start the PE with "
-                f"PE_SOURCE_ACTIVATE_ON_LOAD=true if this runtime cannot be armed over the API")
-    return {"armed": armed, "total": len(tests), "heldBack": membership_key(held)}, failures
+                f"{instance['id']}: PATCH active={value} on the {role} control {key!r} did "
+                f"not survive a re-read — this runtime rebuilds its test sources on read, "
+                f"so the reset controls cannot be set over the API")
+    return record, failures
 
 
 def activity_delta(before: dict[str, dict[str, Any]],
                    after: dict[str, dict[str, Any]]) -> dict[str, int]:
     """How the reset moved each source's `active` flag.
 
-    `assigned` counts sources the reset turned on. Under contract point 3 that
-    is zero: reset validates activity, it does not assign it. `dropped` counts
-    sources it turned off, which is legitimate only where validation demands it
-    — a source whose value fell outside its TTL.
+    Recorded, not asserted. Movement in either direction is legitimate under
+    validation — a paused test source comes back active, an expired sensor goes
+    inactive — so what matters is whether the post-reset value matches the rule
+    for the kind, which `validation_violations` decides. This pair is kept for
+    the record because the *shape* of the movement is how the C++ read-timing
+    drift showed itself in the first place (1, 809, 639, 544 across identical
+    resets), and a scalar that varies run to run is worth having written down.
     """
     assigned = sum(1 for key, entry in after.items()
                    if key in before and entry["active"] and not before[key]["active"])
@@ -501,6 +654,19 @@ def run_trajectory(instances: list[dict[str, Any]], steps: int,
     return record, failures
 
 
+def find_probe(entries: dict[str, dict[str, Any]], sid: str) -> dict[str, Any] | None:
+    """The TTL probe in a source map.
+
+    Looked up by name rather than by id, for the same reason everything else
+    here is: the id sent at registration is not necessarily the id a runtime
+    minted for it (#146). The probe's name is unique to the run.
+    """
+    for key, entry in entries.items():
+        if sid in key or "ttl probe" in key.lower():
+            return entry
+    return None
+
+
 def run_ttl_validation(instance: dict[str, Any], region: dict[str, int],
                        ttl_ms: int, run_id: str) -> tuple[dict[str, Any], list[str]]:
     """#166: an expired sensor must not be `active` after a reset.
@@ -540,25 +706,48 @@ def run_ttl_validation(instance: dict[str, Any], region: dict[str, int],
         return record, [f"{instance['id']}: TTL probe registration returned {status}"]
 
     try:
+        # Contract 2a and the ingress invariant: declared, and inactive, before
+        # any value has arrived. A runtime reporting it active here originated
+        # activity at registration, which no path but ingress may do.
+        entries, err = read_sources(instance)
+        if err:
+            failures.append(err)
+        probe = find_probe(entries, sid)
+        record["activeAtRegistration"] = probe["active"] if probe else None
+        if probe and probe["active"]:
+            failures.append(
+                f"{instance['id']}: TTL probe is active at registration, before any value "
+                f"has arrived — registration declares inactive and only ingress activates "
+                f"(points 2a, 2b)")
+
         status, _ = TP.post_json(f"{pe}/api/sensors/{sid}", {"values": [1.0] * region["length"]})
         if status != 200:
             return record, [f"{instance['id']}: TTL probe sensor write returned {status}"]
 
-        # Contract point 2b: the first value earns activity. Recorded rather
-        # than asserted — a runtime that does not do this is a different
-        # finding from one that fails to revalidate, and the two must not read
-        # the same.
+        # Contract 2b, the other half: a value must earn activity wherever it
+        # arrives. In the TypeScript PE `updateSensorValue()` stored the value
+        # and never set `active`, so sensors only ever became active at
+        # registration; once reset correctly validated an expired sensor
+        # inactive, the next value left it inactive *and* outside the collection
+        # the vector assembly iterates — stranded, holding a fresh reading,
+        # contributing zeros indefinitely. That is strictly worse than the
+        # reported-state defect being fixed, so both halves are asserted.
         entries, err = read_sources(instance)
         if err:
             failures.append(err)
-        record["activeAfterFirstValue"] = next(
-            (e["active"] for k, e in entries.items() if sid in k or "ttl probe" in k.lower()), None)
+        probe = find_probe(entries, sid)
+        record["activeAfterFirstValue"] = probe["active"] if probe else None
+        if probe and not probe["active"]:
+            failures.append(
+                f"{instance['id']}: TTL probe is still inactive after a value arrived — "
+                f"ingress must earn activity, or the source is stranded holding a fresh "
+                f"reading and contributing zeros (point 2b)")
 
         time.sleep((ttl_ms + 500) / 1000.0)
 
         entries, errs = reset_then_read(instance)
         failures.extend(errs)
-        probe = next((e for k, e in entries.items() if sid in k or "ttl probe" in k.lower()), None)
+        probe = find_probe(entries, sid)
         if probe is None:
             # Vanishing is a point-4 violation, not a pass. A reset that drops
             # the source has not validated it, it has deleted the question.
@@ -613,6 +802,10 @@ def main() -> int:
                              "region only has to exist")
     parser.add_argument("--probe-length", type=int, default=4)
     parser.add_argument("--probe-ttl-ms", type=int, default=1500)
+    parser.add_argument("--clock-margin-ms", type=int, default=750,
+                        help="a sensor whose value sits this close to its TTL boundary is "
+                             "not validated either way — the engine's clock read and this "
+                             "stage's are far enough apart that both answers are defensible")
     parser.add_argument("--extra-runtime", action="append", default=[],
                         help="id=re_url,pe_url for a runtime absent from the registry — "
                              "notably the TypeScript PE. Repeatable")
@@ -694,38 +887,58 @@ def main() -> int:
     }
     for failure in compare_declared(declared_at_registration):
         contract_failures.append(f"at registration: {failure}")
+    # Ingress is checked here first because the paths that violate it are
+    # registration paths: an integration constructing its source active on first
+    # value never passes through the declared-inactive state at all.
+    for name, entries in declared_at_registration.items():
+        contract_failures.extend(ingress_violations(name, entries, "at registration"))
+        # Two sources indistinguishable by anything the contract names. Nothing
+        # downstream can address one of them, so it is a finding in its own
+        # right and not merely untidy — a repeated registration that mints a
+        # second record instead of returning the first has moved membership on
+        # an event that is supposed to be idempotent (point 1).
+        duplicates = sorted(k.split("::dup")[0] for k in entries if "::dup" in k)
+        if duplicates:
+            contract_failures.append(
+                f"{name}: {len(duplicates)} duplicate source(s) declared — "
+                f"{', '.join(duplicates[:3])}{' …' if len(duplicates) > 3 else ''}")
 
-    armed: dict[str, Any] = {}
-    held_back: dict[str, str | None] = {}
+    controls: dict[str, Any] = {}
     for instance in instances:
-        record, errs = arm_fixture(instance)
+        record, errs = set_controls(instance)
         contract_failures.extend(errs)
-        armed[instance["id"]] = record
-        held_back[instance["id"]] = record.get("heldBack")
-    summary["contractParity"]["armedBeforeReset"] = armed
-    if len({json.dumps(v) for v in held_back.values()}) > 1:
+        controls[instance["id"]] = record
+    summary["contractParity"]["controlsBeforeReset"] = controls
+    chosen = {name: [rec.get("paused"), rec.get("armed")] for name, rec in controls.items()}
+    if len({json.dumps(v) for v in chosen.values()}) > 1:
         contract_failures.append(
-            f"runtimes held back different control sources {held_back} — the declared sets "
+            f"runtimes chose different control sources {chosen} — the declared sets "
             f"already disagree, so the stimulus below is not equal either")
 
-    armed_state: dict[str, dict[str, dict[str, Any]]] = {}
+    before_reset: dict[str, dict[str, dict[str, Any]]] = {}
     for instance in instances:
         entries, err = read_sources(instance)
         if err:
             contract_failures.append(err)
             continue
-        armed_state[instance["id"]] = entries
+        before_reset[instance["id"]] = entries
+        contract_failures.extend(ingress_violations(instance["id"], entries, "before reset"))
 
     # ── reset: contract points 3, 4 and 6 ─────────────────────────────────────
     after_reset: dict[str, dict[str, dict[str, Any]]] = {}
     reset_record: dict[str, Any] = {}
     for instance in instances:
+        # One clock read per validation pass, taken beside the reset rather than
+        # inside the loop over sources: two sensors with identical `lastUpdated`
+        # and `ttlMs` must not validate differently because the walk crossed a
+        # millisecond boundary.
+        now_ms = time.time() * 1000.0
         entries, errs = reset_then_read(instance)
         contract_failures.extend(errs)
         if errs and not entries:
             continue
         after_reset[instance["id"]] = entries
-        before = armed_state.get(instance["id"], {})
+        before = before_reset.get(instance["id"], {})
         moved = membership_delta(before, entries)
         activity = activity_delta(before, entries)
         reset_record[instance["id"]] = {"membership": moved, "activity": activity,
@@ -735,20 +948,27 @@ def main() -> int:
                 f"{instance['id']}: reset changed membership — "
                 f"{len(moved['appeared'])} appeared, {len(moved['vanished'])} vanished "
                 f"(point 4: reset is membership-neutral)")
-        if activity["assigned"]:
-            contract_failures.append(
-                f"{instance['id']}: reset turned on {activity['assigned']} source(s) "
-                f"(point 3: reset validates activity, it does not assign it)")
 
-        # The control. It was never armed and never carried a value, so nothing
-        # validation could compute makes it active. A runtime reporting it
-        # active after the reset assigned activity rather than validating it.
-        control = held_back.get(instance["id"])
-        if control and control in entries and entries[control]["active"]:
-            contract_failures.append(
-                f"{instance['id']}: held-back control source {control!r} is active after "
-                f"reset, having never been armed or given a value — reset forces test "
-                f"sources active (point 3)")
+        # Every source against the rule for its kind. This is the whole of point
+        # 3 on the reset path, and it subsumes the older "reset must not turn
+        # anything on" check — which was wrong as stated, since a test source
+        # with a non-empty sequence *must* come back active however it was left.
+        contract_failures.extend(
+            validation_violations(instance["id"], entries, now_ms, args.clock_margin_ms))
+
+        # The paused control, named explicitly. It is already covered by the
+        # sweep above, but a runtime that carried an operator pause across the
+        # reset has made a specific mistake and deserves to be told which one.
+        paused = (controls.get(instance["id"]) or {}).get("paused")
+        if paused and paused in entries and not entries[paused]["active"]:
+            want = expected_active(entries[paused], now_ms, args.clock_margin_ms)
+            if want:
+                contract_failures.append(
+                    f"{instance['id']}: the explicitly paused control {paused!r} is still "
+                    f"inactive after reset — an operator pause is run state, and reset "
+                    f"clears run state rather than carrying the prior flag forward")
+
+        contract_failures.extend(ingress_violations(instance["id"], entries, "after reset"))
     summary["contractParity"]["reset"] = reset_record
     summary["contractParity"]["declared"]["afterReset"] = {
         name: {"count": len(e), "active": sum(1 for v in e.values() if v["active"])}

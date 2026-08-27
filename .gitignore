@@ -31,3 +31,7 @@ test-results/
 # Python bytecode caches
 __pycache__/
 *.pyc
+
+# Parity evidence copied out of /tmp so it survives a reboot. Raw run records
+# kept alongside an open investigation, not source.
+.parity-evidence/
