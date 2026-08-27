@@ -681,7 +681,25 @@ build_repos() {
   run_repo_cmd "RealityEngine_LSP" "build" "bootstrap-quicklisp" bash -lc \
     "cd '$(repo_root RealityEngine_LSP)' && bash scripts/bootstrap-quicklisp.sh --home"
   run_repo_cmd "RealityEngine_LSP" "build" "build-lsp" bash -lc "cd '$(repo_root RealityEngine_LSP)' && make build"
-  run_repo_cmd "RealityEngine_Scala" "build" "build-scala" bash -lc "cd '$(repo_root RealityEngine_Scala)' && sbt clean compile"
+  # `sbt clean compile` produces classes, not the fat jars startUniverse
+  # launches. Both engines are assembled here, matching how RealityEngine_CPP
+  # is built above: the build stage builds what the run will launch, and the
+  # provenance gate then verifies it before anything starts.
+  #
+  # Compiling only was invisible for as long as the gate never reached this
+  # far. A local run also hides it, because RealityEngine_Scala/start.sh
+  # rebuilds a missing or stale jar on the way up — so the harness relied on
+  # the launcher to build artifacts the harness claimed to have built, and the
+  # first cold-start run that got past the worktree check reported
+  # `artifact missing — target/scala-2.13/reality-engine.jar` (#173).
+  #
+  # The perception engine is a separate sbt build with its own build.sbt and
+  # project/, so it needs its own invocation — the root assembly does not
+  # produce it.
+  run_repo_cmd "RealityEngine_Scala" "build" "build-scala-re" bash -lc \
+    "cd '$(repo_root RealityEngine_Scala)' && sbt clean assembly"
+  run_repo_cmd "RealityEngine_Scala" "build" "build-scala-pe" bash -lc \
+    "cd '$(repo_root RealityEngine_Scala)/perception-engine' && sbt clean assembly"
   run_repo_cmd "RealityEngine_Machines" "build" "validate-machines" bash -lc "cd '$(repo_root RealityEngine_Machines)' && bash scripts/validate-corpus.sh"
   # TypeScript is typechecked explicitly rather than relied on as a side effect
   # of bundling. Playwright transpiles specs without typechecking them, so
