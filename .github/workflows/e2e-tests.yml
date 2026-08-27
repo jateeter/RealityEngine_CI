@@ -158,21 +158,17 @@ jobs:
           path: RealityEngine_Manager
           token: ${{ secrets.REPO_ACCESS_TOKEN || github.token }}
 
-      - name: Check SURFACE_SPEC.md is identical across all runtimes
-        run: |
-          CANONICAL=RealityEngine_CPP/SURFACE_SPEC.md
-          FAIL=0
-          for repo in RealityEngine_Scala RealityEngine_LSP RealityEngine_Manager; do
-            TARGET="$repo/SURFACE_SPEC.md"
-            if ! diff -q "$CANONICAL" "$TARGET" > /dev/null 2>&1; then
-              echo "DRIFT: $TARGET differs from $CANONICAL"
-              diff "$CANONICAL" "$TARGET" || true
-              FAIL=1
-            else
-              echo "OK: $TARGET matches canonical"
-            fi
-          done
-          exit $FAIL
+      # The specification has one home — RealityEngine_CI/SURFACE_SPEC.md — and
+      # each runtime repo holds a pointer to it. This step used to diff a
+      # canonical copy in RealityEngine_CPP against three duplicates, which made
+      # editorial disagreement indistinguishable from contract divergence: on
+      # 2026-08-27 two correct parallel changes described the same
+      # POST /api/reset post-state in different words and turned main red.
+      #
+      # The logic lives in the script so the local lane and this one cannot
+      # disagree about what the check means.
+      - name: Check SURFACE_SPEC has one master and intact pointers
+        run: RealityEngine_CI/scripts/check-surface-specs.sh
 
   # ── Phase 2d: Machine corpus gates ─────────────────────────────────────────
   # RealityEngine_Machines has no workflows of its own — verification of the
