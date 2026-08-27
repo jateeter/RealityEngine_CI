@@ -73,8 +73,23 @@ TARGETS: dict[str, dict] = {
     },
     "lsp": {
         "dir": "RealityEngine_LSP",
-        # SBCL loads the .lisp files at start, so there is nothing to go stale.
+        # This used to read "SBCL loads the .lisp files at start, so there is
+        # nothing to go stale", with artifacts: []. That stopped being true.
+        #
+        # `make build` has always run save-lisp-and-die into bin/reality-engine-lsp,
+        # and RealityEngine_LSP#62 made start.sh *launch* that image by default:
+        # LSP_LAUNCH_MODE=auto prefers the binary when it is present, executable
+        # and no older than src/, and falls back to a source load otherwise.
+        #
+        # So LSP acquired exactly the staleness this gate exists to catch, on
+        # the one engine nobody would think to suspect — while the gate reported
+        # "ok lsp: runs from source" and verified nothing at all.
+        #
+        # Optional, not required: a source-mode run legitimately has no image,
+        # and demanding one would fail every lane that does not build it. But a
+        # *stale* image is not benign, because auto mode will prefer it.
         "artifacts": [],
+        "optional_artifacts": ["bin/reality-engine-lsp"],
         "sources": ["src/**/*.lisp"],
     },
     "machines": {"dir": "RealityEngine_Machines", "artifacts": [], "sources": []},
@@ -186,9 +201,18 @@ def check_repo(key: str, spec: dict, branch: str, fetch: bool, lane: str) -> lis
     commit_time = head_commit_time(repo)
     now = time.time()
 
-    for rel in spec.get("artifacts") or []:
+    required = list(spec.get("artifacts") or [])
+    # Optional artifacts are launch *options*: absent is a supported state, but
+    # a stale one is exactly as dangerous as a stale required artifact, because
+    # the launcher will prefer it. Verified for freshness when present, never
+    # required. See the `lsp` entry in TARGETS.
+    optional = list(spec.get("optional_artifacts") or [])
+
+    for rel in required + optional:
         art = repo / rel
         if not art.exists():
+            if rel in optional:
+                continue
             # Containerised lanes never materialise these paths. Only the lane
             # that launches them locally can meaningfully require them.
             if lane == "hosted":
@@ -236,11 +260,25 @@ def main() -> int:
             for f in failures:
                 print(f"  FAIL {f}")
         else:
-            arts = len(TARGETS[key].get("artifacts") or [])
+            spec = TARGETS[key]
+            repo = WS / spec["dir"]
+            arts = len(spec.get("artifacts") or [])
+            # Count only the optional artifacts that actually exist — those are
+            # the ones freshness was checked against. Reporting a fixed count
+            # would claim verification that did not happen, which is how
+            # "ok lsp: runs from source" hid an unchecked launch image.
+            opt_present = [
+                rel for rel in (spec.get("optional_artifacts") or []) if (repo / rel).exists()
+            ]
+            checked = arts + len(opt_present)
             if args.lane == "hosted":
                 note = "hosted lane — containerised, nothing local to verify"
+            elif checked:
+                note = f"{checked} artifact(s) current"
+                if opt_present:
+                    note += f" (incl. optional: {', '.join(opt_present)})"
             else:
-                note = f"{arts} artifact(s) current" if arts else "runs from source"
+                note = "no artifact present — runs from source"
             print(f"  ok   {key}: {note}")
 
     if not all_failures:
