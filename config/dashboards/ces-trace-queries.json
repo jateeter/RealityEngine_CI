@@ -22,8 +22,8 @@
   "panels": [
     {
       "id": 1,
-      "title": "Q2 — Top-10 most-fired terminal vectors",
-      "description": "PromQL form of the CLI's Q2: ranks (machine, sequence, vector) by rate of vector matches over the last 5 minutes. The CLI version groups on lastVector — here we sum the underlying ces_vector_matched_total counter, then top-K.",
+      "title": "Q2 — Top-10 most-fired terminal Reality Events",
+      "description": "PromQL form of the CLI's Q2: ranks the (machine, sequence, vector) label tuple by rate of Reality Event matches over the last 5 minutes. The CLI version groups on lastVector — here we sum the underlying ces_vector_matched_total counter, then top-K.",
       "type": "table",
       "datasource": { "type": "prometheus", "uid": "prometheus" },
       "gridPos": { "x": 0, "y": 0, "w": 12, "h": 12 },
@@ -107,7 +107,7 @@
     {
       "id": 5,
       "title": "Q9 — Cross-machine escalation rate (compose candidates)",
-      "description": "Sequences emitting RED or AMBER outputs at a steady rate are candidates for meta-CES subscriptions (step 5).  Pair the top entries here with the meta-CES wiring spec.",
+      "description": "Critical Event Sequences emitting RED or AMBER outputs at a steady rate are candidates for meta-CES subscriptions (step 5).  Pair the top entries here with the meta-CES wiring spec.",
       "type": "timeseries",
       "datasource": { "type": "prometheus", "uid": "prometheus" },
       "gridPos": { "x": 0, "y": 22, "w": 24, "h": 9 },
@@ -137,7 +137,7 @@
     {
       "id": 7,
       "title": "Q-deprecation — Stale CES burn-down",
-      "description": "Pairs with step 9.  Any non-zero counter is a sequence past its deprecation date that's still firing — drive to zero by routing producers to the replacedBy successor.",
+      "description": "Pairs with step 9.  Any non-zero counter is a Critical Event Sequence past its deprecation date that's still firing — drive to zero by routing producers to the replacedBy successor.",
       "type": "table",
       "datasource": { "type": "prometheus", "uid": "prometheus" },
       "gridPos": { "x": 12, "y": 31, "w": 12, "h": 5 },

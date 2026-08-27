@@ -23,6 +23,46 @@ This directory contains operational helpers for startup, testing, OpenAPI, and v
   1..n interned and activating all of them applies the merged set: one push
   advances every machine's sequence a step at once. There is no synthetic seed.
 
+- `regression-reset-contract.py`: the acceptance stage for
+  `RealityEngine_CI#163` and `#166`. Registers the corpus-test integration
+  (`POST /api/sources/bootstrap-from-machines`), then reads `GET /api/sources`
+  **as the first call after `POST /api/reset`** on each runtime and compares the
+  declared sets. Ordering is the whole stage: cpp materialises its source set on
+  the first read, so anything between the reset and that read repairs the defect
+  before it can be seen. Reuses `regression-corpus-parity-loop.py` as a module,
+  which in turn carries `regression-trajectory-parity.py` — one definition of
+  parity, one definition of how a machine is loaded.
+
+  **It fails against today's engines, by design.** It asserts the settled
+  contract from #163 (registration declares; reset is membership-neutral and
+  *validates* activity rather than assigning it), which no runtime implements
+  yet. It is deliberately not wired into `regression-test.sh`: a harness stage
+  that always fails is a harness stage everyone learns to ignore. Wire it in
+  when the contract lands.
+
+  What it asserts about `active`, since this is the part that moved twice while
+  the issue settled and is easy to re-break:
+
+  | kind | validates active iff |
+  |---|---|
+  | sensor | it holds a value inside its TTL |
+  | test | its interned sequence is **non-empty** — not unconditional `true` |
+  | simulated | always |
+
+  Reset recomputes from those rules *alone*. It never reads the prior `active`
+  flag, so an operator pause is run state and does not survive a reset — the
+  stage pauses one test source and arms another before resetting, and both must
+  come back active. Sitting under all of it: **ingress is the only way an
+  integration source becomes active**, so a source that never received a value
+  reports inactive at every observation point, and the stage checks that at
+  registration, before the reset and after it. One clock read per validation
+  pass, with `--clock-margin-ms` skipping sensors too near their TTL boundary
+  to call either way.
+
+  The TypeScript PE in `RealityEngine_Manager` is the fourth implementation of
+  this surface and is not in the runtime registry; pass it with
+  `--extra-runtime ts-1=<re_url>,<pe_url>`.
+
 Notes that bite when changing these:
 
 - Machines are matched by corpus `name`. Ids are minted per runtime and any
