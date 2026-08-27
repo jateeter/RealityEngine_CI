@@ -88,7 +88,23 @@ def delete_json(url: str, timeout: int = 15) -> tuple[int, Any]:
 
 
 def load_instances(registry_url: str) -> list[dict[str, Any]]:
-    status, payload = get_json(registry_url)
+    # The registry is addressable two ways and both are in use: the corpus
+    # parity loop passes the URL the shim serves, and regression-test.sh passes
+    # the file startUniverse writes — every other stage it drives takes the
+    # path. Accepting only the URL made this the one tool that could not be
+    # dropped into the harness, and it failed with a urllib traceback that named
+    # neither the path nor the reason (regression run gha-33125776815-1).
+    if "://" not in registry_url:
+        path = Path(registry_url)
+        if not path.is_file():
+            raise SystemExit(f"registry file not found: {path}")
+        try:
+            payload = json.loads(path.read_text(encoding="utf-8"))
+        except (OSError, json.JSONDecodeError) as exc:
+            raise SystemExit(f"registry file unreadable at {path}: {exc}") from exc
+        status = 200
+    else:
+        status, payload = get_json(registry_url)
     if status != 200:
         raise SystemExit(f"registry unreachable at {registry_url} (status {status})")
     entries = payload.get("instances", payload if isinstance(payload, list) else [])
