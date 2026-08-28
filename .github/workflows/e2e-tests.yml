@@ -158,6 +158,16 @@ jobs:
           path: RealityEngine_Manager
           token: ${{ secrets.REPO_ACCESS_TOKEN || github.token }}
 
+      # Machines holds the pointers for the four governance contracts that moved
+      # to RealityEngine_CI/docs. Without this checkout the check reports them
+      # "missing pointer" rather than verifying them.
+      - name: Checkout RealityEngine_Machines
+        uses: actions/checkout@v4
+        with:
+          repository: ${{ github.repository_owner }}/RealityEngine_Machines
+          path: RealityEngine_Machines
+          token: ${{ secrets.REPO_ACCESS_TOKEN || github.token }}
+
       # The specification has one home — RealityEngine_CI/SURFACE_SPEC.md — and
       # each runtime repo holds a pointer to it. This step used to diff a
       # canonical copy in RealityEngine_CPP against three duplicates, which made
