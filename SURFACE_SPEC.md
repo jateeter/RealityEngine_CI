@@ -108,9 +108,9 @@ counted by `ces_history_size` in `/api/metrics`; it is not a surface.
 
 #### Trajectory histories
 
-The two histories the cross-engine trajectory proof reads. Given a seed
-sequence applied by push, what an engine is actually presented with at step n
-is the seed mutated by arbitration feedback from step n-1:
+The two histories the cross-engine trajectory proof reads. What an engine is
+actually presented with at step n is the seed mutated by arbitration feedback
+from step n-1:
 
 ```
 ISRE(1) = ISRESeed(1)
@@ -120,7 +120,21 @@ ISRE-History = {ISRE(1) … ISRE(n)}
 OREV-History = {OREV(1) … OREV(n-1)}
 ```
 
-Every engine given the same seed must produce the same two histories. That is
+**`ISRESeed(n)` is composed, not supplied.** It is the merge of the `n`-th
+vector of every active test source, each written into its own machine's input
+region — so one push advances every machine's sequence together, and the seed
+queue is as long as the longest interned sequence. Those sources come from
+machine ingestion (see "Machine ingestion" under Sources & Sensors); the seed
+is the corpus's own stimulus.
+
+This is not optional detail. A probe that registers its own source and pushes
+values through it is measuring a **synthetic** stimulus: it exercises whatever
+region it chose rather than the corpus, and three engines can agree on it while
+disagreeing on everything the corpus would have driven. Any parity gate must
+compose the seed from the interned test sources, and
+`scripts/regression-trajectory-parity.py` is the definition of that comparison.
+
+Every engine given the same corpus must produce the same two histories. That is
 the claim the multi-engine deployment rests on, and neither history is
 observable from a single-step response — two engines can agree at every step
 examined in isolation and still be on different trajectories.
@@ -362,10 +376,42 @@ full source set immediately, completely and inactive, so `GET /api/sources`
 reflects it before any traffic arrives. Membership changes only on
 register/deregister — reads, pushes and resets do not move it.
 
-The corpus test integration registers at boot when `PE_SOURCE_BOOTSTRAP` is set
-(`auto`, or any truthy value; mirrors `startUniverse.sh --pe-source-bootstrap`),
-and dynamically via `POST /api/sources/bootstrap-from-machines`. Unset, the
-runtime boots having registered nothing and therefore declares zero sources.
+### Machine ingestion
+
+**Interning a machine's test source is part of ingesting the machine, not an
+optional extra, and it happens by default on every runtime.**
+
+When a machine is ingested, the runtime interns its `metadata.inputSequences`
+as a **test source over that machine's own input region**. One machine, one test
+source, declared inactive like any other source. This is the same path on C++,
+LSP and Scala, and it runs unless explicitly suppressed.
+
+That source set is not incidental — **it is the material the ISRE seed queue is
+composed from**. See "Trajectory histories" above: `ISRESeed(n)` is the merge of
+every active test source's `n`-th vector, each written into its own machine's
+region. A runtime holding a corpus but no test sources has nothing to be
+presented with, and a parity comparison against it measures a synthetic
+stimulus rather than the corpus's own.
+
+`PE_SOURCE_BOOTSTRAP` governs the boot-time intern, mirroring
+`startUniverse.sh --pe-source-bootstrap`:
+
+| value | behaviour |
+|---|---|
+| unset | **intern at boot** — the default |
+| `auto`, `on`, `1`, `true`, `yes` | intern at boot |
+| `off`, `0`, `false`, `no` | do not intern at boot |
+
+`off` exists for a harness that registers sources itself and does not want the
+boot set pre-empting it — `scripts/test-corpus-parity-loop.sh` passes it for
+exactly that reason, because it drives its own `bootstrap-from-machines` after
+each incremental load. `POST /api/sources/bootstrap-from-machines` is the
+dynamic path and is unaffected by the flag in either direction.
+
+Machine-derived test sources are the one source kind that does **not** wait for
+an external integration to register: they arrive with the machines. Every other
+kind — MQTT, ACP, MCP, HealthKit, localAI — is external and registers on its
+own terms, per the paragraph above.
 
 Activity is earned, and only by ingress. A sensor source is active iff it holds
 a value inside its TTL: registration declares it inactive whatever flag the
