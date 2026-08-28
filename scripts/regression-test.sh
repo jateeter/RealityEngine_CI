@@ -950,32 +950,6 @@ active_machines_dir() {
   fi
 }
 
-# Lowest input region in the booted corpus, as "offset length".
-#
-# The trajectory seed has to land on a region some machine actually reads.
-# regression-trajectory-parity.py defaults to [12:16], which no
-# standard-deployment machine owns — its lowest input is [928:932] — so a
-# defaulted run would drive dead space and compare three engines agreeing that
-# nothing happened.
-seed_region_for_corpus() {
-  python3 - "$(active_machines_dir)" <<'PYEOF'
-import json, pathlib, sys
-best = None
-for p in pathlib.Path(sys.argv[1]).rglob("*.json"):
-    try:
-        doc = json.loads(p.read_text(encoding="utf-8"))
-    except Exception:
-        continue
-    m = doc.get("machine", doc)
-    region = ((m.get("perceptualMapping") or {}).get("input") or {})
-    off, length = region.get("offset"), region.get("length")
-    if isinstance(off, int) and isinstance(length, int) and length > 0:
-        if best is None or off < best[0]:
-            best = (off, length)
-print(f"{best[0]} {best[1]}" if best else "12 4")
-PYEOF
-}
-
 # The parity gate. ISRE/OREV are the observation points the deployment's
 # equivalence claim is made at, and regression-trajectory-parity.py is the one
 # definition of what parity means — the corpus parity loop already reuses it as
@@ -991,17 +965,15 @@ PYEOF
 # checks it does perform; it is not the parity result.
 run_trajectory_parity() {
   step "ISRE/OREV trajectory parity"
-  local ci seed offset length
+  local ci
   ci="$(repo_root RealityEngine_CI)"
-  seed="$(seed_region_for_corpus)"
-  offset="${seed% *}"
-  length="${seed#* }"
-  log "seed region [$offset:$((offset + length))] (lowest input region in the booted corpus)"
+  # No seed region and no step count: the stimulus is the corpus's own. Machine
+  # ingestion interns each machine's inputSequences as a test source over that
+  # machine's region, and the stage arms them all and pushes — one push advances
+  # every machine's sequence together. It walks the longest interned sequence.
   run_cmd "trajectory-parity" python3 "$ci/scripts/regression-trajectory-parity.py" \
     --registry /tmp/re-registry/re-registry.json \
     --run-id "$RUN_ID" \
-    --offset "$offset" \
-    --length "$length" \
     --out "$RUN_DIR/responses/trajectory-parity"
 }
 

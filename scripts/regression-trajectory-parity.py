@@ -2,15 +2,30 @@
 """Cross-engine trajectory parity: do the engines evolve identically?
 
 The claim the multi-engine deployment rests on is that from a `--fresh`
-deployment, every engine given the same seed sequence evolves the same way.
+deployment, every engine given the same corpus evolves the same way.
 Nothing proved it. `regression-universal-vectors.py` compares single-step
 responses and re-synchronises the engines between events — it registers a
 source, pushes, deletes the source, repeats. Two engines can agree at every
 step examined in isolation and still be on different trajectories, and a loop
 that diverges the moment it is left alone passes that stage (RealityEngine_CI#148).
 
-This stage seeds once and lets each engine run its own closed loop, then
-compares the two histories the engines record at their own observation points:
+The seed is **composed, not supplied**. Ingesting a machine interns its
+`inputSequences` as a test source over that machine's own input region, so
+arming every interned source and pushing applies the merged set: one push
+advances every machine's sequence a step at once, each writing into its own
+region. That is ISRESeed(n) — the stimulus the application actually runs on,
+and a harder test than a synthetic seed because it exercises the machines
+against each other in the shared space.
+
+An earlier revision registered its own sensor over a region it chose and wrote
+values through it. That measured a synthetic stimulus: it exercised one region
+rather than the corpus, three engines could agree on it while disagreeing on
+everything the corpus would have driven, and it reported a divergence at a cell
+no loaded machine owned — not a finding about the engines at all.
+
+This stage arms the interned sources once and lets each engine run its own
+closed loop, then compares the two histories the engines record at their own
+observation points:
 
     ISRE-History = {ISRE(1) … ISRE(n)}   what each corpus was presented with
     OREV-History = {OREV(1) … OREV(n-1)} what each corpus produced
@@ -78,6 +93,16 @@ def post_json(url: str, payload: Any, timeout: int = 30) -> tuple[int, Any]:
         url,
         data=json.dumps(payload).encode("utf-8"),
         method="POST",
+        headers={"content-type": "application/json", "accept": "application/json"},
+    )
+    return request_json(req, timeout)
+
+
+def patch_json(url: str, payload: Any, timeout: int = 20) -> tuple[int, Any]:
+    req = request.Request(
+        url,
+        data=json.dumps(payload).encode("utf-8"),
+        method="PATCH",
         headers={"content-type": "application/json", "accept": "application/json"},
     )
     return request_json(req, timeout)
@@ -169,60 +194,90 @@ def cluster(values: dict[str, Any]) -> list[list[str]]:
     return sorted((sorted(members) for members in groups.values()), key=lambda m: (-len(m), m))
 
 
-def seed_vector(dimension: int, cells: dict[int, float]) -> list[float]:
-    vector = [0.0] * dimension
-    for index, value in cells.items():
-        if index < dimension:
-            vector[index] = value
-    return vector
+
+def interned_test_sources(instance: dict[str, Any]) -> tuple[list[dict[str, Any]], str | None]:
+    """The corpus test sources this engine interned when it ingested its machines."""
+    status, payload = get_json(f"{instance['pe']}/api/sources")
+    if status != 200:
+        return [], f"{instance['id']}: GET /api/sources returned {status}"
+    sources = payload.get("sources")
+    if not isinstance(sources, list):
+        return [], f"{instance['id']}: /api/sources payload has no sources array"
+    return [s for s in sources if s.get("type") == "test"], None
 
 
-def run_seed_sequence(instance: dict[str, Any], seeds: list[list[float]], source_id: str,
-                      region: dict[str, int], settle_ms: int) -> list[str]:
-    """Apply the seed sequence to one engine, letting its own loop run.
+def arm_interned_sources(instance: dict[str, Any]) -> tuple[int, list[str]]:
+    """Activate every interned test source. Returns (count, failures).
 
-    One source, registered once and left in place for the whole sequence. The
-    stage this replaces created and deleted a source per event, which reset the
-    engine between steps — the exact thing that made a trajectory unobservable.
+    Interning declares a source inactive — activity is earned, and a test source
+    earns it by being armed for a run. Arming is stated explicitly rather than
+    inherited, because the runtimes have historically disagreed about what a
+    reset leaves behind and an active source one PE has and another does not is
+    *stimulus*, which this stage would faithfully report as engine divergence.
+    """
+    sources, err = interned_test_sources(instance)
+    if err:
+        return 0, [err]
+    failures: list[str] = []
+    for src in sources:
+        sid = src.get("id")
+        if not sid or src.get("active"):
+            continue
+        status, _ = patch_json(f"{instance['pe']}/api/sources/{sid}", {"active": True})
+        if status != 200:
+            failures.append(f"{instance['id']}: PATCH /api/sources/{sid} returned {status}")
+    return len(sources), failures
+
+
+def longest_interned_sequence(instance: dict[str, Any]) -> int:
+    sources, _ = interned_test_sources(instance)
+    longest = 0
+    for src in sources:
+        inputs = src.get("inputs")
+        if isinstance(inputs, list):
+            longest = max(longest, len(inputs))
+    return longest
+
+
+def run_seed_sequence(instance: dict[str, Any], steps: int, settle_ms: int) -> list[str]:
+    """Drive one engine with the corpus's own stimulus, letting its loop run.
+
+    The seed is **composed, not supplied**. Ingesting a machine interns its
+    `inputSequences` as a test source over that machine's own input region, so
+    arming every interned source and pushing applies the merged set: one push
+    advances every machine's sequence a step at once, each writing into its own
+    region. That is ISRESeed(n), and it is the stimulus the application actually
+    runs on (SURFACE_SPEC.md, "Machine ingestion" and "Trajectory histories").
+
+    An earlier revision of this function registered its own sensor source over a
+    region it chose and wrote values through it. That measured a synthetic
+    stimulus: it exercised one region rather than the corpus, and three engines
+    can agree on it while disagreeing on everything the corpus would have
+    driven. It also meant the gate reported a divergence at a cell no loaded
+    machine owned, which is not a finding about the engines at all.
+
+    No source is created and none is deleted. The set under test is the one
+    ingestion produced, which is the set the engines run with.
     """
     failures: list[str] = []
     pe = instance["pe"]
 
-    # Every field is sent explicitly, including the ones C++ and LSP default.
-    # Scala's decoder requires `type`, `active`, `lastValue` and `lastUpdated`
-    # and 400s on a body missing any of them, where the other two fill in
-    # defaults. That asymmetry is a divergence on the *request* side of a public
-    # surface and deserves its own finding; sending the full body here keeps
-    # this stage measuring trajectories rather than re-measuring that.
-    status, _ = post_json(f"{pe}/api/sources", {
-        "id": source_id,
-        "type": "sensor",
-        "name": "trajectory-parity seed",
-        "region": region,
-        "active": True,
-        "sensorId": source_id,
-        "lastValue": [0.0] * region["length"],
-        "lastUpdated": None,
-        "ttlMs": 600000,
-    })
-    if status not in (200, 201):
-        return [f"{instance['id']}: source registration failed (status {status})"]
+    count, arm_failures = arm_interned_sources(instance)
+    failures.extend(arm_failures)
+    if count == 0:
+        return failures + [
+            f"{instance['id']}: no interned test sources — nothing to be presented with. "
+            f"The corpus test sources are interned at ingestion unless "
+            f"PE_SOURCE_BOOTSTRAP=off; check the engine booted with a corpus."
+        ]
 
-    try:
-        for index, seed in enumerate(seeds):
-            status, _ = post_json(f"{pe}/api/sensors/{source_id}",
-                                  {"values": seed[region["offset"]:region["offset"] + region["length"]]})
-            if status != 200:
-                failures.append(f"{instance['id']}: sensor write {index} failed (status {status})")
-                break
-            status, _ = post_json(f"{pe}/api/push", {"compact": True})
-            if status != 200:
-                failures.append(f"{instance['id']}: push {index} failed (status {status})")
-                break
-            if settle_ms:
-                time.sleep(settle_ms / 1000.0)
-    finally:
-        delete_json(f"{pe}/api/sources/{source_id}")
+    for index in range(steps):
+        status, _ = post_json(f"{pe}/api/push", {"compact": True})
+        if status != 200:
+            failures.append(f"{instance['id']}: push {index} failed (status {status})")
+            break
+        if settle_ms:
+            time.sleep(settle_ms / 1000.0)
     return failures
 
 
@@ -241,9 +296,8 @@ def main() -> int:
     parser.add_argument("--registry", default="http://127.0.0.1:5999/re-registry.json")
     parser.add_argument("--out", type=Path, required=True)
     parser.add_argument("--run-id", default=time.strftime("%Y%m%dT%H%M%SZ", time.gmtime()))
-    parser.add_argument("--steps", type=int, default=6, help="seed sequence length")
-    parser.add_argument("--offset", type=int, default=12, help="seed region offset")
-    parser.add_argument("--length", type=int, default=4, help="seed region length")
+    parser.add_argument("--steps", type=int, default=0,
+                        help="push count; 0 (default) walks the longest interned sequence")
     parser.add_argument("--settle-ms", type=int, default=250)
     args = parser.parse_args()
 
@@ -253,24 +307,32 @@ def main() -> int:
         print(f"FAIL trajectory parity needs at least two runtimes, found {len(instances)}", file=sys.stderr)
         return 1
 
-    region = {"offset": args.offset, "length": args.length}
-    # A seed that walks: every step differs from the last, so a runtime that
-    # silently stopped stepping shows up as a shorter history rather than as a
-    # sequence of identical entries indistinguishable from a working one.
-    seeds = [seed_vector(args.offset + args.length,
-                         {args.offset + (step % args.length): 1.0 + step})
-             for step in range(args.steps)]
+    # Step count comes from the corpus, not from a flag: walk the longest
+    # interned sequence right through, so a machine with a longer sequence is
+    # not truncated mid-pattern. Taken as a max across runtimes rather than from
+    # one, so a runtime that interned fewer vectors than its peers shows up as
+    # divergence instead of going unexercised. --steps overrides for a short
+    # smoke run.
+    corpus_steps = max((longest_interned_sequence(i) for i in instances), default=0)
+    steps = args.steps if args.steps else corpus_steps
 
-    source_id = f"trajectory-parity-{args.run_id}"
+    interned = {i["id"]: len(interned_test_sources(i)[0]) for i in instances}
+
     failures: list[str] = []
+    if steps == 0:
+        failures.append(
+            "no interned test sequences on any runtime — the corpus test sources are "
+            "interned at ingestion unless PE_SOURCE_BOOTSTRAP=off; check the engines "
+            "booted with a corpus")
     for instance in instances:
-        failures.extend(run_seed_sequence(instance, seeds, source_id, region, args.settle_ms))
+        failures.extend(run_seed_sequence(instance, steps, args.settle_ms))
 
     summary: dict[str, Any] = {
         "runId": args.run_id,
         "instances": [i["id"] for i in instances],
-        "seedSteps": args.steps,
-        "seedRegion": region,
+        "seedSteps": steps,
+        "seedSource": "corpus-interned test sources (composed ISRESeed)",
+        "internedTestSources": interned,
         "trajectories": {},
     }
 
