@@ -26,6 +26,7 @@ CONTRACTS=(
   "docs/PE_METRICS_CONTRACT.md|$ROOT_DIR/RealityEngine_Machines/docs/PE_METRICS_CONTRACT.md"
   "docs/SEMANTIC_AUDIT_CONTRACT.md|$ROOT_DIR/RealityEngine_Machines/docs/SEMANTIC_AUDIT_CONTRACT.md"
   "docs/SEMANTIC_GUARDRAIL_CONTRACT.md|$ROOT_DIR/RealityEngine_Machines/docs/SEMANTIC_GUARDRAIL_CONTRACT.md"
+  "MACHINE_CONCEPT.md|$ROOT_DIR/RealityEngine_CPP/MACHINE_CONCEPT.md|$ROOT_DIR/RealityEngine_LSP/MACHINE_CONCEPT.md|$ROOT_DIR/RealityEngine_Scala/MACHINE_CONCEPT.md"
 )
 
 # A pointer is short and says where the master is. A fork is neither. The size
