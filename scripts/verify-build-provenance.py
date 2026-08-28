@@ -61,7 +61,29 @@ TARGETS: dict[str, dict] = {
     "cpp": {
         "dir": "RealityEngine_CPP",
         "artifacts": ["bin/reality_engine_server", "bin/perception_engine_server"],
+        # Repo-wide fallback, kept for any artifact without an entry below.
         "sources": ["src/**/*.cpp", "src/**/*.hpp", "include/**/*.hpp"],
+        # Per binary, from the Makefile link rules:
+        #
+        #   bin/reality_engine_server:    $(SRC_OBJ) src/reality_engine_server.o
+        #   bin/perception_engine_server: $(SRC_OBJ) src/perception_engine_server.o
+        #   SRC := reality arbiter http sta_checker mqtt_client mqtt_mapping mqtt_bridge
+        #
+        # The shared SRC set appears in both lists — correct and intended. What
+        # this stops is an edit to src/perception_engine_server.cpp marking the
+        # *Reality Engine* binary stale, which it does not link (#195).
+        "artifact_sources": {
+            "bin/reality_engine_server": [
+                "src/reality.cpp", "src/arbiter.cpp", "src/http.cpp", "src/sta_checker.cpp",
+                "src/mqtt_client.cpp", "src/mqtt_mapping.cpp", "src/mqtt_bridge.cpp",
+                "src/reality_engine_server.cpp", "include/**/*.hpp",
+            ],
+            "bin/perception_engine_server": [
+                "src/reality.cpp", "src/arbiter.cpp", "src/http.cpp", "src/sta_checker.cpp",
+                "src/mqtt_client.cpp", "src/mqtt_mapping.cpp", "src/mqtt_bridge.cpp",
+                "src/perception_engine_server.cpp", "include/**/*.hpp",
+            ],
+        },
     },
     "scala": {
         "dir": "RealityEngine_Scala",
@@ -70,6 +92,14 @@ TARGETS: dict[str, dict] = {
             "perception-engine/target/scala-2.13/perception-engine.jar",
         ],
         "sources": ["src/main/scala/**/*.scala", "perception-engine/src/main/scala/**/*.scala"],
+        # Two separate sbt builds with their own build.sbt and project/. The RE
+        # jar is not produced by the PE build and does not depend on its
+        # sources, so an edit under perception-engine/ must not mark it stale.
+        "artifact_sources": {
+            "target/scala-2.13/reality-engine.jar": ["src/main/scala/**/*.scala"],
+            "perception-engine/target/scala-2.13/perception-engine.jar": [
+                "perception-engine/src/main/scala/**/*.scala"],
+        },
     },
     "lsp": {
         "dir": "RealityEngine_LSP",
@@ -124,6 +154,44 @@ def head_commit_time(repo: Path) -> float:
         return float(out) if code == 0 else 0.0
     except ValueError:
         return 0.0
+
+
+def source_commit_time(repo: Path, globs: list[str]) -> float:
+    """Newest commit that touched any of `globs`.
+
+    Not HEAD. Comparing an artifact against HEAD fails it after *any* commit,
+    including a docs-only or CI-only merge that changed nothing the artifact is
+    built from — which marked all three engines stale after a MACHINE_CONCEPT.md
+    consolidation that touched no engine source (#195).
+
+    The property this preserves is the one the gate exists for: a merge that
+    changes engine source still moves the deadline, so an artifact built before
+    it is still reported stale. That is the 2026-08-22 incident, where two Scala
+    jars predated a merge by hours and a parity run attributed the resulting
+    divergence to the engines.
+
+    Falls back to HEAD when git cannot answer, which keeps the check
+    conservative rather than silently permissive.
+    """
+    if not globs:
+        return head_commit_time(repo)
+    code, out = git(repo, "log", "-1", "--format=%ct", "--", *globs)
+    if code != 0:
+        return head_commit_time(repo)
+    try:
+        return float(out.strip()) if out.strip() else 0.0
+    except ValueError:
+        return head_commit_time(repo)
+
+
+def artifact_sources(spec: dict, rel: str) -> list[str]:
+    """Source globs a specific artifact is built from.
+
+    `sources` stays the repo-wide fallback for artifacts with no entry, so a
+    spec that has not been broken out behaves exactly as before.
+    """
+    per = spec.get("artifact_sources") or {}
+    return per.get(rel) or (spec.get("sources") or [])
 
 
 def ago(seconds: float) -> str:
@@ -197,8 +265,6 @@ def check_repo(key: str, spec: dict, branch: str, fetch: bool, lane: str) -> lis
             if ahead:
                 failures.append(f"{key}: {ahead} unpushed commit(s) ahead of origin/{branch}")
 
-    src_mtime, src_path = newest_source(repo, spec.get("sources") or [])
-    commit_time = head_commit_time(repo)
     now = time.time()
 
     required = list(spec.get("artifacts") or [])
@@ -219,6 +285,15 @@ def check_repo(key: str, spec: dict, branch: str, fetch: bool, lane: str) -> lis
                 continue
             failures.append(f"{key}: artifact missing — {rel} (build it before launching)")
             continue
+        # Resolved per artifact, not once per repo. One repo-wide "newest
+        # source" marked bin/reality_engine_server stale for an edit to
+        # src/perception_engine_server.cpp — a translation unit it does not
+        # link — and demanded a rebuild `make` correctly refused to perform
+        # (#195).
+        globs = artifact_sources(spec, rel)
+        src_mtime, src_path = newest_source(repo, globs)
+        commit_time = source_commit_time(repo, globs)
+
         art_mtime = art.stat().st_mtime
         if src_mtime and art_mtime < src_mtime:
             failures.append(
@@ -227,8 +302,8 @@ def check_repo(key: str, spec: dict, branch: str, fetch: bool, lane: str) -> lis
             )
         if commit_time and art_mtime < commit_time:
             failures.append(
-                f"{key}: {rel} is {ago(commit_time - art_mtime)} older than HEAD "
-                f"({ago(now - commit_time)} ago) — rebuild"
+                f"{key}: {rel} is {ago(commit_time - art_mtime)} older than the last "
+                f"commit touching its sources ({ago(now - commit_time)} ago) — rebuild"
             )
     return failures
 
