@@ -620,6 +620,49 @@ implementation whose output depends on partitioning has violated 4.1.
 11. The conformance suite is **parameterised over the provider registry**, so a
    newly registered integration surface is exercised without the suite being
    modified. A surface that has registered but not passed may not contribute.
+12. **Parity is demonstrated over the whole rule set, with every runtime pinned
+   to one configuration.** Two separate requirements, and both are load-bearing.
+
+   *Pinned.* Under training the resolution policy may change dynamically, and in
+   operation that is expected — two deployments running different policies will
+   diverge in behaviour, and that divergence is correct rather than a defect.
+   Parity validation therefore does not observe a system free to retune itself.
+   It configures every runtime identically, by an explicit declaration, and holds
+   it there for the run. A comparison across engines whose arbiters were free to
+   differ proves nothing about the engines.
+
+   *Whole rule set.* Exercising the rules a corpus happens to declare is not
+   coverage of the rules the runtimes implement. The corpus registry declares
+   `PRECEDENCE` on 2,835 cells and `SEVERITY` on 2 — so a run that compares only
+   what the corpus asks for leaves `OR`, `MAX`, `AND`, `MIN` and `MEAN`
+   uncompared across C++, LSP and Scala, in every lane, indefinitely. The sweep
+   forces each rule in turn across the same contended cells and compares
+   ISRE/OREV under each.
+
+   `MEAN` is the rule this criterion exists for. It is the only rule that
+   combines contributions arithmetically instead of selecting one, so it is the
+   only one whose result depends on summation order and floating-point
+   associativity — three languages, three sets of arithmetic. §4.4 already
+   restricts it and criterion 7 rejects it without canonical ordering at load;
+   neither is a cross-runtime comparison of the values it produces. Every
+   selecting rule can agree while `MEAN` does not.
+
+   The `withinRank` tie-break under `PRECEDENCE` is a second axis and is covered
+   the same way: `MIN`/`AND` and `MAX`/`OR` there are as unexercised as the
+   top-level rules.
+
+   Implemented by `scripts/arbitration-registry-variant.py`, which derives a
+   registry from the real one with the rule forced and the cell set and provider
+   ranks preserved, and by `regression-test.sh --arbiter-sweep`. Because every
+   runtime loads the arbitration registry at boot and none exposes a reload, the
+   sweep restarts the universe once per rule; the configuration reaches all three
+   engines through `ARBITRATION_REGISTRY`.
+
+   `regression-trajectory-parity.py` additionally asserts, on every run, that the
+   runtimes booted the same registry. Nothing previously did — each engine
+   resolved its own copy by relative path, and a runtime that found none falls
+   back to `PRECEDENCE` with an empty registry and would have been compared
+   anyway.
 
 ## 9. Minimal fixtures
 

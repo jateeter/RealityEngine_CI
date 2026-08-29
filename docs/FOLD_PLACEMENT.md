@@ -351,6 +351,81 @@ includes the sequence, so subscription semantics are unchanged: every
 still fires. This is the one consumer where behaviour must be *identical*, not
 merely analogous — it writes into the perceptual space.
 
+## 5a. The declared transformation — permissible set, default, and unknown names
+
+Normative. This section is what a runtime implements; the ten names below and
+their default are the contract, and `machine.schema.json` enumerates the same
+set for the corpus.
+
+### Which arbiter this is
+
+Three different things in this system are called arbitration, they are declared
+in three different places, and each has its own default. Conflating them is easy
+and has already caused one wrong reading, so they are named here:
+
+| concept | declared in | permissible set | default when absent | specified by |
+|---|---|---|---|---|
+| **output merge transformation** — folds one machine's collection of potential outputs into the one Reality Event it presents | `machine.outputMergeTransformation` | the ten below | **`or`** | this section |
+| **machine output arbiter** — decides *whether* a machine emits at all, given which of its sequences produced output | `machine.arbiterRule` | `and`, `or`, `passthrough` | `passthrough` | `ARBITER_ARCHITECTURE.md` |
+| **cell arbitration** — resolves a universal-vector cell that more than one writer targets | `domains/arbitration-registry.json`, per cell | `OR`, `AND`, `MAX`, `MIN`, `SEVERITY`, `PRECEDENCE`, `MEAN` | none — an undeclared contended cell is a corpus error | `ARBITER_CONTRACT.md` §4, §5 |
+
+They compose in that order: a machine folds its outputs (row 1), decides whether
+to emit (row 2), and the emitted value then contends for its cells against other
+writers (row 3). `MEAN` appears only in row 3 — it is a cell rule, restricted
+under `ARBITER_CONTRACT.md` §4.4 because float addition is not associative. The
+multi-valued counterpart in row 1 is `discrete-median`, which is an order
+statistic and so exact over the chain. **A machine cannot currently declare
+`mean` as its output merge transformation**; no runtime accepts it and
+`machine.schema.json` does not enumerate it.
+
+### The declaration
+
+**The transformation is declared per machine**, in `machine.outputMergeTransformation`,
+and read when the machine is interned. It names the n-input gate the Reality
+Engine folds that machine's collection of potential outputs with, at the
+completion boundary of the atomic matching action.
+
+**The default, when the field is absent, is `or`.** Absent and `"or"` mean the
+same thing, so the corpus keeps its behaviour without declaring the field —
+1,326 of 1,328 machines declare nothing and two declare `join`.
+
+**The permissible set is these ten, and no others:**
+
+| family | names | reads chain top `k` |
+|---|---|---|
+| Boolean gates | `or`, `and`, `xor`, `nor`, `nand` | no |
+| multi-valued, over an ordered chain `{0..k}` | `meet`, `join`, `strong-conjunction`, `strong-disjunction`, `discrete-median` | `strong-*` require it; `meet`, `join`, `discrete-median` ignore it |
+
+Folding a multi-valued machine's cells with a Boolean gate destroys them, which
+is why the two families are distinguished rather than being one list.
+`strong-conjunction` and `strong-disjunction` refuse to fold when no
+`perceptualMapping.outputAlphabetTop` is declared, rather than guessing a `k`
+(§ "Settle the chain top") — refusing is a defined outcome, not an error path.
+
+**A name outside the set is a load-time rejection.** The machine does not load,
+and no fold is performed for it.
+
+That last rule is stated because the three runtimes do not currently agree on
+it, and the disagreement is silent:
+
+| runtime | unrecognised `outputMergeTransformation` |
+|---|---|
+| C++ | throws from `output_merge_from_string` — the machine fails to load ✅ |
+| Scala | `OutputMergeTransformation.normalise` filters against `All` and falls back to `Or` — **the machine loads and is folded with the default** |
+| LSP | `output-merge-name` only downcases; the name reaches the Boolean fold unrecognised |
+
+Rejection is the rule because the declared transformation **must be the one
+applied**. A machine that asks for `discrete-median` and is silently folded with
+`or` has had its semantics replaced, produces a different Reality Event, and
+reports nothing about it — and on two runtimes out of three it would do so while
+the third refused to load the same corpus at all. Substituting a default for an
+unreadable declaration is the one outcome that is worse than failing.
+
+The corpus is protected today only because `machine.schema.json` enumerates the
+set and validation runs over the corpus. That does not cover machines arriving
+through `POST /api/machines/import` or a JSON load endpoint, which is where the
+divergence above is reachable.
+
 ## 6. Canonical ordering
 
 Sort `mergeBatch` by `machineId` alone. `sequenceId` and `outputIndex` are gone

@@ -36,6 +36,14 @@ LIVE_TESTS=true
 # it. Correcting hides the mistake; a silently-enabled Ollama on a hosted
 # runner presents as a 350-minute timeout, not as anything readable.
 PROFILE="local"
+# Every rule the arbiter implements. The corpus registry declares only
+# PRECEDENCE (2835 cells) and SEVERITY (2), so a normal run compares two of
+# these seven and the other five have never been compared across runtimes in any
+# lane. Off by default: the sweep restarts the universe once per rule, because
+# all three engines load the arbitration registry at boot and none can reload
+# it. --arbiter-sweep opts in; --arbiter-sweep=MEAN,OR narrows it.
+ARBITER_SWEEP_DEFAULT="PRECEDENCE,OR,MAX,AND,MIN,SEVERITY,MEAN"
+ARBITER_SWEEP=""
 OPENCLAW_FLAG=""             # resolved from PROFILE unless set explicitly
 LOCAL_AI=""                  # true|false, resolved from PROFILE
 MACHINE_CORPUS=""            # full|standard-deployment, resolved from PROFILE
@@ -117,6 +125,14 @@ Options:
   --no-openclaw             Skip OpenClaw. Forced under --profile hosted.
   --local-ai                Start Ollama and localAIStack. Default under --profile local.
   --no-local-ai             Skip both. Forced under --profile hosted.
+  --arbiter-sweep[=RULES]   Compare ISRE/OREV under every arbiter rule, not only
+                            the two the corpus registry declares. RULES is a
+                            comma list; default is all seven:
+                            PRECEDENCE,OR,MAX,AND,MIN,SEVERITY,MEAN.
+                            Restarts the universe once per rule — the engines
+                            load the arbitration registry at boot and cannot
+                            reload it — so this is off unless asked for.
+  --no-arbiter-sweep        Disable the sweep. Default.
   --machine-corpus CORPUS   full | standard-deployment. Default: standard-deployment
                             on both profiles. full is an explicit opt-in and is
                             refused under --profile hosted.
@@ -158,6 +174,9 @@ while [ $# -gt 0 ]; do
     --no-local-ai) LOCAL_AI=false; LOCAL_AI_SET=true; shift ;;
     --machine-corpus=*) MACHINE_CORPUS="${1#*=}"; MACHINE_CORPUS_SET=true; shift ;;
     --machine-corpus) MACHINE_CORPUS="$2"; MACHINE_CORPUS_SET=true; shift 2 ;;
+    --arbiter-sweep) ARBITER_SWEEP="$ARBITER_SWEEP_DEFAULT"; shift ;;
+    --arbiter-sweep=*) ARBITER_SWEEP="${1#*=}"; shift ;;
+    --no-arbiter-sweep) ARBITER_SWEEP=""; shift ;;
     --retain=*) RETAIN="${1#*=}"; shift ;;
     --retain) RETAIN="$2"; shift 2 ;;
     --compare=*) COMPARE_RUN="${1#*=}"; shift ;;
@@ -918,7 +937,7 @@ start_universe() {
   [ -n "$MACHINE_CORPUS_MANIFEST" ] && args+=("--machine-corpus-manifest=$MACHINE_CORPUS_MANIFEST")
   [ -n "$MQTT_BROKER_URL" ] && args+=("--mqtt-broker-url=$MQTT_BROKER_URL")
   [ -n "$MQTT_MAPPINGS" ] && args+=("--mqtt-mappings=$MQTT_MAPPINGS")
-  run_cmd "start-universe" bash -lc "cd '$ci' && ./startUniverse.sh ${args[*]}"
+  run_cmd "$label" bash -lc "cd '$ci' && ./startUniverse.sh ${args[*]}"
 }
 
 run_service_inventory() {
@@ -975,6 +994,85 @@ run_trajectory_parity() {
     --registry /tmp/re-registry/re-registry.json \
     --run-id "$RUN_ID" \
     --out "$RUN_DIR/responses/trajectory-parity"
+}
+
+run_arbiter_rule_sweep() {
+  step "Arbiter rule sweep — ISRE/OREV parity under every declared rule"
+  if [ -z "$ARBITER_SWEEP" ]; then
+    write_skip_report "arbiter-sweep-skipped.json" \
+      "not requested; pass --arbiter-sweep to compare ISRE/OREV under every arbiter rule"
+    log "SKIP arbiter-sweep: pass --arbiter-sweep (restarts the universe once per rule)"
+    return 0
+  fi
+
+  local ci machines_repo source_registry
+  ci="$(repo_root RealityEngine_CI)"
+  machines_repo="$(repo_root RealityEngine_Machines)"
+  source_registry="$machines_repo/domains/arbitration-registry.json"
+  if [ ! -f "$source_registry" ]; then
+    log "SKIP arbiter-sweep: no arbitration registry at $source_registry"
+    write_skip_report "arbiter-sweep-skipped.json" "no arbitration registry at $source_registry"
+    return 0
+  fi
+
+  # Why a restart per rule and not a loop inside one universe: every runtime
+  # loads the arbitration registry once, at boot — reality_engine_server.cpp
+  # :1261, Scala Main.scala:81, LSP reality-service.lisp:2834 — and none of
+  # them exposes a reload. GET /api/arbitration is read-only. So forcing a rule
+  # means setting ARBITRATION_REGISTRY and booting, which is what makes this
+  # opt-in rather than part of every run.
+  local sweep_dir="$RUN_DIR/responses/arbiter-sweep"
+  mkdir -p "$sweep_dir"
+  local rules_csv="$ARBITER_SWEEP"
+  local failed_rules=() rules=()
+  local rule
+  # IFS is scoped to the read alone. The body of this loop calls out to
+  # startUniverse and python, and leaving IFS set to a comma across those is a
+  # trap.
+  IFS=',' read -r -a rules <<< "$rules_csv"
+  for rule in "${rules[@]}"; do
+    [ -n "$rule" ] || continue
+    log ""
+    log "  arbiter sweep: $rule"
+    local variant="$sweep_dir/registry-$rule.json"
+    if ! python3 "$ci/scripts/arbitration-registry-variant.py" \
+        --source "$source_registry" --out "$variant" --rule "$rule"; then
+      log "  arbiter sweep: could not generate a $rule registry"
+      failed_rules+=("$rule(generate)")
+      continue
+    fi
+
+    # Exported, not passed as a flag: startUniverse.sh spawns each engine and
+    # the engines read ARBITRATION_REGISTRY from their own environment, so this
+    # is the one channel that reaches all three identically.
+    export ARBITRATION_REGISTRY="$variant"
+    bash -lc "cd '$CI_DIR' && ./stopUniverse.sh --stop-docker" >/dev/null 2>&1 || true
+    if ! start_universe "arbiter-$rule"; then
+      log "  arbiter sweep: universe did not come up under $rule"
+      failed_rules+=("$rule(boot)")
+      continue
+    fi
+    if ! python3 "$ci/scripts/regression-trajectory-parity.py" \
+        --registry /tmp/re-registry/re-registry.json \
+        --run-id "$RUN_ID" \
+        --arbiter-rule "$rule" \
+        --out "$sweep_dir/$rule"; then
+      failed_rules+=("$rule")
+    fi
+  done
+
+  # Leave the universe on the corpus-declared registry so every later stage sees
+  # the configuration it expects rather than whichever rule the sweep ended on.
+  unset ARBITRATION_REGISTRY
+  bash -lc "cd '$CI_DIR' && ./stopUniverse.sh --stop-docker" >/dev/null 2>&1 || true
+  start_universe "arbiter-baseline" || log "  arbiter sweep: baseline universe did not come back up"
+
+  if [ ${#failed_rules[@]} -gt 0 ]; then
+    log "FAIL arbiter-sweep: ISRE/OREV parity failed under ${failed_rules[*]}"
+    return 1
+  fi
+  log "PASS arbiter-sweep: ISRE/OREV identical across runtimes under $rules_csv"
+  return 0
 }
 
 run_universal_vectors() {
@@ -1384,6 +1482,7 @@ if [ "$LIVE_TESTS" = true ]; then
   # between events, so running it first would hand the parity gate a stack that
   # something else had already driven.
   run_stage "trajectory-parity" run_trajectory_parity
+  run_stage "arbiter-sweep"     run_arbiter_rule_sweep
   run_stage "universal-vectors" run_universal_vectors
   run_stage "mqtt-yuma"         run_mqtt_yuma
   run_stage "mcp"               run_mcp

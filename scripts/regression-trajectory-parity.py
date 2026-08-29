@@ -281,6 +281,75 @@ def run_seed_sequence(instance: dict[str, Any], steps: int, settle_ms: int) -> l
     return failures
 
 
+# The arbiter rules every runtime implements. Kept here rather than derived from
+# a runtime, because the point of the sweep is to catch a runtime that is
+# missing one: asking the engines what they support would let a gap define
+# itself away. C++ src/arbiter.cpp resolve_cell, Scala engine/Arbiter.scala,
+# LSP src/arbiter.lisp all switch on exactly these.
+ARBITER_RULES = ("PRECEDENCE", "OR", "MAX", "AND", "MIN", "SEVERITY", "MEAN")
+
+
+def fetch_arbiter_config(instance: dict[str, Any]) -> tuple[dict[str, Any], str | None]:
+    """The arbitration configuration a runtime actually booted with.
+
+    Comparing trajectories only means something if the three runtimes resolved
+    contention under the same rules. Nothing asserted that. Every engine
+    resolves `ARBITRATION_REGISTRY`, then a path relative to its own machines
+    directory, and falls back with a stderr line and an empty registry:
+
+        [arbiter] no arbitration registry found; contended cells fall back to
+        PRECEDENCE
+
+    A runtime that took that fallback while its peers loaded 2837 entries is
+    running a different arbiter, and the histories it produces are not
+    comparable. Whether that shows up as a divergence or as an accidental pass
+    is luck. Read it and assert it instead.
+    """
+    status, payload = get_json(f"{instance['re']}/api/arbitration")
+    if status != 200 or not isinstance(payload, dict):
+        return {}, f"{instance['id']}: GET /api/arbitration -> {status}"
+    return {
+        "registryEntries": payload.get("registryEntries"),
+        "registrySource": payload.get("registrySource"),
+        "shards": payload.get("shards"),
+    }, None
+
+
+def arbiter_config_failures(configs: dict[str, dict[str, Any]]) -> list[str]:
+    """Every runtime must have loaded the same number of contended cells.
+
+    Entry count is the strongest fingerprint available: no engine exposes a
+    digest of the registry it parsed, so identical content cannot be proven from
+    outside. It is enough to catch the failure that matters — a runtime that
+    found no registry, or a different one — because that shows up as a different
+    count rather than a subtly different rule.
+
+    `registrySource` is recorded but deliberately not compared: each engine
+    resolves the path relative to its own repository, so three different strings
+    can name one file. Comparing them would fail correct runs.
+
+    `shards` is recorded and not compared either, and that is a real assertion
+    rather than a gap. ARBITER_SHARDS tunes throughput and correctness does not
+    depend on it — every runtime says so in its own comments. Three runtimes
+    agreeing under different shard counts is therefore a *stronger* result than
+    three agreeing under the same one, so the value is reported to make it
+    visible which was demonstrated.
+    """
+    failures: list[str] = []
+    counts = {name: cfg.get("registryEntries") for name, cfg in configs.items()}
+    if len(set(counts.values())) > 1:
+        shape = " | ".join(f"{name}={count}" for name, count in sorted(counts.items()))
+        failures.append(
+            f"arbitration registry differs across runtimes ({shape}) — trajectories "
+            f"resolved under different arbiters are not comparable")
+    if any(count in (0, None) for count in counts.values()):
+        empty = sorted(name for name, count in counts.items() if count in (0, None))
+        failures.append(
+            f"arbitration registry empty on {'+'.join(empty)} — contended cells fall "
+            f"back to PRECEDENCE, so no declared rule is under test")
+    return failures
+
+
 def fetch_history(instance: dict[str, Any], kind: str) -> tuple[list[dict[str, Any]], str | None]:
     status, payload = get_json(f"{instance['re']}/api/engine/{kind}-history")
     if status != 200:
@@ -299,6 +368,10 @@ def main() -> int:
     parser.add_argument("--steps", type=int, default=0,
                         help="push count; 0 (default) walks the longest interned sequence")
     parser.add_argument("--settle-ms", type=int, default=250)
+    parser.add_argument("--arbiter-rule", default=None,
+                        help="label recorded in the summary when the harness has "
+                             "forced a rule via ARBITRATION_REGISTRY; reporting only, "
+                             "the engines are configured before they boot")
     args = parser.parse_args()
 
     args.out.mkdir(parents=True, exist_ok=True)
@@ -319,6 +392,21 @@ def main() -> int:
     interned = {i["id"]: len(interned_test_sources(i)[0]) for i in instances}
 
     failures: list[str] = []
+
+    # Before any trajectory is compared: the runtimes must be resolving
+    # contention under the same rules. This is asserted rather than assumed
+    # because nothing in the harness ever set ARBITRATION_REGISTRY — every
+    # engine found its own copy by relative path, and a runtime that found none
+    # would have been compared anyway.
+    arbiter_configs: dict[str, dict[str, Any]] = {}
+    for instance in instances:
+        config, err = fetch_arbiter_config(instance)
+        if err:
+            failures.append(err)
+            continue
+        arbiter_configs[instance["id"]] = config
+    if len(arbiter_configs) == len(instances):
+        failures.extend(arbiter_config_failures(arbiter_configs))
     if steps == 0:
         failures.append(
             "no interned test sequences on any runtime — the corpus test sources are "
@@ -333,6 +421,8 @@ def main() -> int:
         "seedSteps": steps,
         "seedSource": "corpus-interned test sources (composed ISRESeed)",
         "internedTestSources": interned,
+        "arbiterRule": args.arbiter_rule or "corpus-declared",
+        "arbiterConfig": arbiter_configs,
         "trajectories": {},
     }
 
@@ -373,8 +463,11 @@ def main() -> int:
             print(f"FAIL {item}", file=sys.stderr)
         return 1
     lengths = summary["trajectories"]["isre"]["lengths"]
+    rule = args.arbiter_rule or "corpus-declared"
+    cells = next(iter(arbiter_configs.values()), {}).get("registryEntries", 0)
     print(f"PASS trajectory parity: ISRE/OREV histories identical across "
-          f"{len(instances)} runtimes ({min(lengths.values())} steps)")
+          f"{len(instances)} runtimes ({min(lengths.values())} steps, "
+          f"arbiter {rule} over {cells} contended cells)")
     print(args.out / "trajectory-summary.json")
     return 0
 
