@@ -1,6 +1,6 @@
 # Loki And Grafana Setup
 
-RealityEngine_AI uses Grafana Loki for centralized logs and Grafana for query
+RealityEngine uses Grafana Loki for centralized logs and Grafana for query
 and dashboard views.
 
 ## Architecture

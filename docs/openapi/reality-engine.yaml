@@ -182,7 +182,7 @@ paths:
                       $ref: "#/components/schemas/Machine"
     post:
       tags: [Machines]
-      summary: Import a machine from RealityEngine_AI machine JSON
+      summary: Import a machine from canonical machine JSON
       requestBody:
         required: true
         content:
@@ -780,7 +780,7 @@ components:
           type: number
     Machine:
       type: object
-      description: RealityEngine_AI-compatible machine JSON. Unknown properties are preserved by schema clients.
+      description: Canonical machine JSON. Unknown properties are preserved by schema clients.
       additionalProperties: true
       properties:
         id:

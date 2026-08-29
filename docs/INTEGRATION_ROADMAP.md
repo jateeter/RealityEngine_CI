@@ -1,8 +1,8 @@
-# Integration Architecture — Roadmap for RealityEngine_AI
+# Integration Architecture — Roadmap
 
 Companion to [`INTEGRATION_ARCHITECTURE.md`](./INTEGRATION_ARCHITECTURE.md).
 
-This roadmap is scoped to **RealityEngine_AI** — the TypeScript Perception Engine
+This roadmap is scoped to the TypeScript Perception Engine
 under `perception-engine/backend/`, its MCP gateway, the example trigger
 artifacts under `examples/triggers/`, the integration registry example under
 `config/`, and the LangGraph orchestrator under `langgraph-orchestrator/`.
@@ -16,7 +16,7 @@ history where an item is already marked present in code.
 
 ---
 
-## 1. Current State (RealityEngine_AI)
+## 1. Current State
 
 ### 1.1 Perception Engine HTTP surface (`perception-engine/backend/src/server.ts`)
 

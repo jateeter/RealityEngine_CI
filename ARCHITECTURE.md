@@ -1,6 +1,6 @@
-# RealityEngine_AI Architecture
+# RealityEngine Architecture
 
-RealityEngine_AI is the reference implementation for the Reality Engine
+RealityEngine_CPP is the reference implementation for the Reality Engine
 universe: Scala/Akka for the core engine, Node/React for perception and
 visualization, and localAIStack for shared AI infrastructure.
 

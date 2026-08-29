@@ -1,6 +1,6 @@
 # Documentation Index
 
-This is the maintained documentation set for RealityEngine_AI. Old one-off bug
+This is the maintained documentation set. Old one-off bug
 reports and obsolete fixed-vector notes have been removed.
 
 ## Core

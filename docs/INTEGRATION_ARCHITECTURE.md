@@ -1,7 +1,7 @@
 # Integration Architecture
 
 This document defines the provider-neutral integration model shared by
-RealityEngine_AI, RealityEngine_CPP, and RealityEngine_LSP.
+RealityEngine_CPP, RealityEngine_LSP, and RealityEngine_Scala.
 
 ## Design Rule
 
@@ -72,7 +72,7 @@ a governance decision produced from machine `metadata.triggerConfig`, PE builds
 a `ces.terminal.event` envelope.
 
 The envelope is based on
-`RealityEngine_AI/examples/triggers/ai_trigger_envelope.template.json` and
+`RealityEngine_Machines/triggers/ai_trigger_envelope.template.json` and
 captures:
 
 - envelope and correlation identifiers
@@ -319,7 +319,7 @@ target. It is modeled as a `graphql` mode for trigger envelopes.
 
 ## Runtime Status
 
-RealityEngine_AI, RealityEngine_CPP, and RealityEngine_LSP share the same PE
+RealityEngine_CPP, RealityEngine_LSP, and RealityEngine_Scala share the same PE
 integration contract for the core dispatch and completion path:
 
 - `TRIGGERS_ENABLED` gates trigger envelope creation.

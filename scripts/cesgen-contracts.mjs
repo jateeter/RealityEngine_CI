@@ -119,14 +119,26 @@ function enumerateChains(machineFile) {
 // ── Engine runner ────────────────────────────────────────────────────────────
 
 async function loadEngine() {
-  // The replay engine is the compiled TypeScript reference implementation.
-  // Default to this repo's dist; fall back to the sibling RealityEngine_AI
-  // build (ENGINE_DIST overrides both).
+  // The replay engine is a compiled TypeScript build. This used to fall back to
+  // a deprecated TypeScript prototype's dist, which is the only build present
+  // on most machines — so re-recording the contracts silently took its baseline
+  // from a repository frozen in June 2026, one that predates the output fold:
+  // its projection reads the pre-fold `op.sequenceId` and `op.outputIndex`. A
+  // cross-runtime baseline recorded from a frozen fourth runtime bakes in the
+  // shape the other three have moved past.
+  //
+  // ENGINE_DIST must now be given explicitly, or this repo must carry its own
+  // dist. Failing loudly is the point: a contracts baseline is only meaningful
+  // if you know which engine produced it.
   const engineDist = process.env.ENGINE_DIST
     ? path.resolve(process.env.ENGINE_DIST)
-    : fs.existsSync(path.join(ROOT, 'dist', 'engine'))
-      ? path.join(ROOT, 'dist')
-      : path.join(ROOT, '..', 'RealityEngine_AI', 'dist');
+    : path.join(ROOT, 'dist');
+  if (!fs.existsSync(path.join(engineDist, 'engine'))) {
+    throw new Error(
+      `No replay engine at ${engineDist}. Set ENGINE_DIST to a compiled build, ` +
+      `or build one in RealityEngine_CI/dist. The implicit fallback to the ` +
+      `deprecated TypeScript prototype was removed: it predates the output fold.`);
+  }
   const sim = await import(path.join(engineDist, 'engine', 'PerceptualSpaceSimulator.js'));
   const loader = await import(path.join(engineDist, 'services', 'MachineLoader.js'));
   return { sim, loader };

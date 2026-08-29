@@ -1,6 +1,6 @@
 # OpenClaw Integration Analysis
 
-Scope: `RealityEngine_CPP`, `RealityEngine_Scala`, and `RealityEngine_LSP`. `RealityEngine_AI` is intentionally out of scope. The integration owner for cross-engine orchestration and examples is `RealityEngine_CI`.
+Scope: `RealityEngine_CPP`, `RealityEngine_Scala`, and `RealityEngine_LSP`. The deprecated TypeScript prototype is intentionally out of scope. The integration owner for cross-engine orchestration and examples is `RealityEngine_CI`.
 
 ## Current State
 

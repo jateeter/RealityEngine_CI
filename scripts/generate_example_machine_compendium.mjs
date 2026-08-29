@@ -8,9 +8,6 @@ const machinesDir = new URL('../examples/machines/', import.meta.url);
 const docsPath = new URL('../docs/EXAMPLE_DOMAIN_COMPENDIUM.md', import.meta.url);
 const wikiCompendiumPath = new URL('../wiki/Example-Machine-Compendium.md', import.meta.url);
 const wikiInterconnectionPath = new URL('../wiki/Machine-Interconnection-Index.md', import.meta.url);
-const nestedWikiHomePath = new URL('../wiki/RealityEngine_AI.wiki/Home.md', import.meta.url);
-const nestedWikiCompendiumPath = new URL('../wiki/RealityEngine_AI.wiki/Example-Machine-Compendium.md', import.meta.url);
-const nestedWikiInterconnectionPath = new URL('../wiki/RealityEngine_AI.wiki/Machine-Interconnection-Index.md', import.meta.url);
 
 function esc(value) {
   return String(value ?? '')
@@ -348,7 +345,7 @@ writeFileSync(docsPath, summary);
 writeFileSync(wikiCompendiumPath, summary);
 writeFileSync(wikiInterconnectionPath, wikiInterconnections);
 
-const wikiHome = `# RealityEngine_AI Wiki\n\n` +
+const wikiHome = `# RealityEngine Wiki\n\n` +
   `## Example Machine Corpus\n\n` +
   `- [Example Machine Compendium](Example-Machine-Compendium) — searchable index of all active domains, machines, AI triggers, agents, vector mappings, and interconnections generated from \`examples/machines/*.json\`.\n` +
   `- [Machine Interconnection Index](Machine-Interconnection-Index) — searchable output-to-input overlap index for domain-local and cross-domain machine interconnections.\n\n` +
@@ -361,9 +358,6 @@ const wikiHome = `# RealityEngine_AI Wiki\n\n` +
   `- \`${interconnections.length}\` machine-level interconnections\n` +
   `- \`${interconnections.filter((edge) => edge.crossDomain).length}\` cross-domain interconnections\n`;
 
-writeFileSync(nestedWikiHomePath, wikiHome);
-writeFileSync(nestedWikiCompendiumPath, summary);
-writeFileSync(nestedWikiInterconnectionPath, wikiInterconnections);
 
 console.log(JSON.stringify({
   machines: machines.length,
@@ -376,8 +370,5 @@ console.log(JSON.stringify({
     docsPath.pathname.replace(root.pathname, ''),
     wikiCompendiumPath.pathname.replace(root.pathname, ''),
     wikiInterconnectionPath.pathname.replace(root.pathname, ''),
-    nestedWikiHomePath.pathname.replace(root.pathname, ''),
-    nestedWikiCompendiumPath.pathname.replace(root.pathname, ''),
-    nestedWikiInterconnectionPath.pathname.replace(root.pathname, ''),
   ],
 }, null, 2));

@@ -1,6 +1,6 @@
 # Logging Quick Start
 
-RealityEngine_AI forwards service logs to Grafana Loki and views them in
+The engines forward service logs to Grafana Loki and views them in
 Grafana.
 
 ## Picture
