@@ -234,6 +234,43 @@ equivalence follows from it.
 | GET | `/api/perceptual-simulation/state` | ✓ | ✓ | ✓ |
 | GET | `/api/perceptual-simulation/history` | ✓ | ✓ | ✓ |
 
+#### Active regions
+
+`activeRegions` is emitted on every simulation step and **is ordered**. The
+canonical order is `offset`, then `length`, then `machineId`, then `type`, all
+ascending. Every runtime sorts before serializing; a consumer may rely on it,
+and a byte comparison of the field is meaningful.
+
+`machineId` is part of the key so the order is total. `offset`+`length`+`type`
+alone is not — two machines may target the same region, which is precisely the
+contended case the arbiter exists for, and leaving those two entries in
+map-iteration order would reintroduce the defect below on exactly the cells
+that matter most.
+
+This is a fixed order rather than a declared-unordered field. Byte equivalence
+is the acceptance test for these contracts, so a field that carries no order but
+is compared as though it does cannot be checked at all — and that was the state
+this replaces. All three runtimes built the list by walking their own machine
+collection, each in its own iteration order, and reported the **same fifteen
+regions in three different orders** (#197):
+
+```
+cpp-1 vs lsp-1:    order differs | set SAME
+cpp-1 vs scala-1:  order differs | set SAME
+lsp-1 vs scala-1:  order differs | set SAME
+```
+
+Because no two runtimes agreed byte-for-byte, the clustering in the
+universal-vectors stage never found a majority, and **every** divergence in
+that stage reported as "no majority — runtimes split evenly" regardless of what
+the engines had actually done. An unactionable verdict on every run, which
+masked the real content of #162 for as long as that issue was open.
+
+Implemented in `reality.cpp` (`std::sort` after the machineResults walk),
+`PerceptualSpaceSimulator.scala` (`sortBy`), and `reality-service.lisp`
+(`sort-active-regions`, replacing an `nreverse` that only undid push order and
+carried no meaning).
+
 ### Sampler
 
 | Method | Path | CPP | LSP | Scala |
@@ -375,6 +412,31 @@ dynamically at runtime; the event is the same either way, and it declares the
 full source set immediately, completely and inactive, so `GET /api/sources`
 reflects it before any traffic arrives. Membership changes only on
 register/deregister — reads, pushes and resets do not move it.
+
+#### Sensor source payload
+
+A sensor source serializes `sensorId`, `lastValue`, `lastUpdated`, `ttlMs` and,
+when set, `origin` — alongside the fields common to every source kind. **It
+does not carry derived freshness.** `ageMs` and `stale` are not part of the
+shape, and a runtime must not add them.
+
+They were emitted by LSP and by the Manager TypeScript PE, and not by C++ or
+Scala, so `GET /api/sources` could not be byte-compared across runtimes at all;
+`regression-reset-contract.py` had to skip the comparison and document why
+rather than fake a pass (#176).
+
+Removed rather than canonicalized, on two grounds. Nothing consumed them — the
+visualizer declared both optional in `types.ts` and read neither. And `active`
+already answers the question `stale` was introduced for: since `active` reports
+`stored AND validated` at every read, a sensor past its TTL reports inactive
+without the caller doing TTL arithmetic. A consumer that wants the arithmetic
+anyway has `lastUpdated` and `ttlMs`, both of which stay on the payload.
+
+The general rule this is an instance of: **a field that only one or two
+runtimes emit is a defect in the payload contract, not a feature of those
+runtimes.** Either every runtime emits it and this document says so, or none
+does. Derived values that a caller can compute from fields already present
+should be the ones that go.
 
 ### Machine ingestion
 
