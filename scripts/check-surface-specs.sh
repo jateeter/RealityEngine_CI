@@ -26,6 +26,12 @@ CONTRACTS=(
   "docs/PE_METRICS_CONTRACT.md|$ROOT_DIR/RealityEngine_Machines/docs/PE_METRICS_CONTRACT.md"
   "docs/SEMANTIC_AUDIT_CONTRACT.md|$ROOT_DIR/RealityEngine_Machines/docs/SEMANTIC_AUDIT_CONTRACT.md"
   "docs/SEMANTIC_GUARDRAIL_CONTRACT.md|$ROOT_DIR/RealityEngine_Machines/docs/SEMANTIC_GUARDRAIL_CONTRACT.md"
+  # No pointers in the focus repos — the machine output arbiter is described
+  # only here now, after MACHINE_JSON_FORMAT.md, MACHINE_CONCEPT.md and two repo
+  # architecture docs were reduced to references. Listed so the master cannot go
+  # missing while four documents cite it by path. (A duplicate exists in
+  # RealityEngine_AI, which is outside the focus set.)
+  "ARBITER_ARCHITECTURE.md"
   "MACHINE_CONCEPT.md|$ROOT_DIR/RealityEngine_CPP/MACHINE_CONCEPT.md|$ROOT_DIR/RealityEngine_LSP/MACHINE_CONCEPT.md|$ROOT_DIR/RealityEngine_Scala/MACHINE_CONCEPT.md"
 )
 
@@ -51,8 +57,13 @@ for entry in "${CONTRACTS[@]}"; do
     continue
   fi
 
-  IFS='|' read -ra pointers <<<"$rest"
-  for pointer in "${pointers[@]}"; do
+  # A master may legitimately have no pointers — nothing outside RealityEngine_CI
+  # describes it. Declaring the array is not enough: bash 3.2, which is what
+  # /bin/bash is on macOS, treats "${arr[@]}" as unbound under `set -u` even for
+  # a declared-empty array. The ${arr[@]+...} guard is the portable form.
+  pointers=()
+  [ -n "$rest" ] && IFS='|' read -ra pointers <<<"$rest"
+  for pointer in ${pointers[@]+"${pointers[@]}"}; do
     [ -n "$pointer" ] || continue
     repo="$(basename "$(dirname "$(dirname "$pointer")")")"
     case "$pointer" in */docs/*) : ;; *) repo="$(basename "$(dirname "$pointer")")" ;; esac

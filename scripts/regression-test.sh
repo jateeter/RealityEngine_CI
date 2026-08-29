@@ -1021,6 +1021,12 @@ run_arbiter_rule_sweep() {
   # them exposes a reload. GET /api/arbitration is read-only. So forcing a rule
   # means setting ARBITRATION_REGISTRY and booting, which is what makes this
   # opt-in rather than part of every run.
+  #
+  # Both lanes boot standard-deployment, which is twelve machines and comes up
+  # quickly. Against the full 1328-machine corpus the Scala RE can exceed the
+  # default native health window while it is still loading — raise
+  # NATIVE_HEALTH_ATTEMPTS before sweeping there, or every rule after the first
+  # reports a boot failure that is really a timeout.
   local sweep_dir="$RUN_DIR/responses/arbiter-sweep"
   mkdir -p "$sweep_dir"
   local rules_csv="$ARBITER_SWEEP"
