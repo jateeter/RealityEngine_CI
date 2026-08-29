@@ -270,6 +270,39 @@ def extract_signature(payload: Any, shared: set[str] | None = None) -> Any:
     return parity_signature(payload, shared)
 
 
+def active_region_order_violations(instance_id: str, payload: Any) -> list[str]:
+    """`activeRegions` must arrive in the canonical order.
+
+    SURFACE_SPEC.md, "Active regions": offset, then length, then machineId, then
+    type, all ascending. Every runtime sorts before serializing.
+
+    Checked here rather than assumed because this stage is what the old
+    behaviour broke. All three runtimes built the list by walking their own
+    machine collection in their own iteration order and reported the same
+    regions in three different orders (#197) — so no two agreed byte-for-byte,
+    `agreement_clusters` never found a majority, and every divergence reported
+    as "no majority — runtimes split evenly" whatever the engines had done. A
+    regression here would silently restore that, and it would look like an
+    engine disagreement rather than an ordering one.
+    """
+    regions = jget(payload, "step", "activeRegions") or jget(payload, "activeRegions")
+    if not isinstance(regions, list) or len(regions) < 2:
+        return []
+
+    def key(region: Any) -> tuple[Any, ...]:
+        if not isinstance(region, dict):
+            return ()
+        return (region.get("offset", 0), region.get("length", 0),
+                region.get("machineId", ""), region.get("type", ""))
+
+    keys = [key(r) for r in regions]
+    if keys != sorted(keys):
+        first = next((i for i in range(1, len(keys)) if keys[i] < keys[i - 1]), None)
+        return [f"{instance_id}: activeRegions not in canonical order at index {first} "
+                f"({keys[first - 1]} before {keys[first]}) — SURFACE_SPEC.md, Active regions (#197)"]
+    return []
+
+
 def agreement_clusters(signatures: dict[str, Any], instance_order: list[str]) -> list[list[str]]:
     """Group instances by identical signature, largest cluster first.
 
@@ -406,6 +439,11 @@ def main() -> int:
             status = statuses[instance_key]
             signature = extract_signature(payload, shared)
             signatures[instance_key] = signature
+            # Ordering is a contract, not an accident of iteration. Reported
+            # separately from parity: an unsorted list is this runtime failing
+            # its own obligation, not two runtimes disagreeing, and conflating
+            # them is exactly how #197 stayed invisible.
+            failures.extend(active_region_order_violations(instance_key, payload))
             summary["results"].append(
                 {
                     "event": event["id"],

@@ -119,11 +119,17 @@ difference a second time.
   are observed indirectly instead, by the trajectory leg — a source whose cursor
   was not rewound replays the wrong vector on the first push after the reset and
   the histories split at step 0.
-* **Payloads are not byte-compared.** LSP emits `ageMs` and `stale` on sensor
-  sources that C++ and Scala do not (#166). That is a real divergence and it has
-  its own issue; comparing raw payloads here would report it on every source and
-  bury the membership finding. The comparison runs over a named projection
-  (`DECLARED_FIELDS`) so it says what it means.
+* **Payloads are not byte-compared.** The comparison runs over a named
+  projection (`DECLARED_FIELDS`) so it says what it means: membership and
+  activity are separate questions (contract point 3), and folding the whole
+  payload into the identity would make an activity change read as a membership
+  change.
+
+  This used to be justified by `ageMs`/`stale`, which LSP and the TypeScript PE
+  emitted and C++ and Scala did not (#176) — a divergence that would have been
+  reported on every source and buried the membership finding. That is fixed:
+  both fields are gone from the shape, and `shape_violations` below now asserts
+  their absence, so the projection is no longer covering for a known break.
 
 ## The fourth runtime
 
@@ -355,6 +361,34 @@ def ingress_violations(runtime: str, entries: dict[str, dict[str, Any]],
                 f"{runtime}: {key!r} is active {where} with no ingress in its history "
                 f"(lastUpdated is null) — activity must trace to a value having arrived")
     return failures
+
+
+# SURFACE_SPEC.md, "Sensor source payload": a sensor serializes sensorId,
+# lastValue, lastUpdated, ttlMs and, when set, origin — and carries no derived
+# freshness. `ageMs` and `stale` are not part of the shape and a runtime must
+# not add them.
+#
+# Asserted here rather than left to the prose. They were emitted by LSP and the
+# TypeScript PE and by neither C++ nor Scala, which made GET /api/sources
+# impossible to byte-compare across runtimes; removing them is only durable if
+# something fails when they come back. The rule generalises: a field only some
+# runtimes emit is a defect in the payload contract, not a feature of those
+# runtimes.
+FORBIDDEN_SOURCE_FIELDS = ("ageMs", "stale")
+
+
+def shape_violations(runtime: str, sources: list[dict[str, Any]]) -> list[str]:
+    failures: list[str] = []
+    for source in sources:
+        present = [f for f in FORBIDDEN_SOURCE_FIELDS if f in source]
+        if present:
+            failures.append(
+                f"{runtime}: source {source.get('id') or source.get('name')!r} carries "
+                f"{'+'.join(present)} — derived freshness is not part of the sensor "
+                f"payload (SURFACE_SPEC.md, Sensor source payload; #176). `active` "
+                f"already reports stored AND validated, and lastUpdated/ttlMs remain "
+                f"for a caller that wants the arithmetic.")
+    return failures[:10]
 
 
 def compare_declared(sets: dict[str, dict[str, dict[str, Any]]]) -> list[str]:
@@ -955,6 +989,13 @@ def main() -> int:
         # with a non-empty sequence *must* come back active however it was left.
         contract_failures.extend(
             validation_violations(instance["id"], entries, now_ms, args.clock_margin_ms))
+
+        # The payload shape itself, not just its values. A runtime that
+        # reintroduces derived freshness makes GET /api/sources
+        # non-byte-comparable again, which is what #176 cost and what the
+        # projection above was covering for.
+        contract_failures.extend(
+            shape_violations(instance["id"], list(entries.values())))
 
         # The paused control, named explicitly. It is already covered by the
         # sweep above, but a runtime that carried an operator pause across the
