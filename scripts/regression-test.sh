@@ -900,6 +900,15 @@ prepare_runtime_config() {
 start_universe() {
   [ "$START" = true ] || return 0
 
+  # Optional label suffix. run_cmd names its log file after the label, so the
+  # arbiter sweep's repeated boots would each overwrite start-universe.log
+  # without one — and the boot log is where a rule-specific startup failure
+  # would be visible. Declared here, before any use: an earlier change added
+  # the `run_cmd "$label"` reference but not this line, and `set -u` turned
+  # that into "line 940: label: unbound variable" — the hosted regression lane
+  # died at the cold-start step (#202).
+  local label="start-universe${1:+-$1}"
+
   # Fail here rather than after the universe is up. startUniverse.sh gates this
   # too, but by then the run has spent minutes on preflight and boot. It matters
   # most under --skip-build, where nothing in this lane has rebuilt anything and
@@ -916,7 +925,7 @@ start_universe() {
     }
   fi
 
-  step "Cold-start standard multi-engine universe"
+  step "Cold-start standard multi-engine universe${1:+ ($1)}"
   local ci
   ci="$(repo_root RealityEngine_CI)"
   # This argument list was hardcoded, so --machine-corpus and --no-local-ai

@@ -1293,7 +1293,12 @@ fi
 
 # Verify required sibling repos are present
 for dir_var in SCALA_DIR MGR_DIR MACHINES_DIR LAS_DIR; do
-    eval dir="\$$dir_var"
+    # Indirect expansion rather than `eval dir="\$$dir_var"`. Same result
+    # without handing the contents of a variable to the shell to re-parse, and
+    # the assignment is now visible to static analysis — the eval form read as
+    # "dir is referenced but not assigned" (SC2154), which is the exact check
+    # added to lint.sh for #202, and this was its only pre-existing hit.
+    dir="${!dir_var}"
     [ -d "$dir" ] || die "$dir_var not found at $dir\n  Expected sibling repos: RealityEngine_Scala, RealityEngine_Manager, RealityEngine_Machines, localAIStack"
 done
 ok "Sibling repos found: RealityEngine_Scala, RealityEngine_Manager, RealityEngine_Machines, localAIStack"

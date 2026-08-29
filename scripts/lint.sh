@@ -32,7 +32,23 @@ for target in "${TARGETS[@]}"; do
     echo "SKIP (not found): $target"
     continue
   fi
-  if shellcheck -S error --format=gcc "$target" 2>&1; then
+  # Two passes. The first is everything shellcheck rates as an error.
+  #
+  # The second promotes SC2154 — "referenced but not assigned" — which
+  # shellcheck rates a warning and `-S error` therefore discards. That gap let
+  # a real break reach main: a partially applied edit added `run_cmd "$label"`
+  # to regression-test.sh without the `local label=` that defines it, this gate
+  # passed, and the hosted regression lane died at cold-start with
+  # "line 940: label: unbound variable" (#202). Every script here runs under
+  # `set -u`, so an unassigned reference is not a style question — it is a
+  # guaranteed runtime abort on the line that touches it.
+  #
+  # --include limits the pass to that one check rather than admitting all
+  # warnings, which would be a much larger and unrelated change.
+  ok=true
+  shellcheck -S error --format=gcc "$target" 2>&1 || ok=false
+  shellcheck -S warning --include=SC2154 --format=gcc "$target" 2>&1 || ok=false
+  if [ "$ok" = true ]; then
     PASS=$((PASS+1))
   else
     FAIL=$((FAIL+1))
