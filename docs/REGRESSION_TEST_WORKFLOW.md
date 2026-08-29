@@ -133,7 +133,7 @@ Participating repos:
 - `localAIStack`
 - `localOpenClawStack`
 
-`RealityEngine_AI` is deprecated and must remain untouched.
+The deprecated TypeScript prototype must remain untouched.
 
 ## Live Universal Vector Parity
 
@@ -407,7 +407,7 @@ The workflow checks out these sibling repositories only:
 - `localAIStack`
 - `localOpenClawStack`
 
-`RealityEngine_AI` is deprecated and is intentionally not checked out or
+The deprecated TypeScript prototype is intentionally not checked out or
 touched by the regression automation.
 
 Uploaded artifacts are limited to certification summaries and normalized

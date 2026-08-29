@@ -671,7 +671,7 @@ HTTP status: `200` (all ok) · `207` (partial failures).
 
 ## Out of Scope
 
-The following routes appeared in the locked historical RealityEngine_AI surface
+The following routes appeared in the locked historical prototype surface
 that has been replaced by Scala, but are not part of the canonical surface and
 must not be implemented in CPP, LSP, or Scala:
 

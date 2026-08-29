@@ -96,7 +96,7 @@ seven sibling repos. The **Docker footprint** — the target of this validation 
 > **Both footprints are now in scope** (per the validation goal): the agent's
 > containerized lane validates the Docker units above, and its **native lane**
 > (Phase 3N) validates Scala/Manager/CPP/LSP as local processes. localAIStack and
-> OpenClaw remain containerized-only. `RealityEngine_AI` is deprecated and excluded.
+> OpenClaw remain containerized-only. The deprecated TypeScript prototype is excluded.
 
 ### 1.2 What `startUniverse.sh` already does well
 

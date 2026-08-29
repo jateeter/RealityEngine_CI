@@ -151,7 +151,7 @@ The RS flip-flop is implemented using **5 critical event vectors**:
 ### 1. Create the RS Flip-Flop
 
 ```bash
-cd /Users/johnt/workspace/GitHub/RealityEngine_AI
+cd /Users/johnt/workspace/GitHub/RealityEngine_CI
 ./scripts/examples/rs-flipflop.sh
 ```
 

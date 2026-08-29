@@ -86,7 +86,7 @@ function corpusPath(basename) {
 
 // The master is RealityEngine_Machines/oracles.json. This pointed at
 // RealityEngine_CI/examples/oracles.json — a path that does not exist in this
-// repository, left over from the RealityEngine_AI layout. `--check` therefore
+// repository, left over from a deprecated prototype layout. `--check` therefore
 // compared the generated set against a missing file and reported drift on every
 // run, which is a gate that cannot pass rather than one that catches anything.
 const DEFAULT_OUT  = path.join(ROOT, '..', 'RealityEngine_Machines', 'oracles.json');

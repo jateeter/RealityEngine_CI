@@ -30,7 +30,7 @@ CONTRACTS=(
   # only here now, after MACHINE_JSON_FORMAT.md, MACHINE_CONCEPT.md and two repo
   # architecture docs were reduced to references. Listed so the master cannot go
   # missing while four documents cite it by path. (A duplicate exists in
-  # RealityEngine_AI, which is outside the focus set.)
+  # a deprecated prototype outside the focus set.)
   "ARBITER_ARCHITECTURE.md"
   "MACHINE_CONCEPT.md|$ROOT_DIR/RealityEngine_CPP/MACHINE_CONCEPT.md|$ROOT_DIR/RealityEngine_LSP/MACHINE_CONCEPT.md|$ROOT_DIR/RealityEngine_Scala/MACHINE_CONCEPT.md"
 )

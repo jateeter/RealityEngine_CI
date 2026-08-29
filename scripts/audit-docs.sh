@@ -41,7 +41,6 @@ GREP_EXCL=(
   --exclude-dir="data"
   --exclude-dir="run"
   --exclude-dir="quicklisp"          # Lisp vendor packages
-  --exclude-dir="RealityEngine_AI.wiki"  # archived old wiki content
   --exclude="*.class"
   --exclude="*.pyc"
   --exclude="releases.txt"           # quicklisp package registry
@@ -71,7 +70,6 @@ hdr "2. Deprecated port references (3299, 3300)"
 #   EXAMPLE_DOMAIN_COMPENDIUM.md / Example-Machine-Compendium.md — use 3299 as
 #     perceptual-space offset ([3295:3299]), not a port number
 #   Machine-Interconnection-Index.md — uses [3295:3299] as perceptual-space offset
-#   RealityEngine_AI.wiki/ — archived old AI wiki content (corpus submodule)
 DEPR_HITS=$(find "$WS" \
     \( -name "*.md" -o -name "*.sh" -o -name "*.env" -o -name "*.txt" \) \
     ! \( \
@@ -81,7 +79,6 @@ DEPR_HITS=$(find "$WS" \
       -o -path "*/.bsp/*" \
       -o -path "*/.metals/*" \
       -o -path "*/quicklisp/*" \
-      -o -path "*/RealityEngine_AI.wiki/*" \
       -o -name "DEPLOYMENT_CONTRACT.md" \
       -o -name "Contract-Snapshot.md" \
       -o -name "REALITY_PERCEPTION_OPERATIONS.md" \
