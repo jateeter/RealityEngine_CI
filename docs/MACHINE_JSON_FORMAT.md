@@ -137,7 +137,7 @@ The Machine JSON format provides a complete, serializable representation of a Re
 | `name` | string | Yes | Machine name |
 | `description` | string | Yes | Brief description |
 | `metadata` | object | No | Custom metadata |
-| `arbiterRule` | string | Yes | Output arbiter rule (PASSTHROUGH, FIRST, LAST, MAJORITY) |
+| `arbiterRule` | string | Yes | Output arbiter rule. Permissible set and default: `RealityEngine_CI/ARBITER_ARCHITECTURE.md` |
 | `perceptualMapping` | object | No | Perceptual space mappings |
 | `sequences` | array | Yes | Critical event sequences |
 | `inputSequences` | array | No | Test input sequences |
@@ -227,11 +227,14 @@ The Machine JSON format provides a complete, serializable representation of a Re
 
 ## Arbiter Rules
 
-| Rule | Description |
-|------|-------------|
-| `PASSTHROUGH` | Pass through all outputs (default) |
-| `AND` | Output only if ALL sequences produce output |
-| `OR` | Output if at least ONE sequence produces output |
+See `RealityEngine_CI/ARBITER_ARCHITECTURE.md` — the canonical statement of the machine output arbiter (`machine.arbiterRule`): its permissible set, its `PASSTHROUGH` default, and its semantics. Do not restate it here.
+
+This section previously listed `PASSTHROUGH, FIRST, LAST, MAJORITY` as the
+permissible set. Two of those never existed and the other two are the rules
+`ARBITER_CONTRACT.md` §4.1 rejects — *first* and *last* are not commutative
+monoids, so they cannot be reduced in parallel and cannot agree across four
+implementations. A duplicated list is how a superseded set survives; a pointer
+is why this one will not come back.
 
 ---
 

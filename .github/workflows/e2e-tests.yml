@@ -1090,7 +1090,16 @@ jobs:
           # satisfies. Setting them here would look meaningful and do nothing.
           MACHINES_DIR: ${{ github.workspace }}/RealityEngine_Machines
           # Three native runtimes to build and boot, two of them from source.
-          NATIVE_HEALTH_ATTEMPTS: '240'
+          #
+          # 480s (240 attempts) was not enough for the Scala RE and the run died
+          # at "scala-1 RE ready — did not respond after 480s (corpus: 12
+          # machines)". Twelve machines is not the cost — cpp-1 was ready in 84s
+          # and lsp-1 in 2s on the same runner. The JVM comes up alongside Loki,
+          # Grafana and Prometheus, whose startup is slow enough to matter on a
+          # shared runner, and Scala is the runtime that pays for that
+          # contention. Raised rather than reordered because the cause is worth
+          # measuring before the phase order is changed.
+          NATIVE_HEALTH_ATTEMPTS: '450'
           HOST_IP_OVERRIDE: 127.0.0.1
         run: |
           ./startUniverse.sh --no-openclaw --no-local-ai --skip-seed \

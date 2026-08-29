@@ -110,11 +110,7 @@ All CES run simultaneously on the same snapshot of the input region (snapshot is
 
 The `OutputArbiter` selects the final machine output from CES emissions:
 
-| Rule | Behaviour |
-|---|---|
-| `PASSTHROUGH` | Pass any output directly (first emitting CES wins) |
-| `AND` | Output only when every CES with outputs has fired |
-| `OR` | Output when at least one CES fires |
+See `RealityEngine_CI/ARBITER_ARCHITECTURE.md` — the canonical statement of the machine output arbiter (`machine.arbiterRule`): its permissible set, its `PASSTHROUGH` default, and its semantics. Do not restate it here.
 
 ### Output Phase
 
