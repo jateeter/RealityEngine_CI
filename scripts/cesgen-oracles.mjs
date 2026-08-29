@@ -18,9 +18,29 @@
  *                  output.  Depth is capped at MAX_CHAIN_DEPTH to keep the
  *                  set finite.
  *
- * The oracle JSON is the shared contract between RealityEngine_AI and
- * RealityEngine_CPP: both load it and must produce the expected mergeBatch
- * for every entry.  Identical pass-sets ⇒ cross-runtime parity.
+ * The oracle JSON is a shared contract across the runtimes: each loads it and
+ * must produce the expected mergeBatch for every entry.  Identical pass-sets ⇒
+ * cross-runtime parity.
+ *
+ * Consumed by all three engines:
+ *
+ *   RealityEngine_CPP    tests/cesgen_oracles_parity.cpp        (make e2e-corpus)
+ *   RealityEngine_LSP    tests/oracle-parity-tests.lisp         (make test)
+ *   RealityEngine_Scala  .../engine/CesgenOraclesParitySpec.scala (sbt test)
+ *
+ * For a long time only C++ consumed it, so "identical pass-sets" was never
+ * actually checked and the claim above described a contract with participants
+ * that had never joined.  The three harnesses are deliberately the same shape —
+ * same oracle file, same per-machine isolation, same comparison rule — because
+ * a harness that differs in what it asserts cannot demonstrate parity of what
+ * it asserts about.
+ *
+ * Each oracle carries `outputMergeTransformation`, the fold the machine
+ * declares, because that decides how the expectation is checked: a machine
+ * presents one folded Reality Event per instant, so an individual outputVector
+ * is not separately observable in mergeBatch, and under a monotone fold the
+ * assertion that survives is subsumption rather than equality
+ * (docs/FOLD_PLACEMENT.md §5a).
  *
  * Usage:
  *   node scripts/cesgen-oracles.mjs                # write examples/oracles.json
@@ -34,6 +54,7 @@
  *   node scripts/cesgen-oracles.mjs --check
  */
 
+import crypto from 'node:crypto';
 import fs from 'node:fs';
 import path from 'node:path';
 
@@ -63,7 +84,12 @@ function corpusPath(basename) {
   return p;
 }
 
-const DEFAULT_OUT  = path.join(ROOT, 'examples', 'oracles.json');
+// The master is RealityEngine_Machines/oracles.json. This pointed at
+// RealityEngine_CI/examples/oracles.json — a path that does not exist in this
+// repository, left over from the RealityEngine_AI layout. `--check` therefore
+// compared the generated set against a missing file and reported drift on every
+// run, which is a gate that cannot pass rather than one that catches anything.
+const DEFAULT_OUT  = path.join(ROOT, '..', 'RealityEngine_Machines', 'oracles.json');
 
 // Deep chains explode combinatorially; 4 input steps is enough to cover the
 // rising-edge pattern (2-step) and all of the staged-sensor machines in the
@@ -93,6 +119,13 @@ function buildOracles(file) {
   if (!mapping?.input || !mapping?.output) return [];
 
   const machineId = raw.id ?? `machine-${file.replace(/\.json$/, '').toLowerCase()}`;
+  // The transformation the engine folds this machine's collection of potential
+  // outputs with, at the completion boundary of the atomic matching action.
+  // Absent means "or" (RealityEngine_CI/docs/FOLD_PLACEMENT.md §5a). Carried on
+  // every oracle so a consumer can tell whether the fold is monotone without
+  // reopening the corpus — which is what decides how the expectation is
+  // checked, and there are three consumers now.
+  const outputMergeTransformation = (raw.outputMergeTransformation ?? 'or').toLowerCase();
   const outRegion = { offset: mapping.output.offset, length: mapping.output.length };
   const inRegion  = { offset: mapping.input.offset,  length: mapping.input.length };
 
@@ -113,8 +146,17 @@ function buildOracles(file) {
         const expectedProvenance = path.map(v => v.id);
         for (let k = 0; k < tail.outputVectors.length; k++) {
           const expectedVector = tail.outputVectors[k].vector ?? [];
+          // The path is part of the identity. Without it distinct oracles
+          // collided on one id: KleeneStar reaches `kleene-seq2-001-final` by
+          // five routes, each with its own depth and inputs, and all five were
+          // emitted under the same id. An id that does not identify an oracle
+          // makes a failure report ambiguous and lets a consumer keyed on id
+          // silently drop four of them. Hashed rather than spelled out — the
+          // provenance chain is long and the id is already the longest field.
+          const pathHash = crypto.createHash('sha1')
+            .update(expectedProvenance.join('>')).digest('hex').slice(0, 8);
           oracles.push({
-            id: `${file}::${seq.id}::${tail.id}::${k}::${path.length === 1 ? 'single-step' : 'chained'}`,
+            id: `${file}::${seq.id}::${tail.id}::${k}::${path.length === 1 ? 'single-step' : 'chained'}::d${path.length}::${pathHash}`,
             machineFile: file,
             machineId,
             sequenceId:  seq.id,
@@ -123,6 +165,7 @@ function buildOracles(file) {
             depth:       path.length,
             inputRegion: inRegion,
             inputs:      path.map(v => (v.elements ?? []).map(e => e.value)),
+            outputMergeTransformation,
             expected:    { region: outRegion, values: expectedVector, outputIndex: k, provenance: expectedProvenance },
           });
         }
@@ -158,7 +201,11 @@ function main() {
   const payload = {
     version:     '1.0.0',
     generatedBy: 'scripts/cesgen-oracles.mjs',
-    sourceGlob:  'examples/machines/*.json',
+    // Was the literal 'examples/machines/*.json' long after the corpus moved
+    // into RealityEngine_Machines/machines/domains/<name>/ and this generator
+    // started walking it recursively. A generated file that misreports its own
+    // provenance is worse than one that omits it.
+    sourceGlob:  path.relative(path.join(ROOT, '..'), MACHINES_DIR) + '/**/*.json',
     machineCount: files.length,
     oracleCount:  allOracles.length,
     histogram,
