@@ -169,6 +169,14 @@ def shape_only_keys(payloads: dict[str, Any]) -> dict[str, list[str]]:
     questions — whether a runtime is *required* to emit the key — and answering
     them inside a behavioural comparison is what made a missing optional field
     look like a behavioural divergence.
+
+    The rule this implements is SURFACE_SPEC.md, "The observable boundary":
+    byte equivalence is a property of the observable interface, and internal
+    augmentation is filtered at that boundary rather than replicated across
+    runtimes. Cited rather than restated — this function arrived at the right
+    behaviour locally, before the rule was written down anywhere, and
+    `valuesPacked` was filed as a defect (RealityEngine_CI#208) by a reader who
+    had this comment and no contract to check it against.
     """
     common = shared_keys(payloads)
     extras: dict[str, list[str]] = {}
