@@ -1,4 +1,4 @@
 [submodule "wiki"]
 	path = wiki
-	url = git@github.com:jateeter/RealityEngine_AI.wiki.git
+	url = git@github.com:jateeter/RealityEngine_CI.wiki.git
 	branch = master
