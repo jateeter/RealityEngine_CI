@@ -295,6 +295,15 @@ Replace the scalar firing identity with the contributing set.
 One operation per machine per output region per step. A machine that completed
 no Reality Event contributes none, exactly as today.
 
+This enumeration describes the **observable** shape — what a runtime presents on
+the routes in `SURFACE_SPEC.md`. A runtime carrying an additional field on its
+own PE→RE→PE hop is not violating it; see "The observable boundary" in that
+document. `valuesPacked` is the worked example: emitted by two runtimes under
+`compact`, absent on the third, consumed by nothing, and correctly reported
+rather than compared by `scripts/lib/parity_identity.py`. Read as a closed
+enumeration over internal payloads too, this section made that look like a
+departure and it was filed as a defect (RealityEngine_CI#208).
+
 ## 2. The folded value
 
 `values` is the machine's collection of potential outputs put through

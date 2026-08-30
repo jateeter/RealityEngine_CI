@@ -25,6 +25,73 @@ Consumers/tooling: `Manager` = RealityEngine_Manager · `CI` = RealityEngine_CI
 
 ---
 
+## The observable boundary
+
+**This document specifies the externally observable interface.** Everything
+below — every route, every payload shape, every ordering rule — is a statement
+about what a runtime presents to something outside itself.
+
+**The PE→RE→PE path is internal to an engine pair.** Each instance's Perception
+Engine talks to its own Reality Engine and back. That hop is not the observable
+interface; it is how one pair does its work.
+
+Three consequences, and none of them was written down before:
+
+**1. Internal augmentation is permitted, and is not divergence.** A runtime may
+carry more on its internal hop than another does — a packed representation, a
+debug projection, a cached resolution, a field one implementation finds useful
+and another has no need for. Two pairs doing the same work by different
+internal means are not in disagreement.
+
+**2. The boundary filters; it does not replicate.** When internal augmentation
+reaches the observable interface, the correct handling is to filter it out
+there — not to require every other runtime to implement it. Byte equivalence is
+a property of the observable interface. Forcing internal parity in order to
+achieve it inverts the requirement, and can cost real work: `valuesPacked`
+(#208) was very nearly "fixed" by implementing base64 bit-packing in a third
+runtime, byte-for-byte across three languages, to satisfy a field **no consumer
+reads**.
+
+**3. The scope of "every runtime must emit it" is this document.** The rule
+under "Sensor source payload" — *a field only some runtimes emit is a defect in
+the payload contract, not a feature of those runtimes* — is true **of the
+observable interface**. It is not a claim about internal hops. Read as
+universal it turns every internal difference into a defect, which is the
+ambiguity that produced #208.
+
+### What is observable
+
+Everything reachable by a consumer that is not the pair itself: the Manager,
+the CI regression stages, the MCP surface, an operator with `curl`. In practice
+that is every route in this document.
+
+What is **not** observable, and therefore not governed here: the request the PE
+makes of its own RE and the response it gets back, except insofar as the PE
+then presents that content on a route listed here. A PE that asks its RE for
+more than it reports is doing its job.
+
+### Already-settled instances
+
+Two cases were resolved this way before the rule was stated, and both were
+discovered rather than declared — which is the cost this section is meant to
+end:
+
+- **`valuesPacked`** on `mergeBatch` entries. Emitted by LSP and C++ under
+  `compact`, absent on Scala, consumed by nothing.
+  `scripts/lib/parity_identity.py` already treats it correctly — reported under
+  `shape_only_keys`, never compared — and cites this section for why.
+- **`perceptualSpaceIsDebugProjection`**. `step.perceptualSpace` is a debug
+  rendering rather than an authoritative surface. A runtime is not obliged to
+  make it byte-comparable, and comparing it produced a retracted 13-cell
+  "divergence" that was a rendering difference.
+
+`mergeBatch` itself is observable and governed: `docs/FOLD_PLACEMENT.md` §1
+enumerates the `MergeOperation` shape, and §5a of that document records that a
+runtime carrying an additional *internal* field is not violating that
+enumeration.
+
+---
+
 ## Reality Engine (RE) Surface
 
 Served by `reality_engine_server` (CPP), `reality-service` (LSP), `Routes` (Scala).  
@@ -437,6 +504,12 @@ runtimes emit is a defect in the payload contract, not a feature of those
 runtimes.** Either every runtime emits it and this document says so, or none
 does. Derived values that a caller can compute from fields already present
 should be the ones that go.
+
+That rule is scoped to the **observable interface** — see "The observable
+boundary" above. It is not a claim about the PE→RE→PE hop, where a runtime may
+carry more than another without that being divergence. Read as universal it
+makes every internal difference a defect, which is how `valuesPacked` came to
+be filed as one (#208).
 
 ### Machine ingestion
 
