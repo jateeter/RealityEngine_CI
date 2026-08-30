@@ -4,7 +4,12 @@ import { readdirSync, readFileSync, writeFileSync } from 'fs';
 import { join } from 'path';
 
 const root = new URL('../', import.meta.url);
-const machinesDir = new URL('../examples/machines/', import.meta.url);
+// The canonical corpus, in RealityEngine_Machines. This read
+// RealityEngine_CI/examples/machines/ — the retired RealityEngine_AI layout —
+// which has not existed for some time, so the generator threw ENOENT and the
+// two pages it produces could not be regenerated at all. They were last built
+// on 13 Jun and had no way back (RealityEngine_CI#183).
+const machinesDir = new URL('../../RealityEngine_Machines/machines/', import.meta.url);
 const docsPath = new URL('../docs/EXAMPLE_DOMAIN_COMPENDIUM.md', import.meta.url);
 const wikiCompendiumPath = new URL('../wiki/Example-Machine-Compendium.md', import.meta.url);
 const wikiInterconnectionPath = new URL('../wiki/Machine-Interconnection-Index.md', import.meta.url);
@@ -41,12 +46,24 @@ function machineCode(file) {
 }
 
 function relMachinePath(file) {
-  return `examples/machines/${file}`;
+  return `RealityEngine_Machines/machines/${file}`;
 }
 
-const files = readdirSync(machinesDir)
-  .filter((file) => file.endsWith('.json'))
-  .sort();
+// Recursive: the corpus lives in domains/<name>/ with nothing at the root, so a
+// flat readdir found zero machines. Same shape as the walk in
+// cesgen-oracles.mjs; `file` is the machines/-relative path from here on, which
+// is what relMachinePath reports and what keeps the entries addressable.
+function walkCorpus(dir, prefix = '') {
+  const out = [];
+  for (const entry of readdirSync(dir, { withFileTypes: true })) {
+    const rel = prefix ? `${prefix}/${entry.name}` : entry.name;
+    if (entry.isDirectory()) out.push(...walkCorpus(join(dir, entry.name), rel));
+    else if (entry.name.endsWith('.json')) out.push(rel);
+  }
+  return out;
+}
+
+const files = walkCorpus(machinesDir.pathname).sort();
 
 const machines = files.map((file) => {
   const document = JSON.parse(readFileSync(join(machinesDir.pathname, file), 'utf8'));
@@ -315,7 +332,7 @@ function interconnectionTable(edges = interconnections) {
 
 const generatedAt = new Date().toISOString();
 const summary = `# Example Machine Compendium\n\n` +
-  `Generated from \`examples/machines/*.json\` at ${generatedAt}.\n\n` +
+  `Generated from \`RealityEngine_Machines/machines/**/*.json\` at ${generatedAt}.\n\n` +
   `This page is intentionally indexable and searchable: every active domain, machine name, machine code, trigger, agent, tag, vector range, and interconnection is represented as plain Markdown text.\n\n` +
   `## Corpus Summary\n\n` +
   `- Machines: ${machines.length}\n` +
@@ -333,7 +350,7 @@ const summary = `# Example Machine Compendium\n\n` +
   `## Full Interconnection Index\n\n${interconnectionTable()}\n`;
 
 const wikiInterconnections = `# Machine Interconnection Index\n\n` +
-  `Generated from \`examples/machines/*.json\` at ${generatedAt}.\n\n` +
+  `Generated from \`RealityEngine_Machines/machines/**/*.json\` at ${generatedAt}.\n\n` +
   `Machine-level interconnections are output-to-input perceptual-space overlaps. Search by domain, machine name, range, or \`cross-domain\`.\n\n` +
   `- Total interconnections: ${interconnections.length}\n` +
   `- Cross-domain interconnections: ${interconnections.filter((edge) => edge.crossDomain).length}\n` +
@@ -347,7 +364,7 @@ writeFileSync(wikiInterconnectionPath, wikiInterconnections);
 
 const wikiHome = `# RealityEngine Wiki\n\n` +
   `## Example Machine Corpus\n\n` +
-  `- [Example Machine Compendium](Example-Machine-Compendium) — searchable index of all active domains, machines, AI triggers, agents, vector mappings, and interconnections generated from \`examples/machines/*.json\`.\n` +
+  `- [Example Machine Compendium](Example-Machine-Compendium) — searchable index of all active domains, machines, AI triggers, agents, vector mappings, and interconnections generated from \`RealityEngine_Machines/machines/**/*.json\`.\n` +
   `- [Machine Interconnection Index](Machine-Interconnection-Index) — searchable output-to-input overlap index for domain-local and cross-domain machine interconnections.\n\n` +
   `- [Machine Tagging](Machine-Tagging) — managed machine metadata tag schema and validation workflow.\n` +
   `- [Life Balance Machines](Life-Balance-Machines) — lifestyle-psychiatry tracking, automation, projection, and e2e validation machines.\n\n` +
