@@ -292,7 +292,7 @@
         "type": "prometheus",
         "uid": "prometheus"
       },
-      "description": "re:PerceptionEvent records per second, attributed to the upstream that produced the write. This is the ingress volume each integration contributes to the universal reality vector.",
+      "description": "re:PerceptionEvent records per second, attributed to the upstream that produced the write. This is the ingress volume each integration contributes to the universal Reality Event.",
       "fieldConfig": {
         "defaults": {
           "custom": {

@@ -58,7 +58,7 @@ overwrites.
 | Machine/source mapping | Machine corpus and PE source registry | Explicit `{offset,length}`. |
 | Semantic embedding vector | localAIStack/Ollama/Qdrant collections | Fixed model embedding dimension. |
 
-Operational reality vectors must not force localAIStack embedding collections to
+Operational Reality Events must not force localAIStack embedding collections to
 resize. If operational snapshots need persistence, use separate collections or a
 sparse region store under Reality Engine ownership.
 

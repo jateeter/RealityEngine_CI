@@ -45,7 +45,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 #### Output Arbiter Architecture
 - **3-Phase Reality Engine Workflow**: Implemented new processing workflow
-  - Phase 1: Resolve new input reality vector
+  - Phase 1: Resolve new input Reality Event
   - Phase 2: Apply input to all active events (sequences)
   - Phase 3: Resolve machine output via arbiter
 - **OutputArbiter Class** (`/src/models/OutputArbiter.ts`)

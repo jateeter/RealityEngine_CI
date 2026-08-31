@@ -17,11 +17,11 @@ Input → Process All Sequences → Collect All Outputs → Return Combined Outp
 
 ### After: Machine-Level Processing with Arbiter
 ```
-Phase 1: Resolve Input Reality Vector
+Phase 1: Resolve Input Reality Event
          ↓
 Phase 2: Apply Input to All Active Events (Sequences)
          ↓ (collect sequence outputs)
-Phase 3: Resolve Output Reality Vector via Arbiter
+Phase 3: Resolve Output Reality Event via Arbiter
          ↓
         Machine Output
 ```
@@ -82,7 +82,7 @@ Future strategies could include:
 
 **3-Phase Workflow**:
 
-#### Phase 1: Resolve New Input Reality Vector
+#### Phase 1: Resolve New Input Reality Event
 ```typescript
 const result: MachineTransitionResult = {
   inputVector,
@@ -113,7 +113,7 @@ for (const [sequenceId, sequence] of this.sequences) {
 - Collect sequence results
 - Collect sequence outputs for arbitration
 
-#### Phase 3: Resolve Output Reality Vector via Arbiter
+#### Phase 3: Resolve Output Reality Event via Arbiter
 ```typescript
 const arbiterResult = this.arbiter.arbitrate(
   sequenceOutputs,
@@ -640,9 +640,9 @@ describe('Machine.processInput', () => {
 - MachineTransitionResult type
 
 **Workflow**:
-1. Resolve new input reality vector
+1. Resolve new input Reality Event
 2. Apply input to all active events (sequences)
-3. Resolve output reality vector via arbiter
+3. Resolve output Reality Event via arbiter
 
 **Benefits**:
 - Clear separation of concerns

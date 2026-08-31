@@ -43,10 +43,10 @@ What this deliberately does not do:
   change under training. Its effect is entirely captured as the gap between the
   seed and the ISRE actually presented, which needs no access to it.
 * **No region comparison.** Regions are an abstraction laid across the input
-  space reality vector. It is the vector that must be equivalent; region
+  space Reality Event. It is the Reality Event that must be equivalent; region
   equivalence follows from it.
-* **No sorting, no identity filtering.** These histories carry vectors, not
-  names — there is no engine-minted id to strip and no ordering to normalise.
+* **No sorting, no identity filtering.** These histories carry Reality Events,
+  not names — there is no engine-minted id to strip and no ordering to normalise.
   The histories are ordered by construction and compared in that order.
 
 Divergence is reported as **the first disagreeing step and cell**. The

@@ -253,7 +253,7 @@ returned from there. Both default to the whole history, which is capped at 1024
 entries and cleared by `POST /api/reset`.
 
 Regions are not compared. They are an abstraction laid across the input space
-reality vector: it is the vector that must be equivalent, and region
+Reality Event: it is the vector that must be equivalent, and region
 equivalence follows from it.
 
 ### Machines
@@ -418,7 +418,7 @@ what the cross-runtime parity stage was reporting as engine divergence.
 |-----|---------|------|-------|
 | `stepNumber` | ✓ | ✓ | |
 | `timestamp` | ✓ | ✓ | |
-| `perceptualSpace` | ✓ | ✓ | **Always present.** The reality vector after the step — the reason the response exists. |
+| `perceptualSpace` | ✓ | ✓ | **Always present.** The Reality Event after the step — the reason the response exists. |
 | `perceptualSpaceIsDebugProjection` | ✓ | ✓ | |
 | `activeRegions` | ✓ | ✓ | |
 | `mergeBatch` | ✓ | ✓ | |

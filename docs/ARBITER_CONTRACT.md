@@ -70,7 +70,7 @@ this transformation is a requirement every integration surface must meet, and th
 set is expected to grow — **adding an integration is adding a conformance
 obligation**, discharged before that integration may contribute. A surface that
 cannot express the transformation cannot become a source; it does not get an
-exemption, because an exemption is exactly a path into the reality vector that
+exemption, because an exemption is exactly a path into the Reality Event that
 skips the gate (§2.1).
 
 This is not hypothetical. Of 4,003 cells targeted by `openClawProjection`
@@ -421,7 +421,7 @@ semantics and justified there, not applied blanket as an extraction fallback.
 A failed transformation is not waste. It carries information the system wants:
 *this agent, asked this trigger, for this machine, on this axis, returned
 something the declared semantics could not resolve.* Discarding it keeps the
-reality vector clean and throws away the only evidence that the binding is wrong.
+Reality Event clean and throws away the only evidence that the binding is wrong.
 
 So failure has two effects, not one:
 
@@ -438,7 +438,7 @@ agent bindings. The interconnection graph is part of the learning regime; failed
 transformations are part of the same regime, and they are the higher-signal half
 because a failure localises a specific broken binding.
 
-**The analysis stream never writes the reality vector.** It may inform changes to
+**The analysis stream never writes the Reality Event.** It may inform changes to
 the corpus, to a response mapping, or to a source configuration — all of which
 take effect on a later instant through the ordinary path. Nothing on the analysis
 stream reaches an Input Reality Event Vector except by becoming a contribution
