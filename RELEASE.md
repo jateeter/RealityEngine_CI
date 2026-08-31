@@ -90,7 +90,7 @@ by dedicated scaling tests.
 It runs everything the hosted lane runs, plus two stages the hosted lane
 cannot: `local-ai` (localAIStack health, every PE reporting Ollama reachable,
 and the runtimes agreeing on the model) and `healthkit-bridge` (the bridge's
-simulator e2e against a live PE). Results land in
+configured-sequence e2e against a live PE). Results land in
 `.regression-tests/runs/<run-id>/` in the same shape as a hosted run.
 
 **A hosted certification does not certify those surfaces.** Do not read a green

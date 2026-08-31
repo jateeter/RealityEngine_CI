@@ -198,10 +198,10 @@ test.describe('Multi-Step State Machine - Output Workflow', () => {
       const probeBody = await probeResp.json();
       console.log('  Step 4 (probe): completed');
 
-      // Debug: show which machines are in the simulator and their outputs
+      // Debug: show which machines the engine holds and their outputs
       const stateForDebug = await (await page.request.get(`${PERCEPTUAL_API_URL}/api/perceptual-simulation/state`)).json();
       const machinesDebug = stateForDebug.state?.machines ?? [];
-      console.log(`  Machines in simulator (${machinesDebug.length}):`);
+      console.log(`  Machines in engine (${machinesDebug.length}):`);
       machinesDebug.forEach((m: any) => console.log(`    [${m.name}] in:[${m.perceptualMapping?.input.offset}:${m.perceptualMapping?.input.offset + m.perceptualMapping?.input.length}] out:[${m.perceptualMapping?.output.offset}:${m.perceptualMapping?.output.offset + m.perceptualMapping?.output.length}]`));
 
       // Debug: show each RS2 machine's output in the probe step

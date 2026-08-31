@@ -65,7 +65,7 @@ SUMMARIES: dict[str, str] = {
     "GET:/api/engine/orev-history":                            "OREV-History — output reality event vector per step",
     "GET:/api/engine/isre-history":                            "ISRE-History — input space reality event vector per step",
     "POST:/api/engine/process":                                "Process input vector across all machines",
-    "POST:/api/engine/reset":                                  "Reset machine, simulator, and perception state",
+    "POST:/api/engine/reset":                                  "Reset machine, engine, and perception state",
     # RE — Machines
     "GET:/api/machines":                                       "List loaded machines",
     "POST:/api/machines":                                      "Import a machine",
@@ -105,7 +105,7 @@ SUMMARIES: dict[str, str] = {
     # RE — Perception
     "POST:/api/perception/observe":                            "Observe raw sensor values",
     "POST:/api/perception/diagnostic":                         "Diagnose machine input mapping",
-    "POST:/api/perceive":                                      "Process perceptual-space vector through simulator",
+    "POST:/api/perceive":                                      "Process a perceptual-space vector through the reality engine",
     # RE — Governance
     "GET:/api/governance/route":                               "Resolve paging decision for a fired output",
     # RE — Demos

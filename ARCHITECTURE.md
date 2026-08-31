@@ -107,7 +107,7 @@ flowchart TD
 | `CriticalEventSequence` | Maintains active graph nodes and emits output vectors. |
 | `Machine` | Runs sequences and owns input/output perceptual mappings. |
 | `OutputArbiter` | Decides whether matched outputs should be asserted. |
-| `PerceptualSpaceSimulator` | Runs snapshot -> process -> merge simulation phases. |
+| `PerceptualSpaceRuntime` | Runs the snapshot -> process -> merge phases over the loaded machines. |
 | `Perception Engine` | Builds the next input vector from test, simulated, and sensor sources. |
 
 ## Startup Contract

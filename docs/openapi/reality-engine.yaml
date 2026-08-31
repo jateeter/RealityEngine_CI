@@ -102,7 +102,7 @@ paths:
   /api/engine/reset:
     post:
       tags: [Engine]
-      summary: Reset machine, simulator, and perception state
+      summary: Reset machine, engine, and perception state
       responses:
         "200":
           description: Reset result
@@ -444,7 +444,7 @@ paths:
       summary: Current perceptual simulation state
       responses:
         "200":
-          description: Simulator state
+          description: Engine state
           content:
             application/json:
               schema:
@@ -628,7 +628,7 @@ paths:
   /api/perceive:
     post:
       tags: [Perception]
-      summary: Process a perceptual-space vector through the simulator
+      summary: Process a perceptual-space vector through the reality engine
       requestBody:
         required: true
         content:

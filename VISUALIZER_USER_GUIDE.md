@@ -95,7 +95,7 @@ Opened via **📑 Sequences** in the Tobias sidebar.
 
 ### Input Stream tab
 
-Build and commit an input vector sequence to the Reality Engine's configured simulator:
+Build and commit an input vector sequence to the Reality Engine's configured input sequence:
 
 1. Choose a **source machine** (determines the input region offset and length)
 2. Set **step count** and **pattern** (sine-wave, square-wave, random, etc.)

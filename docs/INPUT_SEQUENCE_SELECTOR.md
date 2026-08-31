@@ -69,7 +69,7 @@ For comprehensive validation sequences, you'll also see validation badges:
 
 ### Step 4: Load the Sequence
 
-Click the **"Load Sequence"** button to load the vectors into the simulator. The sequence will:
+Click the **"Load Sequence"** button to load the vectors into the engine. The sequence will:
 - Replace current input vectors
 - Reset the simulation state
 - Configure auto-play delay (1500ms by default)
