@@ -26,12 +26,15 @@ CONTRACTS=(
   "docs/PE_METRICS_CONTRACT.md|$ROOT_DIR/RealityEngine_Machines/docs/PE_METRICS_CONTRACT.md"
   "docs/SEMANTIC_AUDIT_CONTRACT.md|$ROOT_DIR/RealityEngine_Machines/docs/SEMANTIC_AUDIT_CONTRACT.md"
   "docs/SEMANTIC_GUARDRAIL_CONTRACT.md|$ROOT_DIR/RealityEngine_Machines/docs/SEMANTIC_GUARDRAIL_CONTRACT.md"
-  # No pointers in the focus repos — the machine output arbiter is described
-  # only here now, after MACHINE_JSON_FORMAT.md, MACHINE_CONCEPT.md and two repo
-  # architecture docs were reduced to references. Listed so the master cannot go
-  # missing while four documents cite it by path. (A duplicate exists in
-  # a deprecated prototype outside the focus set.)
-  "ARBITER_ARCHITECTURE.md"
+  # Three separate things in this system are called "arbitration" —
+  # outputMergeTransformation, arbiterRule, and the cell arbitration registry —
+  # and this is the document that tells them apart, so it has to say the same
+  # thing to every runtime. It was a master with no pointers, which is the
+  # failure one step before drift: nothing in an engine repository named it, and
+  # the natural repair for "I need to describe the arbiter here" is a local
+  # description that becomes a second master. (A duplicate exists in a
+  # deprecated prototype outside the focus set.)
+  "ARBITER_ARCHITECTURE.md|$ROOT_DIR/RealityEngine_CPP/ARBITER_ARCHITECTURE.md|$ROOT_DIR/RealityEngine_LSP/ARBITER_ARCHITECTURE.md|$ROOT_DIR/RealityEngine_Scala/ARBITER_ARCHITECTURE.md"
   "MACHINE_CONCEPT.md|$ROOT_DIR/RealityEngine_CPP/MACHINE_CONCEPT.md|$ROOT_DIR/RealityEngine_LSP/MACHINE_CONCEPT.md|$ROOT_DIR/RealityEngine_Scala/MACHINE_CONCEPT.md"
 )
 
