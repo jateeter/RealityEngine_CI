@@ -6,25 +6,25 @@ A **Machine** is the fundamental computational unit of the Reality Engine. It is
 
 ## 1. Finite-State Automaton Structure
 
-Each Machine is a **deterministic finite automaton (DFA)** whose alphabet is the set of quantized perceptual vectors. The machine's DFA state is the complete activation pattern across all RealityVectors in all CriticalEventSequences (CES) — the tuple of which vectors are currently active. Given that global activation pattern and an input symbol, the acceptance rules produce exactly one next activation pattern; there is no branching.
+Each Machine is a **deterministic finite automaton (DFA)** whose alphabet is the set of quantized perceptual vectors. The machine's DFA state is the complete activation pattern across all RealityEvents in all CriticalEventSequences (CES) — the tuple of which vectors are currently active. Given that global activation pattern and an input symbol, the acceptance rules produce exactly one next activation pattern; there is no branching.
 
 ```
 Machine  ←  DFA state = activation pattern across ALL vectors in ALL CESs
  └─ CriticalEventSequence (CES)   ← one recognizer component
-     ├─ RealityVector (contributes bits to the machine's DFA state)
+     ├─ RealityEvent (contributes bits to the machine's DFA state)
      │    elements: [(value, comparator), ...]   ← acceptance condition for one input symbol
      │    outputVectors: [...]                    ← Mealy-style emission on acceptance
      │    nextVectorIds: [q₁, q₂, ...]           ← successor vectors to activate
-     └─ RealityVector ...
+     └─ RealityEvent ...
 ```
 
 A single vector with multiple `nextVectorIds` activates all listed successors on acceptance — this is not non-deterministic choice but **powerset construction already baked in**: the runtime tracks the full *set* of active vectors, and the transition `(active-set, input) → next-active-set` is single-valued and total.
 
 ### DFA State Representation
 
-The machine DFA state is the **activation pattern** — the set of RealityVectors currently marked active. Each RealityVector contributes one bit to this pattern. The start state has exactly the `isInitial` vectors active; all other vectors start inactive.
+The machine DFA state is the **activation pattern** — the set of RealityEvents currently marked active. Each RealityEvent contributes one bit to this pattern. The start state has exactly the `isInitial` vectors active; all other vectors start inactive.
 
-Each individual RealityVector holds:
+Each individual RealityEvent holds:
 
 | Field | Type | Role |
 |---|---|---|

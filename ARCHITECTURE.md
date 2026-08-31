@@ -103,7 +103,7 @@ flowchart TD
 
 | Component | Responsibility |
 | --- | --- |
-| `RealityVector` | Compares input elements using `gte`, `equals`, or `threshold`. |
+| `RealityEvent` | Compares input elements using `gte`, `equals`, or `threshold`. |
 | `CriticalEventSequence` | Maintains active graph nodes and emits output vectors. |
 | `Machine` | Runs sequences and owns input/output perceptual mappings. |
 | `OutputArbiter` | Decides whether matched outputs should be asserted. |
