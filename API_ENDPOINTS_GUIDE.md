@@ -30,9 +30,9 @@ GET  /api/sequences                      → { sequences: [...] }
 GET  /api/sequences/:id                  → sequence graph with nodes/edges and live activation state
 ```
 
-### Perceptual Space Simulator
+### Configured Input Sequence
 
-The simulator accepts a pre-configured input sequence and steps through it. Used by e2e tests; day-to-day operation uses the Perception Engine push path instead.
+The engine accepts a pre-configured input sequence and steps through it. Used by e2e tests; day-to-day operation uses the Perception Engine push path instead.
 
 ```
 POST /api/perceptual-simulation/configure/chunk   body: { vectors, reset?, inputRegion?, stepDelayMs?, maxSteps? }

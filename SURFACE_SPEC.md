@@ -334,7 +334,7 @@ the engines had actually done. An unactionable verdict on every run, which
 masked the real content of #162 for as long as that issue was open.
 
 Implemented in `reality.cpp` (`std::sort` after the machineResults walk),
-`PerceptualSpaceSimulator.scala` (`sortBy`), and `reality-service.lisp`
+`PerceptualSpaceRuntime.scala` (`sortBy`), and `reality-service.lisp`
 (`sort-active-regions`, replacing an `nreverse` that only undid push order and
 carried no meaning).
 

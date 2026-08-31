@@ -240,7 +240,7 @@ def input_region(machine: dict[str, Any]) -> dict[str, int] | None:
 # ── engine operations ─────────────────────────────────────────────────────────
 
 def reset_instances(instances: list[dict[str, Any]]) -> list[str]:
-    """Clear RE simulator state (and its histories) and PE push state."""
+    """Clear RE engine state (and its histories) and PE push state."""
     failures = []
     for instance in instances:
         status, _ = TP.post_json(f"{instance['re']}/api/engine/reset", {})
