@@ -23,7 +23,7 @@ picks a winner.
 The variant keeps the cell set and the provider ranks of the real registry and
 changes only the rule, so a sweep exercises the arbiter over the same contention
 the corpus actually produces rather than a synthetic fixture. Point all three
-engines at the output with ARBITRATION_REGISTRY, boot, and compare ISRE/OREV.
+engines at the output with ARBITRATION_REGISTRY, boot, and compare ISRE/OSRE.
 
     arbitration-registry-variant.py --rule MEAN \
         --source ../RealityEngine_Machines/domains/arbitration-registry.json \

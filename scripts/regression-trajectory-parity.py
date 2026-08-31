@@ -28,9 +28,9 @@ closed loop, then compares the two histories the engines record at their own
 observation points:
 
     ISRE-History = {ISRE(1) … ISRE(n)}   what each corpus was presented with
-    OREV-History = {OREV(1) … OREV(n-1)} what each corpus produced
+    OSRE-History = {OSRE(1) … OSRE(n-1)} what each corpus produced
 
-Both are read from `GET {re}/api/{isre,orev}-history`, which every runtime
+Both are read from `GET {re}/api/{isre,osre}-history`, which every runtime
 serves in the shape SURFACE_SPEC.md governs. A probe written against one engine
 runs unmodified against all of them; that is a requirement, not a convenience.
 
@@ -65,7 +65,7 @@ import time
 from typing import Any
 from urllib import error, request
 
-TRAJECTORIES = ("isre", "orev")
+TRAJECTORIES = ("isre", "osre")
 
 
 def request_json(req: request.Request, timeout: int) -> tuple[int, Any]:
@@ -465,7 +465,7 @@ def main() -> int:
     lengths = summary["trajectories"]["isre"]["lengths"]
     rule = args.arbiter_rule or "corpus-declared"
     cells = next(iter(arbiter_configs.values()), {}).get("registryEntries", 0)
-    print(f"PASS trajectory parity: ISRE/OREV histories identical across "
+    print(f"PASS trajectory parity: ISRE/OSRE histories identical across "
           f"{len(instances)} runtimes ({min(lengths.values())} steps, "
           f"arbiter {rule} over {cells} contended cells)")
     print(args.out / "trajectory-summary.json")

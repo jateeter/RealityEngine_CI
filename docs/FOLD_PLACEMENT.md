@@ -34,7 +34,7 @@ The step has **two** merges, under different rules:
 ```
 per-machine collection ──► fold (or/and/…/meet/join/…)  ──► mergedOutputVector ──► PE
         │
-        └────────────────► contributions ──► per-cell arbiter ──► space, OREV
+        └────────────────► contributions ──► per-cell arbiter ──► space, OSRE
 ```
 
 The lower path never sees the fold. Every asserted output becomes its own
@@ -256,7 +256,7 @@ The move is not one change. Suggested order, each independently revertible:
 
 ## What would falsify this
 
-If the binary corpus's OREV changes when the fold moves, then folding before
+If the binary corpus's OSRE changes when the fold moves, then folding before
 arbitration is not behaviour-preserving for machines that were relying on the
 arbiter to resolve their own contributions — and that reliance would itself be
 worth understanding before it is removed. The 732-machine baseline is what
@@ -266,7 +266,7 @@ detects it.
 
 The sweep's second failure, #748
 `HSPH026_evaluation-capacity-measure-tracker`, is a `cpp+scala | lsp` split at
-ISRE step 7 cell 0 and OREV step 7 cell 27 — the first divergence with LSP as
+ISRE step 7 cell 0 and OSRE step 7 cell 27 — the first divergence with LSP as
 the outlier, and cell 0 belongs to a machine's *input* region, not an output
 region. It is not obviously a fold problem and has not been diagnosed.
 

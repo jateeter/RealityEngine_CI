@@ -20,7 +20,7 @@ Three rules, and one thing they are not:
   a difference to be intersected away silently.
 
 Not covered: whether the engines *behave* the same. That is the trajectory
-comparison over ISRE/OREV histories, which needs none of this — vectors carry
+comparison over ISRE/OSRE histories, which needs none of this — vectors carry
 no names.
 
 Identity filtering, specifically:

@@ -125,7 +125,7 @@ Options:
   --no-openclaw             Skip OpenClaw. Forced under --profile hosted.
   --local-ai                Start Ollama and localAIStack. Default under --profile local.
   --no-local-ai             Skip both. Forced under --profile hosted.
-  --arbiter-sweep[=RULES]   Compare ISRE/OREV under every arbiter rule, not only
+  --arbiter-sweep[=RULES]   Compare ISRE/OSRE under every arbiter rule, not only
                             the two the corpus registry declares. RULES is a
                             comma list; default is all seven:
                             PRECEDENCE,OR,MAX,AND,MIN,SEVERITY,MEAN.
@@ -978,7 +978,7 @@ active_machines_dir() {
   fi
 }
 
-# The parity gate. ISRE/OREV are the observation points the deployment's
+# The parity gate. ISRE/OSRE are the observation points the deployment's
 # equivalence claim is made at, and regression-trajectory-parity.py is the one
 # definition of what parity means — the corpus parity loop already reuses it as
 # a module rather than restating the comparison.
@@ -992,7 +992,7 @@ active_machines_dir() {
 # on every event regardless of what the engines did. It stays for the contract
 # checks it does perform; it is not the parity result.
 run_trajectory_parity() {
-  step "ISRE/OREV trajectory parity"
+  step "ISRE/OSRE trajectory parity"
   local ci
   ci="$(repo_root RealityEngine_CI)"
   # No seed region and no step count: the stimulus is the corpus's own. Machine
@@ -1006,10 +1006,10 @@ run_trajectory_parity() {
 }
 
 run_arbiter_rule_sweep() {
-  step "Arbiter rule sweep — ISRE/OREV parity under every declared rule"
+  step "Arbiter rule sweep — ISRE/OSRE parity under every declared rule"
   if [ -z "$ARBITER_SWEEP" ]; then
     write_skip_report "arbiter-sweep-skipped.json" \
-      "not requested; pass --arbiter-sweep to compare ISRE/OREV under every arbiter rule"
+      "not requested; pass --arbiter-sweep to compare ISRE/OSRE under every arbiter rule"
     log "SKIP arbiter-sweep: pass --arbiter-sweep (restarts the universe once per rule)"
     return 0
   fi
@@ -1083,10 +1083,10 @@ run_arbiter_rule_sweep() {
   start_universe "arbiter-baseline" || log "  arbiter sweep: baseline universe did not come back up"
 
   if [ ${#failed_rules[@]} -gt 0 ]; then
-    log "FAIL arbiter-sweep: ISRE/OREV parity failed under ${failed_rules[*]}"
+    log "FAIL arbiter-sweep: ISRE/OSRE parity failed under ${failed_rules[*]}"
     return 1
   fi
-  log "PASS arbiter-sweep: ISRE/OREV identical across runtimes under $rules_csv"
+  log "PASS arbiter-sweep: ISRE/OSRE identical across runtimes under $rules_csv"
   return 0
 }
 

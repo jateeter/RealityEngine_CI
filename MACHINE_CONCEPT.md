@@ -390,7 +390,7 @@ selectable `machine_corpus` input. Departures that require this include:
   localAI — since those register their own sources and the regression lane
   disables them
 - regions outside the corpus's allocated bands, which change the perceptual space
-  width and therefore every ISRE and OREV entry
+  width and therefore every ISRE and OSRE entry
 
 The rule behind the list: **a domain must be reachable by the parity gate.** An
 accepted domain the regression lane never drives is a domain whose cross-runtime
@@ -407,7 +407,7 @@ because nothing asks.
 6. Run `scripts/validate-corpus.sh`; with `STRICT_DOMAIN_CONTRACT=1` to fail on
    migration warnings rather than report them.
 7. Run the parity gate against a universe booted with the domain present and
-   confirm ISRE/OREV agreement across runtimes.
+   confirm ISRE/OSRE agreement across runtimes.
 8. Set `status` to `accepted`.
 
 Steps 6 and 7 are separate results and must stay separate: a domain can be

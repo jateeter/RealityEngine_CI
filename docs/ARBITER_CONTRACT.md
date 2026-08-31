@@ -637,7 +637,7 @@ implementation whose output depends on partitioning has violated 4.1.
    what the corpus asks for leaves `OR`, `MAX`, `AND`, `MIN` and `MEAN`
    uncompared across C++, LSP and Scala, in every lane, indefinitely. The sweep
    forces each rule in turn across the same contended cells and compares
-   ISRE/OREV under each.
+   ISRE/OSRE under each.
 
    `MEAN` is the rule this criterion exists for. It is the only rule that
    combines contributions arithmetically instead of selecting one, so it is the
