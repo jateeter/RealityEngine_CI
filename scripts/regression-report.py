@@ -35,7 +35,7 @@ def collect_report_statuses(run_dir: Path) -> dict[str, Any]:
     manifest = load_json(run_dir / "manifest.json", {})
 
     service = load_json(reports / "service-inventory.json", {})
-    # The parity result. ISRE/OREV are the observation points the multi-engine
+    # The parity result. ISRE/OSRE are the observation points the multi-engine
     # equivalence claim is made at; universal-vectors below is a contract check,
     # not a parity measurement (#148, and it diffs a debug projection).
     trajectory = load_json(responses / "trajectory-parity" / "trajectory-summary.json", {})
@@ -192,7 +192,7 @@ def summary_markdown(run_dir: Path, status: dict[str, Any], comparison: dict[str
     for label, key in (
         ("Build", "build"),
         ("Service readiness", "serviceInventory"),
-        ("ISRE/OREV trajectory parity", "trajectoryParity"),
+        ("ISRE/OSRE trajectory parity", "trajectoryParity"),
         ("Universal vectors (contract)", "universalVectors"),
         ("MQTT Yuma", "mqtt"),
         ("MCP", "mcp"),

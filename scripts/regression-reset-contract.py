@@ -75,7 +75,7 @@ is supposed to hold, never after something has had a chance to repair it.
    because a test source with a non-empty sequence validates active whatever it
    held before. A runtime that leaves the paused one inactive read the prior
    flag and carried it forward.
-5. **trajectory parity** — push and compare ISRE/OREV histories with **no
+5. **trajectory parity** — push and compare ISRE/OSRE histories with **no
    bootstrap and no PATCH after the reset**. The comparison itself is
    `regression-trajectory-parity.py`, imported as a module. There is one
    definition of what parity means and this stage is not a second one.
@@ -647,7 +647,7 @@ def membership_delta(before: dict[str, dict[str, Any]],
 
 def run_trajectory(instances: list[dict[str, Any]], steps: int,
                    settle_ms: int) -> tuple[dict[str, Any], list[str]]:
-    """Push and compare ISRE/OREV, with no bootstrap and no PATCH in the path.
+    """Push and compare ISRE/OSRE, with no bootstrap and no PATCH in the path.
 
     The interned test sources carry the stimulus and advance themselves one
     vector per push, so a push is the whole step. The comparison is the

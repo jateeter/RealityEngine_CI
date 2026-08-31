@@ -17,7 +17,7 @@
     "GET /api/engine/active",
     "GET /api/engine/history",
     "GET /api/engine/isre-history",
-    "GET /api/engine/orev-history",
+    "GET /api/engine/osre-history",
     "GET /api/engine/stats",
     "GET /api/governance/route",
     "GET /api/health",

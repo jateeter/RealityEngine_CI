@@ -62,7 +62,7 @@ SUMMARIES: dict[str, str] = {
     "GET:/api/engine/stats":                                   "Engine statistics",
     "GET:/api/engine/active":                                  "Active-vector compatibility endpoint",
     "GET:/api/engine/history":                                 "Audit trail of POST /api/engine/process calls",
-    "GET:/api/engine/orev-history":                            "OREV-History — output reality event vector per step",
+    "GET:/api/engine/osre-history":                            "OSRE-History — output reality event vector per step",
     "GET:/api/engine/isre-history":                            "ISRE-History — input space reality event vector per step",
     "POST:/api/engine/process":                                "Process input vector across all machines",
     "POST:/api/engine/reset":                                  "Reset machine, engine, and perception state",

@@ -9,7 +9,7 @@ This directory contains operational helpers for startup, testing, OpenAPI, and v
 
 ## Parity stages
 
-- `regression-trajectory-parity.py`: ISRE/OREV trajectory comparison across the
+- `regression-trajectory-parity.py`: ISRE/OSRE trajectory comparison across the
   registered runtimes for one seed sequence against whatever corpus is loaded.
 - `test-corpus-parity-loop.sh` + `regression-corpus-parity-loop.py`: incremental
   corpus parity. Boots one universe holding a single machine, then adds one
@@ -68,7 +68,7 @@ Notes that bite when changing these:
 - Machines are matched by corpus `name`. Ids are minted per runtime and any
   check that reaches for one reports divergence unconditionally.
 - Per-iteration `POST /api/engine/reset` is what makes RE histories comparable:
-  it clears ISRE/OREV *and* zeroes the step counter.
+  it clears ISRE/OSRE *and* zeroes the step counter.
 - The corpus needs a perceptual space of 16944, well above the 7680 every engine
   defaults to. `test-corpus-parity-loop.sh` computes the requirement and exports
   `VECTOR_DIMENSION`; machines mapping outside the space are reported as a

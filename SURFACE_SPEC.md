@@ -152,7 +152,7 @@ Default ports: Scala 5001 · CPP 5301 · LSP 5601
 | GET | `/api/engine/stats` | ✓ | ✓ | ✓ |
 | GET | `/api/engine/active` | ✓ | ✓ | ✓ |
 | GET | `/api/engine/history` | ✓ | ✓ | ✓ |
-| GET | `/api/engine/orev-history` | ✓ | ✓ | ✓ |
+| GET | `/api/engine/osre-history` | ✓ | ✓ | ✓ |
 | GET | `/api/engine/isre-history` | ✓ | ✓ | ✓ |
 | POST | `/api/engine/process` | ✓ | ✓ | ✓ |
 | POST | `/api/engine/reset` | ✓ | ✓ | ✓ |
@@ -181,10 +181,10 @@ from step n-1:
 
 ```
 ISRE(1) = ISRESeed(1)
-ISRE(n) = mergeBatch( ISRESeed(n), arbiter(OREV(n-1)) )
+ISRE(n) = mergeBatch( ISRESeed(n), arbiter(OSRE(n-1)) )
 
 ISRE-History = {ISRE(1) … ISRE(n)}
-OREV-History = {OREV(1) … OREV(n-1)}
+OSRE-History = {OSRE(1) … OSRE(n-1)}
 ```
 
 **`ISRESeed(n)` is composed, not supplied.** It is the merge of the `n`-th
@@ -206,7 +206,7 @@ the claim the multi-engine deployment rests on, and neither history is
 observable from a single-step response — two engines can agree at every step
 examined in isolation and still be on different trajectories.
 
-**OREV(n)** — the output reality event vector: the resolved output-cell writes
+**OSRE(n)** — the output reality event vector: the resolved output-cell writes
 committed by the corpus at step n. Observed at the commit, which is the only
 instant the corpus's output for the step exists as a single-valued vector.
 

@@ -16,14 +16,14 @@ Each iteration:
 
 1. `POST {re}/api/engine/reset` and `POST {pe}/api/reset` on every runtime, so
    the histories about to be compared start empty. Engine reset clears the
-   ISRE/OREV histories *and* zeroes the step counter — without the latter,
+   ISRE/OSRE histories *and* zeroes the step counter — without the latter,
    `stepNumber` means something different per runtime after the first reset
    (RealityEngine_CI#148) and every iteration after the first would report a
    spurious split.
 2. `POST {re}/api/machines` with the corpus JSON verbatim, on every runtime.
 3. `POST {pe}/api/sources/bootstrap-from-machines`, so the PE half of the pair
    sees the machine too.
-4. Activate every interned test source, push, and compare ISRE/OREV histories.
+4. Activate every interned test source, push, and compare ISRE/OSRE histories.
 
 The stimulus is the corpus's own. Loading a machine interns its
 `inputSequences` as a test source over the machine's own region, so at
@@ -44,7 +44,7 @@ misdiagnosis of another:
 
 * **load parity** — did every runtime accept the machine, and does every
   runtime now report the same machine count?
-* **trajectory parity** — do the ISRE/OREV histories agree?
+* **trajectory parity** — do the ISRE/OSRE histories agree?
 * **iteration health** — did the seed sequence apply without transport errors?
 
 No engine is a baseline. Runtimes are grouped into agreement clusters and a
