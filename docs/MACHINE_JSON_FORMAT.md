@@ -173,7 +173,7 @@ The Machine JSON format provides a complete, serializable representation of a Re
 | `id` | string | No | Unique identifier (auto-generated if missing) |
 | `name` | string | Yes | Sequence name |
 | `metadata` | object | No | Custom metadata |
-| `vectors` | array | Yes | Reality vectors in sequence |
+| `vectors` | array | Yes | Reality events in sequence |
 
 ### Vector Object
 

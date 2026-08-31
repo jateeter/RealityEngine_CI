@@ -148,7 +148,7 @@ def build() -> dict:
         11, "Perception Event Rate by Integration",
         "re:PerceptionEvent records per second, attributed to the upstream that produced "
         "the write. This is the ingress volume each integration contributes to the "
-        "universal reality vector.",
+        "universal Reality Event.",
         [target("sum by (integration) (rate(semantic_perception_events_total[5m]))", "{{integration}}")],
         {"h": 8, "w": 12, "x": 0, "y": 7}, unit="reqps", fill=10,
     ))

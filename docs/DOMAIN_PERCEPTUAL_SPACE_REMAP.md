@@ -162,7 +162,7 @@ Use the bridge block to gauge PE.xRE.xPE throughput:
 - Compare cross-domain bridge throughput against total interconnect throughput:
   `crossDomainMachineInterconnects / totalMachineInterconnects`.
 - Activate all community-services bridge producers in one PE push and verify
-  health-services and transportation consumers receive the merged reality vector
+  health-services and transportation consumers receive the merged Reality Event
   on the next push.
 - Add regression tests that fail if a cross-domain remap moves bridge regions out
   of the bridge block or creates holes in the domain-local blocks.
