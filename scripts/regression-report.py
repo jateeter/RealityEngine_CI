@@ -6,6 +6,7 @@ from __future__ import annotations
 import argparse
 import json
 from pathlib import Path
+import re
 import shutil
 import time
 from typing import Any
@@ -132,6 +133,58 @@ def aggregate_reports(paths: list[Path]) -> dict[str, Any]:
     return {"status": status, "reports": reports, "failures": failures}
 
 
+def failure_key(item: Any) -> str:
+    """A failure's identity, stable across runs.
+
+    `compare_runs` diffs failure strings as sets, so anything varying between
+    two runs of the same ongoing failure makes it appear as *both* a new failure
+    and a resolved one — noise shaped exactly like the churn the comparison
+    exists to surface.
+
+    Since #174 the universal-vectors failure line carries the stimulus verdict
+    and the per-runtime source counts:
+
+        event-1 parity mismatch: cpp-1+scala-1 | lsp-1 [stimulus DIFFERS — source counts {…}]
+
+    Those counts legitimately move run to run. The bracketed annotation is
+    dropped for identity and kept for display, so the diff tracks "this event
+    still mismatches with this cluster shape" while the reader still sees the
+    detail (#230).
+
+    Bare digit runs are normalised for the same reason — a failure naming a cell
+    count or a step index is the same failure at a different depth.
+    """
+    text = str(item)
+    text = re.sub(r"\s*\[[^\]]*\]\s*$", "", text)      # trailing [annotation]
+    text = re.sub(r"\b\d+\b", "N", text)                # counts, indices, ports
+    return " ".join(text.split())
+
+
+def load_baseline(history_dir: Path, current_run_id: str, compare_run: str,
+                  baseline_status: Path | None) -> tuple[dict[str, Any] | None, str]:
+    """The previous run's section statuses, and the id they came from.
+
+    Two sources, in order of preference:
+
+    1. `--baseline-status`, a `regression-status.json` carried forward from the
+       previous run. This is what the hosted lane uses: its workspace is fresh
+       every run, so there is never a previous run *directory* to find, and the
+       comparison reported `not-compared` on every scheduled run since it was
+       written (#230). One small file is all `compare_runs` needs, so the whole
+       run directory does not have to be persisted.
+    2. A previous run directory under `history_dir/runs`, which is what the
+       local lane has.
+    """
+    if baseline_status and baseline_status.is_file():
+        payload = load_json(baseline_status, {})
+        if payload:
+            return payload, str(payload.get("runId") or baseline_status.stem)
+    path = find_compare_run(history_dir, current_run_id, compare_run)
+    if path is None:
+        return None, compare_run
+    return collect_report_statuses(path), path.name
+
+
 def find_compare_run(history_dir: Path, current_run_id: str, compare_run: str) -> Path | None:
     runs_dir = history_dir / "runs"
     if compare_run:
@@ -160,12 +213,15 @@ def compare_runs(current: dict[str, Any], previous: dict[str, Any] | None, previ
         prev_status = status_word(previous.get(section))
         if cur_status != prev_status:
             changes.append({"section": section, "previous": prev_status, "current": cur_status})
-        cur_failures = set(map(str, current.get(section, {}).get("failures", [])))
-        prev_failures = set(map(str, previous.get(section, {}).get("failures", [])))
-        for item in sorted(cur_failures - prev_failures):
-            new_failures.append({"section": section, "failure": item})
-        for item in sorted(prev_failures - cur_failures):
-            resolved_failures.append({"section": section, "failure": item})
+        # Keyed, not compared verbatim: an ongoing failure whose message
+        # carries run-varying detail would otherwise report as both new and
+        # resolved every night (#230). Display keeps the full string.
+        cur_failures = {failure_key(f): str(f) for f in current.get(section, {}).get("failures", [])}
+        prev_failures = {failure_key(f): str(f) for f in previous.get(section, {}).get("failures", [])}
+        for key in sorted(set(cur_failures) - set(prev_failures)):
+            new_failures.append({"section": section, "failure": cur_failures[key]})
+        for key in sorted(set(prev_failures) - set(cur_failures)):
+            resolved_failures.append({"section": section, "failure": prev_failures[key]})
     return {
         "status": "compared",
         "previousRunId": previous_id or "",
@@ -241,14 +297,30 @@ def main() -> int:
     parser.add_argument("--history-dir", type=Path, required=True)
     parser.add_argument("--compare-run", default="")
     parser.add_argument("--archive", type=Path)
+    parser.add_argument("--baseline-status", type=Path,
+                        help="regression-status.json from the previous run. The hosted lane has "
+                             "no previous run directory — its workspace is fresh every run — so "
+                             "this is how it gets a baseline (#230).")
     args = parser.parse_args()
 
     manifest = load_json(args.run_dir / "manifest.json", {})
     current = collect_report_statuses(args.run_dir)
-    compare_path = find_compare_run(args.history_dir, manifest.get("runId", args.run_dir.name), args.compare_run)
-    previous = collect_report_statuses(compare_path) if compare_path else None
-    comparison = compare_runs(current, previous, compare_path.name if compare_path else args.compare_run)
+    previous, previous_id = load_baseline(
+        args.history_dir, manifest.get("runId", args.run_dir.name), args.compare_run, args.baseline_status
+    )
+    comparison = compare_runs(current, previous, previous_id)
     comparison["generatedAt"] = time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime())
+
+    # The machine-readable status, written for two consumers that both had to
+    # parse summary.md otherwise: the next run's comparison baseline (#230) and
+    # the failure-signature the issue filer keys on (#229).
+    status_doc = dict(current)
+    status_doc["runId"] = manifest.get("runId", args.run_dir.name)
+    status_doc["failingSections"] = sorted(
+        name for name, block in current.items()
+        if isinstance(block, dict) and block.get("status") == "failed"
+    )
+    write_json(args.run_dir / "reports" / "regression-status.json", status_doc)
 
     write_json(args.run_dir / "reports" / "regression-comparison.json", comparison)
     (args.run_dir / "summary.md").write_text(summary_markdown(args.run_dir, current, comparison), encoding="utf-8")

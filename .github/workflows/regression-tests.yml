@@ -330,6 +330,25 @@ jobs:
           [ "$published" -gt 0 ] || { echo "::error::no MQTT fixtures published"; exit 1; }
           echo "::notice::MQTT broker seeded with $published retained topic(s)"
 
+      # The run-over-run comparison had no baseline on this lane and reported
+      # `not-compared` on every scheduled run since it was written, which made
+      # the "New failures: 0 / Resolved failures: 0" line in every auto-filed
+      # issue structurally meaningless (#230).
+      #
+      # Only `regression-status.json` is carried, not the whole run directory:
+      # it is the only thing `compare_runs` reads, it is a few KB, and keeping
+      # the history bounded is otherwise a problem in its own right. The
+      # restore-key walks back to the most recent previous run; the exact key
+      # includes this run id so each run writes its own entry rather than
+      # fighting over one.
+      - name: Restore previous regression status (comparison baseline)
+        if: ${{ github.event_name == 'schedule' || github.event_name == 'workflow_dispatch' }}
+        uses: actions/cache@v4
+        with:
+          path: RealityEngine_CI/.regression-baseline
+          key: regression-baseline-${{ github.run_id }}
+          restore-keys: regression-baseline-
+
       - name: Run regression workflow
         id: regression
         working-directory: RealityEngine_CI
@@ -449,6 +468,11 @@ jobs:
           [ -n "$machine_corpus" ] && args+=(--machine-corpus "$machine_corpus")
           [ -n "$compare_run" ] && args+=(--compare "$compare_run")
           [ "$archive_artifacts" = "true" ] && args+=(--archive "$PWD/.regression-tests/archive")
+          # Restored from the previous run by the cache step above. Absent on
+          # the very first run after this landed, which reports not-compared
+          # once and then has a baseline from then on (#230).
+          [ -f "$PWD/.regression-baseline/regression-status.json" ] && \
+            args+=(--baseline-status "$PWD/.regression-baseline/regression-status.json")
 
           echo "::notice::Regression lane '${PROFILE:-hosted}' — run mode $run_mode, engines $engine_spec"
 
@@ -456,6 +480,24 @@ jobs:
           echo "run_dir=.regression-tests/runs/$run_id" >> "$GITHUB_OUTPUT"
 
           bash scripts/regression-test.sh "${args[@]}"
+
+      # Written whatever the run's verdict: a passing run is exactly the
+      # baseline that makes the next run's failures show up as *new*.
+      - name: Save this run's status as the next baseline
+        if: ${{ always() && (github.event_name == 'schedule' || github.event_name == 'workflow_dispatch') }}
+        working-directory: RealityEngine_CI
+        run: |
+          src=".regression-tests/runs/${{ steps.regression.outputs.run_id }}/reports/regression-status.json"
+          if [ -f "$src" ]; then
+            mkdir -p .regression-baseline
+            cp "$src" .regression-baseline/regression-status.json
+            echo "::notice::baseline saved from ${{ steps.regression.outputs.run_id }}"
+          else
+            # Leave the previous baseline in place rather than clearing it: a run
+            # that died before the report stage should not cost the next run its
+            # comparison.
+            echo "::warning::no regression-status.json; keeping the previous baseline"
+          fi
 
       - name: Upload regression artifacts
         if: always()
@@ -469,6 +511,7 @@ jobs:
             RealityEngine_CI/.regression-tests/runs/*/manifest.json
             RealityEngine_CI/.regression-tests/runs/*/reports/service-inventory.json
             RealityEngine_CI/.regression-tests/runs/*/reports/regression-comparison.json
+            RealityEngine_CI/.regression-tests/runs/*/reports/regression-status.json
             # The whole directory, not just the two summary files: the stage
             # also writes one <event>-<instance>.json per runtime holding the
             # actual response. When a runtime answered HTTP 400 those bodies
@@ -522,13 +565,35 @@ jobs:
               summary = fs.readFileSync(summaryPath, 'utf8').split('\n').slice(0, 160).join('\n');
             }
 
-            const title = `Regression failure: ${runId}`;
-            const body = [
-              `Regression run ${runId} failed.`,
-              '',
-              `Actions run: ${runUrl}`,
-              '',
-              'Selected summary:',
+            // Title keyed on the failure *signature*, not the run id (#229).
+            //
+            // The run id is unique per run — context.runId changes every run and
+            // runAttempt changes on every re-run — so a title built from it can
+            // never match a prior issue. The update branch below was unreachable
+            // and every scheduled failure opened a new issue: #215, #216, #224,
+            // #225 and #226 were five issues for one failure, closed by hand.
+            //
+            // The failing-section set is stable across runs of the same failure
+            // and distinct between different ones, which is what the dedupe
+            // needs. regression-status.json carries it so this does not parse
+            // markdown.
+            const statusPath = path.join(process.cwd(), 'RealityEngine_CI', '.regression-tests', 'runs', runId, 'reports', 'regression-status.json');
+            let failing = [];
+            if (fs.existsSync(statusPath)) {
+              try {
+                failing = JSON.parse(fs.readFileSync(statusPath, 'utf8')).failingSections || [];
+              } catch (err) {
+                core.warning(`could not read regression-status.json: ${err.message}`);
+              }
+            }
+            // A run that died before the report stage has no signature. Falling
+            // back to the run id keeps those one-per-run rather than collapsing
+            // unrelated infrastructure failures into one issue.
+            const signature = failing.length ? failing.join(', ') : `unreported (${runId})`;
+            const title = `Regression failure: ${signature}`;
+
+            const entry = [
+              `**${runId}** — ${runUrl}`,
               '',
               '```markdown',
               summary,
@@ -543,17 +608,27 @@ jobs:
             });
             const existing = issues.find((issue) => issue.title === title);
             if (existing) {
-              await github.rest.issues.update({
+              // A comment, not a body replacement. `issues.update` overwrote the
+              // body wholesale, so even if the match had worked the recurrence
+              // history would have been discarded on every hit — and knowing a
+              // failure is on its fifth night is most of its triage value.
+              await github.rest.issues.createComment({
                 owner: context.repo.owner,
                 repo: context.repo.repo,
                 issue_number: existing.number,
-                body
+                body: `Still failing.\n\n${entry}`
               });
             } else {
               await github.rest.issues.create({
                 owner: context.repo.owner,
                 repo: context.repo.repo,
                 title,
-                body
+                body: [
+                  `Failing stages: \`${signature}\`.`,
+                  '',
+                  'Recurrences are added as comments; the run below is the first.',
+                  '',
+                  entry
+                ].join('\n')
               });
             }

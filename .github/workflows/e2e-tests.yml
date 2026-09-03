@@ -421,6 +421,10 @@ jobs:
         working-directory: RealityEngine_CI
         run: bash scripts/tests/test-event-key-rename.sh
 
+      - name: Run regression comparison unit tests
+        working-directory: RealityEngine_CI
+        run: bash scripts/tests/test-regression-comparison.sh
+
       - name: Run trajectory parity unit tests
         working-directory: RealityEngine_CI
         run: bash scripts/tests/test-trajectory-parity.sh

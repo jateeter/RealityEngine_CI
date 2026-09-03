@@ -72,6 +72,9 @@ NODE_ACTIVATE='export NVM_DIR="${NVM_DIR:-$HOME/.nvm}"; \
 ENGINES_SPEC="cpp:1,lsp:1,scala:1"
 RETAIN=20
 COMPARE_RUN=""
+# Baseline for the run-over-run comparison. Empty means "look for a previous run
+# directory", which is all the local lane needs (#230).
+BASELINE_STATUS=""
 ARCHIVE_DIR=""
 
 REPOS=(
@@ -138,6 +141,10 @@ Options:
                             refused under --profile hosted.
   --retain N                Keep latest N local run histories. Default: 20
   --compare RUN_ID          Compare against a previous run id. Default: latest completed run.
+  --baseline-status PATH    regression-status.json from the previous run, used as the
+                            comparison baseline. The hosted lane has no previous run
+                            directory — its workspace is fresh every run — so this is
+                            how it gets one (#230).
   --archive PATH            Copy certification artifacts to PATH/<run-id>.
   --help                    Show this help.
 USAGE
@@ -181,6 +188,8 @@ while [ $# -gt 0 ]; do
     --retain) RETAIN="$2"; shift 2 ;;
     --compare=*) COMPARE_RUN="${1#*=}"; shift ;;
     --compare) COMPARE_RUN="$2"; shift 2 ;;
+    --baseline-status=*) BASELINE_STATUS="${1#*=}"; shift ;;
+    --baseline-status) BASELINE_STATUS="$2"; shift 2 ;;
     --archive=*) ARCHIVE_DIR="${1#*=}"; shift ;;
     --archive) ARCHIVE_DIR="$2"; shift 2 ;;
     --help|-h) usage; exit 0 ;;
@@ -1418,6 +1427,7 @@ generate_regression_report() {
     "--history-dir" "$HISTORY_DIR"
   )
   [ -n "$COMPARE_RUN" ] && args+=("--compare-run" "$COMPARE_RUN")
+  [ -n "$BASELINE_STATUS" ] && args+=("--baseline-status" "$BASELINE_STATUS")
   [ -n "$ARCHIVE_DIR" ] && args+=("--archive" "$ARCHIVE_DIR")
   run_cmd "regression-report" python3 "$ci/scripts/regression-report.py" "${args[@]}"
 
