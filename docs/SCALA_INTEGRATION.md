@@ -33,14 +33,24 @@ authority for this engine.
 
 ## Engine identity
 
-Two processes, from two sbt builds in one repository — the root build for the
-Reality Engine, `perception-engine/` for the standalone Perception Engine.
+`RealityEngine_Scala` is an **independent git repository** — its own history,
+branches and remote — not a submodule or subproject of `RealityEngine_CI`. It
+sits as a sibling directory so relative paths resolve, and that adjacency is the
+only relationship the filesystem expresses.
+
+It runs as **two processes, from two independent sbt builds**: the root build
+produces the Reality Engine, and `perception-engine/` is a separate build with
+its own `build.sbt` and `project/` that produces the Perception Engine. They are
+not subprojects of one build — see `docs/BUILD_CONTROL_CONTRACT.md` §2.1, which
+is the authority on that and on why it matters.
 
 | | RE | PE |
 |---|---|---|
 | Default port | `5001` | `5000` |
 | Entrypoint | `src/main/scala/com/realityengine/Main.scala` | `perception-engine/src/main/scala/...` |
-| Health | `GET /health` | `GET /api/health` |
+| Health | `GET /api/health` | `GET /api/health` |
+| Root `/` | name/version/status banner, not health | — |
+| Artifact | `target/scala-2.13/reality-engine.jar` | `perception-engine/target/scala-2.13/perception-engine.jar` |
 | Additional instances | `+100` per instance — `scala-2` is `5101`/`5100` | as RE |
 
 `VECTOR_DIMENSION` defaults to `7680`; `MACHINES_DIR` defaults to
@@ -112,38 +122,43 @@ PE assembles a vector and pushes it. RE returns a deterministic step result.
 Nothing an integrator sends reaches the Akka actors directly. The actor model is
 an implementation detail of how RE evaluates machines, not a surface.
 
-## How to reproduce
+## Building it
 
-Builds are controlled through `RealityEngine_CI`, not from inside the Scala
-repository — see `docs/BUILD_CONTROL_CONTRACT.md`:
+Not restated here. Builds are controlled through `RealityEngine_CI` — which
+repository builds, in what order, at which commit, and whether the result may be
+used — and the per-repository commands, the two-independent-builds rule and the
+`compile`-is-not-`assembly` trap all live in one place:
+
+    RealityEngine_CI/docs/BUILD_CONTROL_CONTRACT.md
 
 ```bash
 cd RealityEngine_CI
 ./scripts/regression-test.sh --build-only
 ```
 
-That builds both Scala artifacts with the right invocations. If you are working
-on the Scala repository alone, the two builds are **independent sbt builds, not
-subprojects** — the root `build.sbt` declares no `aggregate` and no `dependsOn`,
-so the root assembly does not produce the perception engine, and `compile` does
-not produce the fat jars the launcher runs:
+What matters to an **integrator** rather than a builder is narrower: the engine
+you are testing against may not be built from the source you think it is.
+`RealityEngine_Scala/start.sh` rebuilds a jar that is missing or older than its
+sources, so a native run is usually current — but `startUniverse.sh` launches
+the main checkout's artifacts while the regression harness builds in throwaway
+worktrees, so a harness run that "rebuilt everything" can still start a stale
+main-checkout jar. `scripts/verify-build-provenance.py` refuses that before
+anything spawns.
+
+If you are diagnosing a Scala-only difference, confirm the gate ran before
+concluding anything about the engine. §5 of the build contract explains why, and
+the "Known limitations" below is the incident it came from.
+
+## Bringing it up
 
 ```bash
-cd RealityEngine_Scala               && sbt clean assembly
-cd RealityEngine_Scala/perception-engine && sbt clean assembly
-```
+# Native single-engine
+cd RealityEngine_Scala && ./start.sh
+curl http://localhost:5001/api/health    # RE
+curl http://localhost:5000/api/health    # PE
 
-```bash
-# Native single-engine. start.sh rebuilds either jar that is missing or older
-# than its sources, which is convenient and is also how a missing PE build
-# stays invisible locally (RealityEngine_CI#173).
-cd RealityEngine_Scala
-./start.sh
-curl http://localhost:5001/health
-curl http://localhost:5000/api/health
-
-# Registry-backed, as part of a universe
-cd ../RealityEngine_CI
+# Registry-backed, as part of a universe — the supported path
+cd RealityEngine_CI
 ./startUniverse.sh --engines=scala:1 --machine-load=runtime --warn-only
 curl http://127.0.0.1:5999/re-registry.json | python3 -m json.tool
 ```
@@ -161,12 +176,14 @@ curl http://127.0.0.1:5999/re-registry.json | python3 -m json.tool
   `0→1→2→0` as specified, while cpp freezes at index 0. When Scala and another
   runtime disagree about sequence advance, Scala is the one to trust until those
   defects close.
-- **Two build artifacts go stale independently.** `startUniverse.sh` launches
-  each repository's checked-in jar, and on 2026-08-22 both Scala jars predated
-  that morning's merge — `perception-engine.jar` by 5h39m — producing a
-  three-engine divergence that was investigated as an engine defect before the
-  build skew was found. `scripts/verify-build-provenance.py` now gates this;
-  the override is `RE_SKIP_PROVENANCE=1`, deliberately not `--warn-only`.
+- **This engine's two artifacts go stale independently**, and Scala is the
+  runtime where that has actually happened. Because the RE and PE come from two
+  separate builds, one can be current while the other is hours behind: on
+  2026-08-22 both jars predated that morning's merge, `perception-engine.jar` by
+  5h39m, and the resulting three-engine divergence was investigated as a Scala
+  engine defect before the build skew was found. It is the reason the provenance
+  gate exists. If a difference appears to be Scala-specific, rule this out first
+  — `docs/BUILD_CONTROL_CONTRACT.md` §5 has the gate and its override.
 - **`GET /api/engine/stats` is not uniform.** `SURFACE_SPEC.md` lists it as
   uniform but the runtimes return different payloads. Use `GET /api/config` for
   `vectorDimension`.
