@@ -1,6 +1,27 @@
-# OpenClaw Integration Analysis
+# OpenClaw Integration — the ACP pattern
 
 Scope: `RealityEngine_CPP`, `RealityEngine_Scala`, and `RealityEngine_LSP`. The deprecated TypeScript prototype is intentionally out of scope. The integration owner for cross-engine orchestration and examples is `RealityEngine_CI`.
+
+## Which pattern this is
+
+ACP is the editor/client-to-agent protocol boundary, and it is the pattern where
+**PE hands work off and waits for nothing**:
+
+- `openclaw acp` is an ACP server bridge that forwards editor/client work into an
+  OpenClaw Gateway session.
+- OpenClaw ACP agent sessions use the ACP runtime path (`/acp ...` and
+  `sessions_spawn({ runtime: "acp" })`) to run external harnesses.
+- PE does not host the ACP session, execute the harness, or wait for an ACP turn.
+- `openclaw-xacp` is a no-wait handoff adapter that annotates dispatch records
+  with ACP/OpenClaw receipt metadata.
+
+The contrast is MCP, whose worked instance is `docs/OLLAMA_INTEGRATION.md`: there
+PE runs the tool loop itself, locally, against a policy-gated `allowedTools`
+list. ACP and MCP are routinely confused because they converge — both end with a
+completion resolved through a source mapping — but they differ in who executes,
+and therefore in how they fail. An ACP failure looks like a handoff receipt with
+no completion ever arriving; an MCP failure looks like a dispatch record
+annotated `failed`.
 
 ## The contract this implements
 
@@ -72,7 +93,11 @@ CPP and LSP require ACP dispatch to reference an existing dispatch ledger record
    - Phase 1: deterministic hello-world agent fixture, no external gateway dependency. **Implemented.**
    - Phase 1b: real adapter against deterministic mock OpenClaw and PE HTTP services. **Implemented.**
    - Phase 2: trigger a real machine terminal event, dispatch to OpenClaw, commit completion, verify the PE source mapping, verify the next PE push, and write a JSON report. **Implemented in `scripts/test-openclaw-integration.sh`; requires a running PE.**
-   - Phase 3: run the same contract with a local OpenClaw gateway and real target agent under live regression.
+   - Phase 3: run the same contract with a local OpenClaw gateway and real target agent under live regression. This is rung 4 of the `EXTERNAL_INTEGRATION_CONTRACT.md` §5 ladder and has not been run.
+
+6. Session policy. Add registry fields for allowed Gateway URLs, session-key prefixes, target agents, working directories, and permission profiles, and keep policy validation at the PE adapter edge. This is the ACP analogue of the MCP pattern's `allowedTools` list: in MCP the capability surface is enumerated in the registry and gated by PE, and ACP currently has no equivalent bound on what a handed-off session may reach.
+
+7. Observability. Emit ACP handoff metrics and correlate OpenClaw session keys, ACP run IDs, dispatch IDs, envelope IDs, and PE completion IDs. Without that correlation an ACP failure — a handoff receipt whose completion never arrives — cannot be attributed to a session without reading logs on both sides.
 
 ## Hello World Agent
 

@@ -1,7 +1,38 @@
 # Integration Architecture
 
 This document defines the provider-neutral integration model shared by
-RealityEngine_CPP, RealityEngine_LSP, and RealityEngine_Scala.
+RealityEngine_CPP, RealityEngine_LSP, RealityEngine_Scala, and the TypeScript PE
+in RealityEngine_Manager. It has one home, here, and each runtime repository
+holds a pointer to it.
+
+It describes the **abstractions** — the registry, the source mapper, the
+dispatcher, the ledger, completion ingest — and the shape each provider adapter
+takes. Two things it deliberately does not carry:
+
+- **The rules an integration must obey** are one level up, in
+  `docs/EXTERNAL_INTEGRATION_CONTRACT.md`: projection authority, ingress-only
+  activation, CES-owned governance, fire-and-record dispatch, RE determinism,
+  the evidence chain and the verification ladder. This document says how
+  integration is built; that one says what an integration is not allowed to do.
+- **Per-provider configuration and evidence** live in worked-instance documents,
+  which hold the broker, gateway, model, bridge and mapping detail:
+
+  | Pattern | Worked instance | What owns the work |
+  |---|---|---|
+  | Telemetry bridge | MQTT — `RealityEngine_CPP/docs/MQTT_YUMA_DEMONSTRATION.md` | a broker pushes; the mapping registry projects |
+  | **ACP** | OpenClaw — `docs/OPENCLAW_INTEGRATION.md` | an external harness PE never hosts; no-wait handoff |
+  | **MCP** | Ollama — `docs/OLLAMA_INTEGRATION.md` | PE, locally, against a policy-gated `allowedTools` list |
+  | Device bridge | CareKit — `RealityEngine_CPP/docs/CAREKIT_BRIDGE.md` | a native app owns the store; PE receives normalized payloads |
+  | Device bridge | HealthKit — `localHealthkitBridge/docs/INGEST_CONTRACT.md` | as above, with a real native bridge |
+
+  ACP and MCP are the two agent-facing patterns and are routinely confused. The
+  difference is who executes: ACP hands off to a harness outside PE and waits for
+  nothing, MCP runs the loop inside PE under tool policy. They converge on the
+  same ending — a completion resolved through a source mapping — which is what
+  makes their results comparable.
+
+The route surface is `SURFACE_SPEC.md`, and is not restated here or in any
+worked instance.
 
 ## Design Rule
 
@@ -44,6 +75,7 @@ Supported integration kinds are:
 - `ollama`
 - `acp`
 - `healthkit`
+- `carekit`
 - `mcp`
 - `manual`
 
@@ -61,9 +93,9 @@ Every accepted inbound result resolves to the existing PE sensor-source shape:
 ```
 
 Provider-specific payloads may differ, but PE commit semantics do not. MQTT
-messages, HealthKit bridge uploads, OpenAI responses, Ollama responses, MCP tool
-results, ACP/OpenClaw harness completions, and manual callbacks must all enter
-through configured sources.
+messages, HealthKit bridge uploads, CareKit bridge uploads, OpenAI responses,
+Ollama responses, MCP tool results, ACP/OpenClaw harness completions, and manual
+callbacks must all enter through configured sources.
 
 ### Trigger Envelope Dispatcher
 
@@ -186,33 +218,15 @@ Mutating tools must be policy-gated.
 
 ### Ollama model default and precedence
 
-**Canonical default: `llama3.1:8b`.** Every runtime — C++, LSP, Scala and the
-TypeScript PE — resolves this when nothing else is set. This file is the source
-of truth; each engine's code comment points here rather than restating it.
+The canonical default (`llama3.1:8b`), the three-rank resolution order, and why
+that order is fixed rather than incidental are in the MCP-pattern worked
+instance:
 
-Resolution order, identical on every runtime:
+    RealityEngine_CI/docs/OLLAMA_INTEGRATION.md
 
-| Rank | Source |
-|---|---|
-| 1 | `OLLAMA_MODEL` in the engine's environment — the per-engine override |
-| 2 | `model` on the `kind: "ollama"` entry in the integration registry |
-| 3 | the canonical default above |
-
-The same order applies to `OLLAMA_BASE_URL` and the registry's `baseUrl`.
-
-Two reasons the ordering is fixed rather than incidental. An explicit
-environment variable is an operator instruction and must outrank a file that
-ships with the repo — LSP and the TypeScript PE both had this inverted, so a
-pinned model silently reached some engines and not others
-(RealityEngine_LSP#44). And the runtimes must agree by default: they previously
-resolved `gpt-oss:20b`, `llama3.2` and empty string respectively, which makes
-comparing provider output across runtimes meaningless before it starts
-(RealityEngine_Scala#38).
-
-Overriding stays per engine. Setting `OLLAMA_MODEL` for one instance changes
-only that instance; the regression local lane exports it once so all three
-native engines share a model, and the `local-ai` stage fails if they disagree
-or if the resolved model is not installed in Ollama.
+Each engine's code comment points there. It is the source of truth for the
+default, and the `local-ai` regression stage fails if the runtimes disagree about
+the model or if the resolved model is not installed.
 
 ### OpenAI
 
@@ -311,6 +325,24 @@ entitlements, user authorization, anchored object queries, unit normalization,
 on-device privacy handling, and any user-confirmed HealthKit writes. PE expects
 already-authorized, normalized values and optional provenance metadata; PE does
 not talk to HealthKit directly.
+
+### CareKit
+
+CareKit follows the same device-bridge pattern as HealthKit: a native Apple app
+owns the CareKit store, care plans, tasks, contacts, outcomes, consent and any
+device-local write-back, and PE receives only authorized, already-normalized
+payloads. `GET /api/integrations/carekit/status` and
+`POST /api/integrations/carekit/ingest` are the PE-side contract, and ingest
+commits through the same source path `POST /api/signals` uses.
+
+The bridge identity, the `carekit-task` and `carekit-outcome` mappings and their
+regions, the CLI commands and the current verification rung are in the worked
+instance:
+
+    RealityEngine_CPP/docs/CAREKIT_BRIDGE.md
+
+RE never talks to CareKit. CareKit state reaches RE only when PE aggregates the
+mapped source into an input-space Reality Event.
 
 ### localAIStack GraphQL
 

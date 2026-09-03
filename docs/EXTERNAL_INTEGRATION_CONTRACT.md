@@ -206,12 +206,16 @@ document, this document is right and the instance is a defect.
 
 ## 8. Open
 
-- **`INTEGRATION_ARCHITECTURE.md` exists as three near-identical copies** —
-  `RealityEngine_CI/docs/`, `RealityEngine_CPP/docs/`, `RealityEngine_LSP/docs/`
-  — differing by roughly a kilobyte each. That is the fork this scheme exists to
-  prevent, one repository short of the `SURFACE_SPEC.md` failure of 2026-08-27.
-  It is not yet registered in `scripts/check-surface-specs.sh` and so is not
-  gated. Consolidating it to one master and two pointers is outstanding.
+- ~~`INTEGRATION_ARCHITECTURE.md` exists as three near-identical copies.~~
+  **Closed.** It is now one master in `RealityEngine_CI/docs/` with pointers in
+  CPP, LSP and the Scala PE, registered in `scripts/check-surface-specs.sh`. The
+  copies had diverged in content rather than wording — the engine copies carried
+  the `carekit` kind and a CareKit section the master lacked, the master carried
+  the canonical Ollama precedence rules the copies lacked, and neither was a
+  superset. Consolidating it required merging rather than deleting, and the
+  provider material came out into worked instances:
+  `docs/OLLAMA_INTEGRATION.md` (MCP pattern) and
+  `RealityEngine_CPP/docs/CAREKIT_BRIDGE.md` (device bridge).
 - **Rung 4 for ACP/OpenClaw** — live gateway and real target agent under
   regression, tracked in `docs/OPENCLAW_INTEGRATION.md` § Roadmap item 5,
   phase 3.
