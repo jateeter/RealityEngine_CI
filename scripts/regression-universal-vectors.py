@@ -27,6 +27,7 @@ from parity_identity import (  # noqa: E402
     shared_keys,
     uniformity_violations,
 )
+from reset_contract import reset_pair  # noqa: E402
 
 
 def load_json(path: Path) -> Any:
@@ -247,19 +248,24 @@ def reset_instances(instances: list[dict[str, str]]) -> list[dict[str, Any]]:
 
     Reported rather than assumed: a reset that silently failed would put the
     stage back where it started, so the outcome per instance goes in the report.
+
+    **Both halves.** This reset the RE and left the PE alone, which is only half
+    a starting point: `POST {re}/api/engine/reset` clears CES activation and the
+    histories, while `globalStep`, the persistent vector and the test cursors
+    live in the PE and survived it. The stage then pushed five events against
+    whatever those carried over from the preceding stage. It showed: on
+    2026-09-03 the three runtimes entered this comparison at `globalStep` 12,
+    12 and 17, with lsp-1 holding 0.5 in 13 perceptual-space cells the other two
+    had at 0 — reported as a five-event parity failure that was partly stimulus.
+    Delegated to reset_contract.reset_pair so the pair is defined once (#211).
     """
     outcomes: list[dict[str, Any]] = []
     for instance in instances:
-        re_url = instance.get("re_url")
-        if not re_url:
-            outcomes.append({"instance": instance["id"], "reset": "skipped", "reason": "registry carries no re_url"})
-            continue
-        status, _ = post_json(f"{re_url}/api/engine/reset", {})
-        ok = 200 <= status < 300
+        failures = reset_pair(post_json, instance.get("re_url"), instance.get("pe_url"), instance["id"])
         outcomes.append({
             "instance": instance["id"],
-            "reset": "ok" if ok else "failed",
-            "status": status,
+            "reset": "failed" if failures else "ok",
+            "detail": failures,
         })
     return outcomes
 
@@ -511,7 +517,7 @@ def main() -> int:
             # it is recorded as a failure so the result is not read as clean.
             for item in failed:
                 failures.append(
-                    f"engine reset failed on {item['instance']} (HTTP {item['status']}) — "
+                    f"engine reset failed on {item['instance']} ({'; '.join(item['detail'])}) — "
                     "results below were measured against unknown prior state"
                 )
         time.sleep(args.settle_ms / 1000.0)

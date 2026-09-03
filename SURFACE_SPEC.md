@@ -462,6 +462,45 @@ lane, so the contract is observable rather than aspirational.
   an operator-deactivated source is re-armed if it validates active: a pause is
   run state, and reset clears run state. `lastValue` and `lastUpdated` survive.
 
+#### Reset is layer-local: the PE does not reset the RE
+
+**`POST {pe}/api/reset` resets the Perception Engine and nothing else.** It does
+not clear the Reality Engine's Critical Event Sequence state — the per-vector
+active/inactive flags activation walks — and it does not clear ISRE/OSRE
+histories or the RE step counter. Those persist until `POST {re}/api/engine/reset`.
+
+This is the settled contract, not an accident: every runtime already implements
+it (C++ `perception_engine_server.cpp`, LSP `perception-service.lisp`, the Scala
+PE, and the TypeScript PE in `RealityEngine_Manager` all reset their own state
+only). It is also the choice consistent with the rest of this section — a PE
+that reached into the RE would make reset a cross-service side effect, in a
+surface whose stated rule is that declaration is never a side effect of a read
+and membership moves only on register/deregister. The PE does not own the RE.
+
+The cost of that choice is that **a caller wanting a defined starting point must
+reset both halves, and the obligation is the caller's.** Resetting one half
+leaves the engine holding whatever earlier traffic armed:
+
+```
+POST {re}/api/engine/reset      # CES activation, ISRE/OSRE histories, step counter
+POST {pe}/api/reset             # globalStep, persistent vector, test cursors, lastPush
+```
+
+Order is not load-bearing while nothing pushes between the two calls, but the
+pair is: either alone is a partially-defined state that reads as a runtime
+divergence. On 2026-08-29 a PE-only reset produced an apparent 6-event
+divergence at step 0 across three runtimes — six of them `isInitial: false`,
+which reads as two runtimes wrongly holding non-initial events active at rest.
+After a full reset all three agreed exactly at 27 active events with zero
+non-initial, which is the contract. The entire divergence was residue
+(`RealityEngine_CI#211`).
+
+A harness that resets through one half and then reads the other is comparing
+accumulated history rather than a defined starting point, and two runs of the
+same suite can differ by what ran before them. `scripts/lib/reset_contract.py`
+is the one implementation of the pair; parity stages call it rather than
+restating it.
+
 ### Sources & Sensors
 
 | Method | Path | CPP | LSP | Scala |

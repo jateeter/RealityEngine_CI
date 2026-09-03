@@ -29,6 +29,9 @@ import urllib.request
 from pathlib import Path
 from typing import Any
 
+sys.path.insert(0, str(Path(__file__).resolve().parent / "lib"))
+from reset_contract import reset_pair  # noqa: E402
+
 # SURFACE_SPEC.md, "POST /api/push response shape".
 ALWAYS = {
     "stepNumber",
@@ -141,7 +144,12 @@ def main() -> int:
     for inst in instances:
         name = f"{inst['runtime']}:{inst['id']}"
         print(f"\n== {name}")
-        http("POST", f"{inst['re']}/api/engine/reset")
+        # Both halves: this reset the RE and then pushed through the PE, so the
+        # key sets below were read against PE run state carried in from the
+        # preceding stage, and it left its own behind for the next one (#211).
+        for item in reset_pair(lambda url, body: http("POST", url, body),
+                               inst.get("re"), inst.get("pe"), name):
+            fail(f"{item} — key sets below were read against unknown prior state")
         time.sleep(args.settle_ms / 1000.0)
 
         entry: dict[str, Any] = {"instance": name}

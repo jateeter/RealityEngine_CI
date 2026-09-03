@@ -84,6 +84,33 @@ This directory contains operational helpers for startup, testing, OpenAPI, and v
   this surface and is not in the runtime registry; pass it with
   `--extra-runtime ts-1=<re_url>,<pe_url>`.
 
+## Reset
+
+`POST {pe}/api/reset` is **layer-local**: it resets the Perception Engine and
+does not clear the RE's CES activation, its ISRE/OSRE histories or its step
+counter. A defined starting point costs two calls and the obligation is the
+caller's (SURFACE_SPEC.md, "Reset is layer-local", #211).
+
+`scripts/lib/reset_contract.py` is the one implementation. Call
+`reset_pair(post, re_url, pe_url, label)` or `reset_instances(post, instances)`
+rather than restating the pair — it was restated in three stages and omitted in
+two, which is how the asymmetry survived:
+
+| stage | before | now |
+|---|---|---|
+| `regression-corpus-parity-loop.py` | both halves | delegates |
+| `regression-universal-vectors.py` | RE only | both halves |
+| `regression-trajectory-parity.py` | **no reset at all** | both halves |
+| `regression-pe-step-contract.py` | RE only | both halves |
+| `regression-arbiter.py` | RE only | both halves |
+| `regression-reset-contract.py` | PE only, by design | unchanged — that *is* the contract it tests |
+
+Reset **before** arming, never after: reset validates activity rather than
+assigning it (#163), so arming first and resetting second discards the arming.
+
+Both parity stages take `--no-reset` for a caller deliberately measuring
+accumulated state.
+
 Notes that bite when changing these:
 
 - Machines are matched by corpus `name`. Ids are minted per runtime and any

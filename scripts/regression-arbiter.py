@@ -65,6 +65,9 @@ from pathlib import Path
 from typing import Any
 from urllib import error, request
 
+sys.path.insert(0, str(Path(__file__).resolve().parent / "lib"))
+from reset_contract import reset_pair  # noqa: E402
+
 # The fixtures do not fire on their own. Each is a single-step initial sequence
 # whose CES matches [1, 0] over its own input region, so the stage drives those
 # regions and then reads what the arbiter resolved. Without this the stage would
@@ -316,13 +319,22 @@ def main() -> int:
     # emitted no arbitration record" against an engine whose writers had already
     # advanced past their assert state — filed as a C++ defect and closed as not
     # reproducible (jateeter/RealityEngine_CPP#32, jateeter/RealityEngine_CI#139).
+    # Both halves. This reset the RE and then drove the PEs, leaving PE run
+    # state — globalStep, the persistent vector, the test cursors — advanced for
+    # whatever ran next, and starting from whatever ran before (#211).
     reset_outcomes = []
     for instance in instances:
-        status, _ = http("POST", f"{instance['re']}/api/engine/reset", {})
-        ok = 200 <= status < 300
-        reset_outcomes.append({"instance": instance["id"], "reset": "ok" if ok else "failed", "status": status})
-        if not ok:
-            fail(f"{instance['runtime']}:{instance['id']}: engine reset failed (HTTP {status}) — "
+        reset_failures = reset_pair(
+            lambda url, body: http("POST", url, body),
+            instance.get("re"), instance.get("pe"), instance["id"],
+        )
+        reset_outcomes.append({
+            "instance": instance["id"],
+            "reset": "failed" if reset_failures else "ok",
+            "detail": reset_failures,
+        })
+        for item in reset_failures:
+            fail(f"{instance['runtime']}:{item} — "
                  "the fixture below was measured against unknown prior state")
     report["reset"] = reset_outcomes
     time.sleep(args.settle_ms / 1000.0)
