@@ -104,14 +104,28 @@ Two properties, kept separate because they have different causes:
 A runtime whose own `mergeBatch` elements disagree with each other is reported
 separately again — that is a local defect, not a cross-runtime one.
 
-`KNOWN_SHAPE_DIVERGENCE` registers the probe points that diverge today, each
-citing the issue that retires it. Those are reported on every run but do not
-fail the stage; **anything diverging at an unregistered probe point does**.
-Delete an entry when its issue closes and the gate tightens with no other edit.
+`BOUNDARY_FILTERED` names the keys SURFACE_SPEC designates as **internal
+augmentation** — `valuesPacked` on merge entries, C++'s `dispatch`, Scala's
+top-level `id`. These are removed before the comparison, not reported after it,
+and logged so the filtering is auditable rather than silent.
 
-The register exists so this stage does not become one everyone learns to ignore
-— the same reasoning that keeps `regression-reset-contract.py` out of the
-harness. Do not add entries to quiet a new finding; that inverts the mechanism.
+They are **not** pending defects. Per SURFACE_SPEC.md, "The observable
+boundary", a runtime may carry more on its internal hop, and when that reaches
+an observable route the correct handling is to filter it there rather than
+require every other runtime to implement it. An earlier revision of this gate
+registered them as divergences awaiting a fix — the exact reading that nearly
+had base64 bit-packing implemented in a third runtime, byte-for-byte across
+three languages, to satisfy a field no consumer reads (#208).
+
+`scripts/lib/parity_identity.py` already applies this rule via `shape_only_keys`;
+this is the same rule one layer down, so the two cannot disagree about what a
+key set means. Adding a key here is a contract decision that belongs in
+SURFACE_SPEC's "Already-settled instances" first. Anything not listed still
+fails the stage.
+
+A key present as `null` is not an observation and is dropped before comparison:
+C++ and Scala carry `error: null` on a success response where LSP omits the key,
+and all three are reporting the same absence of an error.
 
 ## Reset
 

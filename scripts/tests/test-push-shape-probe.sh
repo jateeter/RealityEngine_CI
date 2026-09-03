@@ -57,9 +57,17 @@ assert_eq "$(printf '%s' "$CPP" | probe probes)" \
 
 # The divergence that was invisible: dispatch is a sibling of step, so a gate
 # reading step.keys() can never see it.
+# `error` is null on this fixture and so is not an observation: a key present as
+# null and a key absent say the same thing. C++ and Scala carry `error: null` on
+# a success response where LSP omits it entirely, and treating that as different
+# key sets reports a formatting choice as a contract divergence.
 assert_eq "$(printf '%s' "$CPP" | probe response)" \
-  '["dispatch", "error", "globalStep", "step", "success", "timestamp"]' \
-  "top-level keys include dispatch on the runtime that emits it"
+  '["dispatch", "globalStep", "step", "success", "timestamp"]' \
+  "top-level keys include dispatch, and drop the null-valued error"
+
+assert_eq "$(printf '%s' '{"success":true,"error":null,"step":{"a":1}}' | probe response)" \
+  '["step", "success"]' \
+  "a null-valued key is not an observation"
 
 assert_eq "$(printf '%s' "$LSP" | probe response)" \
   '["globalStep", "step", "success", "timestamp"]' \
@@ -106,50 +114,45 @@ assert_eq "$(printf '%s' '[1,2,3]' | probe problems)" \
   "a non-object response is a problem, not an empty shape"
 
 echo
-echo "== KNOWN_SHAPE_DIVERGENCE register =="
+echo "== BOUNDARY_FILTERED =="
 
-# The register is what keeps the gate honest without turning a green stage red
-# on defects the same change is not fixing. It only works if entries are
-# scoped to probe points that genuinely diverge today, and if removing one
-# tightens the gate with no other edit.
-cat > "$TMP/register.py" <<'PYEOF'
+# SURFACE_SPEC.md, "The observable boundary": a runtime may carry more on its
+# internal hop, and when that reaches an observable route the correct handling
+# is to filter it there — not to require the others to implement it. An earlier
+# revision of this gate reported these as divergences awaiting a fix, which is
+# the reading that nearly had base64 bit-packing implemented in a third runtime
+# to satisfy a field no consumer reads (#208).
+cat > "$TMP/filtered.py" <<'PYEOF'
 import importlib.util, json, sys
 spec = importlib.util.spec_from_file_location("pesc", sys.argv[1])
 m = importlib.util.module_from_spec(spec); spec.loader.exec_module(m)
-print(json.dumps(sorted(m.KNOWN_SHAPE_DIVERGENCE)))
+what = sys.argv[2]
+if what == "probes":
+    print(json.dumps(sorted(m.BOUNDARY_FILTERED)))
+elif what == "step-absent":
+    print("clean" if "step" not in m.BOUNDARY_FILTERED else "STEP IS FILTERED")
+else:
+    print(json.dumps(sorted(m.BOUNDARY_FILTERED.get(what, []))))
 PYEOF
+filtered() { python3 "$TMP/filtered.py" "$TOOL" "$1"; }
 
-assert_eq "$(python3 "$TMP/register.py" "$TOOL")" \
+assert_eq "$(filtered probes)" \
   '["response", "step.mergeBatch[]"]' \
-  "register covers exactly the two probe points diverging today"
+  "filtering is scoped to the two probe points carrying internal augmentation"
 
-# `step` must never be registered: it is the one level the spec pins and the
-# gate has always enforced. Registering it would silently retire the original
-# contract check.
-cat > "$TMP/step-not-registered.py" <<'PYEOF'
-import importlib.util, sys
-spec = importlib.util.spec_from_file_location("pesc", sys.argv[1])
-m = importlib.util.module_from_spec(spec); spec.loader.exec_module(m)
-print("clean" if "step" not in m.KNOWN_SHAPE_DIVERGENCE else "STEP IS REGISTERED")
-PYEOF
+assert_eq "$(filtered 'step.mergeBatch[]')" \
+  '["valuesPacked"]' \
+  "valuesPacked is filtered, per SURFACE_SPEC's already-settled instances"
 
-assert_eq "$(python3 "$TMP/step-not-registered.py" "$TOOL")" \
+assert_eq "$(filtered response)" \
+  '["dispatch", "id"]' \
+  "dispatch and scala's top-level id are filtered, as parity_identity already does"
+
+# `step` is the one level SURFACE_SPEC pins and the gate has always enforced.
+# Filtering anything there would silently retire the original contract check.
+assert_eq "$(filtered step-absent)" \
   "clean" \
-  "\`step\` is never registered — the spec pins it and the gate enforces it"
-
-# Every entry has to name the issue that will retire it, or the register
-# becomes a list of divergences with no owner.
-cat > "$TMP/register-cited.py" <<'PYEOF'
-import importlib.util, re, sys
-spec = importlib.util.spec_from_file_location("pesc", sys.argv[1])
-m = importlib.util.module_from_spec(spec); spec.loader.exec_module(m)
-uncited = [k for k, v in m.KNOWN_SHAPE_DIVERGENCE.items() if not re.search(r"#\d+", str(v))]
-print("cited" if not uncited else f"UNCITED: {uncited}")
-PYEOF
-
-assert_eq "$(python3 "$TMP/register-cited.py" "$TOOL")" \
-  "cited" \
-  "every register entry cites the issue that retires it"
+  "nothing is filtered at \`step\` — the spec pins that level"
 
 echo
 echo "Totals: $PASS passed, $FAIL failed"

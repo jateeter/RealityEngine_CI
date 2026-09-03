@@ -46,26 +46,37 @@ FULL_ONLY = {"machineResults"}
 COMPACT_KEYS = ALWAYS
 FULL_KEYS = ALWAYS | FULL_ONLY
 
-# Probe points where the runtimes are known to disagree today, each with the
-# issue that owns it. Reported on every run, but not fatal.
+# Internal augmentation, filtered at the boundary rather than compared.
 #
-# Not an excuse list — a register with a shrinking horizon. The divergences are
-# real and filed; making them fail the stage now would turn a green stage red on
-# defects nobody is about to fix in the same change, and this repo already
-# learned where that leads: `regression-reset-contract.py` is deliberately not
-# wired into the harness because "a harness stage that always fails is a harness
-# stage everyone learns to ignore" (scripts/CLAUDE.md).
+# SURFACE_SPEC.md, "The observable boundary": a runtime may carry more on its
+# internal hop than another does, and when that augmentation reaches an
+# observable route the correct handling is to filter it out there — not to
+# require every other runtime to implement it. Two pairs doing the same work by
+# different internal means are not in disagreement.
 #
-# Anything diverging at a probe point *not* listed here fails. Delete an entry
-# when its issue closes and the gate tightens with no other edit — that is the
-# whole mechanism, so resist adding entries to quiet a new finding.
-KNOWN_SHAPE_DIVERGENCE = {
-    # C++ emits `dispatch`; LSP and Scala omit the key. Scala also emits `id`
-    # and LSP omits `error`, so this splits three ways.
-    "response": "#231 — response top level is unspecified",
-    # LSP emits `valuesPacked`; C++ gates its emitter on `compact` and Scala has
-    # no emitter at all.
-    "step.mergeBatch[]": "#208 — valuesPacked, reopened 2026-09-03",
+# These are not pending defects and this is not a register with a horizon. An
+# earlier revision of this gate treated them as divergences awaiting a fix,
+# which is precisely the reading the boundary section exists to end: #208 was
+# very nearly "fixed" by implementing base64 bit-packing in a third runtime,
+# byte-for-byte across three languages, to satisfy a field no consumer reads.
+#
+# `scripts/lib/parity_identity.py` already applies this rule via
+# `shape_only_keys` — reported, never compared. This is the same rule at the
+# pe-step-contract layer, so the two cannot disagree about what a key set means.
+#
+# Adding a key here is a contract decision that belongs in SURFACE_SPEC's
+# "Already-settled instances" first. Anything not listed still fails.
+BOUNDARY_FILTERED = {
+    # SURFACE_SPEC.md, "Already-settled instances": emitted by LSP and C++ under
+    # `compact`, absent on Scala, consumed by nothing. Derivable from `values`
+    # and the machine's `bitsPerElement`. docs/FOLD_PLACEMENT.md §5a records that
+    # a runtime carrying an additional internal field does not violate the
+    # `MergeOperation` enumeration.
+    "step.mergeBatch[]": {"valuesPacked"},
+    # parity_identity.shape_only_keys names these as reported-never-compared:
+    # cpp emits `dispatch`, scala emits a top-level `id`. `id` is engine-local
+    # identity in any case.
+    "response": {"dispatch", "id"},
 }
 
 
@@ -143,16 +154,30 @@ def shape_probe(payload: Any) -> tuple[dict[str, list[str]], list[str]]:
     if not isinstance(payload, dict):
         return {}, ["response was not an object"]
 
-    shape: dict[str, list[str]] = {"response": sorted(payload.keys())}
+    def observed(obj: dict[str, Any]) -> set[str]:
+        """Keys carrying an observation. A null field is not one.
+
+        A key present as `null` and a key absent say the same thing — nothing
+        was observed — so treating them as different key sets reports a
+        formatting choice as a contract divergence. On a success response C++
+        and Scala carry `error: null` where LSP omits the key entirely; all
+        three are reporting the same absence of an error.
+
+        Applied generally rather than special-casing `error`: any key whose
+        value is null is a non-observation, whichever runtime emits it.
+        """
+        return {k for k, v in obj.items() if v is not None}
+
+    shape: dict[str, list[str]] = {"response": sorted(observed(payload))}
 
     step = payload.get("step")
     if not isinstance(step, dict):
         return shape, problems
-    shape["step"] = sorted(step.keys())
+    shape["step"] = sorted(observed(step))
 
     batch = step.get("mergeBatch")
     if isinstance(batch, list):
-        element_sets = [frozenset(op.keys()) for op in batch if isinstance(op, dict)]
+        element_sets = [frozenset(observed(op)) for op in batch if isinstance(op, dict)]
         if element_sets:
             shape["step.mergeBatch[]"] = sorted(set().union(*element_sets))
             if len(set(element_sets)) > 1:
@@ -264,13 +289,33 @@ def main() -> int:
         if len(observed) < 2:
             continue
         for probe in sorted({p for shape in observed.values() for p in shape}):
+            # Internal augmentation is removed before the comparison, not
+            # reported after it. Filtering at the boundary is the rule
+            # (SURFACE_SPEC.md, "The observable boundary"); reporting it as a
+            # divergence to be retired is what pushed #208 toward implementing a
+            # field no consumer reads in a third runtime.
+            filtered = BOUNDARY_FILTERED.get(probe, frozenset())
             # Absent probe point and empty key set are different findings: the
             # first says a runtime produced no such structure at all.
             by_runtime = {
-                inst: (json.dumps(shape[probe]) if probe in shape else "<absent>")
+                inst: (json.dumps(sorted(set(shape[probe]) - filtered)) if probe in shape else "<absent>")
                 for inst, shape in observed.items()
             }
             if len(set(by_runtime.values())) == 1:
+                if filtered:
+                    # Visible, so the filtering is auditable rather than silent:
+                    # a reader can see which keys were set aside and why.
+                    carried = {
+                        inst: sorted(set(shape[probe]) & filtered)
+                        for inst, shape in observed.items()
+                        if probe in shape and set(shape[probe]) & filtered
+                    }
+                    if carried:
+                        report.setdefault("boundaryFiltered", []).append(
+                            {"probe": probe, "variant": label, "carriedBy": carried}
+                        )
+                        print(f"  filtered {label} `{probe}` internal augmentation: "
+                              f"{json.dumps(carried, sort_keys=True)}")
                 continue
             clusters: dict[str, list[str]] = {}
             for inst, keys in by_runtime.items():
@@ -279,17 +324,7 @@ def main() -> int:
                 f"{'+'.join(sorted(members))}={keys}"
                 for keys, members in sorted(clusters.items(), key=lambda kv: (-len(kv[1]), kv[0]))
             )
-            message = f"runtimes disagree on the {label} `{probe}` key set: {shape_desc}"
-            known = KNOWN_SHAPE_DIVERGENCE.get(probe)
-            if known:
-                # Recorded, not hidden: it appears in the report and on stdout
-                # every run, so it cannot quietly become permanent.
-                report.setdefault("knownDivergence", []).append(
-                    {"probe": probe, "variant": label, "issue": known, "detail": shape_desc}
-                )
-                print(f"  KNOWN {message}  [{known}]")
-            else:
-                fail(message)
+            fail(f"runtimes disagree on the {label} `{probe}` key set: {shape_desc}")
 
     if args.out:
         args.out.parent.mkdir(parents=True, exist_ok=True)
