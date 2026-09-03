@@ -110,7 +110,7 @@
       "type": "timeseries",
       "title": "Unfired Critical Event Sequences by runtime",
       "gridPos": { "h": 9, "w": 12, "x": 0, "y": 22 },
-      "description": "Critical Event Sequences that have never emitted output, summed per runtime.  Should converge across runtimes; persistent divergence means one runtime is failing to fire something the others can.",
+      "description": "Critical Event Sequences that have never emitted output, summed per runtime.\nCumulative for the life of the process; engine reset does NOT clear it.\n\nComparable across runtimes only because all three now share one definition. This panel previously compared three unrelated quantities — cpp 33 / lsp 1661 / scala 0 on one corpus at one instant — fixed in RealityEngine_Scala#76 and RealityEngine_LSP#77.\n\nBefore concluding that a diverging runtime fails to fire something the others can, check the shape: a runtime reading exactly 0 or exactly the sequence total is computing a different quantity, not behaving differently (RealityEngine_CI#218; SURFACE_SPEC.md, 'CES coverage').",
       "datasource": { "type": "prometheus", "uid": "prometheus" },
       "targets": [
         { "expr": "sum by (runtime) (ces_unfired_sequences{runtime=~\"$runtime\"})", "legendFormat": "{{runtime}}", "refId": "A" }
