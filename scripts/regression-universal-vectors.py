@@ -1,5 +1,13 @@
 #!/usr/bin/env python3
-"""Run live universal input event parity checks across active PE instances."""
+"""Run live universal input event parity checks across active PE instances.
+
+Records both halves of every observation: what each runtime *did* (the response
+payloads) and what each runtime was *given* (the source set it held at the
+moment of the push). A parity verdict without the second half cannot distinguish
+an engine defect from a stimulus inequality, which is how #162 came to record 13
+diverging perceptual-space cells whose direction was undeterminable after the
+fact (#174).
+"""
 
 from __future__ import annotations
 
@@ -34,6 +42,11 @@ def post_json(url: str, payload: Any, timeout: int = 20) -> tuple[int, Any]:
         method="POST",
         headers={"content-type": "application/json", "accept": "application/json"},
     )
+    return request_json(req, timeout)
+
+
+def get_json(url: str, timeout: int = 20) -> tuple[int, Any]:
+    req = request.Request(url, method="GET", headers={"accept": "application/json"})
     return request_json(req, timeout)
 
 
@@ -303,6 +316,75 @@ def active_region_order_violations(instance_id: str, payload: Any) -> list[str]:
     return []
 
 
+def source_census(sources: Any) -> dict[str, list[dict[str, Any]]]:
+    """A comparable, id-free view of what one PE was holding.
+
+    Keyed on machine **name**, never on id. Ids are minted per runtime — the
+    corpus declares none — so an id-keyed census splits three ways
+    unconditionally and measures nothing (#146). The same rule the machine
+    comparisons already follow.
+
+    Only the fields that make a source *stimulus* are kept: its kind, whether it
+    was active, and the region it writes. `lastValue`, `lastUpdated` and the
+    per-runtime id are deliberately dropped — they differ between runtimes for
+    reasons that say nothing about what the engines were given.
+    """
+    census: dict[str, list[dict[str, Any]]] = {}
+    if not isinstance(sources, list):
+        return census
+    for src in sources:
+        if not isinstance(src, dict):
+            continue
+        key = src.get("machineName") or src.get("name") or "<unnamed>"
+        region = src.get("region") if isinstance(src.get("region"), dict) else None
+        census.setdefault(str(key), []).append(
+            {
+                "type": src.get("type"),
+                "active": bool(src.get("active")),
+                "region": {"offset": region.get("offset"), "length": region.get("length")} if region else None,
+            }
+        )
+    for entries in census.values():
+        entries.sort(key=lambda e: json.dumps(e, sort_keys=True))
+    return census
+
+
+def source_set_divergence(censuses: dict[str, dict[str, Any]]) -> dict[str, Any] | None:
+    """Where the runtimes were holding different stimulus. None when equal.
+
+    Reported as membership (a machine name one runtime has and another does not)
+    separately from disagreement (a name both hold, described differently),
+    because they have different causes: the first is a registration difference,
+    the second is usually an activation one.
+    """
+    if len(censuses) < 2:
+        return None
+    if len({json.dumps(c, sort_keys=True) for c in censuses.values()}) == 1:
+        return None
+
+    every_name: set[str] = set()
+    for census in censuses.values():
+        every_name |= set(census)
+
+    missing: dict[str, list[str]] = {}
+    differing: dict[str, dict[str, Any]] = {}
+    for name in sorted(every_name):
+        holders = [inst for inst, census in censuses.items() if name in census]
+        if len(holders) != len(censuses):
+            missing[name] = sorted(holders)
+            continue
+        variants = {inst: censuses[inst][name] for inst in censuses}
+        if len({json.dumps(v, sort_keys=True) for v in variants.values()}) > 1:
+            differing[name] = variants
+
+    return {
+        "equal": False,
+        "counts": {inst: sum(len(v) for v in census.values()) for inst, census in sorted(censuses.items())},
+        "heldBySome": missing,
+        "describedDifferently": differing,
+    }
+
+
 def agreement_clusters(signatures: dict[str, Any], instance_order: list[str]) -> list[list[str]]:
     """Group instances by identical signature, largest cluster first.
 
@@ -331,7 +413,21 @@ def signature_diff(baseline: Any, actual: Any) -> dict[str, Any]:
     }
 
 
-def run_event(instance: dict[str, str], event: dict[str, Any], run_id: str) -> tuple[int, Any]:
+def run_event(instance: dict[str, str], event: dict[str, Any], run_id: str) -> tuple[int, Any, Any]:
+    """Push one event at one runtime, and record what that runtime was holding.
+
+    Returns `(status, payload, sources)`. The source snapshot is taken **after
+    the push and before the injected source is removed**, so it is the set that
+    produced the response rather than the set that happens to remain afterwards.
+
+    The stage used to record only what the engines *did*, never what they were
+    *given* (#174). When a divergence turned out to be a PE source-set
+    inequality rather than an engine defect, the artifacts could not tell you
+    which — #162 left 13 perceptual-space cells split cpp against lsp/scala with
+    the other 14,375 agreeing, a signature that reads as stimulus, and its
+    direction was undeterminable after the fact because nothing recorded the
+    stimulus. Capturing it costs one GET per runtime per event.
+    """
     pe_url = instance["pe_url"]
     source_id = f"regression-{run_id}-{event['id']}-{instance['runtime']}"
     # "test" is the canonical source shape (C++ is the definition,
@@ -354,12 +450,24 @@ def run_event(instance: dict[str, str], event: dict[str, Any], run_id: str) -> t
         "inputs": [event["values"]],
         "loop": False,
     }
+    def snapshot_sources() -> Any:
+        # Recorded even when it fails: "the source set could not be read" is
+        # itself a finding, and a silent [] would read as "held nothing".
+        try:
+            status, payload = get_json(f"{pe_url}/api/sources")
+        except Exception as exc:  # noqa: BLE001 - diagnosis must not break the run
+            return {"error": f"GET /api/sources raised {exc!r}"}
+        if status != 200:
+            return {"error": f"GET /api/sources returned {status}"}
+        sources = payload.get("sources") if isinstance(payload, dict) else None
+        return sources if isinstance(sources, list) else {"error": "payload carried no sources array"}
+
     try:
         status, payload = post_json(f"{pe_url}/api/sources", source)
         if status < 200 or status >= 300:
-            return status, {"phase": "source-register", "response": payload}
+            return status, {"phase": "source-register", "response": payload}, snapshot_sources()
         status, payload = post_json(f"{pe_url}/api/push", {"compact": True})
-        return status, payload
+        return status, payload, snapshot_sources()
     finally:
         try:
             delete_json(f"{pe_url}/api/sources/{source_id}")
@@ -415,14 +523,43 @@ def main() -> int:
         instance_order: list[str] = []
         payloads: dict[str, Any] = {}
         statuses: dict[str, int] = {}
+        censuses: dict[str, dict[str, Any]] = {}
+        source_files: dict[str, str] = {}
         for instance in instances:
-            status, payload = run_event(instance, event, args.run_id)
+            status, payload, sources = run_event(instance, event, args.run_id)
             instance_key = instance["id"]
             instance_order.append(instance_key)
             payloads[instance_key] = payload
             statuses[instance_key] = status
             response_file = args.out / f"{event['id']}-{safe_name(instance_key)}.json"
             response_file.write_text(json.dumps(payload, indent=2, sort_keys=True), encoding="utf-8")
+            # Alongside the response, at the same point in the run (#174).
+            sources_file = args.out / f"{event['id']}-{safe_name(instance_key)}-sources.json"
+            sources_file.write_text(
+                json.dumps({"instance": instance_key, "runtime": instance["runtime"], "sources": sources},
+                           indent=2, sort_keys=True),
+                encoding="utf-8",
+            )
+            source_files[instance_key] = str(sources_file)
+            if isinstance(sources, list):
+                censuses[instance_key] = source_census(sources)
+
+        # Was the stimulus equal? Answered before any parity verdict is read,
+        # so a divergence can be attributed rather than assumed to be semantics.
+        # Only runtimes whose source set could actually be read take part —
+        # comparing against a runtime that answered an error would manufacture
+        # an inequality out of a failed GET.
+        stimulus = source_set_divergence(censuses) if len(censuses) == len(instances) else None
+        unreadable = sorted(set(instance_order) - set(censuses))
+        summary.setdefault("sourceParity", []).append(
+            {
+                "event": event["id"],
+                "equal": None if unreadable else stimulus is None,
+                "unreadable": unreadable,
+                "divergence": stimulus,
+                "sourceFiles": source_files,
+            }
+        )
 
         # Shared keys are a property of the set, so signatures cannot be built
         # until every runtime has answered. Asymmetric keys are reported as
@@ -456,6 +593,7 @@ def main() -> int:
                     "status": status,
                     "signature": signature,
                     "responseFile": str(response_file),
+                    "sourceFile": source_files.get(instance_key),
                 }
             )
             if status < 200 or status >= 300:
@@ -501,12 +639,24 @@ def main() -> int:
                         "referenceInstances": reference_members,
                         "divergentInstances": members,
                         "referenceIsTied": tied,
+                        "sourceSetsEqual": None if unreadable else stimulus is None,
+                        "sourceSetDivergence": stimulus,
                         **signature_diff(reference_sig, actual),
                     }
                 )
             shape = " | ".join("+".join(members) for members in agreement)
             note = " (no majority — runtimes split evenly)" if tied else ""
-            failures.append(f"{event['id']} parity mismatch: {shape}{note}")
+            # The stimulus verdict rides on the failure line itself. A reader of
+            # the nightly issue sees whether the runtimes were given the same
+            # thing without opening the artifact bundle — which is the whole
+            # point of recording it (#174).
+            if unreadable:
+                stim = f" [stimulus unknown — source set unreadable on {'+'.join(unreadable)}]"
+            elif stimulus is None:
+                stim = " [stimulus equal — same sources on every runtime]"
+            else:
+                stim = f" [stimulus DIFFERS — source counts {stimulus['counts']}; may not be an engine defect]"
+            failures.append(f"{event['id']} parity mismatch: {shape}{note}{stim}")
         if len(instance_order) == 1:
             # Unchanged in meaning, moved out of the mismatch branch: a single
             # signature cannot demonstrate parity whether or not it "agrees".
@@ -515,7 +665,18 @@ def main() -> int:
     summary["failures"] = failures
     (args.out / "summary.json").write_text(json.dumps(summary, indent=2, sort_keys=True), encoding="utf-8")
     (args.out / "normalized-comparison.json").write_text(
-        json.dumps({"runId": args.run_id, "comparisons": comparisons, "failures": failures}, indent=2, sort_keys=True),
+        json.dumps(
+            {
+                "runId": args.run_id,
+                "comparisons": comparisons,
+                # Carried here as well as in summary.json: this file is what a
+                # divergence triage opens first, and the stimulus question has
+                # to be answerable from it (#174).
+                "sourceParity": summary.get("sourceParity", []),
+                "failures": failures,
+            },
+            indent=2, sort_keys=True,
+        ),
         encoding="utf-8",
     )
     if failures:

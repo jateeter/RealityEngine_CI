@@ -397,6 +397,10 @@ jobs:
         working-directory: RealityEngine_CI
         run: bash scripts/tests/test-parity-agreement.sh
 
+      - name: Run parity source census unit tests
+        working-directory: RealityEngine_CI
+        run: bash scripts/tests/test-parity-source-census.sh
+
       - name: Run fresh-start state clearing unit tests
         working-directory: RealityEngine_CI
         run: bash scripts/tests/test-fresh-start.sh
