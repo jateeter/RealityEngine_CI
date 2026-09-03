@@ -372,7 +372,14 @@ These tags are approaching established status. Prefer them over new single-use s
 
 ## Consolidation Rules
 
-The `scripts/consolidate-tags.py` script enforces these rules automatically.
+These rules were applied to the corpus as a one-time consolidation pass by
+`scripts/consolidate-tags.py`. That script has been removed: it read
+`RealityEngine_CI/examples/machines/` with a flat glob, so after the corpus moved
+to `RealityEngine_Machines/machines/domains/<domain>/` it could neither find the
+machines nor traverse into the domain directories. The rules below are retained
+as the record of what was applied and as the taxonomy new tags are judged
+against; `scripts/manage_machine_tags.mjs` is the surviving tool, and it is what
+1,016 corpus machines declare in `metadata.tagging.managedBy`.
 
 ### Stage 1 — Remove Noise Tags
 
@@ -426,12 +433,13 @@ wrong answer:
 
 A tag becomes established by meeting **all three** of these criteria:
 
-1. It appears in ≥ 10 distinct machine files in `examples/machines/`.
+1. It appears in ≥ 10 distinct machine files in
+   `RealityEngine_Machines/machines/`.
 2. It represents a stable domain concept that is unlikely to be renamed.
 3. It is not a more-specific variant of an existing established tag (use the existing tag instead).
 
-To promote a provisional tag, add it to the `ESTABLISHED` list in
-`scripts/consolidate-tags.py` (sorted longest-first) and re-run the script.
+To promote a provisional tag, add it to the term sets in
+`scripts/manage_machine_tags.mjs` and re-run the check below.
 
 To add an entirely new tag family, also add appropriate keyword entries to
 `visualizer/frontend/src/components/machineDomains.ts` so the domain classifier
@@ -439,15 +447,22 @@ can recognize machines carrying the new tags.
 
 ---
 
-## Running Consolidation
+## Checking Tag Drift
 
 ```bash
-# Dry run — show how many files would change without writing
-python3 scripts/consolidate-tags.py --dry-run
-
-# Apply consolidation to all machine files
-python3 scripts/consolidate-tags.py
+# Read-only — reports how many corpus machines diverge from the derived tagging
+node scripts/manage_machine_tags.mjs --check
 ```
 
-The script rewrites files in place with 2-space JSON indentation and a trailing
-newline, matching the format used by all other machine generation scripts.
+`manage_machine_tags.mjs` reads
+`RealityEngine_Machines/machines/**/*.json` (override with `MACHINES_DIR`),
+walking the domain subdirectories and keying on basename, which is globally
+unique across the corpus.
+
+**Do not run it in write mode against the corpus without reviewing the diff
+first.** As of 2026-09-03 `--check` reports 1,293 of 1,328 machines diverging
+from what the script would derive. The corpus has since been through the domain
+migration, the OWL action-code backfills and the lane-contract passes, so a blind
+rewrite would discard tagging that `RealityEngine_Machines` tooling now owns.
+Reconciling the script's derivation rules with the current corpus — or retiring
+the `managedBy` claim — is open work, not a mechanical re-run.

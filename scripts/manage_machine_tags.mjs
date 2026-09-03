@@ -4,7 +4,13 @@ import fs from 'node:fs';
 import path from 'node:path';
 
 const root = path.resolve(path.dirname(new URL(import.meta.url).pathname), '..');
-const machinesDir = path.join(root, 'examples', 'machines');
+// The canonical corpus, in RealityEngine_Machines. This read
+// RealityEngine_CI/examples/machines/ — the retired RealityEngine_AI layout —
+// while 1,016 corpus machines still declare this script as their `managedBy`,
+// so the declared owner could not reach what it owns.
+const machinesDir = process.env.MACHINES_DIR
+  ? path.resolve(process.env.MACHINES_DIR)
+  : path.join(root, '..', 'RealityEngine_Machines', 'machines');
 const schemaVersion = '1.0.0';
 const managedBy = 'scripts/manage_machine_tags.mjs';
 const checkOnly = process.argv.includes('--check');
@@ -223,10 +229,23 @@ function buildTagging(file, document) {
 
 let updated = 0;
 let mismatches = 0;
-const files = fs.readdirSync(machinesDir).filter((file) => file.endsWith('.json')).sort();
 
-for (const file of files) {
-  const fullPath = path.join(machinesDir, file);
+// Corpus files live in domain subdirectories (machines/domains/<name>/);
+// walk recursively. Tagging is derived from the basename, which is globally
+// unique across the corpus.
+function corpusFiles(dir) {
+  const found = [];
+  for (const e of fs.readdirSync(dir, { withFileTypes: true })) {
+    const p = path.join(dir, e.name);
+    if (e.isDirectory()) found.push(...corpusFiles(p));
+    else if (e.name.endsWith('.json')) found.push(p);
+  }
+  return found;
+}
+const files = corpusFiles(machinesDir).sort();
+
+for (const fullPath of files) {
+  const file = path.basename(fullPath);
   const document = JSON.parse(fs.readFileSync(fullPath, 'utf8'));
   document.machine ??= {};
   document.machine.metadata ??= {};

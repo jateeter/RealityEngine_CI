@@ -6,18 +6,26 @@ interconnects. Single-domain components are packed into domain blocks. Component
 that contain cross-domain overlap are packed into a dedicated cross-domain bridge
 block.
 
-Run:
+The remap was performed by `scripts/remap_machine_connection_matrix_by_domain.mjs`,
+which has since been removed: it rewrote machine JSON in
+`RealityEngine_CI/examples/machines/`, the retired RealityEngine_AI layout. Region
+allocation is now owned by `RealityEngine_Machines`, where
+`domains/region-allocation.json` is regenerated rather than edited by hand
+(`MACHINE_CONCEPT.md` §9.1):
 
 ```bash
-node scripts/remap_machine_connection_matrix_by_domain.mjs
+cd ../RealityEngine_Machines
+python3 scripts/build-region-allocation.py --check   # report drift
+python3 scripts/build-region-allocation.py --write   # regenerate
 ```
 
-Use `--dry-run` to inspect the proposed layout without rewriting machine JSON.
+## Layout at the time of the remap
 
-## Current Layout
-
-The current universe contains `1006` mapped machines and remains packed into
-`4109` used vector positions with no holes.
+This table records the layout the remap produced. It is a historical snapshot,
+not a live view: it covers `1006` mapped machines packed into `4109` used vector
+positions with no holes, while the corpus now holds 1,328 machines. For the
+current allocation — including the declared inter-domain buses and shared output
+lanes — read `RealityEngine_Machines/machines/domains/region-allocation.json`.
 
 | Block | Vector range | Length | Components |
 | --- | ---: | ---: | ---: |
