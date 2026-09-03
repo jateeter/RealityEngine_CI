@@ -220,6 +220,15 @@ if [ "$SKIP_START" = false ]; then
   # OpenClaw stage gates on an agent-index count that tracks the machine corpus
   # — with a deliberately one-machine corpus it fails on a mismatch that has no
   # bearing on whether the engines agree.
+  #
+  # --no-local-ai: same reasoning, and it is not hypothetical. The localAI
+  # reality bridge registers ten `localai/*` machines into the RE at runtime,
+  # which are not corpus machines and are not part of what this loop is
+  # comparing. The first reproduction attempt for #167 brought localAIStack up,
+  # those machines appeared, and the run reproduced RealityEngine_Scala#54 at
+  # cells 7448/7456 instead of the divergence it was chasing — six hours spent
+  # on the wrong finding. The loop passed --no-openclaw and not this one, which
+  # #167 records as a harness bug in its own right.
   MACHINE_CORPUS_WORK_DIR="$CORPUS_WORK_DIR" \
   bash "$CI_DIR/startUniverse.sh" \
     --engines="$ENGINES_SPEC" \
@@ -228,6 +237,7 @@ if [ "$SKIP_START" = false ]; then
     --machine-corpus-manifest="$MANIFEST" \
     --pe-source-bootstrap=off \
     --no-openclaw \
+    --no-local-ai \
     --warn-only \
     $FRESH_FLAG || START_STATUS=$?
 
