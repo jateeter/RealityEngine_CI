@@ -459,10 +459,34 @@ node scripts/manage_machine_tags.mjs --check
 walking the domain subdirectories and keying on basename, which is globally
 unique across the corpus.
 
-**Do not run it in write mode against the corpus without reviewing the diff
-first.** As of 2026-09-03 `--check` reports 1,293 of 1,328 machines diverging
-from what the script would derive. The corpus has since been through the domain
-migration, the OWL action-code backfills and the lane-contract passes, so a blind
-rewrite would discard tagging that `RealityEngine_Machines` tooling now owns.
-Reconciling the script's derivation rules with the current corpus — or retiring
-the `managedBy` claim — is open work, not a mechanical re-run.
+### Two classes of drift, reported separately
+
+`--check` splits its result, because the fields in `metadata.tagging` are not
+equally consequential:
+
+**Load-bearing — must be zero, and fails the check.** `primaryDomain` decides
+domain membership (`domain_organization_test.py`, `build-region-allocation.py`,
+`audit-corpus.py`, `build-corpus-index.py`); `machineCode` is required by
+`ai-trigger-envelope.schema.json` and read by the writeback and autonomy
+backfills. Both are **preserved, never re-derived**, per the §9.1 precedence
+`tagging.primaryDomain` → `metadata.category` → `metadata.domain`.
+
+**Descriptive — reported, never fatal.** The tag arrays are read only by the wiki
+compendium, for counts and a search index. Nothing gates on them, so failing the
+check on them would only teach people to ignore it.
+
+### Ownership
+
+The script rewrites a machine only where `metadata.tagging.managedBy` names it
+(1,016 machines). It never adopts a machine tagged by something else (187) and
+never adopts one with no tagging block (125) — writing a block is a corpus
+expansion decision, not a drift repair, and those machines already resolve their
+domain through the §9.1 fallbacks. `FallSensorMotionPreaggregator` is the case
+that makes this concrete: it carries hand-authored `capabilityTags`
+(`sensor-preaggregator`, `firmware-contract`) that no metadata-derived rule
+reproduces.
+
+A write additionally refuses, per machine, to emit a `primaryDomain` that
+disagrees with the machine's domain directory — the `domain_organization_test.py`
+invariant, checked where the value is written rather than discovered later by the
+gate.
