@@ -42,6 +42,13 @@ CONTRACTS=(
   # deprecated prototype outside the focus set.)
   "ARBITER_ARCHITECTURE.md|$ROOT_DIR/RealityEngine_CPP/ARBITER_ARCHITECTURE.md|$ROOT_DIR/RealityEngine_LSP/ARBITER_ARCHITECTURE.md|$ROOT_DIR/RealityEngine_Scala/ARBITER_ARCHITECTURE.md"
   "MACHINE_CONCEPT.md|$ROOT_DIR/RealityEngine_CPP/MACHINE_CONCEPT.md|$ROOT_DIR/RealityEngine_LSP/MACHINE_CONCEPT.md|$ROOT_DIR/RealityEngine_Scala/MACHINE_CONCEPT.md"
+  # What an external system must obey to contribute perceptual facts, factored
+  # out of the MQTT and OpenClaw documents that had each been stating a share of
+  # it. Registered with no pointers: the integration-specific documents cite it
+  # in prose and keep their own configuration material, so they are worked
+  # instances rather than pointers, and reducing them to pointers would delete
+  # the broker, gateway and mapping detail that is the reason they exist.
+  "docs/EXTERNAL_INTEGRATION_CONTRACT.md"
 )
 
 # A pointer is short and says where the master is. A fork is neither. The size

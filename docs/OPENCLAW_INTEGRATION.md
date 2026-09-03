@@ -2,6 +2,27 @@
 
 Scope: `RealityEngine_CPP`, `RealityEngine_Scala`, and `RealityEngine_LSP`. The deprecated TypeScript prototype is intentionally out of scope. The integration owner for cross-engine orchestration and examples is `RealityEngine_CI`.
 
+## The contract this implements
+
+The rules every external integration obeys — that projection is registry-owned
+and never carried by the payload, that ingress is the only thing that activates a
+source, that governance is CES-owned, that dispatch is fire-and-record and a
+completion re-enters as an ordinary fact — are specified once:
+
+    RealityEngine_CI/docs/EXTERNAL_INTEGRATION_CONTRACT.md
+
+This document is a **worked instance** of that contract. It supplies what the
+contract deliberately does not know: the gateway and its authentication, the
+`openclaw-xacp` registry entry, the adapter and fixture commands, the dispatch
+and completion payload shapes, and the observed e2e assertions. Where the two
+disagree, the contract is right and this document is the defect.
+
+Against the §5 verification ladder this integration stands at **rung 3** — real
+PE, real corpus, real source commit, plus a real adapter against a deterministic
+mock gateway. Rung 4, the live OpenClaw gateway with a real target agent under
+regression, is roadmap item 5 phase 3 below and has not been run. A rung-3 pass
+is not evidence for rung 4.
+
 ## Current State
 
 `RealityEngine_CI` has the most complete OpenClaw bootstrap. `startUniverse.sh --openclaw` detects `../localOpenClawStack`, requires a configured `OPENCLAW_GATEWAY_TOKEN`, and delegates startup to `localOpenClawStack/scripts/start.sh`. That native entrypoint requires immutable image pins, hardens the persisted gateway configuration, starts Compose, synchronizes the configured WebUI administrator, and verifies image identity, health, and authentication. `stopUniverse.sh` tears the stack down and can restore a previously unloaded native launchd gateway.
