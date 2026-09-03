@@ -1252,7 +1252,7 @@ HTTP status: `200` (all resolved) · `207` (mixed) · `400` (all unmapped).
 {
   "bridgeId":               "carekit-ios-bridge",
   "enabled":                true,
-  "defaultSourceMappingId": "carekit-activity",
+  "defaultSourceMappingId": "carekit-task",
   "tokenConfigured":        false,
   "nativeAppRequired":      true,
   "nativeWorkOutsideRepo":  true,
