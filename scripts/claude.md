@@ -11,6 +11,27 @@ This directory contains operational helpers for startup, testing, OpenAPI, and v
 
 - `regression-trajectory-parity.py`: ISRE/OSRE trajectory comparison across the
   registered runtimes for one seed sequence against whatever corpus is loaded.
+- `regression-universal-vectors.py`: single-step response contract checks. Not
+  the parity gate (see the comment above `run_trajectory_parity` in
+  `regression-test.sh`). It records **both halves of every observation** — the
+  response payloads and, alongside each one, the source set that runtime was
+  holding at the moment of the push (`<event>-<instance>-sources.json`, #174).
+  The comparison census is keyed on machine **name** and drops ids, `lastValue`
+  and `lastUpdated`, so only genuine stimulus differences register.
+
+  A parity mismatch therefore states whether the runtimes were given the same
+  thing, on the failure line itself:
+
+  ```
+  event-1 parity mismatch: cpp-1+scala-1 | lsp-1 [stimulus equal — same sources on every runtime]
+  event-1 parity mismatch: cpp-1+scala-1 | lsp-1 [stimulus DIFFERS — source counts {...}; may not be an engine defect]
+  event-1 parity mismatch: cpp-1+scala-1 | lsp-1 [stimulus unknown — source set unreadable on lsp-1]
+  ```
+
+  A source set that could not be read is recorded as an error and never as an
+  empty set, and it suppresses the equality verdict rather than manufacturing an
+  inequality out of a failed GET. Recording stimulus is diagnosis
+  infrastructure: it adds no failure of its own and never changes the exit code.
 - `test-corpus-parity-loop.sh` + `regression-corpus-parity-loop.py`: incremental
   corpus parity. Boots one universe holding a single machine, then adds one
   corpus machine per iteration over the RE/PE APIs and re-runs the trajectory
