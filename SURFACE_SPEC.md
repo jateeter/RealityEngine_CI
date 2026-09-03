@@ -106,6 +106,46 @@ Default ports: Scala 5001 · CPP 5301 · LSP 5601
 | GET | `/api/health` | ✓ | ✓ | ✓ |
 | GET | `/api/metrics` | ✓ | ✓ | ✓ |
 
+#### CES coverage: `ces_unfired_sequences` and `ces_unfired_vectors`
+
+**A sequence is unfired when it has never emitted output, counted cumulatively
+for the life of the process. Engine reset does not clear it.** `ces_unfired_vectors`
+is the same predicate over Reality Events rather than sequences.
+
+Reset clears what a *run* accumulates — the step count, the histories, the
+perceptual space, per-vector activation. Coverage is a record of what the corpus
+has been shown to do, and a reset does not un-show it. This is the one place the
+two diverge, and it is the whole substance of the definition.
+
+The counters are written at the transition touch point in the step path, so the
+value reflects what actually fired rather than what a separate pass believed
+would fire.
+
+Stated here because the same metric name meant three different things
+(`RealityEngine_CI#218`). On one corpus at one instant — 372 machines, 1661
+sequences — the runtimes reported 33, 1661 and 0:
+
+| runtime | reported | what it computed |
+|---|---|---|
+| cpp | 33 | never emitted output, cumulative — correct |
+| lsp | 1661 | right predicate, but coverage was cleared on every engine reset, so under a reset-per-iteration loop it climbed toward the sequence total |
+| scala | 0 | sequences with no currently-active vectors — structurally always zero, since `CriticalEventSequence` guarantees at least one initial Reality Event is always active |
+
+Fixed in `RealityEngine_Scala#76` (read the coverage registry rather than the
+active set) and `RealityEngine_LSP#77` (stop replacing the `cov-*` tables in
+`reset-reality-state`). C++ never cleared coverage and needed no change.
+
+What makes it a usable signal: the machine test sequences are driven on every
+input cycle, so each machine should fire each of its CESs at least once. A
+healthy corpus therefore trends toward zero unfired. **A count pinned at exactly
+0 or at exactly the sequence total is a broken metric, not a corpus finding** —
+that is the shape both defects took, and it is the thing to check first if this
+number ever looks too clean.
+
+`UnfiredCoverageSpec` pins the Scala half to behaviour: drive a corpus machine
+with its own interned `inputSequences` and the unfired count must strictly
+decrease. It was verified to fail against the old predicate.
+
 ### Configuration
 
 | Method | Path | CPP | LSP | Scala |

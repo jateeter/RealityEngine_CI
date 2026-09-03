@@ -417,6 +417,10 @@ jobs:
         working-directory: RealityEngine_CI
         run: bash scripts/tests/test-trajectory-parity.sh
 
+      - name: Run corpus parity checkpoint unit tests
+        working-directory: RealityEngine_CI
+        run: bash scripts/tests/test-corpus-parity-checkpoint.sh
+
   # ── Phase 4: Dry-run pre-flight validation ──────────────────────────────────
   dry-run-validate:
     name: Dry-Run Validate

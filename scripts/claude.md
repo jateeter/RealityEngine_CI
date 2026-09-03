@@ -111,6 +111,31 @@ assigning it (#163), so arming first and resetting second discards the arming.
 Both parity stages take `--no-reset` for a caller deliberately measuring
 accumulated state.
 
+- `corpus-parity-checkpoint.py`: reconstruct the corpus resident at iteration N
+  of a completed loop run, from its `corpus-parity-loop.jsonl`.
+
+  `--resume` reuses a *running* universe, which is no help once the universe is
+  gone — and the interesting failures appear hundreds of iterations in. #167
+  halted at iteration 862 after 6h27m; replaying that incrementally is ~6.5
+  hours per attempt. The investigation instead rebuilt the resident manifest by
+  hand and boot-loaded it, which ran in minutes. This is that, automated:
+
+  ```bash
+  scripts/corpus-parity-checkpoint.py summary  --results /tmp/re-corpus-parity/loop-*/corpus-parity-loop.jsonl
+  scripts/corpus-parity-checkpoint.py command  --results ... --before 862 --out repro.txt
+  ```
+
+  **It reconstructs the corpus, not engine state.** A boot-loaded universe at N
+  machines is not the same as one that reached N incrementally, and #167 turns
+  on exactly that difference — the same machine set reproduced cleanly when
+  boot-loaded, which is why "accumulated state surviving reset" is its leading
+  hypothesis. A clean result means "not a function of corpus content", never
+  "not reproducible".
+
+  Machines from `skipped` iterations are never resident (they were not loaded),
+  and an `isolated`-mode run is refused without `--force` because its corpus
+  never existed all at once.
+
 Notes that bite when changing these:
 
 - Machines are matched by corpus `name`. Ids are minted per runtime and any
