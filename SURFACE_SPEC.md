@@ -710,6 +710,49 @@ None. All routes listed in this spec are implemented by all three runtimes.
 
 ---
 
+## Reality Event key names — migration in progress
+
+The theory has no vectors, only Reality Events. The domain type was renamed in
+`#219`, and `ISRE`/`OSRE` already carry the right language. **Response-body keys
+are the layer still saying "vector"**, and they are a contract rather than a
+name, so they move under a stated migration rather than a sweep
+(`RealityEngine_CI#220`, layer 2).
+
+| old spelling | canonical |
+|---|---|
+| `inputVector` | `inputEvent` |
+| `activeVectors` | `activeEvents` |
+| `totalVectors` | `totalEvents` |
+| `vectorDimension` | `eventDimension` |
+| `matchedVectors` | `matchedEvents` |
+| `activatedVectors` | `activatedEvents` |
+| `initialVectorIds` | `initialEventIds` |
+
+**During the migration both spellings are accepted, and neither is a defect.**
+`scripts/lib/parity_identity.py` canonicalises both to the new spelling before
+any comparison, so a runtime that has renamed and one that has not compare
+equal. That is what lets the four runtimes move one at a time: without it the
+rename would have to land in C++, LSP, Scala and the TypeScript PE
+simultaneously, with the Manager UI, the CI stages and the MCP tools following
+in the same window, or every parity run between the first merge and the last is
+red for a reason that is not a divergence.
+
+A runtime emitting both spellings for one observation is emitting one
+observation; the canonical value is the one consumers read.
+
+**The migration ends by deletion.** When every runtime emits the canonical
+spelling, `EVENT_KEY_RENAME` is removed and the old keys stop being accepted.
+Until that happens the rename is not finished, and the map is the record of
+what remains.
+
+Not in this layer, and not to be swept with it: the corpus schema keys
+(`vectors`, `outputVectors`, `nextVectorIds`, `outputVector`) which are layer 1
+and need a corpus rewrite across 1,185 files and four loaders, and the Qdrant
+collection `reality-vectors` which is layer 3 and needs a data backfill.
+Language-level data structures — `std::vector`, the C++ `Vector` alias, Scala
+`Vector[Double]`, `vector-push-extend` — are not Reality Events and are never
+touched.
+
 ## Response Shape Conventions
 
 All runtimes must conform to these envelope shapes. Deviations are bugs in the runtime, not workarounds to implement in the Manager.

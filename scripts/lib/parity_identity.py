@@ -132,6 +132,65 @@ CORPUS_DECLARED_KEYS = frozenset(
     }
 )
 
+# The Reality Event rename, response-key layer (RealityEngine_CI#220 layer 2).
+#
+# The theory has no vectors — only Reality Events. The domain type was renamed
+# across every repo in #219; these response-body keys are the layer that still
+# says "vector", and they are a *contract* rather than a name, so they cannot
+# simply be swept.
+#
+# Why this map exists rather than a flag day: these keys sit on byte-equivalence
+# surfaces, so a runtime that renames while its peers have not is reported as
+# divergence by the parity gate. Without normalisation the rename would have to
+# land in four repositories simultaneously — C++, LSP, Scala and the TypeScript
+# PE — with the Manager UI, the CI stages and the MCP tools following in the
+# same window, or every parity run between the first merge and the last is red
+# for a reason that is not a defect.
+#
+# Canonicalising both spellings to the new one removes that constraint: a
+# migrated runtime and an unmigrated one compare equal, so the engines can move
+# one at a time and the gate keeps measuring behaviour throughout.
+#
+# This is a migration aid with an end. Once every runtime emits the new
+# spelling, delete the map and the old keys stop being accepted — which is the
+# point at which the rename is actually finished. Until then, a runtime emitting
+# the old spelling is not a defect.
+EVENT_KEY_RENAME = {
+    "inputVector": "inputEvent",
+    "activeVectors": "activeEvents",
+    "totalVectors": "totalEvents",
+    "vectorDimension": "eventDimension",
+    "matchedVectors": "matchedEvents",
+    "activatedVectors": "activatedEvents",
+    "initialVectorIds": "initialEventIds",
+}
+
+
+def canonical_event_keys(value: Any) -> Any:
+    """Rewrite old Reality Event spellings to the canonical one, recursively.
+
+    Applied before any comparison so that `inputVector` and `inputEvent` are the
+    same observation rather than two keys one runtime has and another does not
+    — which is what a key-set comparison would otherwise report, and what would
+    force the rename to land atomically across four repositories.
+
+    A payload carrying *both* spellings keeps the new one. That is the shape a
+    runtime emitting the pair during its own transition produces, and preferring
+    the new value means the comparison sees what the migrated consumers will.
+    """
+    if isinstance(value, dict):
+        out: dict[Any, Any] = {}
+        for key, item in value.items():
+            canonical = EVENT_KEY_RENAME.get(key, key) if isinstance(key, str) else key
+            # Do not let an old spelling overwrite a new one already placed.
+            if canonical in out and key in EVENT_KEY_RENAME:
+                continue
+            out[canonical] = canonical_event_keys(item)
+        return out
+    if isinstance(value, list):
+        return [canonical_event_keys(v) for v in value]
+    return value
+
 
 def strip_engine_identity(value: Any, extra_keys: frozenset[str] | None = None) -> Any:
     """Recursively drop engine-local keys, keeping everything else.
@@ -151,8 +210,13 @@ def strip_engine_identity(value: Any, extra_keys: frozenset[str] | None = None) 
 
 
 def shared_keys(payloads: dict[str, Any]) -> set[str]:
-    """Top-level keys every payload carries."""
-    dicts = [p for p in payloads.values() if isinstance(p, dict)]
+    """Top-level keys every payload carries, in canonical event spelling.
+
+    Canonicalised first (#220 layer 2): a runtime part-way through the rename
+    emits `inputEvent` where its peers still emit `inputVector`, and comparing
+    the raw spellings would report the migration as an asymmetric key set.
+    """
+    dicts = [canonical_event_keys(p) for p in payloads.values() if isinstance(p, dict)]
     if not dicts:
         return set()
     common = set(dicts[0])
@@ -182,7 +246,10 @@ def shape_only_keys(payloads: dict[str, Any]) -> dict[str, list[str]]:
     extras: dict[str, list[str]] = {}
     for name, payload in payloads.items():
         if isinstance(payload, dict):
-            only = sorted(set(payload) - common)
+            # Canonical spelling, matching `common` — otherwise a runtime that
+            # has completed the #220 rename reports every renamed key as an
+            # extra, and one that has not reports every old key as an extra.
+            only = sorted(set(canonical_event_keys(payload)) - common)
             if only:
                 extras[name] = only
     return extras
@@ -218,7 +285,10 @@ def parity_signature(payload: Any, keys: set[str] | None = None) -> Any:
     `keys` restricts the top level to what every compared runtime emits; pass
     `shared_keys(payloads)`.
     """
-    value = payload
+    # Canonical event spelling first, so the `keys` restriction and the
+    # comparison both see one name per observation while the #220 rename is
+    # part-way through the runtimes.
+    value = canonical_event_keys(payload)
     if isinstance(value, dict):
         value = {k: v for k, v in value.items() if k not in INTERMEDIATE_SURFACE_KEYS}
         if keys is not None:
