@@ -1,7 +1,7 @@
 // Pure helpers used by the "Create or update regression failure issue" step
 // in .github/workflows/regression-tests.yml. Kept out of the inline
 // github-script so the dedup logic can be unit tested with `node --test`
-// (see scripts/tests/regression-issue-filer.test.js).
+// (see scripts/tests/regression-issue-filer.test.mjs).
 //
 // The auto-filer used to key the issue title on the run id
 // (`gha-<runId>-<attempt>`), which is unique on every run, so `existing` in
@@ -27,6 +27,11 @@ const STAGE_SLUGS = {
 
 const OCCURRENCES_START = '<!-- regression-occurrences:start -->';
 const OCCURRENCES_END = '<!-- regression-occurrences:end -->';
+// Cap how many occurrence lines are kept in the body so a long-lived
+// recurring failure issue does not grow without bound (GitHub caps issue
+// body size). The true total count is preserved in the heading even once
+// the list itself is trimmed.
+const MAX_OCCURRENCES_SHOWN = 20;
 
 function slugify(label) {
   return String(label)
@@ -85,6 +90,15 @@ function extractOccurrenceLines(body) {
     .filter((line) => line.startsWith('- '));
 }
 
+// The heading records the true total, which keeps counting up even after
+// the displayed occurrence list has been trimmed to MAX_OCCURRENCES_SHOWN.
+function extractOccurrenceTotal(body) {
+  if (!body) return 0;
+  const match = body.match(/## Occurrences \((\d+)(?:\s|\))/);
+  if (match) return Number(match[1]);
+  return extractOccurrenceLines(body).length;
+}
+
 // Builds the full issue body. When `previousBody` is provided (the update
 // path) any occurrences already recorded in it are carried forward, so the
 // recurrence history (which runs, and how many) accumulates on the issue
@@ -92,13 +106,17 @@ function extractOccurrenceLines(body) {
 // body replacement would.
 function renderIssueBody({ signature, runId, runUrl, timestamp, summary, previousBody }) {
   const priorOccurrences = extractOccurrenceLines(previousBody);
+  const totalCount = extractOccurrenceTotal(previousBody) + 1;
   const newOccurrence = `- \`${runId}\` — ${runUrl} — ${timestamp}`;
-  const occurrences = [newOccurrence, ...priorOccurrences];
+  const occurrences = [newOccurrence, ...priorOccurrences].slice(0, MAX_OCCURRENCES_SHOWN);
+  const heading = occurrences.length < totalCount
+    ? `## Occurrences (${totalCount} total, showing latest ${occurrences.length})`
+    : `## Occurrences (${totalCount})`;
   const lines = [
     `Failure signature: \`${signature}\``,
     '',
     OCCURRENCES_START,
-    `## Occurrences (${occurrences.length})`,
+    heading,
     '',
     ...occurrences,
     OCCURRENCES_END,
@@ -122,5 +140,6 @@ export {
   failureSignature,
   issueTitle,
   extractOccurrenceLines,
+  extractOccurrenceTotal,
   renderIssueBody,
 };

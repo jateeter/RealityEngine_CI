@@ -123,3 +123,23 @@ test('renderIssueBody accumulates occurrences across updates instead of discardi
   assert.match(third, /## Occurrences \(3\)/);
   assert.equal(extractOccurrenceLines(third).length, 3);
 });
+
+test('renderIssueBody caps the displayed occurrence list but keeps the true total in the heading', () => {
+  let body;
+  for (let i = 1; i <= 25; i += 1) {
+    body = renderIssueBody({
+      signature: 'trajectory-parity, universal-vectors',
+      runId: `gha-${i}-1`,
+      runUrl: `https://example.test/runs/${i}`,
+      timestamp: `2026-09-${String(i).padStart(2, '0')}T00:00:00.000Z`,
+      summary: `summary ${i}`,
+      previousBody: body,
+    });
+  }
+  assert.match(body, /## Occurrences \(25 total, showing latest 20\)/);
+  const occurrences = extractOccurrenceLines(body);
+  assert.equal(occurrences.length, 20);
+  assert.match(occurrences[0], /gha-25-1/);
+  assert.match(occurrences[occurrences.length - 1], /gha-6-1/);
+  assert.doesNotMatch(body, /gha-1-1`/);
+});
