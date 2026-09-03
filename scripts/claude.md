@@ -84,6 +84,35 @@ This directory contains operational helpers for startup, testing, OpenAPI, and v
   this surface and is not in the runtime registry; pass it with
   `--extra-runtime ts-1=<re_url>,<pe_url>`.
 
+## Push response shape
+
+`regression-pe-step-contract.py` probes the push response at three levels, not
+one — `response` (the top level, where `dispatch` lives), `step`, and
+`step.mergeBatch[]` (element keys, unioned across elements). It read
+`set(step.keys())` and stopped, so divergence above or below that level was
+invisible to the stage whose job is catching it (#231), which is how #208
+regressed after being closed.
+
+Two properties, kept separate because they have different causes:
+
+- **Conformance** — a runtime emits the declared key set. Only `step` has a
+  declared set today (`COMPACT_KEYS` / `FULL_KEYS`, from SURFACE_SPEC.md).
+- **Uniformity** — the runtimes emit the *same* key set as each other. Checkable
+  at every probe point without first settling what the declared set ought to be,
+  which is why it catches `dispatch` and `valuesPacked` now.
+
+A runtime whose own `mergeBatch` elements disagree with each other is reported
+separately again — that is a local defect, not a cross-runtime one.
+
+`KNOWN_SHAPE_DIVERGENCE` registers the probe points that diverge today, each
+citing the issue that retires it. Those are reported on every run but do not
+fail the stage; **anything diverging at an unregistered probe point does**.
+Delete an entry when its issue closes and the gate tightens with no other edit.
+
+The register exists so this stage does not become one everyone learns to ignore
+— the same reasoning that keeps `regression-reset-contract.py` out of the
+harness. Do not add entries to quiet a new finding; that inverts the mechanism.
+
 ## Reset
 
 `POST {pe}/api/reset` is **layer-local**: it resets the Perception Engine and
