@@ -65,6 +65,9 @@ import time
 from typing import Any
 from urllib import error, request
 
+sys.path.insert(0, str(Path(__file__).resolve().parent / "lib"))
+from reset_contract import reset_instances  # noqa: E402
+
 TRAJECTORIES = ("isre", "osre")
 
 
@@ -372,6 +375,14 @@ def main() -> int:
                         help="label recorded in the summary when the harness has "
                              "forced a rule via ARBITRATION_REGISTRY; reporting only, "
                              "the engines are configured before they boot")
+    # On by default. This stage compared ISRE/OSRE histories without resetting
+    # anything, so it inherited whatever the preceding stage left — and
+    # regression-test.sh runs pe-step-contract immediately before it, which
+    # pushes through every PE. Two runs of the same suite could differ by what
+    # ran before them, and the difference reads as engine divergence (#211).
+    parser.add_argument("--no-reset", dest="reset", action="store_false",
+                        help="Do not reset the engines first; compare accumulated state deliberately.")
+    parser.set_defaults(reset=True)
     args = parser.parse_args()
 
     args.out.mkdir(parents=True, exist_ok=True)
@@ -412,6 +423,25 @@ def main() -> int:
             "no interned test sequences on any runtime — the corpus test sources are "
             "interned at ingestion unless PE_SOURCE_BOOTSTRAP=off; check the engines "
             "booted with a corpus")
+    # A defined starting point, before any stimulus is applied. Both halves:
+    # CES activation and the histories live in the RE, while globalStep, the
+    # persistent vector and the test cursors live in the PE, and resetting
+    # either alone leaves the other holding earlier traffic (#211).
+    #
+    # Before arming, not after: reset *validates* activity rather than assigning
+    # it (#163), so arming first and resetting second would discard the arming
+    # this stage depends on.
+    reset_failures: list[str] = []
+    if args.reset:
+        reset_failures = reset_instances(post_json, instances)
+        # Recorded as failures, not fatal: refusing to run would make a reset
+        # regression read as a parity regression, and the comparison below is
+        # still informative as long as the reader knows the start was undefined.
+        failures.extend(
+            f"{item} — trajectories below were measured against unknown prior state"
+            for item in reset_failures
+        )
+
     for instance in instances:
         failures.extend(run_seed_sequence(instance, steps, args.settle_ms))
 
@@ -421,6 +451,11 @@ def main() -> int:
         "seedSteps": steps,
         "seedSource": "corpus-interned test sources (composed ISRESeed)",
         "internedTestSources": interned,
+        "reset": {
+            "requested": args.reset,
+            "scope": "re+pe" if args.reset else "disabled",
+            "failures": reset_failures,
+        },
         "arbiterRule": args.arbiter_rule or "corpus-declared",
         "arbiterConfig": arbiter_configs,
         "trajectories": {},

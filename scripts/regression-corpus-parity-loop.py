@@ -240,16 +240,13 @@ def input_region(machine: dict[str, Any]) -> dict[str, int] | None:
 # ── engine operations ─────────────────────────────────────────────────────────
 
 def reset_instances(instances: list[dict[str, Any]]) -> list[str]:
-    """Clear RE engine state (and its histories) and PE push state."""
-    failures = []
-    for instance in instances:
-        status, _ = TP.post_json(f"{instance['re']}/api/engine/reset", {})
-        if status != 200:
-            failures.append(f"{instance['id']}: POST /api/engine/reset returned {status}")
-        status, _ = TP.post_json(f"{instance['pe']}/api/reset", {})
-        if status != 200:
-            failures.append(f"{instance['id']}: POST /api/reset returned {status}")
-    return failures
+    """Clear RE engine state (and its histories) and PE push state.
+
+    Delegated to the shared contract rather than restated. This loop already did
+    both halves, correctly, while two other stages did only one — the asymmetry
+    survived precisely because each stage carried its own copy (#211).
+    """
+    return TP.reset_instances(TP.post_json, instances)
 
 
 def machine_names(instance: dict[str, Any]) -> tuple[list[str], str | None]:

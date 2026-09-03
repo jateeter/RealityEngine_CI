@@ -401,6 +401,10 @@ jobs:
         working-directory: RealityEngine_CI
         run: bash scripts/tests/test-parity-source-census.sh
 
+      - name: Run reset contract unit tests
+        working-directory: RealityEngine_CI
+        run: bash scripts/tests/test-reset-contract.sh
+
       - name: Run fresh-start state clearing unit tests
         working-directory: RealityEngine_CI
         run: bash scripts/tests/test-fresh-start.sh
