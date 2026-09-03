@@ -413,7 +413,14 @@ run_unit() {
     run_manager_builds_and_tests
     run_machines_offline
     run_openclaw_adapter_tests
+    run_regression_issue_filer_tests
     run_localai_tests
+}
+
+run_regression_issue_filer_tests() {
+    local label="Regression auto-filer dedup unit tests"
+    require_node "$label" "25.5.0" || return
+    run_suite "$label" "$CI_DIR" npm run test:regression-issue-filer
 }
 
 run_openclaw_adapter_tests() {

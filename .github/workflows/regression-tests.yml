@@ -513,6 +513,14 @@ jobs:
           script: |
             const fs = require('fs');
             const path = require('path');
+            const {
+              parseFailingStages,
+              failureSignature,
+              issueTitle,
+              renderIssueBody
+            } = await import(
+              path.join(process.cwd(), 'RealityEngine_CI', 'scripts', 'lib', 'regression-issue-filer.mjs')
+            );
 
             const runId = process.env.REGRESSION_RUN_ID || `gha-${context.runId}-${context.runAttempt}`;
             const runUrl = `${context.serverUrl}/${context.repo.owner}/${context.repo.repo}/actions/runs/${context.runId}`;
@@ -522,18 +530,13 @@ jobs:
               summary = fs.readFileSync(summaryPath, 'utf8').split('\n').slice(0, 160).join('\n');
             }
 
-            const title = `Regression failure: ${runId}`;
-            const body = [
-              `Regression run ${runId} failed.`,
-              '',
-              `Actions run: ${runUrl}`,
-              '',
-              'Selected summary:',
-              '',
-              '```markdown',
-              summary,
-              '```'
-            ].join('\n');
+            // Key the issue on the set of failing stages, not the run id: the
+            // run id is unique per run, so keying on it meant `existing` below
+            // could never match and every failing nightly opened a new issue
+            // (#229). A recurring failure (same failing stages) now updates
+            // one issue; a failure with a different stage set opens a new one.
+            const signature = failureSignature(parseFailingStages(summary));
+            const title = issueTitle(signature);
 
             const issues = await github.paginate(github.rest.issues.listForRepo, {
               owner: context.repo.owner,
@@ -542,6 +545,14 @@ jobs:
               per_page: 100
             });
             const existing = issues.find((issue) => issue.title === title);
+            const body = renderIssueBody({
+              signature,
+              runId,
+              runUrl,
+              timestamp: new Date().toISOString(),
+              summary,
+              previousBody: existing ? existing.body : undefined
+            });
             if (existing) {
               await github.rest.issues.update({
                 owner: context.repo.owner,
