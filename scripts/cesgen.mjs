@@ -36,6 +36,7 @@
 
 import fs from 'node:fs';
 import path from 'node:path';
+import { sequenceEvents, outputEvents, nextEventIds } from './lib/eventKeys.mjs';
 
 const ROOT = path.resolve(path.dirname(new URL(import.meta.url).pathname), '..');
 const MACHINES_DIR = process.env.MACHINES_DIR
@@ -136,14 +137,14 @@ function normalize(filePath) {
     id: s.id,
     name: s.name,
     ident: safeIdent(s.id),
-    initial: (s.vectors ?? []).filter(v => v.isInitial).map(v => v.id),
-    vectors: (s.vectors ?? []).map(v => ({
+    initial: sequenceEvents(s).filter(v => v.isInitial).map(v => v.id),
+    vectors: sequenceEvents(s).map(v => ({
       id: v.id,
       ident: safeIdent(v.id),
       isInitial: !!v.isInitial,
       elements: (v.elements ?? []).map(e => e.value),
-      next: v.nextVectorIds ?? [],
-      outputs: (v.outputVectors ?? []).map(o => o.vector ?? []),
+      next: nextEventIds(v),
+      outputs: outputEvents(v).map(o => o.vector ?? []),
     })),
   }));
   // Deduplicated, alphabetized state ID list across the whole machine.

@@ -28,6 +28,7 @@ from parity_identity import (  # noqa: E402
     uniformity_violations,
 )
 from reset_contract import reset_pair  # noqa: E402
+from event_keys import sequence_events  # noqa: E402
 
 
 def load_json(path: Path) -> Any:
@@ -95,8 +96,8 @@ def machine_input_region(machine: dict[str, Any]) -> dict[str, int] | None:
 
 
 def vector_values(seq: dict[str, Any], length: int) -> list[float] | None:
-    vectors = seq.get("vectors")
-    if not isinstance(vectors, list) or not vectors:
+    vectors = sequence_events(seq)
+    if not vectors:
         return None
     raw = vectors[0]
     if isinstance(raw, dict):

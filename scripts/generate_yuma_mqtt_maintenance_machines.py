@@ -102,27 +102,27 @@ def make_tier1_machine(spec: dict[str, Any]) -> dict[str, Any]:
                     "path":        "NORMAL -> WATCH -> CRITICAL",
                     "output":      "[1,0,0,0]",
                 },
-                "vectors": [
+                "events": [
                     {
                         "id": f"{seq_prefix}-normal",
                         "elements": [{"value": v, "threshold": 0.5} for v in [1,1,1,1]],
                         "isInitial": True,
                         "metadata": {"name": "NORMAL", "description": "All four sensor cells in nominal range."},
-                        "nextVectorIds": [f"{seq_prefix}-watch"],
+                        "nextEventIds": [f"{seq_prefix}-watch"],
                     },
                     {
                         "id": f"{seq_prefix}-watch",
                         "elements": [{"value": v, "threshold": 0.5} for v in [1,0,1,0]],
                         "isInitial": False,
                         "metadata": {"name": "WATCH", "description": "Two sensor cells leaving the nominal band."},
-                        "nextVectorIds": [f"{seq_prefix}-critical"],
+                        "nextEventIds": [f"{seq_prefix}-critical"],
                     },
                     {
                         "id": f"{seq_prefix}-critical",
                         "elements": [{"value": v, "threshold": 0.5} for v in [0,0,0,0]],
                         "isInitial": False,
                         "metadata": {"name": "CRITICAL", "description": "All four sensor cells outside nominal — fault state."},
-                        "outputVectors": [{
+                        "outputEvents": [{
                             "id": f"{seq_prefix}-urgent-output",
                             "vector": output_vec,
                             "metadata": {"description": desc, "action": f"Dispatch {agent} for urgent maintenance and record corrective action."},
@@ -141,12 +141,12 @@ def make_tier1_machine(spec: dict[str, Any]) -> dict[str, Any]:
                     "pattern":     label,
                     "output":      "[" + ",".join(str(x) for x in output_vec) + "]",
                 },
-                "vectors": [{
+                "events": [{
                     "id": f"{seq_prefix}-{label.lower().replace('_', '-')}-event",
                     "elements": [{"value": v, "threshold": 0.5} for v in pattern_vec],
                     "isInitial": True,
                     "metadata": {"name": label, "description": desc},
-                    "outputVectors": [{
+                    "outputEvents": [{
                         "id": f"{seq_prefix}-{label.lower().replace('_', '-')}-output",
                         "vector": output_vec,
                         "metadata": {
@@ -166,31 +166,31 @@ def make_tier1_machine(spec: dict[str, Any]) -> dict[str, Any]:
         {
             "name": "Escalation to urgent maintenance",
             "description": "A stable sensor stream degrades through watch conditions and then reaches a fault state.",
-            "vectors": INPUT_PATTERNS["URGENT_MAINT"],
+            "events": INPUT_PATTERNS["URGENT_MAINT"],
             "metadata": {"expectedOutputCount": 1, "expectedOutputVector": "[1,0,0,0]", "scenario": "urgent-maint"},
         },
         {
             "name": "Maintenance forecast",
             "description": "Inner sensor cells degrade — the forecast model flags scheduled service.",
-            "vectors": [INPUT_PATTERNS["FORECAST_MAINT"][0]],
+            "events": [INPUT_PATTERNS["FORECAST_MAINT"][0]],
             "metadata": {"expectedOutputCount": 1, "expectedOutputVector": "[0,1,0,0]", "scenario": "forecast-maint"},
         },
         {
             "name": "Sensor calibration required",
             "description": "Inner cells flap while outer cells stay healthy — a drift pattern that calls for calibration.",
-            "vectors": [INPUT_PATTERNS["CALIBRATE"][0]],
+            "events": [INPUT_PATTERNS["CALIBRATE"][0]],
             "metadata": {"expectedOutputCount": 1, "expectedOutputVector": "[0,0,1,0]", "scenario": "calibrate"},
         },
         {
             "name": "Normal operating window",
             "description": "Three of four sensor cells healthy — equipment in good working order.",
-            "vectors": [INPUT_PATTERNS["NORMAL"][0]],
+            "events": [INPUT_PATTERNS["NORMAL"][0]],
             "metadata": {"expectedOutputCount": 1, "expectedOutputVector": "[0,0,0,1]", "scenario": "normal"},
         },
         {
             "name": "Baseline normal",
             "description": "A single all-1 sensor reading arms the escalation path without dispatching maintenance.",
-            "vectors": [[1, 1, 1, 1]],
+            "events": [[1, 1, 1, 1]],
             "metadata": {"expectedOutputCount": 0, "scenario": "baseline"},
         },
     ]
@@ -395,12 +395,12 @@ def make_bridge_machine() -> dict[str, Any]:
             "name": f"Facility Bridge: {label}",
             "metadata": {"description": desc, "pattern": label,
                          "output": "[" + ",".join(str(x) for x in out_vec) + "]"},
-            "vectors": [{
+            "events": [{
                 "id": f"{seq_prefix}-{slug}-event",
                 "elements": [{"value": v, "threshold": 0.5} for v in in_vec],
                 "isInitial": True,
                 "metadata": {"name": label, "description": desc},
-                "outputVectors": [{
+                "outputEvents": [{
                     "id": f"{seq_prefix}-{slug}-output",
                     "vector": out_vec,
                     "metadata": {
@@ -413,7 +413,7 @@ def make_bridge_machine() -> dict[str, Any]:
 
     input_sequences = [
         {"name": label, "description": desc,
-         "vectors": [in_vec],
+         "events": [in_vec],
          "metadata": {"expectedOutputCount": 1,
                       "expectedOutputVector": "[" + ",".join(str(x) for x in out_vec) + "]",
                       "scenario": slug}}

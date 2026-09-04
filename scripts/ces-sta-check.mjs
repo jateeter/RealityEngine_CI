@@ -43,6 +43,7 @@
 
 import fs from 'node:fs';
 import path from 'node:path';
+import { sequenceEvents, nextEventIds } from './lib/eventKeys.mjs';
 
 const ROOT = path.resolve(path.dirname(new URL(import.meta.url).pathname), '..');
 const DEFAULT_DIR = path.join(ROOT, 'examples', 'machines');
@@ -91,7 +92,7 @@ export function computeSta(rawJsonOrObj) {
   // inter-sequence jumps (rare but real in some demo machines).
   const indexByVector = new Map();
   for (const seq of m.sequences ?? []) {
-    for (const v of seq.vectors ?? []) {
+    for (const v of sequenceEvents(seq)) {
       indexByVector.set(v.id, { sequenceId: seq.id, vector: v });
     }
   }
@@ -102,15 +103,15 @@ export function computeSta(rawJsonOrObj) {
 
   for (const seq of m.sequences ?? []) {
     const localByVector = new Map();
-    for (const v of seq.vectors ?? []) localByVector.set(v.id, v);
+    for (const v of sequenceEvents(seq)) localByVector.set(v.id, v);
 
     const transitions = [];
     let maxIntra = 0;
     let anyViolation = false;
 
-    for (const v of seq.vectors ?? []) {
+    for (const v of sequenceEvents(seq)) {
       const vState = vectorState(v);
-      for (const nextId of v.nextVectorIds ?? []) {
+      for (const nextId of nextEventIds(v)) {
         const local = localByVector.get(nextId);
         if (local) {
           const hd = hammingDistance(vState, vectorState(local));

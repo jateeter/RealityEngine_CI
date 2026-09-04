@@ -31,6 +31,10 @@ from __future__ import annotations
 import itertools
 import json
 from pathlib import Path
+import sys
+
+sys.path.insert(0, str(Path(__file__).resolve().parent / "lib"))
+from event_keys import sequence_events, output_events  # noqa: E402
 
 CORPUS = Path(__file__).resolve().parents[1].parent / "RealityEngine_Machines" / "machines"
 FALL = CORPUS / "domains" / "health-personal" / "FallDetection.json"
@@ -102,8 +106,8 @@ def fall_detection_outputs():
     machine = json.loads(FALL.read_text(encoding="utf-8"))["machine"]
     outs = []
     for sequence in machine["sequences"]:
-        for vector in sequence["vectors"]:
-            for output in vector.get("outputVectors") or []:
+        for vector in sequence_events(sequence):
+            for output in output_events(vector):
                 outs.append((sequence["id"], vector["id"], output["vector"]))
     return machine, outs
 

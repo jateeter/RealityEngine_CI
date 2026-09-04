@@ -246,33 +246,33 @@ def machine_payload(index: int, focus: str, description: str, specs: list[tuple[
                     "id": f"{code}-urgent",
                     "name": f"{focus}: DEGRADED -> CRITICAL -> URGENT_INTERVENTION",
                     "metadata": {"description": "Escalates when availability and operational confidence collapse.", "output": "[1,0,0,0]"},
-                    "vectors": [
-                        {"id": f"{code}-degraded", "elements": vector_elements([1, 0, 1, 0]), "isInitial": True, "nextVectorIds": [f"{code}-critical"]},
-                        {"id": f"{code}-critical", "elements": vector_elements([0, 0, 1, 0]), "isInitial": False, "outputVectors": [{"id": f"{code}-urgent-output", "vector": [1, 0, 0, 0], "metadata": {"action": urgent_action}}]},
+                    "events": [
+                        {"id": f"{code}-degraded", "elements": vector_elements([1, 0, 1, 0]), "isInitial": True, "nextEventIds": [f"{code}-critical"]},
+                        {"id": f"{code}-critical", "elements": vector_elements([0, 0, 1, 0]), "isInitial": False, "outputEvents": [{"id": f"{code}-urgent-output", "vector": [1, 0, 0, 0], "metadata": {"action": urgent_action}}]},
                     ],
                 },
                 {
                     "id": f"{code}-maintenance",
                     "name": f"{focus}: SERVICE_DUE -> SCHEDULE_MAINTENANCE",
                     "metadata": {"description": "Schedules maintenance before service quality degrades.", "output": "[0,1,0,0]"},
-                    "vectors": [
-                        {"id": f"{code}-service-due", "elements": vector_elements([1, 0, 0, 1]), "isInitial": True, "outputVectors": [{"id": f"{code}-maintenance-output", "vector": [0, 1, 0, 0], "metadata": {"action": maintenance_action}}]},
+                    "events": [
+                        {"id": f"{code}-service-due", "elements": vector_elements([1, 0, 0, 1]), "isInitial": True, "outputEvents": [{"id": f"{code}-maintenance-output", "vector": [0, 1, 0, 0], "metadata": {"action": maintenance_action}}]},
                     ],
                 },
                 {
                     "id": f"{code}-upgrade",
                     "name": f"{focus}: LIFECYCLE_PRESSURE -> PLAN_UPGRADE",
                     "metadata": {"description": "Plans an upgrade, refresh, or lifecycle action under controlled change management.", "output": "[0,0,1,0]"},
-                    "vectors": [
-                        {"id": f"{code}-upgrade-needed", "elements": vector_elements([1, 1, 1, 0]), "isInitial": True, "outputVectors": [{"id": f"{code}-upgrade-output", "vector": [0, 0, 1, 0], "metadata": {"action": upgrade_action}}]},
+                    "events": [
+                        {"id": f"{code}-upgrade-needed", "elements": vector_elements([1, 1, 1, 0]), "isInitial": True, "outputEvents": [{"id": f"{code}-upgrade-output", "vector": [0, 0, 1, 0], "metadata": {"action": upgrade_action}}]},
                     ],
                 },
                 {
                     "id": f"{code}-nominal",
                     "name": f"{focus}: HEALTHY -> OPERATING_NOMINAL",
                     "metadata": {"description": "Confirms stable 24/7 operational posture.", "output": "[0,0,0,1]"},
-                    "vectors": [
-                        {"id": f"{code}-healthy", "elements": vector_elements([1, 1, 0, 1]), "isInitial": True, "outputVectors": [{"id": f"{code}-nominal-output", "vector": [0, 0, 0, 1], "metadata": {"action": nominal_action}}]},
+                    "events": [
+                        {"id": f"{code}-healthy", "elements": vector_elements([1, 1, 0, 1]), "isInitial": True, "outputEvents": [{"id": f"{code}-nominal-output", "vector": [0, 0, 0, 1], "metadata": {"action": nominal_action}}]},
                     ],
                 },
                 {
@@ -284,21 +284,21 @@ def machine_payload(index: int, focus: str, description: str, specs: list[tuple[
                         "projectionWindows": ["0-6h", "6-12h", "12-18h", "18-24h"],
                         "output": "[0,1,0,0]",
                     },
-                    "vectors": [
-                        {"id": f"{code}-projection-0-6h", "elements": vector_elements([0, 1, 1, 1]), "isInitial": True, "metadata": {"window": "0-6h", "description": "Current posture is stable but lifecycle pressure is visible."}, "nextVectorIds": [f"{code}-projection-6-12h"]},
-                        {"id": f"{code}-projection-6-12h", "elements": vector_elements([0, 1, 1, 0]), "isInitial": False, "metadata": {"window": "6-12h", "description": "Operational confidence begins to degrade."}, "nextVectorIds": [f"{code}-projection-12-18h"]},
-                        {"id": f"{code}-projection-12-18h", "elements": vector_elements([0, 0, 1, 1]), "isInitial": False, "metadata": {"window": "12-18h", "description": "Maintenance readiness is no longer sufficient for the forecasted load."}, "nextVectorIds": [f"{code}-projection-18-24h"]},
-                        {"id": f"{code}-projection-18-24h", "elements": vector_elements([0, 0, 1, 0]), "isInitial": False, "metadata": {"window": "18-24h", "description": "Forecast crosses the prescriptive maintenance threshold."}, "outputVectors": [{"id": f"{code}-projection-output", "vector": [0, 1, 0, 0], "metadata": {"action": projection_action, "projectionHorizon": "24h"}}]},
+                    "events": [
+                        {"id": f"{code}-projection-0-6h", "elements": vector_elements([0, 1, 1, 1]), "isInitial": True, "metadata": {"window": "0-6h", "description": "Current posture is stable but lifecycle pressure is visible."}, "nextEventIds": [f"{code}-projection-6-12h"]},
+                        {"id": f"{code}-projection-6-12h", "elements": vector_elements([0, 1, 1, 0]), "isInitial": False, "metadata": {"window": "6-12h", "description": "Operational confidence begins to degrade."}, "nextEventIds": [f"{code}-projection-12-18h"]},
+                        {"id": f"{code}-projection-12-18h", "elements": vector_elements([0, 0, 1, 1]), "isInitial": False, "metadata": {"window": "12-18h", "description": "Maintenance readiness is no longer sufficient for the forecasted load."}, "nextEventIds": [f"{code}-projection-18-24h"]},
+                        {"id": f"{code}-projection-18-24h", "elements": vector_elements([0, 0, 1, 0]), "isInitial": False, "metadata": {"window": "18-24h", "description": "Forecast crosses the prescriptive maintenance threshold."}, "outputEvents": [{"id": f"{code}-projection-output", "vector": [0, 1, 0, 0], "metadata": {"action": projection_action, "projectionHorizon": "24h"}}]},
                     ],
                 },
             ],
             "inputSequences": [
-                {"name": "Urgent intervention", "description": "Availability and confidence collapse after degraded operation.", "vectors": [[1, 0, 1, 0], [0, 0, 1, 0]], "metadata": {"expectedOutputCount": 1, "expectedOutputVector": "[1,0,0,0]", "scenario": "urgent-intervention"}},
-                {"name": "Maintenance due", "description": "Maintenance should be scheduled before degradation.", "vectors": [[1, 0, 0, 1]], "metadata": {"expectedOutputCount": 1, "expectedOutputVector": "[0,1,0,0]", "scenario": "schedule-maintenance"}},
-                {"name": "Upgrade planning", "description": "Lifecycle pressure requires upgrade planning.", "vectors": [[1, 1, 1, 0]], "metadata": {"expectedOutputCount": 1, "expectedOutputVector": "[0,0,1,0]", "scenario": "plan-upgrade"}},
-                {"name": "Nominal operations", "description": "The machine reports stable 24/7 operation.", "vectors": [[1, 1, 0, 1]], "metadata": {"expectedOutputCount": 1, "expectedOutputVector": "[0,0,0,1]", "scenario": "operating-nominal"}},
-                {"name": "24-hour prescriptive projection", "description": "Projects operations across four 6-hour windows and prescribes maintenance before the 24-hour risk window opens.", "vectors": [[0, 1, 1, 1], [0, 1, 1, 0], [0, 0, 1, 1], [0, 0, 1, 0]], "metadata": {"expectedOutputCount": 1, "expectedOutputVector": "[0,1,0,0]", "scenario": "24h-prescriptive-projection"}},
-                {"name": "Baseline without output", "description": "A single degraded baseline arms the urgent path without firing.", "vectors": [[1, 0, 1, 0]], "metadata": {"expectedOutputCount": 0, "scenario": "baseline-no-output"}},
+                {"name": "Urgent intervention", "description": "Availability and confidence collapse after degraded operation.", "events": [[1, 0, 1, 0], [0, 0, 1, 0]], "metadata": {"expectedOutputCount": 1, "expectedOutputVector": "[1,0,0,0]", "scenario": "urgent-intervention"}},
+                {"name": "Maintenance due", "description": "Maintenance should be scheduled before degradation.", "events": [[1, 0, 0, 1]], "metadata": {"expectedOutputCount": 1, "expectedOutputVector": "[0,1,0,0]", "scenario": "schedule-maintenance"}},
+                {"name": "Upgrade planning", "description": "Lifecycle pressure requires upgrade planning.", "events": [[1, 1, 1, 0]], "metadata": {"expectedOutputCount": 1, "expectedOutputVector": "[0,0,1,0]", "scenario": "plan-upgrade"}},
+                {"name": "Nominal operations", "description": "The machine reports stable 24/7 operation.", "events": [[1, 1, 0, 1]], "metadata": {"expectedOutputCount": 1, "expectedOutputVector": "[0,0,0,1]", "scenario": "operating-nominal"}},
+                {"name": "24-hour prescriptive projection", "description": "Projects operations across four 6-hour windows and prescribes maintenance before the 24-hour risk window opens.", "events": [[0, 1, 1, 1], [0, 1, 1, 0], [0, 0, 1, 1], [0, 0, 1, 0]], "metadata": {"expectedOutputCount": 1, "expectedOutputVector": "[0,1,0,0]", "scenario": "24h-prescriptive-projection"}},
+                {"name": "Baseline without output", "description": "A single degraded baseline arms the urgent path without firing.", "events": [[1, 0, 1, 0]], "metadata": {"expectedOutputCount": 0, "scenario": "baseline-no-output"}},
             ],
         },
     }

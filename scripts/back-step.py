@@ -55,6 +55,9 @@ from pathlib import Path
 from typing import Any
 from urllib import error, request
 
+sys.path.insert(0, str(Path(__file__).resolve().parent / "lib"))
+from event_keys import sequence_events  # noqa: E402
+
 
 def _request(url: str, method: str = "GET", body: Any = None,
              timeout: int = 60) -> tuple[int, Any]:
@@ -112,7 +115,7 @@ def active_res(instance: dict[str, str], machine_id: str) -> list[str] | None:
     saw_any = False
     active: list[str] = []
     for sequence in sequences:
-        vectors = sequence.get("vectors") if isinstance(sequence, dict) else None
+        vectors = sequence_events(sequence) or None
         if not isinstance(vectors, list):
             continue
         for vector in vectors:
