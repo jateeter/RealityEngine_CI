@@ -556,6 +556,14 @@ jobs:
           script: |
             const fs = require('fs');
             const path = require('path');
+            const {
+              parseFailingStages,
+              failureSignature,
+              issueTitle,
+              renderIssueBody
+            } = await import(
+              path.join(process.cwd(), 'RealityEngine_CI', 'scripts', 'lib', 'regression-issue-filer.mjs')
+            );
 
             const runId = process.env.REGRESSION_RUN_ID || `gha-${context.runId}-${context.runAttempt}`;
             const runUrl = `${context.serverUrl}/${context.repo.owner}/${context.repo.repo}/actions/runs/${context.runId}`;
@@ -565,40 +573,13 @@ jobs:
               summary = fs.readFileSync(summaryPath, 'utf8').split('\n').slice(0, 160).join('\n');
             }
 
-            // Title keyed on the failure *signature*, not the run id (#229).
-            //
-            // The run id is unique per run — context.runId changes every run and
-            // runAttempt changes on every re-run — so a title built from it can
-            // never match a prior issue. The update branch below was unreachable
-            // and every scheduled failure opened a new issue: #215, #216, #224,
-            // #225 and #226 were five issues for one failure, closed by hand.
-            //
-            // The failing-section set is stable across runs of the same failure
-            // and distinct between different ones, which is what the dedupe
-            // needs. regression-status.json carries it so this does not parse
-            // markdown.
-            const statusPath = path.join(process.cwd(), 'RealityEngine_CI', '.regression-tests', 'runs', runId, 'reports', 'regression-status.json');
-            let failing = [];
-            if (fs.existsSync(statusPath)) {
-              try {
-                failing = JSON.parse(fs.readFileSync(statusPath, 'utf8')).failingSections || [];
-              } catch (err) {
-                core.warning(`could not read regression-status.json: ${err.message}`);
-              }
-            }
-            // A run that died before the report stage has no signature. Falling
-            // back to the run id keeps those one-per-run rather than collapsing
-            // unrelated infrastructure failures into one issue.
-            const signature = failing.length ? failing.join(', ') : `unreported (${runId})`;
-            const title = `Regression failure: ${signature}`;
-
-            const entry = [
-              `**${runId}** — ${runUrl}`,
-              '',
-              '```markdown',
-              summary,
-              '```'
-            ].join('\n');
+            // Key the issue on the set of failing stages, not the run id: the
+            // run id is unique per run, so keying on it meant `existing` below
+            // could never match and every failing nightly opened a new issue
+            // (#229). A recurring failure (same failing stages) now updates
+            // one issue; a failure with a different stage set opens a new one.
+            const signature = failureSignature(parseFailingStages(summary));
+            const title = issueTitle(signature);
 
             const issues = await github.paginate(github.rest.issues.listForRepo, {
               owner: context.repo.owner,
@@ -607,6 +588,14 @@ jobs:
               per_page: 100
             });
             const existing = issues.find((issue) => issue.title === title);
+            const body = renderIssueBody({
+              signature,
+              runId,
+              runUrl,
+              timestamp: new Date().toISOString(),
+              summary,
+              previousBody: existing ? existing.body : undefined
+            });
             if (existing) {
               // A comment, not a body replacement. `issues.update` overwrote the
               // body wholesale, so even if the match had worked the recurrence
