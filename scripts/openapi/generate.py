@@ -180,6 +180,27 @@ PATH_PARAMS: dict[str, list[dict]] = {
 # ---------------------------------------------------------------------------
 # Shared component schemas
 # ---------------------------------------------------------------------------
+# The corpus machine document. Both surfaces accept one — the RE on
+# `POST /api/machines`, and the PE on the same route, which is its machine
+# ingestion path — so it is defined once and referenced by both component sets.
+# It used to live only in `re_components`, which left
+# `$ref: '#/components/schemas/Machine'` dangling in every generated PE
+# document. Invisible until #250, because before that fix the PE document was
+# being generated from the RE surface entirely.
+MACHINE_SCHEMA = {
+    "type": "object", "additionalProperties": True,
+    "description": "RealityEngine machine JSON.",
+    "properties": {
+        "id":      {"type": "string"},
+        "name":    {"type": "string"},
+        "version": {"type": "string"},
+        "perceptualMapping": {"type": "object", "additionalProperties": True},
+        "sequences": {"type": "array",
+                      "items": {"type": "object", "additionalProperties": True}},
+    },
+}
+
+
 def re_components() -> dict:
     return {
         "parameters": {
@@ -226,17 +247,7 @@ def re_components() -> dict:
                        "properties": {
                            "offset": {"type": "integer"},
                            "length": {"type": "integer"}}},
-            "Machine": {
-                "type": "object", "additionalProperties": True,
-                "description": "RealityEngine machine JSON.",
-                "properties": {
-                    "id":      {"type": "string"},
-                    "name":    {"type": "string"},
-                    "version": {"type": "string"},
-                    "perceptualMapping": {"type": "object", "additionalProperties": True},
-                    "sequences": {"type": "array",
-                                  "items": {"type": "object", "additionalProperties": True}},
-                }},
+            "Machine": MACHINE_SCHEMA,
             "MachineMutationResponse": {"type": "object", "properties": {
                 "success": {"type": "boolean"},
                 "machine": {"$ref": "#/components/schemas/Machine"},
@@ -290,6 +301,7 @@ def pe_components() -> dict:
             },
         },
         "schemas": {
+            "Machine": MACHINE_SCHEMA,
             "Object": {"type": "object", "additionalProperties": True},
             "Success": {"type": "object", "properties": {
                 "success": {"type": "boolean"}}},
@@ -458,17 +470,57 @@ def response_schema(method: str, path: str) -> dict:
 # ---------------------------------------------------------------------------
 # SURFACE_SPEC.md parser
 # ---------------------------------------------------------------------------
+# The `##` headings that open each surface's route tables. Matched on the
+# heading, not on a position in the document.
+SURFACE_HEADINGS = {
+    "re": "Reality Engine (RE) Surface",
+    "pe": "Perception Engine (PE) Surface",
+}
+
+
+def _section(text: str, heading: str) -> str:
+    """The body of one `## <heading>` section, up to the next `##` heading.
+
+    This used to be `re.split(r'\\n---\\n', text)` indexed at `parts[1]` and
+    `parts[2]`, with a comment asserting the layout was `intro | RE | PE | Gap
+    Register`. That was true when written and silently stopped being true: #212
+    added "The observable boundary" with a horizontal rule before it, the
+    document went to ten parts with the tables at 2 and 3, and every index shifted
+    by one. The RE document then generated from prose (0 routes) and the PE
+    document generated from the RE table — 63 RE routes published under a
+    Perception Engine title, with the real PE section reaching no document at all.
+
+    Nothing caught it for two reasons worth remembering. The audit's staleness
+    check compared generated output against generated output, so a parser
+    consistently misreading its input compares equal to itself. And an empty
+    `paths` map is valid OpenAPI, so nothing downstream objected.
+
+    A heading cannot be shifted by an unrelated edit elsewhere in the document.
+    """
+    lines = text.splitlines()
+    start = None
+    for i, line in enumerate(lines):
+        if re.match(r'^##\s+' + re.escape(heading) + r'\s*$', line):
+            start = i + 1
+            break
+    if start is None:
+        return ""
+    end = len(lines)
+    for j in range(start, len(lines)):
+        if re.match(r'^##\s+\S', lines[j]):
+            end = j
+            break
+    return "\n".join(lines[start:end])
+
+
 def parse_surface_spec(spec_path: str) -> dict[str, list[tuple[str, str, str]]]:
     """
     Returns {'re': [(tag, method, openapi_path), ...],
              'pe': [(tag, method, openapi_path), ...]}
     """
     text = Path(spec_path).read_text()
-    # Split at horizontal rules to isolate RE and PE sections
-    parts = re.split(r'\n---\n', text)
-    # Structure: intro | RE | PE | Gap Register | ...
-    re_text = parts[1] if len(parts) > 1 else ""
-    pe_text = parts[2] if len(parts) > 2 else ""
+    re_text = _section(text, SURFACE_HEADINGS["re"])
+    pe_text = _section(text, SURFACE_HEADINGS["pe"])
 
     protocol_to_method = {"SSE": "GET", "WebSocket": "GET"}
 
@@ -492,7 +544,22 @@ def parse_surface_spec(spec_path: str) -> dict[str, list[tuple[str, str, str]]]:
                 routes.append((tag, method, openapi_path))
         return routes
 
-    return {"re": extract(re_text), "pe": extract(pe_text)}
+    parsed = {"re": extract(re_text), "pe": extract(pe_text)}
+
+    # A surface that parses to nothing is a parser failure, not a spec with no
+    # routes. Both of these documents describe dozens; neither will ever
+    # legitimately be empty, and writing an empty one is exactly how this went
+    # unnoticed for two months. Fail here rather than emit it.
+    empty = [name for name, routes in parsed.items() if not routes]
+    if empty:
+        raise SystemExit(
+            "generate.py: no routes parsed for surface(s): " + ", ".join(sorted(empty)) + "\n"
+            f"  spec: {spec_path}\n"
+            "  Sections are located by heading. Expected to find:\n"
+            + "".join(f"    ## {SURFACE_HEADINGS[n]}\n" for n in sorted(empty))
+            + "  If a heading was renamed, update SURFACE_HEADINGS to match."
+        )
+    return parsed
 
 
 # ---------------------------------------------------------------------------
