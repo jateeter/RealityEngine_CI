@@ -57,8 +57,8 @@ if [ -f .api.pid ]; then
                 echo ""
                 echo "  Engine Statistics:"
                 echo "$STATS" | grep -o '"totalSequences":[0-9]*' | sed 's/"totalSequences":/    Sequences: /'
-                echo "$STATS" | grep -o '"totalVectors":[0-9]*' | sed 's/"totalVectors":/    Vectors:   /'
-                echo "$STATS" | grep -o '"totalActiveVectors":[0-9]*' | sed 's/"totalActiveVectors":/    Active:    /'
+                echo "$STATS" | grep -o '"totalEvents":[0-9]*' | sed 's/"totalEvents":/    Events:    /'
+                echo "$STATS" | grep -o '"totalActiveEvents":[0-9]*' | sed 's/"totalActiveEvents":/    Active:    /'
             fi
         else
             echo -e "  Health: ${RED}UNHEALTHY${NC}"

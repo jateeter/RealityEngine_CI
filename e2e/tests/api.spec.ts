@@ -25,11 +25,11 @@ test.describe('Reality Engine API - Engine Stats', () => {
     expect(response.ok()).toBeTruthy();
 
     const result = await response.json();
-    // API returns: { totalSequences, totalVectors, totalActiveVectors, sequenceStats }
+    // API returns: { totalSequences, totalEvents, totalActiveEvents, sequenceStats }
     const stats = result.stats || result;
     expect(stats).toHaveProperty('totalSequences');
     expect(stats).toHaveProperty('totalEvents');
-    expect(stats).toHaveProperty('totalActiveVectors');
+    expect(stats).toHaveProperty('totalActiveEvents');
   });
 
   test('should get active vectors', async ({ request }) => {
