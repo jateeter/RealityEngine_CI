@@ -115,7 +115,7 @@ test.describe('Perceptual Space Interconnection - Multi-Step → RS2 + RSFlipFlo
 
       const chunkResponse = await page.request.post(`${API_URL}/api/perceptual-simulation/configure/chunk`, {
         data: {
-          vectors: inputSequence,
+          events: inputSequence,
           reset: true,
           inputRegion: { offset: 0, length: 3 }, // Multi-Step input region
           stepDelayMs: 1000,
@@ -293,7 +293,7 @@ test.describe('Perceptual Space Interconnection - Multi-Step → RS2 + RSFlipFlo
 
     const chunkResponse = await page.request.post(`${API_URL}/api/perceptual-simulation/configure/chunk`, {
       data: {
-        vectors: inputSequence,
+        events: inputSequence,
         reset: true,
         inputRegion: { offset: 0, length: 3 }, // Multi-Step input region
         stepDelayMs: 500,
