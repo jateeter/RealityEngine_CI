@@ -1901,8 +1901,24 @@ SH
         MANAGER_PID=$!
         echo "$MANAGER_PID" > /tmp/manager_universe.pid
         echo -n "  MGR backend "
-        # 60 × 2 s = 2 min — enough for npm install --prefer-offline on a cold cache
-        if ! poll_http "http://localhost:3001/health" "Manager backend ready (:3001)" 60 "-sf"; then
+        # Honours NATIVE_HEALTH_ATTEMPTS, which it previously did not.
+        #
+        # This was a literal 60 (2 min), commented "enough for npm install
+        # --prefer-offline on a cold cache". It is not: on a GitHub runner that
+        # install has taken over 11 minutes, and the job died with an orphaned
+        # `npm install` still running.
+        #
+        # The variable being inert here has already misled someone. Both e2e
+        # jobs set it against exactly this failure — Multi-Engine to 180,
+        # Tri-Runtime to 450 with the comment "raised rather than reordered
+        # because the cause is worth measuring" — and neither raise reached this
+        # poll, so the wait stayed at 2 minutes while the setting suggested
+        # otherwise.
+        #
+        # The floor stays 60 so nothing that passes today waits less.
+        _mgr_health_attempts="$(_native_health_attempts)"
+        [ "$_mgr_health_attempts" -lt 60 ] && _mgr_health_attempts=60
+        if ! poll_http "http://localhost:3001/health" "Manager backend ready (:3001)" "$_mgr_health_attempts" "-sf"; then
             if [ "${CI:-false}" = "true" ]; then
                 tail -120 /tmp/manager_universe.log 2>/dev/null || true
                 die "Manager backend not reachable on :3001 — check /tmp/manager_universe.log"
@@ -1910,8 +1926,13 @@ SH
             add_warn "Manager backend not reachable on :3001 — check /tmp/manager_universe.log"
         fi
         echo -n "  MGR frontend "
-        # Vite starts after the backend; 30 × 2 s = 60 s is more than enough
-        if ! poll_http "http://localhost:5173/" "Manager frontend ready (:5173)" 30 "-sf"; then
+        # Same treatment, and for the same reason: start.sh installs the
+        # frontend's dependencies too, so this wait is also an npm wait on a
+        # cold cache. Half the backend budget, floor 30, since Vite itself
+        # starts quickly once its modules are present.
+        _mgr_fe_attempts=$(( _mgr_health_attempts / 2 ))
+        [ "$_mgr_fe_attempts" -lt 30 ] && _mgr_fe_attempts=30
+        if ! poll_http "http://localhost:5173/" "Manager frontend ready (:5173)" "$_mgr_fe_attempts" "-sf"; then
             if [ "${CI:-false}" = "true" ]; then
                 tail -120 "$MGR_DIR"/.manager-logs/frontend.log 2>/dev/null || \
                     tail -120 /tmp/manager_universe.log 2>/dev/null || true
