@@ -7,15 +7,28 @@ import { test, expect } from '@playwright/test';
 
 const API_BASE_URL = 'https://localhost:5001';
 
+// RealityEngine_CI#220 layer 2 renames seven response-body keys, and the engines
+// migrate one runtime at a time — the parity comparison canonicalises both
+// spellings, so a migrated engine and an unmigrated one compare equal. These
+// specs run against whichever runtime the registry points at, so an assertion
+// naming one spelling would fail on half the fleet for a rename rather than a
+// defect.
+//
+// Delete these once every runtime emits the canonical spelling.
+const hasEither = (o: any, canonical: string, legacy: string) =>
+  o != null && (canonical in o || legacy in o);
+const readEither = (o: any, canonical: string, legacy: string) =>
+  o?.[canonical] ?? o?.[legacy];
+
 test.describe('Reality Engine API - Configuration', () => {
   test('should get current configuration', async ({ request }) => {
     const response = await request.get(`${API_BASE_URL}/api/config`);
     expect(response.ok()).toBeTruthy();
 
     const config = await response.json();
-    expect(config).toHaveProperty('vectorDimension');
+    expect(hasEither(config, 'eventDimension', 'vectorDimension')).toBeTruthy();
     expect(config).toHaveProperty('matchThreshold');
-    expect(config.vectorDimension).toBe(7680);
+    expect(readEither(config, 'eventDimension', 'vectorDimension')).toBe(7680);
   });
 });
 
@@ -28,7 +41,7 @@ test.describe('Reality Engine API - Engine Stats', () => {
     // API returns: { totalSequences, totalVectors, totalActiveVectors, sequenceStats }
     const stats = result.stats || result;
     expect(stats).toHaveProperty('totalSequences');
-    expect(stats).toHaveProperty('totalVectors');
+    expect(hasEither(stats, 'totalEvents', 'totalVectors')).toBeTruthy();
     expect(stats).toHaveProperty('totalActiveVectors');
   });
 
@@ -40,7 +53,7 @@ test.describe('Reality Engine API - Engine Stats', () => {
     // API returns active vector data in various formats
     // Check for array or object with vector data
     const hasVectorData = Array.isArray(result) ||
-                          Array.isArray(result.activeVectors) ||
+                          Array.isArray(readEither(result, 'activeEvents', 'activeVectors')) ||
                           typeof result === 'object';
     expect(hasVectorData).toBeTruthy();
   });
@@ -206,7 +219,7 @@ test.describe('Reality Engine API - Processing', () => {
     expect(response.ok()).toBeTruthy();
     const result = await response.json();
     expect(result).toHaveProperty('result');
-    expect(result.result).toHaveProperty('inputVector');
+    expect(hasEither(result.result, 'inputEvent', 'inputVector')).toBeTruthy();
     expect(result.result).toHaveProperty('timestamp');
   });
 
