@@ -213,7 +213,7 @@ def re_components() -> dict:
                 "eventDimension": {"type": "integer", "example": 7680},
                 "matchThreshold":  {"type": "number", "example": 0.5},
                 "qdrantUrl":       {"type": "string"},
-                "collectionName":  {"type": "string", "example": "reality-vectors"}}},
+                "collectionName":  {"type": "string", "example": "reality-events"}}},
             "RuntimeOptions": {"type": "object", "properties": {
                 "historyLimit":          {"type": "integer", "example": 256},
                 "includeMachineResults": {"type": "boolean"},
