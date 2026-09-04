@@ -534,6 +534,9 @@ def run_iteration(instances: list[dict[str, Any]], machines_root: Path, rel: str
         "sourceParity": {"ok": None, "failures": [], "counts": {}},
         "trajectoryParity": {"ok": None, "trajectories": {}, "failures": []},
         "health": {"failures": []},
+        # Wall-clock seconds per phase. A 1328-iteration sweep is long enough
+        # that "it is slow" is not actionable — this says which phase.
+        "timings": {},
         "status": "pass",
     }
 
@@ -580,9 +583,13 @@ def run_iteration(instances: list[dict[str, Any]], machines_root: Path, rel: str
 
     # Reset before loading: the comparison that follows reads histories, and
     # they must contain this iteration's steps and nothing else.
+    _t0 = time.time()
     record["health"]["failures"].extend(reset_instances(instances))
+    record["timings"]["reset"] = round(time.time() - _t0, 2)
 
+    _t0 = time.time()
     load_failures = load_machine(instances, wrapper)
+    record["timings"]["ingestMachine"] = round(time.time() - _t0, 2)
     record["loadParity"]["failures"].extend(load_failures)
 
     # Machine-count parity is a contract result, separate from trajectory
@@ -629,35 +636,59 @@ def run_iteration(instances: list[dict[str, Any]], machines_root: Path, rel: str
 
     # The PE half of loading the machine. Whether it produces the same source
     # set on every runtime is a contract result in its own right.
+    _t0 = time.time()
     record["health"]["failures"].extend(bootstrap_pe_sources(instances))
+    record["timings"]["bootstrapSources"] = round(time.time() - _t0, 2)
 
     # Activate every interned sequence: iteration n applies machines 1..n merged.
     # Set explicitly on all three so the stimulus is stated rather than inherited
     # from whatever each runtime's reset left behind.
     reactivated: dict[str, int] = {}
     interned: dict[str, int] = {}
+    _t0 = time.time()
     for instance in instances:
         changed, total, failures = set_test_sources_active(instance, True)
         reactivated[instance["id"]] = changed
         interned[instance["id"]] = total
         record["health"]["failures"].extend(failures)
+    record["timings"]["activateSources"] = round(time.time() - _t0, 2)
     record["sourceParity"]["reactivatedByReset"] = reactivated
     record["sourceParity"]["internedSequences"] = interned
-    # A runtime that needs a different number of sources activated than its peers
+    # A runtime that interns a different number of sources than its peers
     # disagreed with them about what loading a machine leaves behind. That is an
     # engine defect and is reported as one.
     #
-    # This was previously demoted to a note so the sweep could get past it. That
-    # was the wrong call: the normalisation above makes the *comparison* valid,
-    # but the disagreement it corrects is exactly what this stage exists to find,
-    # so demoting it had the harness quietly absorb an engine defect on every
-    # iteration. Equalising state left by a previous run is test hygiene;
-    # equalising a difference the engines themselves produce deletes the result.
-    if len(set(reactivated.values())) > 1:
-        shape = " | ".join("+".join(members) for members in TP.cluster(reactivated))
+    # Measured on `interned` — the sources each runtime holds — and not on
+    # `reactivated`, the number it had to flip to get there. The two are easy to
+    # confuse and only the first is a statement about loading:
+    #
+    #     interned    {cpp-1: 1340, lsp-1: 1340, scala-1: 1340}   agree
+    #     reactivated {cpp-1: 1,    lsp-1: 1340, scala-1: 1}      differ
+    #
+    # That is one real observation. All three interned the same 1340 sources;
+    # they differed in how many were still active when the loop looked, because
+    # `POST /api/reset` deactivates them on lsp and does not on cpp or scala.
+    # A reset-semantics difference (RealityEngine_CI#163), not a loading one —
+    # and it is already reported as exactly that by the `resetSemanticsDrift`
+    # note at the end of the run, whose wording has always been right:
+    # "normalised before each comparison, but the runtimes disagree on what a
+    # reset does".
+    #
+    # Failing here on the delta reported the same signal twice, described it
+    # wrongly the second time, and halted the sweep at iteration 2 of 1316 under
+    # --stop-on-fail — so nothing downstream of it could be measured at all
+    # (RealityEngine_CI#253).
+    #
+    # The earlier reasoning still holds and is why this compares a state rather
+    # than dropping the check: equalising state left by a previous run is test
+    # hygiene, equalising a difference the engines themselves produce deletes the
+    # result. A genuine disagreement about what loading interns still fails here,
+    # and still halts.
+    if len(set(interned.values())) > 1:
+        shape = " | ".join("+".join(members) for members in TP.cluster(interned))
         record["sourceParity"]["failures"].append(
-            f"runtimes disagree on how many sources loading a machine leaves "
-            f"active {reactivated}: {shape}")
+            f"runtimes disagree on how many sources loading a machine interns "
+            f"{interned}: {shape}")
 
     signatures: dict[str, list[list[Any]]] = {}
     for instance in instances:
@@ -678,11 +709,21 @@ def run_iteration(instances: list[dict[str, Any]], machines_root: Path, rel: str
     # Apply the merged stimulus. Enough pushes to walk the longest interned
     # sequence right through, so a machine added late is exercised to the end of
     # its own pattern rather than truncated by a fixed step count.
+    _t0 = time.time()
     steps = args.steps if args.steps > 0 else max(longest_sequence(instances), 1)
+    record["timings"]["longestSequenceProbe"] = round(time.time() - _t0, 2)
     record["steps"] = steps
+    _t0 = time.time()
     for instance in instances:
         record["health"]["failures"].extend(push(instance, steps, args.settle_ms))
+    _elapsed = time.time() - _t0
+    record["timings"]["stepCycle"] = round(_elapsed, 2)
+    # Per step per runtime — the number that stays comparable as the step count
+    # and the instance count change between runs.
+    _denom = max(steps * len(instances), 1)
+    record["timings"]["perStepPerRuntime"] = round(_elapsed / _denom, 4)
 
+    _t0 = time.time()
     trajectory_failures: list[str] = []
     for kind in TP.TRAJECTORIES:
         histories: dict[str, list[dict[str, Any]]] = {}
@@ -723,6 +764,9 @@ def run_iteration(instances: list[dict[str, Any]], machines_root: Path, rel: str
         record["trajectoryParity"]["trajectories"][kind] = entry
 
     record["trajectoryParity"]["failures"] = trajectory_failures
+    record["timings"]["trajectoryCompare"] = round(time.time() - _t0, 2)
+    record["timings"]["total"] = round(sum(
+        v for k, v in record["timings"].items() if k != "perStepPerRuntime"), 2)
     record["trajectoryParity"]["ok"] = not trajectory_failures
 
     if (not record["loadParity"]["ok"] or not record["trajectoryParity"]["ok"]
@@ -857,6 +901,17 @@ def main() -> int:
                       "skipped": "SKIP", "capacity": "CAP ", "guardrail": "LOOP",
                       "non-binary": "MVAL"}[record["status"]]
             print(f"[{position}/{len(selected)}] {marker} {rel}")
+            # Where the time went. A sweep this long needs the slow phase named
+            # per iteration, not inferred from a total at the end.
+            tm = record.get("timings") or {}
+            if tm:
+                ordered = ("reset", "ingestMachine", "bootstrapSources",
+                           "activateSources", "longestSequenceProbe",
+                           "stepCycle", "trajectoryCompare")
+                parts = " ".join(f"{k}={tm[k]}s" for k in ordered if k in tm)
+                print(f"          {tm.get('total', 0)}s total — {parts} "
+                      f"[{record.get('steps', 0)} steps, "
+                      f"{tm.get('perStepPerRuntime', 0)}s/step/runtime]")
             for failures in (record["loadParity"]["failures"],
                              record["guardrail"]["failures"],
                              record["capacity"]["failures"],
@@ -921,11 +976,16 @@ def main() -> int:
     print(summary_path)
 
     if reset_drift["iterations"]:
-        # Surfaced once, with its scale, rather than once per iteration.
+        # Surfaced once, with its scale, rather than once per iteration — and
+        # this is now the *only* place it is reported. It used to also fail the
+        # iteration as a source-parity defect, which described it wrongly and
+        # halted the sweep; see the note beside the `interned` comparison
+        # (RealityEngine_CI#253).
         print(f"\nreset-semantics drift on {reset_drift['iterations']} iteration(s): "
               f"test sources left active after POST /api/reset "
               f"{reset_drift['byRuntime']} — normalised before each comparison, but the "
-              f"runtimes disagree on what a reset does", file=sys.stderr)
+              f"runtimes disagree on what a reset does (RealityEngine_CI#163)",
+              file=sys.stderr)
 
     if tally["capacity"]:
         # Loud, and deliberately not a parity verdict: these machines were not
