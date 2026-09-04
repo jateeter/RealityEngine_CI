@@ -26,7 +26,6 @@
 
 import fs from 'node:fs';
 import path from 'node:path';
-import { sequenceEvents, outputEvents } from './lib/eventKeys.mjs';
 
 const ROOT = path.resolve(path.dirname(new URL(import.meta.url).pathname), '..');
 
@@ -218,8 +217,8 @@ function backfillMachine(file, raw) {
   if (!Array.isArray(tc.rules) || tc.rules.length === 0) {
     const rules = [];
     for (const seq of m.sequences ?? []) {
-      for (const v of sequenceEvents(seq)) {
-        for (const out of outputEvents(v)) {
+      for (const v of (seq.events ?? [])) {
+        for (const out of (v.outputEvents ?? [])) {
           const sev = inferSeverity(seq, v, out, lifeSafety);
           const desc = (out.metadata?.description
                      ?? out.metadata?.label

@@ -34,7 +34,6 @@ from pathlib import Path
 import sys
 
 sys.path.insert(0, str(Path(__file__).resolve().parent / "lib"))
-from event_keys import sequence_events, output_events  # noqa: E402
 
 CORPUS = Path(__file__).resolve().parents[1].parent / "RealityEngine_Machines" / "machines"
 FALL = CORPUS / "domains" / "health-personal" / "FallDetection.json"
@@ -106,8 +105,8 @@ def fall_detection_outputs():
     machine = json.loads(FALL.read_text(encoding="utf-8"))["machine"]
     outs = []
     for sequence in machine["sequences"]:
-        for vector in sequence_events(sequence):
-            for output in output_events(vector):
+        for vector in (sequence.get("events") or []):
+            for output in (vector.get("outputEvents") or []):
                 outs.append((sequence["id"], vector["id"], output["vector"]))
     return machine, outs
 

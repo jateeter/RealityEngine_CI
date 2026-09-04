@@ -26,7 +26,6 @@
 
 import fs from 'node:fs';
 import path from 'node:path';
-import { sequenceEvents, outputEvents } from './lib/eventKeys.mjs';
 
 const ROOT = path.resolve(path.dirname(new URL(import.meta.url).pathname), '..');
 
@@ -283,8 +282,8 @@ const QUERIES = [
         const m = meta?.machine;
         if (!m) continue;
         for (const seq of m.sequences ?? []) {
-          for (const v of sequenceEvents(seq)) {
-            if (!outputEvents(v).length) continue;
+          for (const v of (seq.events ?? [])) {
+            if (!(v.outputEvents ?? []).length) continue;
             const key = `${file}::${seq.id}::${v.id}`;
             if (!observed.has(key)) missing.push({ machineFile: file, sequence: seq.id, terminal: v.id });
           }
@@ -327,7 +326,7 @@ const QUERIES = [
         const m = meta?.machine;
         if (!m) continue;
         for (const seq of m.sequences ?? []) {
-          const declared = sequenceEvents(seq).length;
+          const declared = (seq.events ?? []).length;
           if (declared <= 1) continue;
           const fired = (firedByMS.get(`${file}::${seq.id}`) ?? new Set()).size;
           out.push({ machine: m.name, sequence: seq.id, declared, fired, coverage: +(fired / declared).toFixed(2) });
