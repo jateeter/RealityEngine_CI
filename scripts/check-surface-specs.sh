@@ -22,7 +22,13 @@ ROOT_DIR="$(cd "$CI_DIR/.." && pwd)"
 #   master|pointer|pointer|...
 CONTRACTS=(
   "SURFACE_SPEC.md|$ROOT_DIR/RealityEngine_CPP/SURFACE_SPEC.md|$ROOT_DIR/RealityEngine_LSP/SURFACE_SPEC.md|$ROOT_DIR/RealityEngine_Scala/SURFACE_SPEC.md|$ROOT_DIR/RealityEngine_Manager/SURFACE_SPEC.md"
-  "docs/ARBITER_CONTRACT.md|$ROOT_DIR/RealityEngine_Machines/docs/ARBITER_CONTRACT.md"
+  # Pointed at from all four runtimes it binds, not only from the corpus repo it
+  # used to live in. Its header names them — "Applies to: RealityEngine_CPP,
+  # RealityEngine_LSP, RealityEngine_Scala, RealityEngine_Manager (TypeScript
+  # PE)" — and §8 makes byte equivalence across them the acceptance test, so a
+  # runtime with no local sign of the contract is a runtime whose next arbiter
+  # question gets answered in a file of its own.
+  "docs/ARBITER_CONTRACT.md|$ROOT_DIR/RealityEngine_Machines/docs/ARBITER_CONTRACT.md|$ROOT_DIR/RealityEngine_CPP/docs/ARBITER_CONTRACT.md|$ROOT_DIR/RealityEngine_LSP/docs/ARBITER_CONTRACT.md|$ROOT_DIR/RealityEngine_Scala/docs/ARBITER_CONTRACT.md|$ROOT_DIR/RealityEngine_Manager/docs/ARBITER_CONTRACT.md"
   "docs/PE_METRICS_CONTRACT.md|$ROOT_DIR/RealityEngine_Machines/docs/PE_METRICS_CONTRACT.md"
   "docs/SEMANTIC_AUDIT_CONTRACT.md|$ROOT_DIR/RealityEngine_Machines/docs/SEMANTIC_AUDIT_CONTRACT.md"
   "docs/SEMANTIC_GUARDRAIL_CONTRACT.md|$ROOT_DIR/RealityEngine_Machines/docs/SEMANTIC_GUARDRAIL_CONTRACT.md"
