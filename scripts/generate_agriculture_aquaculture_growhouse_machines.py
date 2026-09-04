@@ -235,27 +235,27 @@ def machine_payload(index: int, program: str, focus: str, description: str, spec
                         "path": "NORMAL -> WATCH -> CRITICAL",
                         "output": "[1,0,0,0]",
                     },
-                    "vectors": [
+                    "events": [
                         {
                             "id": f"{code}-normal",
                             "elements": vector_elements([1, 1, 1, 1]),
                             "isInitial": True,
                             "metadata": {"name": "NORMAL", "description": "Operating window is stable and maintenance is current."},
-                            "nextVectorIds": [f"{code}-watch"],
+                            "nextEventIds": [f"{code}-watch"],
                         },
                         {
                             "id": f"{code}-watch",
                             "elements": vector_elements([1, 0, 1, 0]),
                             "isInitial": False,
                             "metadata": {"name": "WATCH", "description": "Efficiency and maintenance signals are weakening."},
-                            "nextVectorIds": [f"{code}-critical"],
+                            "nextEventIds": [f"{code}-critical"],
                         },
                         {
                             "id": f"{code}-critical",
                             "elements": vector_elements([0, 0, 0, 0]),
                             "isInitial": False,
                             "metadata": {"name": "CRITICAL", "description": "Operation requires immediate stabilization and AI dispatch."},
-                            "outputVectors": [
+                            "outputEvents": [
                                 {
                                     "id": f"{code}-urgent-output",
                                     "vector": [1, 0, 0, 0],
@@ -273,13 +273,13 @@ def machine_payload(index: int, program: str, focus: str, description: str, spec
                         "pattern": "OPTIMIZATION_WINDOW",
                         "output": "[0,1,0,0]",
                     },
-                    "vectors": [
+                    "events": [
                         {
                             "id": f"{code}-optimize",
                             "elements": vector_elements([0, 1, 0, 1]),
                             "isInitial": True,
                             "metadata": {"name": "OPTIMIZATION_WINDOW", "description": "Optimization can improve the operating plan before risk accumulates."},
-                            "outputVectors": [
+                            "outputEvents": [
                                 {
                                     "id": f"{code}-optimize-output",
                                     "vector": [0, 1, 0, 0],
@@ -297,13 +297,13 @@ def machine_payload(index: int, program: str, focus: str, description: str, spec
                         "pattern": "SERVICE_DUE",
                         "output": "[0,0,1,0]",
                     },
-                    "vectors": [
+                    "events": [
                         {
                             "id": f"{code}-service-due",
                             "elements": vector_elements([1, 0, 0, 1]),
                             "isInitial": True,
                             "metadata": {"name": "SERVICE_DUE", "description": "Maintenance work should be created while the operation remains controllable."},
-                            "outputVectors": [
+                            "outputEvents": [
                                 {
                                     "id": f"{code}-maintenance-output",
                                     "vector": [0, 0, 1, 0],
@@ -321,13 +321,13 @@ def machine_payload(index: int, program: str, focus: str, description: str, spec
                         "pattern": "STABLE",
                         "output": "[0,0,0,1]",
                     },
-                    "vectors": [
+                    "events": [
                         {
                             "id": f"{code}-stable",
                             "elements": vector_elements([1, 1, 0, 1]),
                             "isInitial": True,
                             "metadata": {"name": "STABLE", "description": "Current setpoints are acceptable and no intervention is required."},
-                            "outputVectors": [
+                            "outputEvents": [
                                 {
                                     "id": f"{code}-stable-output",
                                     "vector": [0, 0, 0, 1],
@@ -342,7 +342,7 @@ def machine_payload(index: int, program: str, focus: str, description: str, spec
                 {
                     "name": "Escalation to urgent stabilization",
                     "description": "A stable operation degrades through watch conditions and then reaches a critical state.",
-                    "vectors": [[1, 1, 1, 1], [1, 0, 1, 0], [0, 0, 0, 0]],
+                    "events": [[1, 1, 1, 1], [1, 0, 1, 0], [0, 0, 0, 0]],
                     "metadata": {
                         "expectedOutputCount": 1,
                         "expectedOutputVector": "[1,0,0,0]",
@@ -352,7 +352,7 @@ def machine_payload(index: int, program: str, focus: str, description: str, spec
                 {
                     "name": "Optimization opportunity",
                     "description": "AI can improve production, welfare, efficiency, or labor timing before critical risk appears.",
-                    "vectors": [[0, 1, 0, 1]],
+                    "events": [[0, 1, 0, 1]],
                     "metadata": {
                         "expectedOutputCount": 1,
                         "expectedOutputVector": "[0,1,0,0]",
@@ -362,7 +362,7 @@ def machine_payload(index: int, program: str, focus: str, description: str, spec
                 {
                     "name": "Preventive maintenance required",
                     "description": "Maintenance should be scheduled before a preventable failure occurs.",
-                    "vectors": [[1, 0, 0, 1]],
+                    "events": [[1, 0, 0, 1]],
                     "metadata": {
                         "expectedOutputCount": 1,
                         "expectedOutputVector": "[0,0,1,0]",
@@ -372,7 +372,7 @@ def machine_payload(index: int, program: str, focus: str, description: str, spec
                 {
                     "name": "Stable operating window",
                     "description": "The process is inside the target operating band and should continue monitoring.",
-                    "vectors": [[1, 1, 0, 1]],
+                    "events": [[1, 1, 0, 1]],
                     "metadata": {
                         "expectedOutputCount": 1,
                         "expectedOutputVector": "[0,0,0,1]",
@@ -382,7 +382,7 @@ def machine_payload(index: int, program: str, focus: str, description: str, spec
                 {
                     "name": "Normal baseline without output",
                     "description": "A single normal signal arms the escalation path without dispatching an agent.",
-                    "vectors": [[1, 1, 1, 1]],
+                    "events": [[1, 1, 1, 1]],
                     "metadata": {
                         "expectedOutputCount": 0,
                         "scenario": "normal-baseline",

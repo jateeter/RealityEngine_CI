@@ -169,27 +169,27 @@ def machine_payload(index: int, focus_index: int, function_index: int) -> dict:
                         "path": "READY -> GAP -> CRITICAL",
                         "output": "[1,0,0,0]",
                     },
-                    "vectors": [
+                    "events": [
                         {
                             "id": f"{code}-ready",
                             "elements": vector_elements([1, 1, 1, 1]),
                             "isInitial": True,
                             "metadata": {"name": "READY", "description": "Evaluable, resourced, equitable, and measurable baseline."},
-                            "nextVectorIds": [f"{code}-gap"],
+                            "nextEventIds": [f"{code}-gap"],
                         },
                         {
                             "id": f"{code}-gap",
                             "elements": vector_elements([1, 0, 1, 0]),
                             "isInitial": False,
                             "metadata": {"name": "GAP", "description": "Delivery pressure and weak measurement appear while evaluability and equity signals remain visible."},
-                            "nextVectorIds": [f"{code}-critical"],
+                            "nextEventIds": [f"{code}-critical"],
                         },
                         {
                             "id": f"{code}-critical",
                             "elements": vector_elements([0, 0, 0, 0]),
                             "isInitial": False,
                             "metadata": {"name": "CRITICAL", "description": "Transformation signal requires urgent AI dispatch and accountable follow-up."},
-                            "outputVectors": [
+                            "outputEvents": [
                                 {
                                     "id": f"{code}-urgent-output",
                                     "vector": [1, 0, 0, 0],
@@ -207,13 +207,13 @@ def machine_payload(index: int, focus_index: int, function_index: int) -> dict:
                         "pattern": "OPTIMIZATION_OPPORTUNITY",
                         "output": "[0,1,0,0]",
                     },
-                    "vectors": [
+                    "events": [
                         {
                             "id": f"{code}-optimize",
                             "elements": vector_elements([0, 1, 0, 1]),
                             "isInitial": True,
                             "metadata": {"name": "OPTIMIZATION_OPPORTUNITY", "description": "Service delivery is functioning but AI optimization can improve outcomes, equity, or efficiency."},
-                            "outputVectors": [
+                            "outputEvents": [
                                 {
                                     "id": f"{code}-optimize-output",
                                     "vector": [0, 1, 0, 0],
@@ -231,13 +231,13 @@ def machine_payload(index: int, focus_index: int, function_index: int) -> dict:
                         "pattern": "IDEAL_STATE_SIGNAL",
                         "output": "[0,0,0,1]",
                     },
-                    "vectors": [
+                    "events": [
                         {
                             "id": f"{code}-stable",
                             "elements": vector_elements([1, 1, 0, 1]),
                             "isInitial": True,
                             "metadata": {"name": "IDEAL_STATE_SIGNAL", "description": "Delivery is stable, measures are trusted, and the transformation area is on track."},
-                            "outputVectors": [
+                            "outputEvents": [
                                 {
                                     "id": f"{code}-stable-output",
                                     "vector": [0, 0, 0, 1],
@@ -252,7 +252,7 @@ def machine_payload(index: int, focus_index: int, function_index: int) -> dict:
                 {
                     "name": "Escalation to urgent agent dispatch",
                     "description": "Evaluability starts strong, then delivery and measurement gaps emerge, then the focus area reaches crisis.",
-                    "vectors": [[1, 1, 1, 1], [1, 0, 1, 0], [0, 0, 0, 0]],
+                    "events": [[1, 1, 1, 1], [1, 0, 1, 0], [0, 0, 0, 0]],
                     "metadata": {
                         "expectedOutputCount": 1,
                         "expectedOutputVector": "[1,0,0,0]",
@@ -262,7 +262,7 @@ def machine_payload(index: int, focus_index: int, function_index: int) -> dict:
                 {
                     "name": "Optimization opportunity",
                     "description": "AI optimization can improve delivery before crisis conditions appear.",
-                    "vectors": [[0, 1, 0, 1]],
+                    "events": [[0, 1, 0, 1]],
                     "metadata": {
                         "expectedOutputCount": 1,
                         "expectedOutputVector": "[0,1,0,0]",
@@ -272,7 +272,7 @@ def machine_payload(index: int, focus_index: int, function_index: int) -> dict:
                 {
                     "name": "Stable ideal-state progress",
                     "description": "The focus area is progressing toward the transformed ideal state.",
-                    "vectors": [[1, 1, 0, 1]],
+                    "events": [[1, 1, 0, 1]],
                     "metadata": {
                         "expectedOutputCount": 1,
                         "expectedOutputVector": "[0,0,0,1]",
@@ -282,7 +282,7 @@ def machine_payload(index: int, focus_index: int, function_index: int) -> dict:
                 {
                     "name": "Ready baseline without output",
                     "description": "A single ready signal arms the escalation path but does not dispatch an agent.",
-                    "vectors": [[1, 1, 1, 1]],
+                    "events": [[1, 1, 1, 1]],
                     "metadata": {
                         "expectedOutputCount": 0,
                         "scenario": "ready-baseline",

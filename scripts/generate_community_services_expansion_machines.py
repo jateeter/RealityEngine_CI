@@ -382,42 +382,42 @@ def machine_payload(index: int, specs: list[tuple[str, str, str]]) -> dict:
                     "id": f"{code}-urgent-response",
                     "name": f"{focus}: WATCH -> URGENT_RESPONSE",
                     "metadata": {"description": "Escalates resident or field risk into urgent response.", "output": "[1,0,0,0]"},
-                    "vectors": [
-                        {"id": f"{code}-watch", "elements": vector_elements([1, 0, 1, 1]), "isInitial": True, "nextVectorIds": [f"{code}-urgent"]},
-                        {"id": f"{code}-urgent", "elements": vector_elements([0, 0, 1, 1]), "isInitial": False, "outputVectors": [{"id": f"{code}-urgent-output", "vector": [1, 0, 0, 0], "metadata": {"action": urgent_action}}]},
+                    "events": [
+                        {"id": f"{code}-watch", "elements": vector_elements([1, 0, 1, 1]), "isInitial": True, "nextEventIds": [f"{code}-urgent"]},
+                        {"id": f"{code}-urgent", "elements": vector_elements([0, 0, 1, 1]), "isInitial": False, "outputEvents": [{"id": f"{code}-urgent-output", "vector": [1, 0, 0, 0], "metadata": {"action": urgent_action}}]},
                     ],
                 },
                 {
                     "id": f"{code}-coordinate-services",
                     "name": f"{focus}: COORDINATION_NEEDED -> COORDINATE_SERVICES",
                     "metadata": {"description": "Triggers cross-agency coordination.", "output": "[0,1,0,0]"},
-                    "vectors": [
-                        {"id": f"{code}-coordinate", "elements": vector_elements([0, 1, 1, 0]), "isInitial": True, "outputVectors": [{"id": f"{code}-coordinate-output", "vector": [0, 1, 0, 0], "metadata": {"action": coordinate_action}}]},
+                    "events": [
+                        {"id": f"{code}-coordinate", "elements": vector_elements([0, 1, 1, 0]), "isInitial": True, "outputEvents": [{"id": f"{code}-coordinate-output", "vector": [0, 1, 0, 0], "metadata": {"action": coordinate_action}}]},
                     ],
                 },
                 {
                     "id": f"{code}-field-work-order",
                     "name": f"{focus}: FIELD_TASK_NEEDED -> FIELD_WORK_ORDER",
                     "metadata": {"description": "Creates a field crew, outreach, or mobile response task.", "output": "[0,0,1,0]"},
-                    "vectors": [
-                        {"id": f"{code}-field-task", "elements": vector_elements([1, 0, 0, 1]), "isInitial": True, "outputVectors": [{"id": f"{code}-field-output", "vector": [0, 0, 1, 0], "metadata": {"action": field_action}}]},
+                    "events": [
+                        {"id": f"{code}-field-task", "elements": vector_elements([1, 0, 0, 1]), "isInitial": True, "outputEvents": [{"id": f"{code}-field-output", "vector": [0, 0, 1, 0], "metadata": {"action": field_action}}]},
                     ],
                 },
                 {
                     "id": f"{code}-stable-service-path",
                     "name": f"{focus}: STABLE_PATH -> STABLE_SERVICE_PATH",
                     "metadata": {"description": "Confirms resident service path is stable and monitored.", "output": "[0,0,0,1]"},
-                    "vectors": [
-                        {"id": f"{code}-stable", "elements": vector_elements([1, 1, 0, 0]), "isInitial": True, "outputVectors": [{"id": f"{code}-stable-output", "vector": [0, 0, 0, 1], "metadata": {"action": stable_action}}]},
+                    "events": [
+                        {"id": f"{code}-stable", "elements": vector_elements([1, 1, 0, 0]), "isInitial": True, "outputEvents": [{"id": f"{code}-stable-output", "vector": [0, 0, 0, 1], "metadata": {"action": stable_action}}]},
                     ],
                 },
             ],
             "inputSequences": [
-                {"name": "Urgent response sequence", "description": "Two-step community risk escalation ending in urgent response.", "vectors": [[1, 0, 1, 1], [0, 0, 1, 1]], "metadata": {"expectedOutputCount": 1, "expectedOutputVector": "[1,0,0,0]", "scenario": "urgent-response", "sequenceLength": 2}},
-                {"name": "Coordinate services", "description": "Coordinates health, public safety, housing, transit, or city service partners.", "vectors": [[0, 1, 1, 0]], "metadata": {"expectedOutputCount": 1, "expectedOutputVector": "[0,1,0,0]", "scenario": "coordinate-services"}},
-                {"name": "Field work order", "description": "Creates a field response or outreach task.", "vectors": [[1, 0, 0, 1]], "metadata": {"expectedOutputCount": 1, "expectedOutputVector": "[0,0,1,0]", "scenario": "field-work-order"}},
-                {"name": "Stable service path", "description": "Confirms the resident or city service path is stable.", "vectors": [[1, 1, 0, 0]], "metadata": {"expectedOutputCount": 1, "expectedOutputVector": "[0,0,0,1]", "scenario": "stable-service-path"}},
-                {"name": "Baseline without output", "description": "Initial observation arms the urgent path without firing.", "vectors": [[1, 0, 1, 1]], "metadata": {"expectedOutputCount": 0, "scenario": "baseline-no-output"}},
+                {"name": "Urgent response sequence", "description": "Two-step community risk escalation ending in urgent response.", "events": [[1, 0, 1, 1], [0, 0, 1, 1]], "metadata": {"expectedOutputCount": 1, "expectedOutputVector": "[1,0,0,0]", "scenario": "urgent-response", "sequenceLength": 2}},
+                {"name": "Coordinate services", "description": "Coordinates health, public safety, housing, transit, or city service partners.", "events": [[0, 1, 1, 0]], "metadata": {"expectedOutputCount": 1, "expectedOutputVector": "[0,1,0,0]", "scenario": "coordinate-services"}},
+                {"name": "Field work order", "description": "Creates a field response or outreach task.", "events": [[1, 0, 0, 1]], "metadata": {"expectedOutputCount": 1, "expectedOutputVector": "[0,0,1,0]", "scenario": "field-work-order"}},
+                {"name": "Stable service path", "description": "Confirms the resident or city service path is stable.", "events": [[1, 1, 0, 0]], "metadata": {"expectedOutputCount": 1, "expectedOutputVector": "[0,0,0,1]", "scenario": "stable-service-path"}},
+                {"name": "Baseline without output", "description": "Initial observation arms the urgent path without firing.", "events": [[1, 0, 1, 1]], "metadata": {"expectedOutputCount": 0, "scenario": "baseline-no-output"}},
             ],
         },
     }

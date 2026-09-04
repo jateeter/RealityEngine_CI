@@ -276,33 +276,33 @@ def standard_sequences(code: str, focus: str, actions: list[str]) -> list[dict]:
             "id": f"{code}-care-team-review",
             "name": f"{focus}: WATCH -> CARE_TEAM_REVIEW",
             "metadata": {"description": "Escalates clinical or safety concern for care-team review.", "output": "[1,0,0,0]"},
-            "vectors": [
-                {"id": f"{code}-watch", "elements": vector_elements([1, 0, 1, 1]), "isInitial": True, "nextVectorIds": [f"{code}-review"]},
-                {"id": f"{code}-review", "elements": vector_elements([0, 0, 1, 1]), "isInitial": False, "outputVectors": [{"id": f"{code}-review-output", "vector": [1, 0, 0, 0], "metadata": {"action": actions[0]}}]},
+            "events": [
+                {"id": f"{code}-watch", "elements": vector_elements([1, 0, 1, 1]), "isInitial": True, "nextEventIds": [f"{code}-review"]},
+                {"id": f"{code}-review", "elements": vector_elements([0, 0, 1, 1]), "isInitial": False, "outputEvents": [{"id": f"{code}-review-output", "vector": [1, 0, 0, 0], "metadata": {"action": actions[0]}}]},
             ],
         },
         {
             "id": f"{code}-plan-adjust",
             "name": f"{focus}: BARRIER -> LIFESTYLE_PLAN_ADJUST",
             "metadata": {"description": "Adjusts lifestyle plan based on barriers and preferences.", "output": "[0,1,0,0]"},
-            "vectors": [
-                {"id": f"{code}-barrier", "elements": vector_elements([0, 1, 1, 0]), "isInitial": True, "outputVectors": [{"id": f"{code}-plan-output", "vector": [0, 1, 0, 0], "metadata": {"action": actions[1]}}]},
+            "events": [
+                {"id": f"{code}-barrier", "elements": vector_elements([0, 1, 1, 0]), "isInitial": True, "outputEvents": [{"id": f"{code}-plan-output", "vector": [0, 1, 0, 0], "metadata": {"action": actions[1]}}]},
             ],
         },
         {
             "id": f"{code}-monitoring-task",
             "name": f"{focus}: DATA_GAP -> MONITORING_TASK",
             "metadata": {"description": "Creates monitoring, journaling, lab, CGM, wearable, or follow-up task.", "output": "[0,0,1,0]"},
-            "vectors": [
-                {"id": f"{code}-data-gap", "elements": vector_elements([1, 0, 0, 1]), "isInitial": True, "outputVectors": [{"id": f"{code}-monitor-output", "vector": [0, 0, 1, 0], "metadata": {"action": actions[2]}}]},
+            "events": [
+                {"id": f"{code}-data-gap", "elements": vector_elements([1, 0, 0, 1]), "isInitial": True, "outputEvents": [{"id": f"{code}-monitor-output", "vector": [0, 0, 1, 0], "metadata": {"action": actions[2]}}]},
             ],
         },
         {
             "id": f"{code}-stable-balance",
             "name": f"{focus}: STABLE -> STABLE_BALANCE",
             "metadata": {"description": "Confirms stable life-balance plan state.", "output": "[0,0,0,1]"},
-            "vectors": [
-                {"id": f"{code}-stable", "elements": vector_elements([1, 1, 0, 0]), "isInitial": True, "outputVectors": [{"id": f"{code}-stable-output", "vector": [0, 0, 0, 1], "metadata": {"action": actions[3]}}]},
+            "events": [
+                {"id": f"{code}-stable", "elements": vector_elements([1, 1, 0, 0]), "isInitial": True, "outputEvents": [{"id": f"{code}-stable-output", "vector": [0, 0, 0, 1], "metadata": {"action": actions[3]}}]},
             ],
         },
     ]
@@ -310,11 +310,11 @@ def standard_sequences(code: str, focus: str, actions: list[str]) -> list[dict]:
 
 def standard_input_sequences(domain_e2e: list[dict] | None = None) -> list[dict]:
     sequences = [
-        {"name": "Care team review", "description": "Two-step concern escalation ending in care-team review.", "vectors": [[1, 0, 1, 1], [0, 0, 1, 1]], "metadata": {"expectedOutputCount": 1, "expectedOutputVector": "[1,0,0,0]", "scenario": "care-team-review", "sequenceLength": 2}},
-        {"name": "Lifestyle plan adjustment", "description": "Barrier or preference signal adjusts the lifestyle plan.", "vectors": [[0, 1, 1, 0]], "metadata": {"expectedOutputCount": 1, "expectedOutputVector": "[0,1,0,0]", "scenario": "lifestyle-plan-adjust"}},
-        {"name": "Monitoring task", "description": "Data gap creates a monitoring or follow-up task.", "vectors": [[1, 0, 0, 1]], "metadata": {"expectedOutputCount": 1, "expectedOutputVector": "[0,0,1,0]", "scenario": "monitoring-task"}},
-        {"name": "Stable balance", "description": "Stable state confirms the plan remains in range.", "vectors": [[1, 1, 0, 0]], "metadata": {"expectedOutputCount": 1, "expectedOutputVector": "[0,0,0,1]", "scenario": "stable-balance"}},
-        {"name": "Baseline without output", "description": "Initial observation arms the review path without firing.", "vectors": [[1, 0, 1, 1]], "metadata": {"expectedOutputCount": 0, "scenario": "baseline-no-output"}},
+        {"name": "Care team review", "description": "Two-step concern escalation ending in care-team review.", "events": [[1, 0, 1, 1], [0, 0, 1, 1]], "metadata": {"expectedOutputCount": 1, "expectedOutputVector": "[1,0,0,0]", "scenario": "care-team-review", "sequenceLength": 2}},
+        {"name": "Lifestyle plan adjustment", "description": "Barrier or preference signal adjusts the lifestyle plan.", "events": [[0, 1, 1, 0]], "metadata": {"expectedOutputCount": 1, "expectedOutputVector": "[0,1,0,0]", "scenario": "lifestyle-plan-adjust"}},
+        {"name": "Monitoring task", "description": "Data gap creates a monitoring or follow-up task.", "events": [[1, 0, 0, 1]], "metadata": {"expectedOutputCount": 1, "expectedOutputVector": "[0,0,1,0]", "scenario": "monitoring-task"}},
+        {"name": "Stable balance", "description": "Stable state confirms the plan remains in range.", "events": [[1, 1, 0, 0]], "metadata": {"expectedOutputCount": 1, "expectedOutputVector": "[0,0,0,1]", "scenario": "stable-balance"}},
+        {"name": "Baseline without output", "description": "Initial observation arms the review path without firing.", "events": [[1, 0, 1, 1]], "metadata": {"expectedOutputCount": 0, "scenario": "baseline-no-output"}},
     ]
     if domain_e2e:
         sequences.extend(domain_e2e)
@@ -335,7 +335,7 @@ def domain_e2e_sequences(index: int) -> list[dict]:
     return [{
         "name": name,
         "description": description,
-        "vectors": vectors,
+        "events": vectors,
         "metadata": {
             "expectedOutputCount": 1,
             "expectedOutputVector": expected,

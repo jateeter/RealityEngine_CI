@@ -271,42 +271,42 @@ def machine_payload(index: int, workstream: str, focus: str, description: str) -
                     "id": f"{code}-attorney-review",
                     "name": f"{focus}: INCOMPLETE_OR_RISK -> ATTORNEY_REVIEW",
                     "metadata": {"description": "Escalates when facts, rights, or deadline pressure require attorney review.", "output": "[1,0,0,0]"},
-                    "vectors": [
-                        {"id": f"{code}-risk-watch", "elements": vector_elements([1, 0, 1, 0]), "isInitial": True, "nextVectorIds": [f"{code}-review-needed"]},
-                        {"id": f"{code}-review-needed", "elements": vector_elements([0, 0, 1, 0]), "isInitial": False, "outputVectors": [{"id": f"{code}-review-output", "vector": [1, 0, 0, 0], "metadata": {"action": urgent_action}}]},
+                    "events": [
+                        {"id": f"{code}-risk-watch", "elements": vector_elements([1, 0, 1, 0]), "isInitial": True, "nextEventIds": [f"{code}-review-needed"]},
+                        {"id": f"{code}-review-needed", "elements": vector_elements([0, 0, 1, 0]), "isInitial": False, "outputEvents": [{"id": f"{code}-review-output", "vector": [1, 0, 0, 0], "metadata": {"action": urgent_action}}]},
                     ],
                 },
                 {
                     "id": f"{code}-optimize",
                     "name": f"{focus}: OPTIMIZATION_WINDOW -> OPTIMIZE_WORKSTEP",
                     "metadata": {"description": "Fires when the matter can proceed more efficiently through AI-assisted workflow optimization.", "output": "[0,1,0,0]"},
-                    "vectors": [
-                        {"id": f"{code}-optimization", "elements": vector_elements([1, 1, 0, 0]), "isInitial": True, "outputVectors": [{"id": f"{code}-optimize-output", "vector": [0, 1, 0, 0], "metadata": {"action": optimize_action}}]},
+                    "events": [
+                        {"id": f"{code}-optimization", "elements": vector_elements([1, 1, 0, 0]), "isInitial": True, "outputEvents": [{"id": f"{code}-optimize-output", "vector": [0, 1, 0, 0], "metadata": {"action": optimize_action}}]},
                     ],
                 },
                 {
                     "id": f"{code}-docket",
                     "name": f"{focus}: DOCKET_PRESSURE -> DOCKET_ACTION",
                     "metadata": {"description": "Creates a docket update or checklist task for the next controlled step.", "output": "[0,0,1,0]"},
-                    "vectors": [
-                        {"id": f"{code}-docket-needed", "elements": vector_elements([1, 0, 1, 1]), "isInitial": True, "outputVectors": [{"id": f"{code}-docket-output", "vector": [0, 0, 1, 0], "metadata": {"action": docket_action}}]},
+                    "events": [
+                        {"id": f"{code}-docket-needed", "elements": vector_elements([1, 0, 1, 1]), "isInitial": True, "outputEvents": [{"id": f"{code}-docket-output", "vector": [0, 0, 1, 0], "metadata": {"action": docket_action}}]},
                     ],
                 },
                 {
                     "id": f"{code}-ready",
                     "name": f"{focus}: READY -> READY_FOR_NEXT_STEP",
                     "metadata": {"description": "Signals that facts, rights posture, timing, and commercialization readiness are aligned.", "output": "[0,0,0,1]"},
-                    "vectors": [
-                        {"id": f"{code}-ready-state", "elements": vector_elements([1, 1, 0, 1]), "isInitial": True, "outputVectors": [{"id": f"{code}-ready-output", "vector": [0, 0, 0, 1], "metadata": {"action": ready_action}}]},
+                    "events": [
+                        {"id": f"{code}-ready-state", "elements": vector_elements([1, 1, 0, 1]), "isInitial": True, "outputEvents": [{"id": f"{code}-ready-output", "vector": [0, 0, 0, 1], "metadata": {"action": ready_action}}]},
                     ],
                 },
             ],
             "inputSequences": [
-                {"name": "Attorney review escalation", "description": "Risk or missing rights facts require attorney review.", "vectors": [[1, 0, 1, 0], [0, 0, 1, 0]], "metadata": {"expectedOutputCount": 1, "expectedOutputVector": "[1,0,0,0]", "scenario": "attorney-review"}},
-                {"name": "Optimize workstep", "description": "Matter is suitable for AI-assisted workflow optimization.", "vectors": [[1, 1, 0, 0]], "metadata": {"expectedOutputCount": 1, "expectedOutputVector": "[0,1,0,0]", "scenario": "optimize-workstep"}},
-                {"name": "Docket action", "description": "Deadline or filing pressure requires docket/checklist action.", "vectors": [[1, 0, 1, 1]], "metadata": {"expectedOutputCount": 1, "expectedOutputVector": "[0,0,1,0]", "scenario": "docket-action"}},
-                {"name": "Ready for next step", "description": "Matter is ready to advance to the next controlled step.", "vectors": [[1, 1, 0, 1]], "metadata": {"expectedOutputCount": 1, "expectedOutputVector": "[0,0,0,1]", "scenario": "ready-for-next-step"}},
-                {"name": "Baseline without output", "description": "Initial risk-watch state arms escalation without completing the sequence.", "vectors": [[1, 0, 1, 0]], "metadata": {"expectedOutputCount": 0, "scenario": "baseline-no-output"}},
+                {"name": "Attorney review escalation", "description": "Risk or missing rights facts require attorney review.", "events": [[1, 0, 1, 0], [0, 0, 1, 0]], "metadata": {"expectedOutputCount": 1, "expectedOutputVector": "[1,0,0,0]", "scenario": "attorney-review"}},
+                {"name": "Optimize workstep", "description": "Matter is suitable for AI-assisted workflow optimization.", "events": [[1, 1, 0, 0]], "metadata": {"expectedOutputCount": 1, "expectedOutputVector": "[0,1,0,0]", "scenario": "optimize-workstep"}},
+                {"name": "Docket action", "description": "Deadline or filing pressure requires docket/checklist action.", "events": [[1, 0, 1, 1]], "metadata": {"expectedOutputCount": 1, "expectedOutputVector": "[0,0,1,0]", "scenario": "docket-action"}},
+                {"name": "Ready for next step", "description": "Matter is ready to advance to the next controlled step.", "events": [[1, 1, 0, 1]], "metadata": {"expectedOutputCount": 1, "expectedOutputVector": "[0,0,0,1]", "scenario": "ready-for-next-step"}},
+                {"name": "Baseline without output", "description": "Initial risk-watch state arms escalation without completing the sequence.", "events": [[1, 0, 1, 0]], "metadata": {"expectedOutputCount": 0, "scenario": "baseline-no-output"}},
             ],
         },
     }

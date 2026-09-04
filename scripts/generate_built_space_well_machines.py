@@ -386,54 +386,54 @@ def machine_payload(index: int, specs: list[tuple[str, str, str]], base_offset: 
                     "id": f"{code}-verify",
                     "name": f"{focus}: WATCH -> EVIDENCE_GAP -> VERIFY_WELL_CONFORMANCE",
                     "metadata": {"description": "Escalates when operational or evidence drift requires WELL conformance verification.", "output": "[1,0,0,0]"},
-                    "vectors": [
-                        {"id": f"{code}-watch", "elements": vector_elements([1, 0, 1, 1]), "isInitial": True, "nextVectorIds": [f"{code}-evidence-gap"]},
-                        {"id": f"{code}-evidence-gap", "elements": vector_elements([0, 0, 1, 1]), "isInitial": False, "outputVectors": [{"id": f"{code}-verify-output", "vector": [1, 0, 0, 0], "metadata": {"action": verify_action}}]},
+                    "events": [
+                        {"id": f"{code}-watch", "elements": vector_elements([1, 0, 1, 1]), "isInitial": True, "nextEventIds": [f"{code}-evidence-gap"]},
+                        {"id": f"{code}-evidence-gap", "elements": vector_elements([0, 0, 1, 1]), "isInitial": False, "outputEvents": [{"id": f"{code}-verify-output", "vector": [1, 0, 0, 0], "metadata": {"action": verify_action}}]},
                     ],
                 },
                 {
                     "id": f"{code}-optimize",
                     "name": f"{focus}: FORECAST_DRIFT -> PREDICTIVE_OPTIMIZE",
                     "metadata": {"description": "Triggers predictive building optimization before occupant wellness degrades.", "output": "[0,1,0,0]"},
-                    "vectors": [
-                        {"id": f"{code}-forecast-drift", "elements": vector_elements([0, 1, 0, 1]), "isInitial": True, "outputVectors": [{"id": f"{code}-optimize-output", "vector": [0, 1, 0, 0], "metadata": {"action": optimize_action}}]},
+                    "events": [
+                        {"id": f"{code}-forecast-drift", "elements": vector_elements([0, 1, 0, 1]), "isInitial": True, "outputEvents": [{"id": f"{code}-optimize-output", "vector": [0, 1, 0, 0], "metadata": {"action": optimize_action}}]},
                     ],
                 },
                 {
                     "id": f"{code}-work-order",
                     "name": f"{focus}: ACTION_NEEDED -> OPS_WORK_ORDER",
                     "metadata": {"description": "Creates an operations, maintenance, policy, or evidence task.", "output": "[0,0,1,0]"},
-                    "vectors": [
-                        {"id": f"{code}-action-needed", "elements": vector_elements([1, 0, 0, 1]), "isInitial": True, "outputVectors": [{"id": f"{code}-work-order-output", "vector": [0, 0, 1, 0], "metadata": {"action": work_order_action}}]},
+                    "events": [
+                        {"id": f"{code}-action-needed", "elements": vector_elements([1, 0, 0, 1]), "isInitial": True, "outputEvents": [{"id": f"{code}-work-order-output", "vector": [0, 0, 1, 0], "metadata": {"action": work_order_action}}]},
                     ],
                 },
                 {
                     "id": f"{code}-compliant",
                     "name": f"{focus}: CURRENT -> COMPLIANT_WINDOW",
                     "metadata": {"description": "Confirms current WELL-aligned operational posture.", "output": "[0,0,0,1]"},
-                    "vectors": [
-                        {"id": f"{code}-current", "elements": vector_elements([1, 1, 0, 0]), "isInitial": True, "outputVectors": [{"id": f"{code}-compliant-output", "vector": [0, 0, 0, 1], "metadata": {"action": compliant_action}}]},
+                    "events": [
+                        {"id": f"{code}-current", "elements": vector_elements([1, 1, 0, 0]), "isInitial": True, "outputEvents": [{"id": f"{code}-compliant-output", "vector": [0, 0, 0, 1], "metadata": {"action": compliant_action}}]},
                     ],
                 },
                 {
                     "id": f"{code}-predictive-24h",
                     "name": f"{focus}: 0-6H -> 6-12H -> 12-18H -> 18-24H -> PREDICTIVE_OPTIMIZE",
                     "metadata": {"description": "Projects WELL operations forward over 24 hours and optimizes before health-performance drift.", "projectionHorizon": "24h", "output": "[0,1,0,0]"},
-                    "vectors": [
-                        {"id": f"{code}-0-6h", "elements": vector_elements([1, 1, 1, 0]), "isInitial": True, "nextVectorIds": [f"{code}-6-12h"]},
-                        {"id": f"{code}-6-12h", "elements": vector_elements([1, 0, 1, 0]), "isInitial": False, "nextVectorIds": [f"{code}-12-18h"]},
-                        {"id": f"{code}-12-18h", "elements": vector_elements([0, 0, 1, 0]), "isInitial": False, "nextVectorIds": [f"{code}-18-24h"]},
-                        {"id": f"{code}-18-24h", "elements": vector_elements([0, 1, 1, 0]), "isInitial": False, "outputVectors": [{"id": f"{code}-projection-output", "vector": [0, 1, 0, 0], "metadata": {"action": optimize_action, "projectionHorizon": "24h"}}]},
+                    "events": [
+                        {"id": f"{code}-0-6h", "elements": vector_elements([1, 1, 1, 0]), "isInitial": True, "nextEventIds": [f"{code}-6-12h"]},
+                        {"id": f"{code}-6-12h", "elements": vector_elements([1, 0, 1, 0]), "isInitial": False, "nextEventIds": [f"{code}-12-18h"]},
+                        {"id": f"{code}-12-18h", "elements": vector_elements([0, 0, 1, 0]), "isInitial": False, "nextEventIds": [f"{code}-18-24h"]},
+                        {"id": f"{code}-18-24h", "elements": vector_elements([0, 1, 1, 0]), "isInitial": False, "outputEvents": [{"id": f"{code}-projection-output", "vector": [0, 1, 0, 0], "metadata": {"action": optimize_action, "projectionHorizon": "24h"}}]},
                     ],
                 },
             ],
             "inputSequences": [
-                {"name": "Verify WELL conformance", "description": "Evidence or operational drift requires verification.", "vectors": [[1, 0, 1, 1], [0, 0, 1, 1]], "metadata": {"expectedOutputCount": 1, "expectedOutputVector": "[1,0,0,0]", "scenario": "verify-well-conformance"}},
-                {"name": "Predictive optimization", "description": "Forecasted drift should be optimized before occupant impact.", "vectors": [[0, 1, 0, 1]], "metadata": {"expectedOutputCount": 1, "expectedOutputVector": "[0,1,0,0]", "scenario": "predictive-optimize"}},
-                {"name": "Operations work order", "description": "Operations, maintenance, policy, or evidence action is needed.", "vectors": [[1, 0, 0, 1]], "metadata": {"expectedOutputCount": 1, "expectedOutputVector": "[0,0,1,0]", "scenario": "ops-work-order"}},
-                {"name": "Compliant operating window", "description": "Current operating posture is compliant.", "vectors": [[1, 1, 0, 0]], "metadata": {"expectedOutputCount": 1, "expectedOutputVector": "[0,0,0,1]", "scenario": "compliant-window"}},
-                {"name": "24-hour predictive optimization", "description": "Forecasts 24-hour WELL performance drift and emits optimization.", "vectors": [[1, 1, 1, 0], [1, 0, 1, 0], [0, 0, 1, 0], [0, 1, 1, 0]], "metadata": {"expectedOutputCount": 1, "expectedOutputVector": "[0,1,0,0]", "scenario": "24h-predictive-optimize"}},
-                {"name": "Baseline without output", "description": "Initial watch state arms verification without firing.", "vectors": [[1, 0, 1, 1]], "metadata": {"expectedOutputCount": 0, "scenario": "baseline-no-output"}},
+                {"name": "Verify WELL conformance", "description": "Evidence or operational drift requires verification.", "events": [[1, 0, 1, 1], [0, 0, 1, 1]], "metadata": {"expectedOutputCount": 1, "expectedOutputVector": "[1,0,0,0]", "scenario": "verify-well-conformance"}},
+                {"name": "Predictive optimization", "description": "Forecasted drift should be optimized before occupant impact.", "events": [[0, 1, 0, 1]], "metadata": {"expectedOutputCount": 1, "expectedOutputVector": "[0,1,0,0]", "scenario": "predictive-optimize"}},
+                {"name": "Operations work order", "description": "Operations, maintenance, policy, or evidence action is needed.", "events": [[1, 0, 0, 1]], "metadata": {"expectedOutputCount": 1, "expectedOutputVector": "[0,0,1,0]", "scenario": "ops-work-order"}},
+                {"name": "Compliant operating window", "description": "Current operating posture is compliant.", "events": [[1, 1, 0, 0]], "metadata": {"expectedOutputCount": 1, "expectedOutputVector": "[0,0,0,1]", "scenario": "compliant-window"}},
+                {"name": "24-hour predictive optimization", "description": "Forecasts 24-hour WELL performance drift and emits optimization.", "events": [[1, 1, 1, 0], [1, 0, 1, 0], [0, 0, 1, 0], [0, 1, 1, 0]], "metadata": {"expectedOutputCount": 1, "expectedOutputVector": "[0,1,0,0]", "scenario": "24h-predictive-optimize"}},
+                {"name": "Baseline without output", "description": "Initial watch state arms verification without firing.", "events": [[1, 0, 1, 1]], "metadata": {"expectedOutputCount": 0, "scenario": "baseline-no-output"}},
             ],
         },
     }

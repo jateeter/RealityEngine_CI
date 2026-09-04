@@ -386,45 +386,45 @@ def machine_payload(index: int, specs: list[tuple[str, str, str]]) -> dict:
                         "sequenceLength": 5,
                         "output": "[1,0,0,0]",
                     },
-                    "vectors": [
-                        {"id": f"{code}-observe", "elements": vector_elements([1, 1, 1, 0]), "isInitial": True, "metadata": {"stage": "observe"}, "nextVectorIds": [f"{code}-watch"]},
-                        {"id": f"{code}-watch", "elements": vector_elements([1, 1, 0, 1]), "isInitial": False, "metadata": {"stage": "watch"}, "nextVectorIds": [f"{code}-degraded"]},
-                        {"id": f"{code}-degraded", "elements": vector_elements([1, 0, 0, 1]), "isInitial": False, "metadata": {"stage": "degraded"}, "nextVectorIds": [f"{code}-escalating"]},
-                        {"id": f"{code}-escalating", "elements": vector_elements([0, 0, 0, 1]), "isInitial": False, "metadata": {"stage": "escalating"}, "nextVectorIds": [f"{code}-critical"]},
-                        {"id": f"{code}-critical", "elements": vector_elements([0, 0, 0, 0]), "isInitial": False, "metadata": {"stage": "critical"}, "outputVectors": [{"id": f"{code}-critical-output", "vector": [1, 0, 0, 0], "metadata": {"action": critical_action}}]},
+                    "events": [
+                        {"id": f"{code}-observe", "elements": vector_elements([1, 1, 1, 0]), "isInitial": True, "metadata": {"stage": "observe"}, "nextEventIds": [f"{code}-watch"]},
+                        {"id": f"{code}-watch", "elements": vector_elements([1, 1, 0, 1]), "isInitial": False, "metadata": {"stage": "watch"}, "nextEventIds": [f"{code}-degraded"]},
+                        {"id": f"{code}-degraded", "elements": vector_elements([1, 0, 0, 1]), "isInitial": False, "metadata": {"stage": "degraded"}, "nextEventIds": [f"{code}-escalating"]},
+                        {"id": f"{code}-escalating", "elements": vector_elements([0, 0, 0, 1]), "isInitial": False, "metadata": {"stage": "escalating"}, "nextEventIds": [f"{code}-critical"]},
+                        {"id": f"{code}-critical", "elements": vector_elements([0, 0, 0, 0]), "isInitial": False, "metadata": {"stage": "critical"}, "outputEvents": [{"id": f"{code}-critical-output", "vector": [1, 0, 0, 0], "metadata": {"action": critical_action}}]},
                     ],
                 },
                 {
                     "id": f"{code}-predictive-flow",
                     "name": f"{focus}: FLOW_RISK -> PREDICTIVE_FLOW_ADJUST",
                     "metadata": {"description": "Triggers predictive flow management before rider impact becomes critical.", "output": "[0,1,0,0]"},
-                    "vectors": [
-                        {"id": f"{code}-flow-risk", "elements": vector_elements([0, 1, 1, 0]), "isInitial": True, "outputVectors": [{"id": f"{code}-flow-output", "vector": [0, 1, 0, 0], "metadata": {"action": flow_action}}]},
+                    "events": [
+                        {"id": f"{code}-flow-risk", "elements": vector_elements([0, 1, 1, 0]), "isInitial": True, "outputEvents": [{"id": f"{code}-flow-output", "vector": [0, 1, 0, 0], "metadata": {"action": flow_action}}]},
                     ],
                 },
                 {
                     "id": f"{code}-ops-task",
                     "name": f"{focus}: TASK_NEEDED -> OPS_TASK",
                     "metadata": {"description": "Creates maintenance, cleaning, security, or operations tasking.", "output": "[0,0,1,0]"},
-                    "vectors": [
-                        {"id": f"{code}-task-needed", "elements": vector_elements([1, 0, 1, 1]), "isInitial": True, "outputVectors": [{"id": f"{code}-task-output", "vector": [0, 0, 1, 0], "metadata": {"action": task_action}}]},
+                    "events": [
+                        {"id": f"{code}-task-needed", "elements": vector_elements([1, 0, 1, 1]), "isInitial": True, "outputEvents": [{"id": f"{code}-task-output", "vector": [0, 0, 1, 0], "metadata": {"action": task_action}}]},
                     ],
                 },
                 {
                     "id": f"{code}-nominal",
                     "name": f"{focus}: NOMINAL -> SERVICE_NOMINAL",
                     "metadata": {"description": "Confirms service is in an acceptable 24/7 operating band.", "output": "[0,0,0,1]"},
-                    "vectors": [
-                        {"id": f"{code}-nominal-state", "elements": vector_elements([1, 1, 1, 1]), "isInitial": True, "outputVectors": [{"id": f"{code}-nominal-output", "vector": [0, 0, 0, 1], "metadata": {"action": nominal_action}}]},
+                    "events": [
+                        {"id": f"{code}-nominal-state", "elements": vector_elements([1, 1, 1, 1]), "isInitial": True, "outputEvents": [{"id": f"{code}-nominal-output", "vector": [0, 0, 0, 1], "metadata": {"action": nominal_action}}]},
                     ],
                 },
             ],
             "inputSequences": [
-                {"name": "Critical event sequence", "description": "Five-step degradation path ending in a critical event output.", "vectors": [[1, 1, 1, 0], [1, 1, 0, 1], [1, 0, 0, 1], [0, 0, 0, 1], [0, 0, 0, 0]], "metadata": {"expectedOutputCount": 1, "expectedOutputVector": "[1,0,0,0]", "scenario": "critical-event", "sequenceLength": 5}},
-                {"name": "Predictive flow adjustment", "description": "Predicts service-flow pressure before a critical event.", "vectors": [[0, 1, 1, 0]], "metadata": {"expectedOutputCount": 1, "expectedOutputVector": "[0,1,0,0]", "scenario": "predictive-flow-adjust"}},
-                {"name": "Operations task", "description": "Creates maintenance, cleaning, security, or operational tasking.", "vectors": [[1, 0, 1, 1]], "metadata": {"expectedOutputCount": 1, "expectedOutputVector": "[0,0,1,0]", "scenario": "ops-task"}},
-                {"name": "Nominal service", "description": "Confirms stable transportation service.", "vectors": [[1, 1, 1, 1]], "metadata": {"expectedOutputCount": 1, "expectedOutputVector": "[0,0,0,1]", "scenario": "service-nominal"}},
-                {"name": "Baseline without output", "description": "Initial critical-event observation arms the sequence without firing.", "vectors": [[1, 1, 1, 0]], "metadata": {"expectedOutputCount": 0, "scenario": "baseline-no-output"}},
+                {"name": "Critical event sequence", "description": "Five-step degradation path ending in a critical event output.", "events": [[1, 1, 1, 0], [1, 1, 0, 1], [1, 0, 0, 1], [0, 0, 0, 1], [0, 0, 0, 0]], "metadata": {"expectedOutputCount": 1, "expectedOutputVector": "[1,0,0,0]", "scenario": "critical-event", "sequenceLength": 5}},
+                {"name": "Predictive flow adjustment", "description": "Predicts service-flow pressure before a critical event.", "events": [[0, 1, 1, 0]], "metadata": {"expectedOutputCount": 1, "expectedOutputVector": "[0,1,0,0]", "scenario": "predictive-flow-adjust"}},
+                {"name": "Operations task", "description": "Creates maintenance, cleaning, security, or operational tasking.", "events": [[1, 0, 1, 1]], "metadata": {"expectedOutputCount": 1, "expectedOutputVector": "[0,0,1,0]", "scenario": "ops-task"}},
+                {"name": "Nominal service", "description": "Confirms stable transportation service.", "events": [[1, 1, 1, 1]], "metadata": {"expectedOutputCount": 1, "expectedOutputVector": "[0,0,0,1]", "scenario": "service-nominal"}},
+                {"name": "Baseline without output", "description": "Initial critical-event observation arms the sequence without firing.", "events": [[1, 1, 1, 0]], "metadata": {"expectedOutputCount": 0, "scenario": "baseline-no-output"}},
             ],
         },
     }

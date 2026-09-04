@@ -57,6 +57,7 @@
 import crypto from 'node:crypto';
 import fs from 'node:fs';
 import path from 'node:path';
+import { sequenceEvents, outputEvents, nextEventIds } from './lib/eventKeys.mjs';
 
 const ROOT = path.resolve(path.dirname(new URL(import.meta.url).pathname), '..');
 const MACHINES_DIR = process.env.MACHINES_DIR
@@ -134,18 +135,19 @@ function buildOracles(file) {
   for (const seq of raw.sequences ?? []) {
     // Build a vector lookup so we can walk nextVectorIds without rescanning.
     const byId = new Map();
-    for (const v of seq.vectors ?? []) byId.set(v.id, v);
+    for (const v of sequenceEvents(seq)) byId.set(v.id, v);
 
     // Walk every path from an initial vector to any vector that emits output.
     // Track visited within a single path to avoid loops.
     const enumerate = (path) => {
       const tail = path[path.length - 1];
-      if (tail.outputVectors && tail.outputVectors.length > 0) {
+      const tailOutputs = outputEvents(tail);
+      if (tailOutputs.length > 0) {
         // expectedProvenance walks the path in order — the same chain the
         // engine assembles as predecessors activate each successor in turn.
         const expectedProvenance = path.map(v => v.id);
-        for (let k = 0; k < tail.outputVectors.length; k++) {
-          const expectedVector = tail.outputVectors[k].vector ?? [];
+        for (let k = 0; k < tailOutputs.length; k++) {
+          const expectedVector = tailOutputs[k].vector ?? [];
           // The path is part of the identity. Without it distinct oracles
           // collided on one id: KleeneStar reaches `kleene-seq2-001-final` by
           // five routes, each with its own depth and inputs, and all five were
@@ -172,14 +174,14 @@ function buildOracles(file) {
       }
       if (path.length >= MAX_CHAIN_DEPTH) return;
       const visited = new Set(path.map(v => v.id));
-      for (const nextId of tail.nextVectorIds ?? []) {
+      for (const nextId of nextEventIds(tail)) {
         const next = byId.get(nextId);
         if (!next || visited.has(next.id)) continue;
         enumerate([...path, next]);
       }
     };
 
-    for (const v of seq.vectors ?? []) if (v.isInitial) enumerate([v]);
+    for (const v of sequenceEvents(seq)) if (v.isInitial) enumerate([v]);
   }
 
   return oracles;

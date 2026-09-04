@@ -103,9 +103,9 @@ def machine_payload(index: int, name: str, regex: str, description: str, pattern
             },
         }
         if not terminal:
-            entry["nextVectorIds"] = [f"{code}-step-{step + 1}"]
+            entry["nextEventIds"] = [f"{code}-step-{step + 1}"]
         else:
-            entry["outputVectors"] = [{
+            entry["outputEvents"] = [{
                 "id": f"{code}-match-output",
                 "vector": [1, 0],
                 "metadata": {
@@ -163,14 +163,14 @@ def machine_payload(index: int, name: str, regex: str, description: str, pattern
                         "regularExpression": regex,
                         "output": "[1,0]",
                     },
-                    "vectors": vectors,
+                    "events": vectors,
                 }
             ],
             "inputSequences": [
                 {
                     "name": f"{name} match path",
                     "description": f"Validates regular expression {regex}.",
-                    "vectors": pattern,
+                    "events": pattern,
                     "metadata": {
                         "expectedOutputCount": 1,
                         "expectedOutputVector": "[1,0]",
@@ -180,7 +180,7 @@ def machine_payload(index: int, name: str, regex: str, description: str, pattern
                 {
                     "name": "Baseline without output",
                     "description": "Single baseline sample does not complete the expression.",
-                    "vectors": [pattern[0]],
+                    "events": [pattern[0]],
                     "metadata": {
                         "expectedOutputCount": 0,
                         "scenario": "baseline-no-output",
