@@ -69,7 +69,6 @@ from pathlib import Path
 from typing import Any
 
 sys.path.insert(0, str(Path(__file__).resolve().parent / "lib"))
-from event_keys import sequence_events, output_events  # noqa: E402
 
 
 def load_trajectory_module() -> Any:
@@ -155,12 +154,12 @@ def non_binary_reason(machine: dict[str, Any]) -> str | None:
     # where to start on the mathematics.
     exercised = 0
     for sequence in machine.get("sequences") or []:
-        for vector in sequence_events(sequence):
+        for vector in (sequence.get("events") or []):
             for element in vector.get("elements") or []:
                 value = element.get("value")
                 if isinstance(value, (int, float)) and value > 1:
                     exercised += 1
-            for output in output_events(vector):
+            for output in (vector.get("outputEvents") or []):
                 for cell in output.get("vector") or []:
                     if isinstance(cell, (int, float)) and cell > 1:
                         exercised += 1

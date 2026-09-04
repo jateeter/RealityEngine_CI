@@ -28,7 +28,6 @@
 
 import fs from 'node:fs';
 import path from 'node:path';
-import { sequenceEvents, outputEvents } from './lib/eventKeys.mjs';
 
 const ROOT = path.resolve(path.dirname(new URL(import.meta.url).pathname), '..');
 const DEFAULT_DIR = path.join(ROOT, 'examples', 'machines');
@@ -55,11 +54,11 @@ function minBitsForValues(values) {
 function collectValues(m) {
   const vals = [];
   for (const seq of m.sequences ?? []) {
-    for (const v of sequenceEvents(seq)) {
+    for (const v of (seq.events ?? [])) {
       for (const e of v.elements ?? []) {
         if (typeof e.value === 'number') vals.push(e.value);
       }
-      for (const out of outputEvents(v)) {
+      for (const out of (v.outputEvents ?? [])) {
         for (const x of out.vector ?? []) {
           if (typeof x === 'number') vals.push(x);
         }

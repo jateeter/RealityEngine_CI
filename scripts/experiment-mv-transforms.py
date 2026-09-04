@@ -65,7 +65,6 @@ import json
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent / "lib"))
-from event_keys import sequence_events, output_events  # noqa: E402
 
 CORPUS = Path(__file__).resolve().parents[1].parent / "RealityEngine_Machines" / "machines"
 
@@ -313,8 +312,8 @@ def main() -> int:
     print("\n5. FALLDETECTION — the machine that exposed the problem")
     fall = json.loads((CORPUS / "domains" / "health-personal" / "FallDetection.json")
                       .read_text(encoding="utf-8"))["machine"]
-    outs = [o["vector"] for s in fall["sequences"] for v in sequence_events(s)
-            for o in output_events(v)]
+    outs = [o["vector"] for s in fall["sequences"] for v in (s.get("events") or [])
+            for o in (v.get("outputEvents") or [])]
     col0 = [v[0] for v in outs]
     alphabet = sorted({x for v in outs for x in v})
     print(f"   alphabet in use : {alphabet}   bitsPerElement: "

@@ -30,7 +30,6 @@
 
 import fs from 'node:fs';
 import path from 'node:path';
-import { sequenceEvents, outputEvents, nextEventIds } from './lib/eventKeys.mjs';
 
 const ROOT = path.resolve(path.dirname(new URL(import.meta.url).pathname), '..');
 const MACHINES_DIR = process.env.MACHINES_DIR
@@ -89,11 +88,11 @@ function enumerateChains(machineFile) {
 
   for (const seq of m.sequences ?? []) {
     const byId = new Map();
-    for (const v of sequenceEvents(seq)) byId.set(v.id, v);
+    for (const v of (seq.events ?? [])) byId.set(v.id, v);
 
     const walk = (path) => {
       const tail = path[path.length - 1];
-      if (outputEvents(tail).length > 0) {
+      if ((tail.outputEvents ?? []).length > 0) {
         chains.push({
           id: `${machineFile}::${seq.id}::${tail.id}`,
           machineFile,
@@ -105,14 +104,14 @@ function enumerateChains(machineFile) {
       }
       if (path.length >= MAX_CHAIN_DEPTH) return;
       const visited = new Set(path.map(v => v.id));
-      for (const nid of nextEventIds(tail)) {
+      for (const nid of (tail.nextEventIds ?? [])) {
         const next = byId.get(nid);
         if (!next || visited.has(next.id)) continue;
         walk([...path, next]);
       }
     };
 
-    for (const v of sequenceEvents(seq)) if (v.isInitial) walk([v]);
+    for (const v of (seq.events ?? [])) if (v.isInitial) walk([v]);
   }
   return chains;
 }

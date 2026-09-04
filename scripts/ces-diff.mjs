@@ -35,7 +35,6 @@
 
 import fs from 'node:fs';
 import path from 'node:path';
-import { sequenceEvents, outputEvents, nextEventIds } from './lib/eventKeys.mjs';
 
 const ROOT = path.resolve(path.dirname(new URL(import.meta.url).pathname), '..');
 
@@ -102,13 +101,13 @@ function diffVector(left, right) {
   const elementDiff = diffElements(left.elements ?? [], right.elements ?? []);
   if (elementDiff) changes.elements = elementDiff;
 
-  const lNext = nextEventIds(left).slice().sort();
-  const rNext = nextEventIds(right).slice().sort();
-  if (JSON.stringify(lNext) !== JSON.stringify(rNext)) changes.nextVectorIds = { before: nextEventIds(left), after: nextEventIds(right) };
+  const lNext = (left.nextEventIds ?? []).slice().sort();
+  const rNext = (right.nextEventIds ?? []).slice().sort();
+  if (JSON.stringify(lNext) !== JSON.stringify(rNext)) changes.nextVectorIds = { before: (left.nextEventIds ?? []), after: (right.nextEventIds ?? []) };
 
-  const lOut = JSON.stringify(outputEvents(left));
-  const rOut = JSON.stringify(outputEvents(right));
-  if (lOut !== rOut) changes.outputVectors = { before: outputEvents(left), after: outputEvents(right) };
+  const lOut = JSON.stringify((left.outputEvents ?? []));
+  const rOut = JSON.stringify((right.outputEvents ?? []));
+  if (lOut !== rOut) changes.outputVectors = { before: (left.outputEvents ?? []), after: (right.outputEvents ?? []) };
 
   return Object.keys(changes).length === 0 ? null : changes;
 }
@@ -127,9 +126,9 @@ function diffSequences(left, right) {
     if (!rById.has(id)) { removed.push({ sequenceId: id, name: seq.name }); continue; }
     const r = rById.get(id);
     const lvById = new Map();
-    for (const v of sequenceEvents(seq)) lvById.set(v.id, v);
+    for (const v of (seq.events ?? [])) lvById.set(v.id, v);
     const rvById = new Map();
-    for (const v of sequenceEvents(r)) rvById.set(v.id, v);
+    for (const v of (r.events ?? [])) rvById.set(v.id, v);
 
     const vAdded = [], vRemoved = [], vModified = [];
     for (const [vid, lv] of lvById) {

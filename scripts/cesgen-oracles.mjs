@@ -57,7 +57,6 @@
 import crypto from 'node:crypto';
 import fs from 'node:fs';
 import path from 'node:path';
-import { sequenceEvents, outputEvents, nextEventIds } from './lib/eventKeys.mjs';
 
 const ROOT = path.resolve(path.dirname(new URL(import.meta.url).pathname), '..');
 const MACHINES_DIR = process.env.MACHINES_DIR
@@ -135,13 +134,13 @@ function buildOracles(file) {
   for (const seq of raw.sequences ?? []) {
     // Build a vector lookup so we can walk nextVectorIds without rescanning.
     const byId = new Map();
-    for (const v of sequenceEvents(seq)) byId.set(v.id, v);
+    for (const v of (seq.events ?? [])) byId.set(v.id, v);
 
     // Walk every path from an initial vector to any vector that emits output.
     // Track visited within a single path to avoid loops.
     const enumerate = (path) => {
       const tail = path[path.length - 1];
-      const tailOutputs = outputEvents(tail);
+      const tailOutputs = (tail.outputEvents ?? []);
       if (tailOutputs.length > 0) {
         // expectedProvenance walks the path in order — the same chain the
         // engine assembles as predecessors activate each successor in turn.
@@ -174,14 +173,14 @@ function buildOracles(file) {
       }
       if (path.length >= MAX_CHAIN_DEPTH) return;
       const visited = new Set(path.map(v => v.id));
-      for (const nextId of nextEventIds(tail)) {
+      for (const nextId of (tail.nextEventIds ?? [])) {
         const next = byId.get(nextId);
         if (!next || visited.has(next.id)) continue;
         enumerate([...path, next]);
       }
     };
 
-    for (const v of sequenceEvents(seq)) if (v.isInitial) enumerate([v]);
+    for (const v of (seq.events ?? [])) if (v.isInitial) enumerate([v]);
   }
 
   return oracles;
