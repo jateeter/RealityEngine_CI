@@ -8,7 +8,8 @@
 #               docs/openapi/ directory (requires sibling repos to be checked out).
 #
 # Output: docs/openapi/{cpp,lsp,scala}-{re,pe}.yaml
-# Source: RealityEngine_CPP/SURFACE_SPEC.md (canonical)
+# Source: RealityEngine_CI/SURFACE_SPEC.md (the master; runtime repos hold
+#         pointers to it, not copies — see scripts/check-surface-specs.sh)
 #         scripts/openapi/overlays/{cpp,lsp,scala}.yaml
 
 set -euo pipefail
