@@ -1926,12 +1926,20 @@ SH
             add_warn "Manager backend not reachable on :3001 — check /tmp/manager_universe.log"
         fi
         echo -n "  MGR frontend "
-        # Same treatment, and for the same reason: start.sh installs the
-        # frontend's dependencies too, so this wait is also an npm wait on a
-        # cold cache. Half the backend budget, floor 30, since Vite itself
-        # starts quickly once its modules are present.
-        _mgr_fe_attempts=$(( _mgr_health_attempts / 2 ))
-        [ "$_mgr_fe_attempts" -lt 30 ] && _mgr_fe_attempts=30
+        # The same budget as the backend, not half of it.
+        #
+        # It was half, reasoned as "Vite starts quickly once its modules are
+        # present". That was wrong about which work this window contains. Since
+        # RealityEngine_Manager#72 started the backend before installing the
+        # frontend's dependencies, this wait brackets that npm install — the
+        # work the backend window used to carry. Moving the work and halving
+        # the budget for it were the same change, in opposite directions.
+        #
+        # Observed on run 33835... : backend ready in ~86s where it used to time
+        # out, then the frontend poll exhausted 180s with "Installing frontend
+        # dependencies..." still on screen. The reorder worked and the budget
+        # did not follow it.
+        _mgr_fe_attempts="$_mgr_health_attempts"
         if ! poll_http "http://localhost:5173/" "Manager frontend ready (:5173)" "$_mgr_fe_attempts" "-sf"; then
             if [ "${CI:-false}" = "true" ]; then
                 tail -120 "$MGR_DIR"/.manager-logs/frontend.log 2>/dev/null || \
