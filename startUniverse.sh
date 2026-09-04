@@ -2314,7 +2314,7 @@ QDRANT_COLLS=$(curl -sf http://localhost:4333/collections 2>/dev/null || echo '{
 COLL_LIST=$(echo "$QDRANT_COLLS" | python3 -c \
     "import json,sys; print([c['name'] for c in json.load(sys.stdin).get('result',{}).get('collections',[])])" \
     2>/dev/null || echo "[]")
-for coll in "localai_docs" "reality-vectors"; do
+for coll in "localai_docs" "reality-events"; do
     echo "$COLL_LIST" | grep -q "$coll" && ok "Qdrant collection: $coll" || \
         info "Qdrant '$coll': will be created on first use"
 done

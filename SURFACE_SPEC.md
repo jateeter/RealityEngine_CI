@@ -710,13 +710,20 @@ None. All routes listed in this spec are implemented by all three runtimes.
 
 ---
 
-## Reality Event key names — migration in progress
+## Reality Event key names — migration complete
 
 The theory has no vectors, only Reality Events. The domain type was renamed in
-`#219`, and `ISRE`/`OSRE` already carry the right language. **Response-body keys
-are the layer still saying "vector"**, and they are a contract rather than a
-name, so they move under a stated migration rather than a sweep
-(`RealityEngine_CI#220`, layer 2).
+`#219`; `ISRE`/`OSRE` already carried the right language. Everything else was a
+contract rather than a name, so it moved under a stated migration rather than a
+sweep — `RealityEngine_CI#220`, in three layers, **all now complete**:
+
+| layer | what | ended |
+|---|---|---|
+| 2 | response-body keys | tolerance removed in 2c |
+| 1 | corpus schema keys | schema tightened to canonical only |
+| 3 | the Qdrant collection | `reality-vectors` → `reality-events` |
+
+The table below is kept as the record of what moved.
 
 | old spelling | canonical |
 |---|---|
@@ -728,30 +735,37 @@ name, so they move under a stated migration rather than a sweep
 | `activatedVectors` | `activatedEvents` |
 | `initialVectorIds` | `initialEventIds` |
 
-**During the migration both spellings are accepted, and neither is a defect.**
-`scripts/lib/parity_identity.py` canonicalises both to the new spelling before
-any comparison, so a runtime that has renamed and one that has not compare
-equal. That is what lets the four runtimes move one at a time: without it the
-rename would have to land in C++, LSP, Scala and the TypeScript PE
-simultaneously, with the Manager UI, the CI stages and the MCP tools following
-in the same window, or every parity run between the first merge and the last is
-red for a reason that is not a divergence.
+**Only the canonical spelling is accepted.** Each layer ran the same three
+landings — tolerate, migrate, remove tolerance — and every one of them ended by
+deletion rather than by deprecation. `EVENT_KEY_RENAME` is gone from
+`parity_identity.py`; `at_either`, `jget-either` and the per-repository accessor
+modules are gone; `RealityEngine_Machines/schemas/machine.schema.json` now *rejects* the old spelling with an
+explicit `not: { required: [...] }`, because `additionalProperties: true` would
+otherwise have left a legacy machine valid-but-ignored.
 
-A runtime emitting both spellings for one observation is emitting one
-observation; the canonical value is the one consumers read.
+The tolerance was what let four runtimes move one at a time. Without it the
+rename would have had to land in C++, LSP, Scala and the TypeScript PE
+simultaneously, with the Manager UI, the CI stages and the MCP tools in the same
+window, or every parity run between the first merge and the last is red for a
+reason that is not a divergence.
 
-**The migration ends by deletion.** When every runtime emits the canonical
-spelling, `EVENT_KEY_RENAME` is removed and the old keys stop being accepted.
-Until that happens the rename is not finished, and the map is the record of
-what remains.
+**What the migration was actually guarding against.** Not incompatibility — a
+missed read. Every reader of these keys used a `.get()` with an empty default,
+so a reader looking for a spelling that had moved returned an empty list and
+reported success. Nothing threw. The defects this rename produced were found by
+comparing counts, never by a test going red: a binding derivation that dropped
+178 output-actor bindings with its full suite green, a generator that emptied
+`semantic-bus-registry.json` of 1,276 lines, a checker that certified "70
+machines scanned, 0 violations" over a corpus it could not see, a PE that
+created 0 sources instead of 1,328 and logged `errors=0`. A corpus-load count
+across all four runtimes is the check that catches this class, and it gated
+every landing.
 
-Not in this layer, and not to be swept with it: the corpus schema keys
-(`vectors`, `outputVectors`, `nextVectorIds`, `outputVector`) which are layer 1
-and need a corpus rewrite across 1,185 files and four loaders, and the Qdrant
-collection `reality-vectors` which is layer 3 and needs a data backfill.
 Language-level data structures — `std::vector`, the C++ `Vector` alias, Scala
-`Vector[Double]`, `vector-push-extend` — are not Reality Events and are never
-touched.
+`Vector[Double]`, `vector-push-extend` — are not Reality Events and were never
+touched. Neither were the `/api/vectors` route segments, the numeric vectors
+`POST /api/perceptual-simulation/configure/chunk` accepts, or Qdrant's own
+`"vectors": { size, distance }` collection body.
 
 ## Response Shape Conventions
 
