@@ -568,6 +568,28 @@ jobs:
           cp .env.example .env
           bash certs/generate-dev-certs.sh
 
+      # Populate Manager node_modules before the universe starts.
+      #
+      # `RealityEngine_Manager/start.sh` runs `npm install --prefer-offline` for
+      # the visualizer backend and frontend when it is launched, and
+      # startUniverse polls :3001 for a bounded window. On a runner with a cold
+      # npm cache that install has taken over 11 minutes — the job died with an
+      # orphaned `npm install` still running — so the poll expired on an engine
+      # that was never given time to start, and reported it as unreachable.
+      #
+      # Prebuilding here does not remove start.sh's install; it makes it a
+      # no-op, because everything it would fetch is already present. The build
+      # is also the same work `regression-test.sh` does in its build phase, so
+      # the two lanes now agree on Manager being built before it is started.
+      - name: Build Manager deployment assets
+        working-directory: RealityEngine_Manager
+        run: |
+          for pkg in visualizer/backend visualizer/frontend; do
+            echo "::group::build $pkg"
+            (cd "$pkg" && npm ci && npm run build)
+            echo "::endgroup::"
+          done
+
       - name: Start universe
         working-directory: RealityEngine_CI
         env:
@@ -667,6 +689,28 @@ jobs:
         run: |
           cp .env.example .env
           bash certs/generate-dev-certs.sh
+
+      # Populate Manager node_modules before the universe starts.
+      #
+      # `RealityEngine_Manager/start.sh` runs `npm install --prefer-offline` for
+      # the visualizer backend and frontend when it is launched, and
+      # startUniverse polls :3001 for a bounded window. On a runner with a cold
+      # npm cache that install has taken over 11 minutes — the job died with an
+      # orphaned `npm install` still running — so the poll expired on an engine
+      # that was never given time to start, and reported it as unreachable.
+      #
+      # Prebuilding here does not remove start.sh's install; it makes it a
+      # no-op, because everything it would fetch is already present. The build
+      # is also the same work `regression-test.sh` does in its build phase, so
+      # the two lanes now agree on Manager being built before it is started.
+      - name: Build Manager deployment assets
+        working-directory: RealityEngine_Manager
+        run: |
+          for pkg in visualizer/backend visualizer/frontend; do
+            echo "::group::build $pkg"
+            (cd "$pkg" && npm ci && npm run build)
+            echo "::endgroup::"
+          done
 
       - name: Start universe
         working-directory: RealityEngine_CI
@@ -843,6 +887,28 @@ jobs:
         run: |
           cp .env.example .env
           bash certs/generate-dev-certs.sh
+
+      # Populate Manager node_modules before the universe starts.
+      #
+      # `RealityEngine_Manager/start.sh` runs `npm install --prefer-offline` for
+      # the visualizer backend and frontend when it is launched, and
+      # startUniverse polls :3001 for a bounded window. On a runner with a cold
+      # npm cache that install has taken over 11 minutes — the job died with an
+      # orphaned `npm install` still running — so the poll expired on an engine
+      # that was never given time to start, and reported it as unreachable.
+      #
+      # Prebuilding here does not remove start.sh's install; it makes it a
+      # no-op, because everything it would fetch is already present. The build
+      # is also the same work `regression-test.sh` does in its build phase, so
+      # the two lanes now agree on Manager being built before it is started.
+      - name: Build Manager deployment assets
+        working-directory: RealityEngine_Manager
+        run: |
+          for pkg in visualizer/backend visualizer/frontend; do
+            echo "::group::build $pkg"
+            (cd "$pkg" && npm ci && npm run build)
+            echo "::endgroup::"
+          done
 
       - name: Start multi-engine universe
         working-directory: RealityEngine_CI
@@ -1100,6 +1166,28 @@ jobs:
         run: |
           cp .env.example .env
           bash certs/generate-dev-certs.sh
+
+      # Populate Manager node_modules before the universe starts.
+      #
+      # `RealityEngine_Manager/start.sh` runs `npm install --prefer-offline` for
+      # the visualizer backend and frontend when it is launched, and
+      # startUniverse polls :3001 for a bounded window. On a runner with a cold
+      # npm cache that install has taken over 11 minutes — the job died with an
+      # orphaned `npm install` still running — so the poll expired on an engine
+      # that was never given time to start, and reported it as unreachable.
+      #
+      # Prebuilding here does not remove start.sh's install; it makes it a
+      # no-op, because everything it would fetch is already present. The build
+      # is also the same work `regression-test.sh` does in its build phase, so
+      # the two lanes now agree on Manager being built before it is started.
+      - name: Build Manager deployment assets
+        working-directory: RealityEngine_Manager
+        run: |
+          for pkg in visualizer/backend visualizer/frontend; do
+            echo "::group::build $pkg"
+            (cd "$pkg" && npm ci && npm run build)
+            echo "::endgroup::"
+          done
 
       - name: Start tri-runtime universe
         working-directory: RealityEngine_CI
