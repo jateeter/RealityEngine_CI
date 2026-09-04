@@ -105,7 +105,14 @@ hdr "3. OpenAPI route parity"
 if ! python3 -c "import yaml" 2>/dev/null; then
   fail "pyyaml not installed — cannot check OpenAPI parity (pip3 install pyyaml)"
 else
-  SPEC="$WS/RealityEngine_CPP/SURFACE_SPEC.md"
+  # The master, not a runtime's pointer to it. `RealityEngine_CPP/SURFACE_SPEC.md`
+  # was the canonical copy before #212 moved the master here; it is now 35 lines
+  # saying "the specification lives in RealityEngine_CI". Generating from it
+  # produced near-empty specs, so every committed document compared "stale" —
+  # permanently, and unfixable by the `generate-openapi.sh` this check tells you
+  # to run, because that script reads the master. Six of this audit's seven
+  # failures were that.
+  SPEC="$CI_DIR/SURFACE_SPEC.md"
   OVERLAY_DIR="$CI_DIR/scripts/openapi/overlays"
   GEN_SCRIPT="$CI_DIR/scripts/openapi/generate.py"
   OUT_DIR="$CI_DIR/docs/openapi"
