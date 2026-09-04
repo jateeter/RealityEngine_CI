@@ -197,6 +197,68 @@ decrease. It was verified to fail against the old predicate.
 | POST | `/api/engine/process` | ✓ | ✓ | ✓ |
 | POST | `/api/engine/reset` | ✓ | ✓ | ✓ |
 
+#### `POST /api/engine/process` — map across machines, in parallel
+
+**The unit of iteration is the machine, never the sequence.** For each
+registered machine, drive the input through that machine's currently active
+Reality Events and take the machine's own output. A machine that produces no
+output contributes nothing.
+
+```
+snapshot = atomically collect the active Reality Event space across all machines
+results  = in parallel, for each machine: machine.process_input(vector)
+outputs  = [ r.machineOutput for r in results if r.machineOutput ]
+
+{ "result": { "inputEvent": [...], "timestamp": <ms>, "outputs": [...] } }
+```
+
+`outputs` is **one arbitrated output per machine that fired**, not one per
+sequence that asserted. Passing through the machine is what applies its arbiter
+rule, its output-merge transformation and its perceptual mapping. A walk over
+sequences skips all three and reports raw assertions no consumer can resolve
+back to a machine's actual output.
+
+Three properties, and the iteration model exists to make them possible:
+
+1. **Atomic collection.** The active Reality Event space is sampled once,
+   universe-wide, as a single consistent snapshot. A machine registered or reset
+   partway through a call must not appear in some outputs and not others.
+2. **Machine-level parallelism.** Machines are independent at this boundary and
+   are processed concurrently. Iterating sequences forecloses this — sequences
+   share machine state, so a sequence-level walk has no safe unit to parallelise
+   over.
+3. **Atomic join.** The parallel invocations complete into one result set before
+   any output is emitted. A partial fan-in is not a shorter answer, it is a
+   wrong one.
+
+Implementations should reach for their language's async primitives rather than a
+serial loop — futures, actor fan-out, task groups.
+
+**No runtime implements all three today**, and the gaps differ:
+
+| | iteration | parallelism | atomicity |
+|---|---|---|---|
+| C++ | machines ✓ | serial loop | `unique_lock` over the whole call ✓ |
+| LSP | machines ✓ | serial `maphash` | single-threaded state |
+| Scala | **sequences ✗** | — | — |
+
+C++ and LSP are correct on the unit of iteration and are the reference for it.
+Scala walks sequences and returns per-sequence `assertedOutputs` tagged with
+`sequenceId`/`sequenceName`, so its arbiters never run on this route and its
+response carries a different shape.
+
+Scala already has the intended concurrency shape elsewhere — `MachineActor` per
+machine with `Future.sequence` fan-out on
+`POST /api/machines/process-universal/all`, and its own class documentation
+states *"cross-machine processing is parallel"*. The work is to bring this route
+onto that pattern, not to invent it.
+
+Tracked as RealityEngine_CI#254.
+
+Stated here because it was not stated anywhere: the route appeared in the table
+above with three ticks and no semantics, and three runtimes read the blank
+differently. A tick means the path answers, not that it agrees.
+
 #### `GET /api/engine/history` — the `/api/engine/process` audit trail
 
 One record per `POST /api/engine/process` call, newest first, capped at 256:
