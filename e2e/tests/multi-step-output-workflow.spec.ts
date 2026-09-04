@@ -585,13 +585,13 @@ test.describe('Multi-Step State Machine - API Verification', () => {
     const seq1 = multiStepSequences.find((s: any) => s.name.includes('Sequence 1'));
     expect(seq1).toBeDefined();
     expect(seq1.name).toContain('Sequence 1');
-    expect(seq1.vectors).toBeDefined();
+    expect(seq1.events).toBeDefined();
     console.log('✓ Sequence 1 verified:', seq1.name);
 
     const seq2 = multiStepSequences.find((s: any) => s.name.includes('Sequence 2'));
     expect(seq2).toBeDefined();
     expect(seq2.name).toContain('Sequence 2');
-    expect(seq2.vectors).toBeDefined();
+    expect(seq2.events).toBeDefined();
     console.log('✓ Sequence 2 verified:', seq2.name);
 
     console.log('✅ API verification complete');
