@@ -602,6 +602,69 @@ lane_ports() {
     3001 5173 5999 4000 18789 8080 7331 8088
 }
 
+# The stacks this harness owns. Both the teardown and the port triage below
+# work from this one list, so they cannot disagree about what "ours" means.
+lane_stacks() {
+  printf '%s\n' "$CI_DIR" "$WS/localAIStack" "$WS/localOpenClawStack" \
+    "$WS/OpenCommons-Health---Personal-Information-Management"
+}
+
+# Who is actually listening on a port, in terms a reader can act on.
+#
+# This reported `ps -o comm=` of the listening pid, which for anything in Docker
+# is `com.docker.backend` — true, and useless: it names Docker rather than the
+# container, so the operator is told a port is busy and not what to stop.
+port_holder() {
+  local port="$1" pid name project root
+  pid="$(lsof -ti ":$port" -sTCP:LISTEN 2>/dev/null | head -1)"
+  [ -n "$pid" ] || { printf 'unknown'; return; }
+
+  name="$(docker ps --filter "publish=$port" --format '{{.Names}}' 2>/dev/null | head -1)"
+  if [ -n "$name" ]; then
+    project="$(docker inspect "$name" --format '{{index .Config.Labels "com.docker.compose.project"}}' 2>/dev/null)"
+    root="$(docker inspect "$name" --format '{{index .Config.Labels "com.docker.compose.project.working_dir"}}' 2>/dev/null)"
+    printf '%s' "$name"
+    [ -n "$project" ] && printf ' project=%s' "$project"
+    [ -n "$root" ] && printf ' root=%s' "$root"
+    return
+  fi
+  printf '%s' "$(ps -o comm= -p "$pid" 2>/dev/null || echo "pid $pid")"
+}
+
+# The compose root a port's holder belongs to, empty when it is not a compose
+# container. Used to decide whether the teardown below will reach it.
+port_holder_root() {
+  local name
+  name="$(docker ps --filter "publish=$1" --format '{{.Names}}' 2>/dev/null | head -1)"
+  [ -n "$name" ] || return 0
+  docker inspect "$name" --format '{{index .Config.Labels "com.docker.compose.project.working_dir"}}' 2>/dev/null
+}
+
+# Ports held by something this harness will not stop.
+#
+# Checked *before* the teardown, not only after. The teardown runs
+# stopUniverse --stop-docker and four `docker compose down --rmi local`
+# invocations; aborting after all of that leaves the operator with less running
+# than they started with and no build, over a blocker the harness could have
+# named at the outset. A stack we own is not a blocker — the teardown is about
+# to stop it — so only foreign holders abort here.
+foreign_port_blockers() {
+  local port root stack owned blockers=()
+  while read -r port; do
+    [ -n "$port" ] || continue
+    lsof -ti ":$port" -sTCP:LISTEN >/dev/null 2>&1 || continue
+    root="$(port_holder_root "$port")"
+    owned=false
+    if [ -n "$root" ]; then
+      while read -r stack; do
+        [ "$root" = "$stack" ] && { owned=true; break; }
+      done < <(lane_stacks)
+    fi
+    [ "$owned" = true ] || blockers+=("$port($(port_holder "$port"))")
+  done < <(lane_ports)
+  [ "${#blockers[@]}" -eq 0 ] || printf '%s\n' "${blockers[@]}"
+}
+
 prepare_docker() {
   [ "$PROFILE" = "local" ] || return 0
   step "Docker preflight"
@@ -609,6 +672,24 @@ prepare_docker() {
     log "The local lane cannot build or start anything without Docker."
     exit 1
   }
+
+  # Refuse before destroying anything, not after.
+  #
+  # This check used to run only at the end, so a port held by something the
+  # harness does not own aborted the run *after* stopUniverse --stop-docker and
+  # four `docker compose down --rmi local` had already executed — the operator
+  # lost localAIStack, OpenClaw, Grafana, Prometheus and Loki and got no build,
+  # over a blocker that was identifiable before any of it (#240).
+  local early_blockers
+  early_blockers="$(foreign_port_blockers)"
+  if [ -n "$early_blockers" ]; then
+    log "ERROR: lane ports held by something this harness does not own:"
+    printf '  %s\n' $early_blockers | while read -r line; do log "$line"; done
+    log "Nothing has been torn down. Stop the above and re-run."
+    write_skip_report "docker-preflight-ports.json" \
+      "foreign holders, aborted before teardown: $(printf '%s ' $early_blockers)"
+    exit 1
+  fi
 
   # Teardown reuses stopUniverse.sh rather than reimplementing it: that path
   # already knows every stack to compose-down and every engine port to sweep,
@@ -622,32 +703,69 @@ prepare_docker() {
   # than certifying a layer cached from an earlier commit. `--rmi local` is
   # scoped to images compose built without a custom tag, so unrelated images
   # on the host are untouched.
-  local stack
-  for stack in "$CI_DIR" "$WS/localAIStack" "$WS/localOpenClawStack" \
-               "$WS/OpenCommons-Health---Personal-Information-Management"; do
+  local stack project projects
+  while read -r stack; do
     [ -f "$stack/docker-compose.yml" ] || [ -f "$stack/compose.yml" ] || continue
+
+    # Every compose project rooted at this stack, whatever it was named.
+    #
+    # `docker compose down` without -p addresses the project name compose
+    # derives from the directory, and a stack started with an explicit -p is a
+    # different project in the same directory. On 2026-09-03 the PIM stack was
+    # running as `opencommons-health-pim-8080-13210` while compose would have
+    # derived `opencommons-health---personal-information-management`: the
+    # teardown reported success against a project holding nothing, and the run
+    # then aborted on port 8080 held by the containers it had just declined to
+    # stop (#240).
+    #
+    # The directory is the handle both sides already have — this loop iterates
+    # over it and every compose container records it as
+    # `com.docker.compose.project.working_dir` — so matching on it makes the
+    # teardown and the port check agree by construction rather than by
+    # coincidence of naming. Running two instances of one compose file on
+    # different ports under separate -p names is legitimate and is exactly what
+    # was happening; both are ours and both come down.
+    projects="$(docker ps -aq --filter "label=com.docker.compose.project.working_dir=$stack" 2>/dev/null \
+      | xargs -r docker inspect --format '{{index .Config.Labels "com.docker.compose.project"}}' 2>/dev/null \
+      | sort -u)"
+
     # MACHINES_DIR is the one variable the CI compose file requires outright
     # (`:?MACHINES_DIR must be set`) rather than defaulting. Compose interpolates
     # before it will enumerate what to remove, so without this the cleanup dies
     # on config parsing and that stack's images silently survive the run.
-    run_cmd "docker-preflight-rmi-$(basename "$stack")" bash -lc \
-      "cd '$stack' && MACHINES_DIR='$WS/RealityEngine_Machines' docker compose down --rmi local --remove-orphans" || \
-      log "image cleanup for $(basename "$stack") returned non-zero — continuing"
-  done
+    if [ -n "$projects" ]; then
+      while read -r project; do
+        [ -n "$project" ] || continue
+        run_cmd "docker-preflight-rmi-$(basename "$stack")-$project" bash -lc \
+          "cd '$stack' && MACHINES_DIR='$WS/RealityEngine_Machines' docker compose -p '$project' down --rmi local --remove-orphans" || \
+          log "image cleanup for $project at $(basename "$stack") returned non-zero — continuing"
+      done <<< "$projects"
+    else
+      # Nothing running under this root. Still worth the default-named down:
+      # it removes stopped containers and locally built images from a previous
+      # run, which is what --rmi local is for.
+      run_cmd "docker-preflight-rmi-$(basename "$stack")" bash -lc \
+        "cd '$stack' && MACHINES_DIR='$WS/RealityEngine_Machines' docker compose down --rmi local --remove-orphans" || \
+        log "image cleanup for $(basename "$stack") returned non-zero — continuing"
+    fi
+  done < <(lane_stacks)
 
   # Ports must be clear before start_universe, not discovered busy inside it.
-  local port busy=() holder
+  #
+  # Anything surviving here is a teardown that did not do what it reported —
+  # the foreign holders were already refused above — so the message says that
+  # rather than telling the operator to go free a port.
+  local port busy=()
   while read -r port; do
     [ -n "$port" ] || continue
-    if lsof -ti ":$port" -sTCP:LISTEN >/dev/null 2>&1; then
-      holder="$(ps -o comm= -p "$(lsof -ti ":$port" -sTCP:LISTEN 2>/dev/null | head -1)" 2>/dev/null || echo unknown)"
-      busy+=("$port($holder)")
-    fi
+    lsof -ti ":$port" -sTCP:LISTEN >/dev/null 2>&1 && busy+=("$port($(port_holder "$port"))")
   done < <(lane_ports)
   if [ "${#busy[@]}" -gt 0 ]; then
-    log "ERROR: ports still held after teardown: ${busy[*]}"
-    log "Free them before re-running; startUniverse would fail on these anyway."
-    write_skip_report "docker-preflight-ports.json" "ports still held: ${busy[*]}"
+    log "ERROR: lane ports still held after teardown:"
+    printf '  %s\n' "${busy[@]}" | while read -r line; do log "$line"; done
+    log "These belong to a stack this harness tore down, so the teardown did not"
+    log "reach them. Stop them by hand and re-run, and treat it as a preflight bug."
+    write_skip_report "docker-preflight-ports.json" "ports still held after teardown: ${busy[*]}"
     exit 1
   fi
   log "Lane ports are clear"
