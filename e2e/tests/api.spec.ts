@@ -25,11 +25,11 @@ test.describe('Reality Engine API - Engine Stats', () => {
     expect(response.ok()).toBeTruthy();
 
     const result = await response.json();
-    // API returns: { totalSequences, totalVectors, totalActiveVectors, sequenceStats }
+    // API returns: { totalSequences, totalEvents, totalActiveEvents, sequenceStats }
     const stats = result.stats || result;
     expect(stats).toHaveProperty('totalSequences');
     expect(stats).toHaveProperty('totalEvents');
-    expect(stats).toHaveProperty('totalActiveVectors');
+    expect(stats).toHaveProperty('totalActiveEvents');
   });
 
   test('should get active vectors', async ({ request }) => {
@@ -117,14 +117,14 @@ test.describe('Reality Engine API - Sequences', () => {
   test('should create a new sequence', async ({ request }) => {
     const sequenceData = {
       name: 'E2E Test Sequence',
-      vectors: [
+      events: [
         {
           elements: [
             { value: 0.5, comparatorType: 'threshold', threshold: 0.1 }
           ],
           isInitial: true,
-          nextVectorIds: ['test-vector-2'],
-          outputVectors: []
+          nextEventIds: ['test-vector-2'],
+          outputEvents: []
         },
         {
           id: 'test-vector-2',
@@ -132,8 +132,8 @@ test.describe('Reality Engine API - Sequences', () => {
             { value: 0.8, comparatorType: 'threshold', threshold: 0.1 }
           ],
           isInitial: false,
-          nextVectorIds: [],
-          outputVectors: [
+          nextEventIds: [],
+          outputEvents: [
             {
               id: 'output-1',
               vector: [1.0, 0.5],

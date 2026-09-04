@@ -125,7 +125,7 @@ STATS=$(curl -s http://localhost:$PORT/api/engine/stats 2>/dev/null)
 if [ $? -eq 0 ]; then
     check_pass "Engine statistics accessible"
     echo "$STATS" | grep -o '"totalSequences":[0-9]*' | sed 's/^/       /'
-    echo "$STATS" | grep -o '"totalVectors":[0-9]*' | sed 's/^/       /'
+    echo "$STATS" | grep -o '"totalEvents":[0-9]*' | sed 's/^/       /'
 else
     check_fail "Cannot access engine statistics"
 fi

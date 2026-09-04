@@ -18,14 +18,14 @@ test.describe('Full Integration - End to End Flow', () => {
 
     const sequenceData = {
       name: 'Integration Test Sequence',
-      vectors: [
+      events: [
         {
           elements: [
             { value: 0.7, comparatorType: 'threshold', threshold: 0.15 }
           ],
           isInitial: true,
-          nextVectorIds: ['integration-vector-2'],
-          outputVectors: []
+          nextEventIds: ['integration-vector-2'],
+          outputEvents: []
         },
         {
           id: 'integration-vector-2',
@@ -33,8 +33,8 @@ test.describe('Full Integration - End to End Flow', () => {
             { value: 0.9, comparatorType: 'threshold', threshold: 0.1 }
           ],
           isInitial: false,
-          nextVectorIds: [],
-          outputVectors: [
+          nextEventIds: [],
+          outputEvents: [
             {
               id: 'integration-output',
               vector: [1.0, 1.0],
@@ -195,12 +195,12 @@ test.describe('Full Integration - End to End Flow', () => {
     // Create a sequence
     const sequenceData = {
       name: 'Persistence Test Sequence',
-      vectors: [
+      events: [
         {
           elements: [{ value: 0.5, comparatorType: 'equals' }],
           isInitial: true,
-          nextVectorIds: [],
-          outputVectors: [
+          nextEventIds: [],
+          outputEvents: [
             {
               vector: [1, 0],
               activationTime: 0
@@ -238,7 +238,7 @@ test.describe('Full Integration - Error Handling', () => {
     // Try to create invalid sequence
     const invalidData = {
       name: 'Invalid Sequence',
-      vectors: [] // Invalid: no vectors
+      events: [] // Invalid: no vectors
     };
 
     const response = await request.post(`${API_BASE_URL}/api/sequences`, {

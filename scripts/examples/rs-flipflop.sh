@@ -59,7 +59,7 @@ SEQUENCE_RESPONSE=$(curl -s -X POST $API_URL/sequences \
       "outputs": ["Q", "Q_bar"],
       "states": ["SET", "RESET", "HOLD", "INVALID"]
     },
-    "vectors": [
+    "events": [
       {
         "id": "reset-state",
         "elements": [
@@ -68,8 +68,8 @@ SEQUENCE_RESPONSE=$(curl -s -X POST $API_URL/sequences \
         ],
         "isInitial": true,
         "isActive": false,
-        "nextVectorIds": ["reset-state", "set-state", "hold-from-reset", "invalid-state"],
-        "outputVectors": [
+        "nextEventIds": ["reset-state", "set-state", "hold-from-reset", "invalid-state"],
+        "outputEvents": [
           {
             "id": "reset-output",
             "vector": [0.0, 1.0],
@@ -97,8 +97,8 @@ SEQUENCE_RESPONSE=$(curl -s -X POST $API_URL/sequences \
         ],
         "isInitial": true,
         "isActive": false,
-        "nextVectorIds": ["reset-state", "set-state", "hold-from-set", "invalid-state"],
-        "outputVectors": [
+        "nextEventIds": ["reset-state", "set-state", "hold-from-set", "invalid-state"],
+        "outputEvents": [
           {
             "id": "set-output",
             "vector": [1.0, 0.0],
@@ -126,8 +126,8 @@ SEQUENCE_RESPONSE=$(curl -s -X POST $API_URL/sequences \
         ],
         "isInitial": false,
         "isActive": false,
-        "nextVectorIds": ["reset-state", "set-state", "hold-from-reset", "invalid-state"],
-        "outputVectors": [
+        "nextEventIds": ["reset-state", "set-state", "hold-from-reset", "invalid-state"],
+        "outputEvents": [
           {
             "id": "hold-reset-output",
             "vector": [0.0, 1.0],
@@ -157,8 +157,8 @@ SEQUENCE_RESPONSE=$(curl -s -X POST $API_URL/sequences \
         ],
         "isInitial": false,
         "isActive": false,
-        "nextVectorIds": ["reset-state", "set-state", "hold-from-set", "invalid-state"],
-        "outputVectors": [
+        "nextEventIds": ["reset-state", "set-state", "hold-from-set", "invalid-state"],
+        "outputEvents": [
           {
             "id": "hold-set-output",
             "vector": [1.0, 0.0],
@@ -188,8 +188,8 @@ SEQUENCE_RESPONSE=$(curl -s -X POST $API_URL/sequences \
         ],
         "isInitial": false,
         "isActive": false,
-        "nextVectorIds": ["reset-state", "set-state", "invalid-state"],
-        "outputVectors": [
+        "nextEventIds": ["reset-state", "set-state", "invalid-state"],
+        "outputEvents": [
           {
             "id": "invalid-output",
             "vector": [1.0, 1.0],
