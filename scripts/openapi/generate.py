@@ -210,7 +210,7 @@ def re_components() -> dict:
                 "timestamp": {"type": "number"},
                 "version":   {"type": "string"}}},
             "RealityConfig": {"type": "object", "properties": {
-                "vectorDimension": {"type": "integer", "example": 7680},
+                "eventDimension": {"type": "integer", "example": 7680},
                 "matchThreshold":  {"type": "number", "example": 0.5},
                 "qdrantUrl":       {"type": "string"},
                 "collectionName":  {"type": "string", "example": "reality-vectors"}}},
@@ -244,7 +244,7 @@ def re_components() -> dict:
             "MachineTransitionResult": {
                 "type": "object", "additionalProperties": True,
                 "properties": {
-                    "inputVector":    {"$ref": "#/components/schemas/Vector"},
+                    "inputEvent":    {"$ref": "#/components/schemas/Vector"},
                     "timestamp":      {"type": "number"},
                     "machineOutput":  {"type": "array",
                                        "items": {"type": "number", "format": "double"},
@@ -380,8 +380,8 @@ def request_body(method: str, path: str) -> dict | None:
         schema_ref = {"type": "object", "required": ["vector"],
                       "properties": {"vector": {"$ref": "#/components/schemas/Vector"}}}
     elif path in ("/api/machines/{id}/process", "/api/machines/{id}/whatif"):
-        schema_ref = {"type": "object", "required": ["inputVector"],
-                      "properties": {"inputVector": {"$ref": "#/components/schemas/Vector"}}}
+        schema_ref = {"type": "object", "required": ["inputEvent"],
+                      "properties": {"inputEvent": {"$ref": "#/components/schemas/Vector"}}}
     elif path in ("/api/machines/{id}/process-universal",
                   "/api/machines/{id}/whatif-universal",
                   "/api/machines/process-universal/all"):

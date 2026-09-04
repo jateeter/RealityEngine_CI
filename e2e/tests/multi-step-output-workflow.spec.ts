@@ -211,8 +211,7 @@ test.describe('Multi-Step State Machine - Output Workflow', () => {
         if (r.machineName.includes('RS2') && loggedRS2++ < 3) {
           const shouldOut = r.transitionResult?.arbiterMetadata?.shouldOutput;
           const outVec = r.outputVector;
-          // #220 layer 2: engines migrate one at a time, so read either.
-          const inputVec = r.inputEvent ?? r.inputVector;
+          const inputVec = r.inputEvent;
           console.log(`  RS2 (${id.slice(0,8)}): input=[${inputVec}] shouldOutput=${shouldOut}, outputVector=[${outVec}]`);
         }
       });
