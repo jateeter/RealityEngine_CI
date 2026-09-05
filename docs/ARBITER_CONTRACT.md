@@ -227,6 +227,12 @@ returned `perceptualSpace` **exactly**, on every one of those 30 steps. On this
 corpus the engine's arbitrated space is already the answer, and the merge is
 defensive rather than corrective.
 
+Note what that makes the TypeScript PE, which never aggregated: it now agrees
+with the other three **because the merge became a no-op**, not because it does
+what they do. That is agreement by coincidence of outcome rather than shared
+construction, and §7.5 records why it is expected to drift as the other three
+parallelise.
+
 ## 3. Contribution
 
 A contribution is provider-tagged. Machine outputs and PE sources use the same
@@ -692,6 +698,50 @@ what makes byte equivalence checkable rather than hopeful:
 
 Parallelism MUST NOT change results. Byte equivalence is the gate, and any
 implementation whose output depends on partitioning has violated 4.1.
+
+### 7.5 The TypeScript PE reaches parity by a different route, and will drift
+
+The three native runtimes are converging on one structure — futures over a
+bounded pool, a read-block at the point a value is needed, the same shape in C++,
+`lparallel` and Akka (7.4). The TypeScript PE is not on that path. Its directive
+above is written in the conditional for a reason: it does not shard, it does not
+aggregate, and it advances from the returned `perceptualSpace` alone.
+
+**It agrees with the other three today, and it does not agree by implementing
+what they implement.** After the §2.1a guard the aggregation the others perform
+became a no-op on this corpus, so all four land on the same vector — the three by
+doing the work and arriving where they started, the fourth by never doing it.
+That is agreement by coincidence of outcome, not by shared construction, and
+nothing in the acceptance test can tell the two apart: byte equivalence compares
+answers, not the routes to them.
+
+So this is a **standing drift risk, not a resolved difference**:
+
+- The three will change together as they parallelise, because they share a
+  structure and a directive. The fourth has no reason to move with them.
+- A change that is correct under parallel construction — an ordering rule, a
+  partition-safety property, a barrier placement — has no counterpart in a
+  runtime that is not parallel, so it cannot be checked there and will not be
+  applied there.
+- The failure mode is the familiar one: the divergence appears as a
+  well-formed vector that differs, on the contended minority of cells, with
+  nothing raising. §2.1a was exactly this and survived because the parity stage
+  compares `cpp + lsp + scala` — the three that agree.
+
+Two things follow for anyone touching §7:
+
+- **Do not read "all four implement this" as "all four implement it the same
+  way."** The header's status table is about the resolution rules, not the
+  execution model.
+- **The TypeScript PE is outside the runtime registry** and reaches the parity
+  stages only via `--extra-runtime`. Any claim of four-way equivalence has to say
+  whether that runtime was actually in the comparison, because by default it is
+  not.
+
+Whether it should be brought onto the same structure, or deliberately kept as a
+simple non-parallel reference implementation whose value *is* its difference, is
+an open question. Both are defensible. What is not defensible is leaving it
+unstated and reading today's agreement as evidence of tomorrow's.
 
 ## 8. Acceptance
 
