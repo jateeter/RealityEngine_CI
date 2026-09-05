@@ -541,6 +541,41 @@ which drives a push against every running PE and compares the emitted key sets
 against this table. It runs as the `pe-step-contract` stage of the regression
 lane, so the contract is observable rather than aspirational.
 
+#### Requesting less than the full step
+
+Two fields in the table are **observation surfaces**: nothing reads them to
+produce the next result, and both scale with the corpus rather than with what
+fired. On the push path this is the dominant cost of a step — the engine
+computes one in 3.96 ms and the response can spend sixteen times that packaging
+fields the caller discards (`RealityEngine_CI#256`, `#259`).
+
+| Request field | Omits | Default | Class |
+|---|---|---|---|
+| `includeMachineResults: false` | `machineResults` | `true` | observation |
+| `includeActiveRegions: false` | `activeRegions` | `true` | observation |
+| `compact: true` | `machineResults` | `false` | — |
+
+`perceptualSpace` and `mergeBatch` have no flag and never will. They are what a
+caller consumes to produce a result — the first carries machine outputs into the
+next push, the second is what trigger dispatch scans — and a response without
+them is not a step.
+
+Three rules, each of which has a failure behind it:
+
+- **Omitted, not emptied.** A runtime that returns `activeRegions: []` when the
+  field was not requested is stating that no regions were active, which is a
+  different claim. The parity stage compares key sets, so an emptied field
+  reports as agreement between a runtime that had nothing to say and one that
+  was not asked.
+- **`compact` is unchanged.** It still omits exactly `machineResults` and
+  nothing else. Widening it would have been convenient and would have silently
+  changed what several regression stages assert against a wire they already
+  compare byte-for-byte.
+- **Defaults stay full.** No existing caller changes shape, so the parity gates
+  keep comparing identical key sets until a caller opts out, and an opt-out is
+  visible in that caller's own request rather than in a server-side default
+  someone has to go and look up.
+
 ### Configuration & Reset
 
 | Method | Path | CPP | LSP | Scala |
