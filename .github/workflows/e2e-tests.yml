@@ -1098,12 +1098,20 @@ jobs:
 
       # ── Gate: multi-engine (same-runtime comparison) ───────────────────────
       # Reallocated onto cpp-1 + cpp-2 (was scala-1 + scala-2 under the old
-      # --engines=scala:2 boot). The spec compares whatever same-runtime pair
-      # the registry reports, so this depends on it discovering pairs via the
-      # registry rather than assuming "scala" by name — unverified here because
-      # tests/integration/multi-instance.spec.ts lives in RealityEngine_Machines,
-      # a repo not present in this checkout. Flagged as a residual risk to
-      # confirm before relying on this job.
+      # --engines=scala:2 boot).
+      #
+      # The spec does NOT discover a same-runtime pair. multi-instance.spec.ts
+      # takes `const [a, b] = instances` — the first two in registry order — so
+      # which pair it compares is decided by the order of the --engines= flag
+      # above. That is why cpp comes first there, and why the order is
+      # load-bearing rather than cosmetic.
+      #
+      # An earlier note here recorded this as an unverified risk that the spec
+      # might assume "scala" by name. It was verified: there is no "scala"
+      # string in it. The assumption that bites is positional, not nominal — and
+      # it does not fail loudly, because the test asserts only that both
+      # endpoints return an array. Selecting by the registry's `runtime` field
+      # is the durable fix; tracked as RealityEngine_CI#274.
       - name: Run multi-instance integration tests (cpp-1 + cpp-2)
         working-directory: RealityEngine_Machines
         env:
