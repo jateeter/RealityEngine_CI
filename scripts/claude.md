@@ -44,6 +44,26 @@ This directory contains operational helpers for startup, testing, OpenAPI, and v
   1..n interned and activating all of them applies the merged set: one push
   advances every machine's sequence a step at once. There is no synthetic seed.
 
+  Each iteration records wall-clock per phase under `timings` and prints it
+  beneath the verdict line, because a 1328-iteration sweep is long enough that
+  "it is slow" names nothing. `perStepPerRuntime` is the figure that stays
+  comparable when the step count or instance count changes between runs.
+  Measured at 1328 machines:
+
+  ```
+  [1/3] PASS AGX001 — 495.57s total: reset=4.55 ingestMachine=1.08
+        bootstrapSources=16.89 activateSources=188.95 stepCycle=281.27
+        trajectoryCompare=2.62 [79 steps, 1.1868s/step/runtime]
+  [2/3] PASS AGX002 — 286.08s: activateSources=2.62 stepCycle=274.82
+  ```
+
+  `stepCycle` is ~96% in steady state. `activateSources` is large only on the
+  first iteration — 1342 sequential PATCHes, and only lsp needs them, since its
+  reset is the one that deactivates (#163). Inside a step the engine is ~95 ms
+  of the ~1.1 s, so the remainder is PE-side assembly over the active sources
+  and wants its own measurement; of the engine's share, 87% is OSRE
+  construction (#256).
+
 - `regression-reset-contract.py`: the acceptance stage for
   `RealityEngine_CI#163` and `#166`. Registers the corpus-test integration
   (`POST /api/sources/bootstrap-from-machines`), then reads `GET /api/sources`
