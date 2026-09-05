@@ -128,6 +128,9 @@ startUniverse.sh — engine-selectable CI orchestrator
                                   once per RE instance after RE health, then triggers PE bootstrap
   --machine-load=none           RE starts empty; no seeding, no PE bootstrap regardless of other flags
   --machine-corpus=full         Use the full RealityEngine_Machines corpus at boot (default)
+  --machine-corpus=regression   Regression default: the standard twelve, the RS ring
+                                pair (propagation), and the contended arbitration
+                                trio (the only machines that make the arbiter run)
   --machine-corpus=standard-deployment
                                 Materialize and boot from config/standard-deployment-corpus.txt
   --machine-corpus-manifest=PATH
@@ -212,7 +215,7 @@ done
 case "$RE_ENGINE"          in ai|cpp|lsp)              ;; *) echo "Bad --re-engine=$RE_ENGINE"; exit 2 ;; esac
 case "$PE_ENGINE"          in ai|cpp|lsp)              ;; *) echo "Bad --pe-engine=$PE_ENGINE"; exit 2 ;; esac
 case "$MACHINE_LOAD"       in runtime|ci-seed|none)    ;; *) echo "Bad --machine-load=$MACHINE_LOAD (runtime|ci-seed|none)"; exit 2 ;; esac
-case "$MACHINE_CORPUS"     in full|standard-deployment);; *) echo "Bad --machine-corpus=$MACHINE_CORPUS (full|standard-deployment)"; exit 2 ;; esac
+case "$MACHINE_CORPUS"     in full|standard-deployment|regression);; *) echo "Bad --machine-corpus=$MACHINE_CORPUS (full|standard-deployment|regression)"; exit 2 ;; esac
 case "$POST_START_FULL_CORPUS" in off|seed)            ;; *) echo "Bad --post-start-full-corpus=$POST_START_FULL_CORPUS (off|seed)"; exit 2 ;; esac
 case "$PE_SOURCE_BOOTSTRAP" in auto|off)               ;; *) echo "Bad --pe-source-bootstrap=$PE_SOURCE_BOOTSTRAP (auto|off)"; exit 2 ;; esac
 case "$VALIDATE_CORPUS"    in once|off)                ;; *) echo "Bad --validate-corpus=$VALIDATE_CORPUS (once|off)"; exit 2 ;; esac
@@ -228,12 +231,19 @@ esac
 # them, or the whole corpus with all of its agents.
 if [ -z "$AGENT_PROFILE" ]; then
     case "$MACHINE_CORPUS" in
-        standard-deployment) AGENT_PROFILE="regression" ;;
-        *)                   AGENT_PROFILE="full" ;;
+        standard-deployment|regression) AGENT_PROFILE="regression" ;;
+        *)                              AGENT_PROFILE="full" ;;
     esac
 fi
 
-if [ "$MACHINE_CORPUS" = "standard-deployment" ]; then
+# `regression` selects its own manifest so a caller names one corpus rather than
+# a mode plus a path. --machine-corpus-manifest still overrides, which is how a
+# one-off corpus is tried without adding a mode for it.
+if [ "$MACHINE_CORPUS" = "regression" ] && [ "$MACHINE_CORPUS_MANIFEST" = "$CI_DIR/config/standard-deployment-corpus.txt" ]; then
+    MACHINE_CORPUS_MANIFEST="$CI_DIR/config/regression-corpus.txt"
+fi
+
+if [ "$MACHINE_CORPUS" = "standard-deployment" ] || [ "$MACHINE_CORPUS" = "regression" ]; then
     bash "$CI_DIR/scripts/materialize-machine-corpus.sh" \
         "$FULL_MACHINES_DIR" "$MACHINE_CORPUS_MANIFEST" "$MACHINE_CORPUS_WORK_DIR" >/tmp/machine_corpus_materialize.log 2>&1 || {
         cat /tmp/machine_corpus_materialize.log >&2

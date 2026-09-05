@@ -1,0 +1,79 @@
+# Regression corpus — the default for regression testing.
+#
+# Supersedes standard-deployment and standard-deployment-plus-ring as the boot
+# corpus for the regression lanes. It is those, plus the two things the parity
+# gates could not previously observe.
+#
+# WHAT EACH BLOCK PROVES, because a corpus that does not say this becomes a list
+# nobody dares change:
+#
+#   the twelve      an engine loads machine JSON, exposes inventory, evaluates
+#                   deterministic CES fixtures, and keeps integration fixtures
+#                   available through deployment validation.
+#
+#   the ring        PROPAGATION. RSRingLatchStageA and RSRingLatchStageB are two
+#                   distinct machines, each composed of proven RS CESs, coupled
+#                   so one lap is two output-event -> universal-input-event
+#                   transitions: A.out [16922:16924] is B.in, B.out [16920:16922]
+#                   is A.in. The twelve prove load and CES; this pair is the
+#                   first that can prove a value travels between machines.
+#
+#   the contention  ARBITRATION. ArbitrationWriterA and ArbitrationWriterB both
+#                   write [16930:16932] — the same two cells — and
+#                   ArbitrationReader reads them. That makes the cells bus
+#                   members with more than one writer, which is the only
+#                   condition under which the arbiter runs at all.
+#
+# The third block is why this corpus exists. standard-deployment writes 31 cells
+# and NONE of them has two writers, so the tri-runtime byte-equivalence gate ran
+# where the arbiter could never fire — it reported success whether or not an
+# arbiter existed. That is the observation behind RealityEngine_CI#123, and it
+# outlived the stage that issue delivered, because that stage got its own
+# fixture corpus while the parity gate kept booting standard-deployment
+# (RealityEngine_CI#274).
+#
+# Byte equivalence across runtimes is the arbiter contract's acceptance test
+# (ARBITER_CONTRACT.md §8), and the divergence most likely to appear between
+# three implementations is how they resolve a contended cell. A parity gate that
+# cannot reach one is not testing the thing most likely to break.
+
+# ── The twelve: load, inventory, CES evaluation, integration fixtures ────────
+domains/digital-logic/DLX011_req-ack-handshake.json
+domains/digital-logic/DLX017_start-busy-done.json
+domains/digital-logic/DLX034_watchdog-kick-window.json
+domains/digital-logic/DLX041_one-hot-grant.json
+domains/data-center/DCMemoryAlertFF.json
+domains/data-center/DCNetworkThrottleFF.json
+domains/digital-logic/OpenClawCompletionE2E.json
+domains/community-services/DocumentSigningWorkflowMonitor.json
+domains/community-services/QualificationVerificationMonitor.json
+domains/health-personal/HomeTransportationBarrierMonitor.json
+domains/data-center/DataCenterDcx001010Interconnect.json
+domains/digital-logic/DigitalLogicDlx021030Interconnect.json
+
+# ── The ring: propagation between machines ──────────────────────────────────
+domains/digital-logic/RSRingLatchStageA.json
+domains/digital-logic/RSRingLatchStageB.json
+
+# ── The contended pair and its reader: arbitration ──────────────────────────
+#
+# §9a of the arbiter contract, and shaped so one bit separates a conforming
+# arbiter from the defect: A asserts [1,1] at AMBER, B asserts [0,0] at RED, and
+# the declared rule is SEVERITY — so the resolved value must be 0. Under the
+# OR/MAX behaviour the contract replaced it is 1.
+#
+# ArbitrationReader is not optional decoration. A cell is a bus member because
+# some output event targets it AND some machine reads it; without the reader
+# these are two machines writing a cell nobody consumes, which is not
+# contention the arbiter is required to resolve.
+domains/digital-logic/ArbitrationWriterA.json
+domains/digital-logic/ArbitrationWriterB.json
+domains/digital-logic/ArbitrationReader.json
+
+# NOT included: ArbitrationProviderPeer / ArbitrationProviderTarget.
+#
+# Those are §9b, machine-versus-provider contention, and their declared
+# non-machine writer is an ACP source. The hosted profile refuses --openclaw, so
+# that surface is not running there and the fixture would sit in the corpus
+# proving nothing. It stays in config/arbiter-fixture-corpus.txt, which the
+# arbiter stage boots on the local lane where the provider exists.

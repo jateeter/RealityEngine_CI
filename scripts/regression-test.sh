@@ -25,9 +25,25 @@ LIVE_TESTS=true
 #            no local stack, and a six-hour platform ceiling.
 #   local  — the whole stack on operator hardware, no service exclusions.
 #
-# Both lanes boot the same machine corpus. The lanes are a statement about
-# which services may run, and a corpus that differed between them made every
-# hosted-vs-local comparison carry a second, unrelated variable. The local
+# Both lanes boot the same machine corpus, and that corpus is `regression`.
+#
+# It is standard-deployment's twelve plus two additions, each earning its place:
+# the RS ring pair proves PROPAGATION between machines, and ArbitrationWriterA /
+# WriterB / Reader prove ARBITRATION — they are the only machines here that make
+# a cell contended, and a contended cell is the only condition under which the
+# arbiter runs at all.
+#
+# standard-deployment writes 40 cells and NONE has two writers, so every parity
+# gate booting it reported success whether or not an arbiter existed. That was
+# the observation behind #123, and it outlived the stage that issue delivered:
+# the arbiter stage got its own fixture corpus while the byte-equivalence gate
+# kept booting standard-deployment (#274). Byte equivalence is the arbiter
+# contract's acceptance test, and the divergence most likely between three
+# implementations is how they resolve a contended cell.
+#
+# The lanes are a statement about which services may run, and a corpus that
+# differed between them made every hosted-vs-local comparison carry a second,
+# unrelated variable. The local
 # lane may still opt into --machine-corpus=full explicitly; the hosted lane
 # may not. Full-corpus load behaviour belongs to dedicated scaling tests, not
 # to a lane default.
@@ -46,7 +62,7 @@ ARBITER_SWEEP_DEFAULT="PRECEDENCE,OR,MAX,AND,MIN,SEVERITY,MEAN"
 ARBITER_SWEEP=""
 OPENCLAW_FLAG=""             # resolved from PROFILE unless set explicitly
 LOCAL_AI=""                  # true|false, resolved from PROFILE
-MACHINE_CORPUS=""            # full|standard-deployment, resolved from PROFILE
+MACHINE_CORPUS=""            # full|standard-deployment|regression, resolved from PROFILE
 OPENCLAW_SET=false
 LOCAL_AI_SET=false
 MACHINE_CORPUS_SET=false
@@ -136,7 +152,8 @@ Options:
                             load the arbitration registry at boot and cannot
                             reload it — so this is off unless asked for.
   --no-arbiter-sweep        Disable the sweep. Default.
-  --machine-corpus CORPUS   full | standard-deployment. Default: standard-deployment
+  --machine-corpus CORPUS   full | standard-deployment | regression.
+                            Default: regression
                             on both profiles. full is an explicit opt-in and is
                             refused under --profile hosted.
   --retain N                Keep latest N local run histories. Default: 20
@@ -217,7 +234,7 @@ case "$PROFILE" in
     FRESH_FLAG=""
     [ "$OPENCLAW_SET" = true ]       || OPENCLAW_FLAG="--no-openclaw"
     [ "$LOCAL_AI_SET" = true ]       || LOCAL_AI=false
-    [ "$MACHINE_CORPUS_SET" = true ] || MACHINE_CORPUS="standard-deployment"
+    [ "$MACHINE_CORPUS_SET" = true ] || MACHINE_CORPUS="regression"
     [ "$OPENCLAW_FLAG" = "--no-openclaw" ] || profile_refuse "run OpenClaw (--openclaw)"
     [ "$LOCAL_AI" = false ] || profile_refuse "run localAI/Ollama (--local-ai)"
     # What the hosted lane refuses is the *full* corpus, because full-corpus
@@ -239,7 +256,7 @@ case "$PROFILE" in
     [ "$LOCAL_AI_SET" = true ]       || LOCAL_AI=true
     # Same corpus as hosted. --machine-corpus=full stays available here as an
     # explicit opt-in; it is no longer what an unflagged local run boots.
-    [ "$MACHINE_CORPUS_SET" = true ] || MACHINE_CORPUS="standard-deployment"
+    [ "$MACHINE_CORPUS_SET" = true ] || MACHINE_CORPUS="regression"
     # Pin one model for every engine on this lane.
     #
     # The runtimes now share a canonical default (llama3.1:8b, see
@@ -1311,11 +1328,16 @@ run_mqtt_yuma() {
 run_arbiter() {
   step "Arbiter conformance (9a machine/machine, 9b machine/provider)"
   local ci; ci="$(repo_root RealityEngine_CI)"
+  # `regression` is here because it carries ArbitrationWriterA/B and the Reader
+  # — two machines writing cells 16930-16931 that a third reads, which is the
+  # only condition under which the arbiter runs. It became the lane default so
+  # this stage would stop skipping: it had skipped on every regression run,
+  # correctly, because standard-deployment has no contended cell (#274).
   case "$MACHINE_CORPUS" in
-    arbiter-fixture|full) ;;
+    arbiter-fixture|regression|full) ;;
     *)
       write_skip_report "arbiter-skipped.json" \
-        "corpus '$MACHINE_CORPUS' has no contended cells; run --machine-corpus=arbiter-fixture"
+        "corpus '$MACHINE_CORPUS' has no contended cells; run --machine-corpus=regression"
       log "SKIP arbiter: corpus '$MACHINE_CORPUS' contains no contended cells"
       return 0 ;;
   esac

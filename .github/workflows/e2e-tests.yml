@@ -626,7 +626,7 @@ jobs:
           MACHINES_DIR: ${{ github.workspace }}/RealityEngine_Machines
           SCALA_DIR: ${{ github.workspace }}/RealityEngine_Scala
           MGR_DIR: ${{ github.workspace }}/RealityEngine_Manager
-        run: ./startUniverse.sh --no-openclaw --no-local-ai --skip-seed --machine-corpus=standard-deployment
+        run: ./startUniverse.sh --no-openclaw --no-local-ai --skip-seed --machine-corpus=regression
 
       - name: Run smoke tests
         working-directory: RealityEngine_Machines
@@ -755,7 +755,7 @@ jobs:
           MACHINES_DIR: ${{ github.workspace }}/RealityEngine_Machines
           SCALA_DIR: ${{ github.workspace }}/RealityEngine_Scala
           MGR_DIR: ${{ github.workspace }}/RealityEngine_Manager
-        run: ./startUniverse.sh --no-openclaw --no-local-ai --machine-corpus=standard-deployment
+        run: ./startUniverse.sh --no-openclaw --no-local-ai --machine-corpus=regression
 
       - name: Run integration tests
         working-directory: RealityEngine_Machines
@@ -1051,12 +1051,16 @@ jobs:
             echo "::endgroup::"
           done
 
-      # The one shared bring-up. --machine-corpus=standard-deployment plus an
-      # explicit --machine-corpus-manifest is how a manifest-backed corpus other
-      # than the two hardcoded names rides startUniverse.sh's materialisation
-      # path (see scripts/regression-test.sh's case statement, RealityEngine_CI#123)
-      # — standard-deployment-plus-ring is not one of startUniverse.sh's own
-      # --machine-corpus= choices (full|standard-deployment).
+      # The one shared bring-up, on the regression corpus.
+      #
+      # `regression` is a first-class --machine-corpus= mode that selects its own
+      # manifest, so this names one corpus instead of a mode plus a path. It is
+      # standard-deployment's twelve plus the RS ring pair (propagation) and
+      # ArbitrationWriterA/B + Reader — the only machines here that make a cell
+      # contended, and a contended cell is the only condition under which the
+      # arbiter runs. standard-deployment writes 40 cells and none has two
+      # writers, so this gate previously ran where arbitration could not be
+      # observed (RealityEngine_CI#274).
       - name: Start shared multi-engine core (scala:1,lsp:1,cpp:2)
         working-directory: RealityEngine_CI
         env:
@@ -1071,8 +1075,7 @@ jobs:
           HOST_IP_OVERRIDE: 127.0.0.1
         run: |
           ./startUniverse.sh --no-openclaw --no-local-ai --skip-seed \
-            --machine-corpus=standard-deployment \
-            --machine-corpus-manifest="$PWD/config/standard-deployment-plus-ring-corpus.txt" \
+            --machine-corpus=regression \
             --engines=scala:1,lsp:1,cpp:2
 
       - name: Show registry
