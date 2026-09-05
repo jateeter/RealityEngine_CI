@@ -190,24 +190,52 @@ def main() -> int:
     # that inhibits where the others do not returns zero outputs and looks like
     # a universe in which nothing fired. The only way to tell is to ask.
     for instance in instances:
+        # Read from /api/engine/config, which SURFACE_SPEC declares as THE
+        # pathway for runtime controls. A runtime that answers 404 there has not
+        # implemented the control, which is a conformance fact rather than a
+        # transport error — recorded as `reported: 0` so it shows up in the
+        # split check below rather than as an exception.
         try:
-            with request.urlopen(f"{instance['re_url']}/api/machines", timeout=300) as response:
-                machines = json.loads(response.read().decode("utf-8")).get("machines") or []
+            with request.urlopen(
+                f"{instance['re_url']}/api/engine/config/transitionsInhibited",
+                timeout=300,
+            ) as response:
+                control = json.loads(response.read().decode("utf-8"))
+        except error.HTTPError as exc:
+            if exc.code == 404:
+                report["inhibited"][instance["id"]] = {"total": 0, "inhibited": 0, "reported": 0}
+            else:
+                report["inhibited"][instance["id"]] = f"error: {exc}"
+            continue
         except (error.URLError, OSError, ValueError) as exc:
             report["inhibited"][instance["id"]] = f"error: {exc}"
             continue
-        # Absent is `false`: the contract's default, so a runtime that has not
-        # implemented the flag reads as uninhibited rather than as unknown.
+        value = control.get("value") or {}
         report["inhibited"][instance["id"]] = {
-            "total": len(machines),
-            "inhibited": sum(1 for m in machines if m.get("transitionsInhibited") is True),
-            "reported": sum(1 for m in machines if "transitionsInhibited" in m),
+            "total": len(value),
+            "inhibited": sum(1 for v in value.values() if v is True),
+            "reported": len(value),
+            # The declared default travels with the control, so a runtime that
+            # holds a different one is caught here rather than through its
+            # effects on some later output count.
+            "default": control.get("default"),
+            "scope": control.get("scope"),
         }
 
     # The defaults must agree, and that is checked directly rather than deduced
     # from output counts (SURFACE_SPEC, `transitionsInhibited`).
     states = {k: v for k, v in report["inhibited"].items() if isinstance(v, dict)}
     if len(states) > 1:
+        # The DECLARED default and scope must agree before the values can mean
+        # anything: two runtimes reporting 0 inhibited out of 1328 agree on
+        # nothing if one of them defaults to true.
+        declared = {k: (v.get("default"), v.get("scope"))
+                    for k, v in states.items() if v["reported"] > 0}
+        if len(set(declared.values())) > 1:
+            report["failures"].append(
+                f"runtimes disagree on the declared default or scope of "
+                f"transitionsInhibited {declared}: {cluster(declared)}")
+
         shapes = {k: (v["inhibited"], v["total"]) for k, v in states.items()}
         if len(set(shapes.values())) > 1:
             report["failures"].append(

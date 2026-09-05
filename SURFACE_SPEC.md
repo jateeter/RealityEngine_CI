@@ -153,6 +153,94 @@ decrease. It was verified to fail against the old predicate.
 | GET | `/api/config` | ✓ | ✓ | ✓ |
 | PUT | `/api/config/dimension` | ✓ | ✓ | ✓ |
 | PUT | `/api/config/threshold` | ✓ | ✓ | ✓ |
+| GET | `/api/engine/config` | — | — | — |
+| GET | `/api/engine/config/:control` | — | — | — |
+| PUT | `/api/engine/config/:control` | — | — | — |
+| DELETE | `/api/engine/config/:control` | — | — | — |
+
+#### `/api/engine/config` — one pathway for every runtime control
+
+**Specified before it is implemented, and specified once.** Controls are today
+spread across `/api/runtime/options`, `/api/config` and per-request body flags,
+with one — `transitionsInhibited` — having no surface at all. Nothing can
+enumerate them, so nothing can compare them across runtimes, and a control that
+cannot be read cannot be gated. `historyLimit` is **256 on C++, 250 on LSP and
+1000 on Scala** and nothing noticed, because no stage could ask all three what
+their controls were (RealityEngine_CI#271).
+
+Every control's name, scope and **default** is declared here rather than chosen
+per runtime. A runtime that disagrees with a declared default is wrong rather
+than different.
+
+##### Shape
+
+A control is described by five fields, and `scope` is the one that decides the
+rest:
+
+| field | |
+|---|---|
+| `name` | the control, as declared here |
+| `scope` | `engine` — one value for the runtime; `machine` — one value per machine |
+| `value` | current value. For `scope: machine`, an object keyed by machine id |
+| `default` | the declared default, from this document |
+| `mutable` | whether `PUT` is accepted; a derived reading is reported, not set |
+
+```
+GET    /api/engine/config              every control, with its scope and default
+GET    /api/engine/config/:control     one control
+PUT    /api/engine/config/:control     set it — {"value": X}, or
+                                       {"machine": "<id>", "value": X} when scope is machine
+DELETE /api/engine/config/:control     restore the declared default
+```
+
+`DELETE` is "reset to the value this document declares", not "remove the
+control". Controls are fixed by the specification and cannot be created or
+destroyed over the API — which is why the C of CRUD has no verb here, and saying
+so is clearer than leaving a reader to infer it from a 405.
+
+##### Byte equivalence applies
+
+`GET /api/engine/config` is a compared surface. Two runtimes that hold the same
+configuration must serialise it identically — same control set, same names, same
+order, same defaults. That is the whole point: the pathway exists so
+configuration can be compared, and a comparison over a shape that differs per
+runtime compares nothing.
+
+Controls are emitted **sorted by `name`**, for the reason the active-region
+ordering exists: a set walked in each runtime's own iteration order reports the
+same content three ways and no comparison finds a majority (#197).
+
+##### Phase 1 — `transitionsInhibited`
+
+The first control on the pathway, chosen because it is **machine-scoped**. A
+pathway proven only against engine-wide scalars would look finished and fail on
+the first per-entity control, which is most of them.
+
+| | |
+|---|---|
+| `name` | `transitionsInhibited` |
+| `scope` | `machine` |
+| `default` | `false` |
+| `mutable` | `true` |
+
+Its behaviour is defined under `POST /api/engine/process`, and it is unchanged
+by this route: `false` accepts the Universal Reality Event and flows it through;
+`true` accepts it and does not pass it forward.
+
+##### Phase 2 — the observational filters
+
+`includeMachineResults`, `includePerceptualSpace`, `includeActiveRegions`,
+`compact`, `phaseDetail`, `historyLimit`, and whatever `projectionControls`
+currently describes in prose on two of the three runtimes.
+
+Two things phase 2 settles rather than carries forward:
+
+- **The defaults converge.** One value declared here, adopted by all three.
+- **The per-request flags remain.** A caller declining `machineResults` on one
+  push is not configuration; folding it in would make response shape depend on
+  hidden state. The config value is the **default a request overrides** — which
+  is already how C++'s `includeMachineResultsDefault` behaves, and this makes
+  that relationship declared rather than incidental.
 
 ### Runtime Introspection
 
