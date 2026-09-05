@@ -405,6 +405,18 @@ jobs:
         working-directory: RealityEngine_CI
         run: bash scripts/tests/test-parity-source-census.sh
 
+      # Gates RealityEngine_CI#220 layer 1c. Fails when any site still reads or
+      # writes a legacy Reality Event key. It runs from the CI checkout and
+      # scans the sibling repos, so it needs them present — the same checkout
+      # the parity stages already rely on.
+      #
+      # Wired in because an unenforced census is a claim: the failure this
+      # migration produces is a reader getting an empty default and reporting
+      # success, so nothing else in the suite notices a regression.
+      - name: Legacy Reality Event key census
+        working-directory: RealityEngine_CI
+        run: python3 scripts/census-legacy-event-keys.py
+
       - name: Run reset contract unit tests
         working-directory: RealityEngine_CI
         run: bash scripts/tests/test-reset-contract.sh

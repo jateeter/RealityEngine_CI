@@ -115,8 +115,12 @@ def classify(repo: str, rel: str, line: str) -> str:
     if p.startswith("schemas/"):
         return "GATE: schema rejects the old key"
 
-    # The rename tool's own mapping table. It has to say both spellings.
-    if "rename-corpus-event-keys" in p:
+    # The migration tooling has to name the old keys in order to act on them:
+    # the rename script's mapping table, and this census's own KEYS list and
+    # regex. Including this file, which scans the tree it lives in and would
+    # otherwise report itself as four sites of outstanding migration work — a
+    # diagnostic counting its own definition of what it looks for.
+    if "rename-corpus-event-keys" in p or "census-legacy-event-keys" in p:
         return "MIGRATION TOOL: the mapping itself"
 
     # Things that are not ours, in any spelling.
@@ -168,7 +172,15 @@ def classify(repo: str, rel: str, line: str) -> str:
     return f"ACTIVE: {kind}"
 
 
-def main() -> int:
+def main(argv: list[str] | None = None) -> int:
+    argv = list(argv if argv is not None else sys.argv[1:])
+    # Exploratory use: report the classification without failing, for someone
+    # working through the sites rather than gating on them.
+    report_only = "--report-only" in argv
+    json_path = None
+    if "--json" in argv:
+        json_path = argv[argv.index("--json") + 1]
+
     rows = []
     for repo in REPOS:
         base = ROOT / repo
@@ -217,10 +229,28 @@ def main() -> int:
         for (repo, rel), n in sorted(per_file.items(), key=lambda kv: (-kv[1], kv[0])):
             print(f"  {n:4}  {repo}/{rel}")
 
-    Path("census.json").write_text(json.dumps(
-        [{"repo": r, "file": f, "line": n, "class": c, "text": t} for r, f, n, c, t in rows],
-        indent=2))
-    print(f"\n\nfull detail written to census.json ({len(rows)} lines)")
+    if json_path:
+        Path(json_path).write_text(json.dumps(
+            [{"repo": r, "file": f, "line": n, "class": c, "text": t} for r, f, n, c, t in rows],
+            indent=2))
+        print(f"\n\nfull detail written to {json_path} ({len(rows)} lines)")
+
+    # The gate, not merely the report.
+    #
+    # This script spent its life as a diagnostic somebody ran by hand, which
+    # meant "layer 1c is complete" rested on a person having run it and read the
+    # output. That is exactly the wrong footing for THIS migration: a reader
+    # looking for a moved key gets an empty default and reports success, so the
+    # failure is silent and nothing else in the suite would notice a regression.
+    # An unenforced census is a claim; an enforced one is a fact.
+    active = sum(len(v) for k, v in by_class.items() if k.startswith("ACTIVE"))
+    if active and not report_only:
+        print(f"\nFAIL: {active} site(s) still read or write a legacy Reality Event key.",
+              file=sys.stderr)
+        print("Each one breaks when the corpus is renamed. Convert it, or — if it is "
+              "not ours — give it a verdict in `classify`.", file=sys.stderr)
+        return 1
+    print(f"\nOK: 0 active sites. {len(rows)} occurrence(s), all accounted for.")
     return 0
 
 
