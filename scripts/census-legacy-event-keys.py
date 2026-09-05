@@ -115,8 +115,12 @@ def classify(repo: str, rel: str, line: str) -> str:
     if p.startswith("schemas/"):
         return "GATE: schema rejects the old key"
 
-    # The rename tool's own mapping table. It has to say both spellings.
-    if "rename-corpus-event-keys" in p:
+    # The migration tooling has to name the old keys in order to act on them:
+    # the rename script's mapping table, and this census's own KEYS list and
+    # regex. Including this file, which scans the tree it lives in and would
+    # otherwise report itself as four sites of outstanding migration work — a
+    # diagnostic counting its own definition of what it looks for.
+    if "rename-corpus-event-keys" in p or "census-legacy-event-keys" in p:
         return "MIGRATION TOOL: the mapping itself"
 
     # Things that are not ours, in any spelling.
