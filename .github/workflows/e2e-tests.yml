@@ -889,6 +889,8 @@ jobs:
   multi-engine-and-parity-tests:
     name: Multi-Engine & Tri-Runtime Parity (shared core)
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
     # Previously 45 (multi-engine-tests) + 90 (tri-runtime-parity) = 135 across
     # two jobs with two full bring-ups. One shared bring-up should cost less
     # than either bring-up alone plus the combined gate time; 120 leaves
