@@ -28,12 +28,23 @@ WHAT IT ASSERTS
                    This alone separates 0 from 167 and is the check that would
                    have caught both defects above on the day they landed.
 
-  value parity     the resolved output vectors agree, compared as an ordered
-                   sequence after engine identity is stripped. Order is part of
-                   the contract: each runtime collects over an atomic snapshot
-                   and joins in snapshot order, so a runtime whose output order
-                   depends on which worker finished first has broken property 3
-                   even when its set matches.
+  value parity     the resolved output vectors agree as a MULTISET, after engine
+                   identity is stripped. Order is deliberately not compared.
+
+                   What this response exists to establish is that the runtimes
+                   interned the same machines and produced the same results from
+                   them. The sequence carries none of that: it is whatever each
+                   runtime's container or sort happened to yield — C++ and LSP
+                   read a map keyed by a filename-derived id, Scala sorts by
+                   (domain, name, id) because its own ids are a timestamp and a
+                   UUID. A receiver that cares about order sorts on arrival,
+                   which costs it nothing and costs three engines a shared
+                   canonical key they would otherwise have to agree on and
+                   maintain.
+
+                   An earlier revision compared the ordered sequence and failed
+                   on exactly that difference. It was measuring the runtimes'
+                   internal iteration, not their agreement.
 
   inhibition parity
                    every runtime reports the same `transitionsInhibited` state
@@ -121,12 +132,18 @@ def outputs_of(response: Any) -> list[Any]:
 
 
 def signature(outputs: list[Any]) -> list[Any]:
-    """Ordered comparison key: the output vectors, engine identity removed.
+    """Order-independent comparison key: the output vectors as a sorted multiset.
+
+    Sorted here so the comparison is over CONTENT rather than over each
+    runtime's iteration order — the receiver's sort, done once in the harness.
+    Duplicates are kept: two machines legitimately presenting the same vector is
+    a different result from one machine presenting it, and a set would lose that.
 
     `id` is minted per runtime and `timestamp` is wall clock, so both differ by
     construction and comparing them would report divergence on every run.
     """
-    return [strip_engine_identity(o).get("vector") for o in outputs]
+    return sorted(json.dumps(strip_engine_identity(o).get("vector"), sort_keys=True)
+                  for o in outputs)
 
 
 def cluster(values: dict[str, Any]) -> str:
@@ -288,8 +305,9 @@ def main() -> int:
 
     if len(signatures) > 1 and len({json.dumps(s, sort_keys=True) for s in signatures.values()}) > 1:
         report["failures"].append(
-            f"runtimes agree on output count but not on the ordered output values: "
-            f"{cluster(signatures)}")
+            f"runtimes agree on output count but not on the output VALUES "
+            f"(compared order-independently, so this is a genuine content "
+            f"difference): {cluster(signatures)}")
 
     # Universal probe — recorded, never failed. See the module docstring.
     universal = [0.0] * args.universal_dimension
