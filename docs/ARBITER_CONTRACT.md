@@ -191,6 +191,42 @@ skips the stage. If a value can reach `IS` without producing an
 The practical test is negative: instrument the perceptual array so any write not
 originating from the head-merge fails the build.
 
+#### 2.1a The PE aggregator is a bypass on contended cells
+
+The Perception Engines merge `machineResults` into the Reality Engine's returned
+`perceptualSpace` to form their next InputSpaceVector — C++, LSP and Scala do;
+the TypeScript PE advances from `perceptualSpace` alone. That merge writes each
+gated contributor's whole output region, ordered by `machineName`, so where two
+machines' regions overlap it is **last-writer-wins applied after the arbiter had
+already resolved the cell**. That is exactly the merge the arbiter replaces, and
+it violates this section.
+
+Observed on the 1328-machine corpus: over 30 pushes, cell 2437 read `1` in the
+arbitrated space and `0` after aggregation. Four Legal Services machines share
+region `[2435:2439]` and the registry declares the cell `PRECEDENCE`-contended;
+the arbiter resolved 1 and the later-sorted contributor's zero overwrote it. The
+three aggregating runtimes advanced with 0, the fourth with 1
+(`RealityEngine_CI#263`).
+
+**A PE MUST NOT write a cell covered by more than one gated contributor.** The
+engine has resolved it and the returned space carries that resolution.
+
+Contention is derived from the gated contributors themselves, not read from the
+step: `arbitration` is not on the push wire — SURFACE_SPEC lists the step's keys
+and it is not among them — and §6 observability is a separate `GET`, so
+consulting it would cost a round trip per step.
+
+The aggregator's other behaviours stand, and each fixed a real defect: preferring
+`mergedOutputVector` over `outputVector` (#154), and ordering by the
+corpus-declared `machineName` rather than a per-runtime minted id (cell 3968,
+2026-08-19). What changes is only that it stops overwriting arbitrated cells.
+
+Measured consequence, worth recording because it bounds how much the aggregator
+was contributing: with the guard in place the aggregated vector equals the
+returned `perceptualSpace` **exactly**, on every one of those 30 steps. On this
+corpus the engine's arbitrated space is already the answer, and the merge is
+defensive rather than corrective.
+
 ## 3. Contribution
 
 A contribution is provider-tagged. Machine outputs and PE sources use the same
