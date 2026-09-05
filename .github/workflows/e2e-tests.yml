@@ -789,7 +789,8 @@ jobs:
       # specs that target that shape. The multi-engine spec
       # (tree-to-pe-manager-equivalence) needs engines this job never spawns —
       # it asked for lsp-1 and got a 404. scripts/lib/ci-e2e-specs.sh is the
-      # single source of truth for that split; it runs in multi-engine-tests.
+      # single source of truth for that split; it runs in
+      # multi-engine-and-parity-tests.
       - name: Run CI e2e suite (single-engine specs)
         working-directory: RealityEngine_CI
         env:
@@ -841,258 +842,58 @@ jobs:
         working-directory: RealityEngine_CI
         run: ./stopUniverse.sh
 
-  multi-engine-tests:
-    name: Multi-Engine Tests
-    runs-on: ubuntu-latest
-    # Raised with the Manager prebuild: the npm work that used to happen
-    # inside `Start universe` (where it blew the :3001 health poll) now
-    # happens as its own step, and the job budget has to cover it. On a cold
-    # npm cache that install measured 565s; the cache key now includes
-    # Manager's lockfiles so repeat runs are far cheaper, but the first run
-    # after a lockfile change still pays it.
-    timeout-minutes: 45
-    needs: smoke-tests
-
-    steps:
-      - name: Checkout RealityEngine_CI
-        uses: actions/checkout@v4
-        with:
-          path: RealityEngine_CI
-
-      - name: Checkout RealityEngine_Scala
-        uses: actions/checkout@v4
-        with:
-          repository: ${{ github.repository_owner }}/RealityEngine_Scala
-          path: RealityEngine_Scala
-          token: ${{ secrets.REPO_ACCESS_TOKEN || github.token }}
-
-      - name: Checkout RealityEngine_Manager
-        uses: actions/checkout@v4
-        with:
-          repository: ${{ github.repository_owner }}/RealityEngine_Manager
-          path: RealityEngine_Manager
-          token: ${{ secrets.REPO_ACCESS_TOKEN || github.token }}
-
-      - name: Checkout RealityEngine_Machines
-        uses: actions/checkout@v4
-        with:
-          repository: ${{ github.repository_owner }}/RealityEngine_Machines
-          path: RealityEngine_Machines
-          token: ${{ secrets.REPO_ACCESS_TOKEN || github.token }}
-
-      - name: Checkout localAIStack
-        uses: actions/checkout@v4
-        with:
-          repository: ${{ github.repository_owner }}/localAIStack
-          path: localAIStack
-          token: ${{ secrets.REPO_ACCESS_TOKEN || github.token }}
-
-      - name: Checkout localOpenClawStack
-        uses: actions/checkout@v4
-        with:
-          repository: ${{ github.repository_owner }}/localOpenClawStack
-          path: localOpenClawStack
-          token: ${{ secrets.REPO_ACCESS_TOKEN || github.token }}
-
-      - name: Setup Node.js
-        uses: actions/setup-node@v4
-        with:
-          node-version: '25.5'
-          cache: 'npm'
-          # Manager's lockfiles are in the key because these jobs now install
-          # its dependencies (the prebuild below). Without them the restored
-          # ~/.npm holds nothing Manager needs, so every run installs cold —
-          # which is what pushed Smoke Tests past its 20-minute budget.
-          cache-dependency-path: |
-            RealityEngine_Machines/package.json
-            RealityEngine_Manager/visualizer/backend/package-lock.json
-            RealityEngine_Manager/visualizer/frontend/package-lock.json
-
-      - name: Setup Java for native Scala engines
-        uses: actions/setup-java@v4
-        with:
-          distribution: temurin
-          java-version: '21'
-
-      - name: Setup sbt for native Scala engines
-        run: |
-          curl -fsSL https://github.com/sbt/sbt/releases/download/v1.12.8/sbt-1.12.8.tgz -o /tmp/sbt-1.12.8.tgz
-          sudo tar -xzf /tmp/sbt-1.12.8.tgz -C /opt
-          echo "/opt/sbt/bin" >> "$GITHUB_PATH"
-
-      - name: Install Playwright + deps
-        working-directory: RealityEngine_Machines
-        run: |
-          npm ci
-          npx playwright install --with-deps chromium
-
-      - name: Install Loki Docker logging plugin
-        working-directory: RealityEngine_CI
-        run: |
-          docker plugin install grafana/loki-docker-driver:latest --alias loki --grant-all-permissions || \
-            docker plugin enable loki
-
-      - name: Run setup (env + certs)
-        working-directory: RealityEngine_CI
-        run: |
-          cp .env.example .env
-          bash certs/generate-dev-certs.sh
-
-      # Populate Manager node_modules before the universe starts.
-      #
-      # `RealityEngine_Manager/start.sh` runs `npm install --prefer-offline` for
-      # the visualizer backend and frontend when it is launched, and
-      # startUniverse polls :3001 for a bounded window. On a runner with a cold
-      # npm cache that install has taken over 11 minutes — the job died with an
-      # orphaned `npm install` still running — so the poll expired on an engine
-      # that was never given time to start, and reported it as unreachable.
-      #
-      # Prebuilding here does not remove start.sh's install; it makes it a
-      # no-op, because everything it would fetch is already present. The build
-      # is also the same work `regression-test.sh` does in its build phase, so
-      # the two lanes now agree on Manager being built before it is started.
-      - name: Build Manager deployment assets
-        working-directory: RealityEngine_Manager
-        run: |
-          for pkg in visualizer/backend visualizer/frontend; do
-            echo "::group::build $pkg"
-            (cd "$pkg" && npm ci --prefer-offline --no-audit --no-fund && npm run build)
-            echo "::endgroup::"
-          done
-
-      - name: Start multi-engine universe
-        working-directory: RealityEngine_CI
-        env:
-          MACHINES_DIR: ${{ github.workspace }}/RealityEngine_Machines
-          SCALA_DIR: ${{ github.workspace }}/RealityEngine_Scala
-          MGR_DIR: ${{ github.workspace }}/RealityEngine_Manager
-          NATIVE_HEALTH_ATTEMPTS: '180'
-          HOST_IP_OVERRIDE: 127.0.0.1
-        run: |
-          ./startUniverse.sh --no-openclaw --no-local-ai --skip-seed --machine-corpus=standard-deployment --engines=scala:2
-
-      - name: Run multi-instance integration tests
-        working-directory: RealityEngine_Machines
-        env:
-          REUSE_SERVICES: 'true'
-          RE_REGISTRY_URL: 'http://localhost:5999/re-registry.json'
-          VIZ_BASE_URL: 'http://127.0.0.1:3001'
-        run: |
-          npx playwright test tests/integration/multi-instance.spec.ts \
-            --reporter=list
-
-      # Cross-runtime contract specs. These were dropped from the hosted
-      # allowlist in the e2e job (#77) even though none of them touch localAI;
-      # they belong here because this is the job with a registry.
-      #
-      # They are skip-safe by design, so a run where all of them skip must fail
-      # — otherwise this step reports success while enforcing nothing, which is
-      # the exact failure mode #78/#79 were about.
-      #
-      # The token is read from the file startUniverse persists, not pinned here.
-      # Ingest auth is on by default, so an unset token gets 401 — and so does a
-      # pinned one, because the value the PE ends up with depends on precedence
-      # between the flag, the environment and the generated file. Reading what
-      # the universe actually wrote is the only version that cannot drift, same
-      # reasoning as MACHINES_CORPUS_DIR below.
-      - name: Run cross-runtime contract specs
-        working-directory: RealityEngine_Machines
-        env:
-          REUSE_SERVICES: 'true'
-          RE_REGISTRY_URL: 'http://localhost:5999/re-registry.json'
-          VIZ_BASE_URL: 'http://127.0.0.1:3001'
-          INTEGRATIONS_CONFIG: ${{ github.workspace }}/RealityEngine_CI/config/integrations.json
-          PLAYWRIGHT_JSON_OUTPUT_NAME: contract-results.json
-        run: |
-          stamp="${{ github.workspace }}/RealityEngine_CI/.universe-engine-selection"
-          # machine-json-listing compares json/list against the corpus the
-          # universe actually booted. This job boots the standard-deployment
-          # subset, not the repo's full tree.
-          MACHINES_CORPUS_DIR="$(sed -n 's/^MACHINE_CORPUS_ACTIVE_DIR=//p' "$stamp" 2>/dev/null)"
-          export MACHINES_CORPUS_DIR
-          echo "Active corpus: ${MACHINES_CORPUS_DIR:-<repo default>}"
-
-          token_file="${{ github.workspace }}/RealityEngine_CI/config/.healthkit-bridge-token"
-          if [ -s "$token_file" ]; then
-            HEALTHKIT_BRIDGE_TOKEN="$(tr -d '\r\n' < "$token_file")"
-            export HEALTHKIT_BRIDGE_TOKEN
-            echo "HealthKit ingest auth: token loaded (${#HEALTHKIT_BRIDGE_TOKEN} chars)"
-          else
-            echo "HealthKit ingest auth: no token file — auth arm will self-skip"
-          fi
-
-          pw_exit=0
-          npx playwright test \
-            tests/integration/healthkit-ingest-contract.spec.ts \
-            tests/integration/machine-json-listing.spec.ts \
-            tests/integration/pe-source-lane-compliance.spec.ts \
-            --reporter=list,json || pw_exit=$?
-
-          node -e '
-            const fs = require("fs");
-            const f = "contract-results.json";
-            if (!fs.existsSync(f)) {
-              console.error("::error::no Playwright JSON report — cannot prove these specs ran");
-              process.exit(1);
-            }
-            const s = JSON.parse(fs.readFileSync(f, "utf8")).stats || {};
-            const ran = (s.expected || 0) + (s.unexpected || 0) + (s.flaky || 0);
-            console.log(`executed=${ran} skipped=${s.skipped || 0}`);
-            if (ran === 0) {
-              console.error("::error::every cross-runtime contract spec skipped — " +
-                "this step enforced nothing. Check RE_REGISTRY_URL, the registry, " +
-                "and INTEGRATIONS_CONFIG.");
-              process.exit(1);
-            }
-          '
-          exit "$pw_exit"
-
-      - name: Upload multi-engine results
-        if: always()
-        uses: actions/upload-artifact@v4
-        with:
-          name: multi-engine-report
-          path: |
-            RealityEngine_Machines/e2e-report/
-            RealityEngine_Machines/test-results/
-            RealityEngine_Machines/contract-results.json
-          retention-days: 7
-
-      - name: Show registry and engine logs on failure
-        if: failure()
-        run: |
-          echo "=== Registry ==="
-          cat /tmp/re-registry/re-registry.json 2>/dev/null || echo "No registry"
-          echo "=== Manager launcher ==="
-          tail -120 /tmp/manager_universe.log 2>/dev/null || echo "No manager launcher log"
-          for f in RealityEngine_Manager/.manager-logs/*.log; do
-            [ -f "$f" ] && { echo "--- $f ---"; tail -120 "$f"; } || true
-          done
-          for f in /tmp/re-*.log /tmp/pe-*.log; do
-            [ -f "$f" ] && { echo "--- $f ---"; tail -20 "$f"; } || true
-          done
-
-      - name: Stop multi-engine universe
-        if: always()
-        working-directory: RealityEngine_CI
-        run: ./stopUniverse.sh --engines-only 2>/dev/null || ./stopUniverse.sh --all || true
-
-  # ── Tri-runtime parity ─────────────────────────────────────────────────────
-  # The only job that spawns cpp + lsp + scala together.
+  # ── Multi-engine + tri-runtime parity, shared core ─────────────────────────
+  # Both gates used to boot their own universe from scratch (multi-engine-tests
+  # via `--engines=scala:2`, tri-runtime-parity via `--engines=cpp:1,lsp:1,scala:1`)
+  # — two full checkouts, two native toolchain installs, two Manager builds, two
+  # `startUniverse.sh` bring-ups. Merged into one job, one boot:
+  # `--engines=scala:1,lsp:1,cpp:2` registers scala-1, lsp-1, cpp-1, cpp-2 in a
+  # single registry, and every gate below is reallocated onto that one pool
+  # instead of re-deploying it.
   #
-  # Byte equivalence is only meaningful across *distinct* runtimes, so
-  # `--engines=scala:2` in multi-engine-tests cannot substitute: it compares
-  # scala-1 to scala-2. tree-to-pe-manager-equivalence.spec.ts hardcodes lsp-1,
-  # scala-1 and cpp-1 and self-skipped everywhere until this job existed —
-  # the gap left open in #77/#80.
+  # Engine counts do not drive boot time here — corpus size does, and both
+  # prior jobs already booted the same 12-machine standard-deployment subset.
+  # This job boots standard-deployment-plus-ring instead (the same 12 plus the
+  # 2-machine RS-latch ring, see config/standard-deployment-plus-ring-corpus.txt)
+  # for every instance, so the propagation proof rides along by default rather
+  # than opt-in. cpp is doubled rather than scala: cpp was observed ready in
+  # ~84s against Scala's up-to-450s (JVM boot contending with Loki/Grafana/
+  # Prometheus on a shared runner) — the doubled family is the cheapest one to
+  # form, not the most expensive.
   #
-  # Deliberately scoped to the parity specs rather than the full regression
-  # certification: that suite carries a 480-minute timeout and GitHub-hosted
-  # jobs cap at 6h (#79, #87).
-  tri-runtime-parity:
-    name: Tri-Runtime Parity (cpp + lsp + scala)
+  # Allocation:
+  #   multi-engine-tests' same-runtime comparison: cpp-1 + cpp-2 (was scala-1 +
+  #     scala-2 — functionally equivalent, the gate only needs two instances of
+  #     one runtime family, and cpp is the doubled one now).
+  #   tri-runtime-parity: cpp-1 + lsp-1 + scala-1, unchanged — this is the set
+  #     tree-to-pe-manager-equivalence.spec.ts hardcodes and cannot substitute.
+  #
+  # No reset step runs between the two gate sections below: both drew against
+  # one boot in the pre-merge tri-runtime-parity job already (its byte-
+  # equivalence and corpus-addressing steps ran back to back with no reset),
+  # so sequencing the multi-engine gate ahead of the parity gate against the
+  # same boot follows existing, working precedent rather than a new one.
+  # scripts/regression-reset-contract.py is NOT that reset primitive — it is a
+  # settled-contract conformance stage that fails by design against today's
+  # engines (RealityEngine_CI#163), not a general reset utility.
+  #
+  # Known gap this merge does NOT close: smoke-tests and e2e-tests still boot
+  # their own Docker-mode universe. Their Playwright specs (RealityEngine_
+  # Machines' tests/smoke, tests/integration, tests/e2e) hardcode the Docker
+  # TLS endpoints (https://localhost:5001 RE, :3004 PE) and are explicitly not
+  # registry-aware (see scripts/lib/ci-e2e-specs.sh) — only
+  # tree-to-pe-manager-equivalence.spec.ts is allowlisted as multi-engine safe.
+  # Folding them onto this native core would need spec changes in
+  # RealityEngine_Machines, a repo not present in this checkout, so it is left
+  # as follow-up work rather than attempted blind here.
+  multi-engine-and-parity-tests:
+    name: Multi-Engine & Tri-Runtime Parity (shared core)
     runs-on: ubuntu-latest
-    timeout-minutes: 90
+    # Previously 45 (multi-engine-tests) + 90 (tri-runtime-parity) = 135 across
+    # two jobs with two full bring-ups. One shared bring-up should cost less
+    # than either bring-up alone plus the combined gate time; 120 leaves
+    # headroom without carrying the old double-boot budget forward unexamined.
+    timeout-minutes: 120
     needs: smoke-tests
 
     steps:
@@ -1154,10 +955,11 @@ jobs:
         uses: actions/setup-node@v4
         with:
           node-version: '25.5'
-          # This job had no npm cache at all, and it is the one that installs
-          # the most before reaching Manager. Manager's lockfiles are in the key
-          # because it now prebuilds those packages.
           cache: 'npm'
+          # Manager's lockfiles are in the key because these jobs now install
+          # its dependencies (the prebuild below). Without them the restored
+          # ~/.npm holds nothing Manager needs, so every run installs cold —
+          # which is what pushed Smoke Tests past its 20-minute budget.
           cache-dependency-path: |
             RealityEngine_Machines/package.json
             RealityEngine_Manager/visualizer/backend/package-lock.json
@@ -1247,29 +1049,29 @@ jobs:
             echo "::endgroup::"
           done
 
-      - name: Start tri-runtime universe
+      # The one shared bring-up. --machine-corpus=standard-deployment plus an
+      # explicit --machine-corpus-manifest is how a manifest-backed corpus other
+      # than the two hardcoded names rides startUniverse.sh's materialisation
+      # path (see scripts/regression-test.sh's case statement, RealityEngine_CI#123)
+      # — standard-deployment-plus-ring is not one of startUniverse.sh's own
+      # --machine-corpus= choices (full|standard-deployment).
+      - name: Start shared multi-engine core (scala:1,lsp:1,cpp:2)
         working-directory: RealityEngine_CI
         env:
-          # MACHINES_DIR is the only one of these startUniverse.sh honours from
-          # the environment; SCALA_DIR/CPP_DIR/LSP_DIR/MGR_DIR are derived from
-          # CI_DIR/../<repo>, which the sibling checkout layout already
-          # satisfies. Setting them here would look meaningful and do nothing.
           MACHINES_DIR: ${{ github.workspace }}/RealityEngine_Machines
-          # Three native runtimes to build and boot, two of them from source.
-          #
-          # 480s (240 attempts) was not enough for the Scala RE and the run died
-          # at "scala-1 RE ready — did not respond after 480s (corpus: 12
-          # machines)". Twelve machines is not the cost — cpp-1 was ready in 84s
-          # and lsp-1 in 2s on the same runner. The JVM comes up alongside Loki,
-          # Grafana and Prometheus, whose startup is slow enough to matter on a
-          # shared runner, and Scala is the runtime that pays for that
-          # contention. Raised rather than reordered because the cause is worth
-          # measuring before the phase order is changed.
+          SCALA_DIR: ${{ github.workspace }}/RealityEngine_Scala
+          MGR_DIR: ${{ github.workspace }}/RealityEngine_Manager
+          # Sized for the slowest single member (Scala, observed needing up to
+          # 450s against Loki/Grafana/Prometheus contention on a shared
+          # runner) — unchanged from the prior tri-runtime-parity budget,
+          # since that is still the binding constraint here.
           NATIVE_HEALTH_ATTEMPTS: '450'
           HOST_IP_OVERRIDE: 127.0.0.1
         run: |
           ./startUniverse.sh --no-openclaw --no-local-ai --skip-seed \
-            --machine-corpus=standard-deployment --engines=cpp:1,lsp:1,scala:1
+            --machine-corpus=standard-deployment \
+            --machine-corpus-manifest="$PWD/config/standard-deployment-plus-ring-corpus.txt" \
+            --engines=scala:1,lsp:1,cpp:2
 
       - name: Show registry
         if: always()
@@ -1277,6 +1079,96 @@ jobs:
           echo "=== registry ==="
           cat /tmp/re-registry/re-registry.json 2>/dev/null || echo "no registry"
 
+      # ── Gate: multi-engine (same-runtime comparison) ───────────────────────
+      # Reallocated onto cpp-1 + cpp-2 (was scala-1 + scala-2 under the old
+      # --engines=scala:2 boot). The spec compares whatever same-runtime pair
+      # the registry reports, so this depends on it discovering pairs via the
+      # registry rather than assuming "scala" by name — unverified here because
+      # tests/integration/multi-instance.spec.ts lives in RealityEngine_Machines,
+      # a repo not present in this checkout. Flagged as a residual risk to
+      # confirm before relying on this job.
+      - name: Run multi-instance integration tests (cpp-1 + cpp-2)
+        working-directory: RealityEngine_Machines
+        env:
+          REUSE_SERVICES: 'true'
+          RE_REGISTRY_URL: 'http://localhost:5999/re-registry.json'
+          VIZ_BASE_URL: 'http://127.0.0.1:3001'
+        run: |
+          npx playwright test tests/integration/multi-instance.spec.ts \
+            --reporter=list
+
+      # Cross-runtime contract specs. These were dropped from the hosted
+      # allowlist in the e2e job (#77) even though none of them touch localAI;
+      # they belong here because this is the job with a registry.
+      #
+      # They are skip-safe by design, so a run where all of them skip must fail
+      # — otherwise this step reports success while enforcing nothing, which is
+      # the exact failure mode #78/#79 were about.
+      #
+      # The token is read from the file startUniverse persists, not pinned here.
+      # Ingest auth is on by default, so an unset token gets 401 — and so does a
+      # pinned one, because the value the PE ends up with depends on precedence
+      # between the flag, the environment and the generated file. Reading what
+      # the universe actually wrote is the only version that cannot drift, same
+      # reasoning as MACHINES_CORPUS_DIR below.
+      - name: Run cross-runtime contract specs
+        working-directory: RealityEngine_Machines
+        env:
+          REUSE_SERVICES: 'true'
+          RE_REGISTRY_URL: 'http://localhost:5999/re-registry.json'
+          VIZ_BASE_URL: 'http://127.0.0.1:3001'
+          INTEGRATIONS_CONFIG: ${{ github.workspace }}/RealityEngine_CI/config/integrations.json
+          PLAYWRIGHT_JSON_OUTPUT_NAME: contract-results.json
+        run: |
+          stamp="${{ github.workspace }}/RealityEngine_CI/.universe-engine-selection"
+          # machine-json-listing compares json/list against the corpus the
+          # universe actually booted — standard-deployment-plus-ring here, not
+          # the repo's full tree.
+          MACHINES_CORPUS_DIR="$(sed -n 's/^MACHINE_CORPUS_ACTIVE_DIR=//p' "$stamp" 2>/dev/null)"
+          export MACHINES_CORPUS_DIR
+          echo "Active corpus: ${MACHINES_CORPUS_DIR:-<repo default>}"
+
+          token_file="${{ github.workspace }}/RealityEngine_CI/config/.healthkit-bridge-token"
+          if [ -s "$token_file" ]; then
+            HEALTHKIT_BRIDGE_TOKEN="$(tr -d '\r\n' < "$token_file")"
+            export HEALTHKIT_BRIDGE_TOKEN
+            echo "HealthKit ingest auth: token loaded (${#HEALTHKIT_BRIDGE_TOKEN} chars)"
+          else
+            echo "HealthKit ingest auth: no token file — auth arm will self-skip"
+          fi
+
+          pw_exit=0
+          npx playwright test \
+            tests/integration/healthkit-ingest-contract.spec.ts \
+            tests/integration/machine-json-listing.spec.ts \
+            tests/integration/pe-source-lane-compliance.spec.ts \
+            --reporter=list,json || pw_exit=$?
+
+          node -e '
+            const fs = require("fs");
+            const f = "contract-results.json";
+            if (!fs.existsSync(f)) {
+              console.error("::error::no Playwright JSON report — cannot prove these specs ran");
+              process.exit(1);
+            }
+            const s = JSON.parse(fs.readFileSync(f, "utf8")).stats || {};
+            const ran = (s.expected || 0) + (s.unexpected || 0) + (s.flaky || 0);
+            console.log(`executed=${ran} skipped=${s.skipped || 0}`);
+            if (ran === 0) {
+              console.error("::error::every cross-runtime contract spec skipped — " +
+                "this step enforced nothing. Check RE_REGISTRY_URL, the registry, " +
+                "and INTEGRATIONS_CONFIG.");
+              process.exit(1);
+            }
+          '
+          exit "$pw_exit"
+
+      # ── Gate: tri-runtime parity (cpp-1 + lsp-1 + scala-1) ─────────────────
+      # Byte equivalence is only meaningful across *distinct* runtimes, so the
+      # cpp-1/cpp-2 pair above cannot substitute here: it would compare cpp-1
+      # to cpp-2. tree-to-pe-manager-equivalence.spec.ts hardcodes lsp-1,
+      # scala-1 and cpp-1 — the gap left open in #77/#80.
+      #
       # The prize: byte equivalence across three distinct runtimes. This spec
       # self-skips when the registry lacks cpp-1/lsp-1/scala-1, so the step
       # asserts it actually executed rather than trusting a green exit.
@@ -1335,30 +1227,39 @@ jobs:
           npx playwright test tests/integration/machine-json-listing.spec.ts \
             --project=chromium --workers=1 --reporter=list
 
-      - name: Upload tri-runtime artifacts
+      - name: Upload multi-engine and parity artifacts
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: tri-runtime-report
+          name: multi-engine-parity-report
           path: |
+            RealityEngine_Machines/e2e-report/
+            RealityEngine_Machines/test-results/
+            RealityEngine_Machines/contract-results.json
             RealityEngine_CI/tri-runtime-results.json
             RealityEngine_CI/e2e-report/
             RealityEngine_CI/test-results/
-            RealityEngine_Machines/test-results/
           retention-days: 14
 
-      - name: Show engine logs on failure
+      - name: Show registry and engine logs on failure
         if: failure()
         run: |
+          echo "=== Registry ==="
+          cat /tmp/re-registry/re-registry.json 2>/dev/null || echo "No registry"
+          echo "=== Manager launcher ==="
+          tail -120 /tmp/manager_universe.log 2>/dev/null || echo "No manager launcher log"
+          for f in RealityEngine_Manager/.manager-logs/*.log; do
+            [ -f "$f" ] && { echo "--- $f ---"; tail -120 "$f"; } || true
+          done
           for f in /tmp/re-*.log /tmp/pe-*.log; do
-            [ -f "$f" ] && { echo "--- $f ---"; tail -60 "$f"; } || true
+            [ -f "$f" ] && { echo "--- $f ---"; tail -20 "$f"; } || true
           done
           echo "=== LSP engine logs ==="
           for f in RealityEngine_LSP/logs/*.log; do
             [ -f "$f" ] && { echo "--- $f ---"; tail -60 "$f"; } || true
           done
 
-      - name: Stop tri-runtime universe
+      - name: Stop shared multi-engine core
         if: always()
         working-directory: RealityEngine_CI
         run: ./stopUniverse.sh --engines-only 2>/dev/null || ./stopUniverse.sh --all || true
@@ -1366,7 +1267,7 @@ jobs:
   test-summary:
     name: Test Summary
     runs-on: ubuntu-latest
-    needs: [shellcheck, dockerfile-security, surface-spec-drift, corpus-gates, scripts-unit-tests, dry-run-validate, smoke-tests, e2e-tests, multi-engine-tests, tri-runtime-parity]
+    needs: [shellcheck, dockerfile-security, surface-spec-drift, corpus-gates, scripts-unit-tests, dry-run-validate, smoke-tests, e2e-tests, multi-engine-and-parity-tests]
     if: always()
 
     steps:
