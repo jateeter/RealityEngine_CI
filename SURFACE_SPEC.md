@@ -479,6 +479,55 @@ folds its own output events under its declared `outputMergeTransformation`, whil
 an OSRE cell folds contestants from several machines under the registry rule and
 can never inherit a contributor's.
 
+#### The OSRE value is the equality indicator across runtimes
+
+**Machines are compared by what they produce, not by what they are called.**
+
+Machine identity does not survive the boundary between runtimes. The corpus
+declares an `id` for **10 of its 1328 machines**; for the other 1318 every
+runtime mints one, and they mint differently — C++ from the file stem, LSP from
+the same stem lowercased, Scala from a timestamp and a UUID. An identity is
+therefore a statement about which engine answered, not about which machine
+acted, and a check that reaches for one reports divergence unconditionally
+(#146).
+
+The OSRE — the resolved output-cell writes — is what does survive. It is
+computed from the corpus, resolved by a declared rule, and carries no engine-local
+term. Two runtimes producing the same OSRE for the same input have agreed about
+reality; two runtimes producing the same machine ids have agreed about nothing.
+
+So, for every cross-runtime comparison:
+
+- **Compare values.** OSRE cell values, output vectors, merge contributions.
+- **Match by corpus `name`** where a comparison needs to pair machines up.
+  `name` is corpus-declared and unique — 1328 of 1328, and unique within its
+  domain by contract (`name_uniqueness_test.py`). It is a handle, not the
+  evidence.
+- **Do not compare identity.** Ids, minted output ids, timestamps.
+  `scripts/lib/parity_identity.py` strips them once so the rule is applied at
+  every probe point rather than restated per stage.
+
+##### Order is not part of the evidence unless a field declares one
+
+The OSRE value is the indicator; the **sequence it arrives in is not**. A
+response's ordering is whatever the emitting runtime's container or sort
+yielded, and a receiver that needs an order sorts on arrival. Requiring three
+engines to agree on one would promote an implementation detail — which
+container, which id scheme — into a contract, for no information gained
+(#270).
+
+Two fields are the exception, and they are exceptions because **this document
+declares their order**, which makes the order itself contractual content:
+
+- `activeRegions` — offset, length, machineId, type, ascending. See "Active
+  regions"; enforced by `active_region_order_violations`.
+- `mergeBatch` — canonically sorted, per `ARBITER_CONTRACT.md` §6.
+
+Everything else is compared as a **multiset**: sorted in the harness before
+comparison, with duplicates kept. Two machines presenting the same vector is a
+different result from one machine presenting it, and a set would lose that
+distinction.
+
 The merge is not performed by the Reality Engine and is not observed here. The
 Perception Engine assembles `ISRE(n)` from its sources — which the previous
 step's output regions feed — and delivers it by push; the engine records what
