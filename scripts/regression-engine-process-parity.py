@@ -35,10 +35,19 @@ WHAT IT ASSERTS
                    depends on which worker finished first has broken property 3
                    even when its set matches.
 
-  non-vacuity      the stimulus fires SOMETHING. A parity stage that passes
-                   because all three runtimes returned nothing is the failure
-                   mode this stage exists to end, so agreement on zero is
-                   reported as a failure and not as a pass.
+  inhibition parity
+                   every runtime reports the same `transitionsInhibited` state
+                   for the same machine set. The flag is not on the wire and the
+                   response carries no error either way, so a runtime whose
+                   default differs answers the same request with zero outputs
+                   instead of many and looks exactly like a universe in which
+                   nothing fired (SURFACE_SPEC, `transitionsInhibited`).
+
+  non-vacuity      agreement on zero is a pass ONLY when the runtimes also agree
+                   they were inhibited — then zero is the correct answer and
+                   parity holds. Otherwise three runtimes independently returned
+                   nothing, which is the vacuous pass this stage exists to
+                   prevent, and it is reported as a failure.
 
 WHAT IT DELIBERATELY DOES NOT ASSERT
 
@@ -142,7 +151,7 @@ def main() -> int:
 
     instances = load_instances(args.registry)
     report: dict[str, Any] = {"status": "passed", "instances": [i["id"] for i in instances],
-                              "counts": {}, "failures": [], "universalProbe": {}}
+                              "counts": {}, "inhibited": {}, "failures": [], "universalProbe": {}}
     if len(instances) < 2:
         report["failures"].append(
             f"parity needs at least two runtimes; the registry lists {len(instances)}")
@@ -174,18 +183,80 @@ def main() -> int:
         report["counts"][instance["id"]] = len(outputs)
         signatures[instance["id"]] = signature(outputs)
 
+    # Inhibition state, read rather than inferred.
+    #
+    # `transitionsInhibited` is not on the step wire and an inhibited machine
+    # reports no error, so its effect is invisible in the response: a runtime
+    # that inhibits where the others do not returns zero outputs and looks like
+    # a universe in which nothing fired. The only way to tell is to ask.
+    for instance in instances:
+        try:
+            with request.urlopen(f"{instance['re_url']}/api/machines", timeout=300) as response:
+                machines = json.loads(response.read().decode("utf-8")).get("machines") or []
+        except (error.URLError, OSError, ValueError) as exc:
+            report["inhibited"][instance["id"]] = f"error: {exc}"
+            continue
+        # Absent is `false`: the contract's default, so a runtime that has not
+        # implemented the flag reads as uninhibited rather than as unknown.
+        report["inhibited"][instance["id"]] = {
+            "total": len(machines),
+            "inhibited": sum(1 for m in machines if m.get("transitionsInhibited") is True),
+            "reported": sum(1 for m in machines if "transitionsInhibited" in m),
+        }
+
+    # The defaults must agree, and that is checked directly rather than deduced
+    # from output counts (SURFACE_SPEC, `transitionsInhibited`).
+    states = {k: v for k, v in report["inhibited"].items() if isinstance(v, dict)}
+    if len(states) > 1:
+        shapes = {k: (v["inhibited"], v["total"]) for k, v in states.items()}
+        if len(set(shapes.values())) > 1:
+            report["failures"].append(
+                f"runtimes disagree on how many machines are inhibited {shapes}: "
+                f"{cluster(shapes)}")
+        # A runtime that never reports the field has not implemented it. That is
+        # a conformance gap even when its behaviour happens to match, because
+        # nothing then holds it to the default.
+        #
+        # Fails on a SPLIT, not on all-absent. While no runtime reports the flag
+        # there is nothing to compare and failing would make this a stage that is
+        # red on every run — which is a stage everyone learns to ignore, and the
+        # reason regression-reset-contract.py is deliberately unwired until its
+        # contract lands. The moment one runtime implements it the split appears
+        # and this arms itself, which is the point at which the comparison starts
+        # being able to say something.
+        missing = [k for k, v in states.items() if v["reported"] == 0 and v["total"] > 0]
+        if missing and len(missing) == len(states):
+            report["inhibitionReporting"] = (
+                "no runtime reports transitionsInhibited; the default cannot be gated "
+                "until at least one does (SURFACE_SPEC, `transitionsInhibited`)")
+        if missing and len(missing) != len(states):
+            report["failures"].append(
+                f"runtimes do not all report transitionsInhibited; absent on {missing}. "
+                "The contract requires every runtime to implement it and default it "
+                "to false — a default that is not reported is not gated.")
+
     counts = report["counts"]
     if counts and len(set(counts.values())) > 1:
         report["failures"].append(
             f"runtimes disagree on how many outputs the route produces {counts}: "
             f"{cluster(counts)}")
     elif counts and set(counts.values()) == {0}:
-        # Agreement on nothing is not parity. Reported as a failure because a
-        # stage that passes on an inert route is the thing this stage replaces.
-        report["failures"].append(
-            "every runtime returned 0 outputs — the stimulus fired nothing, so this "
-            "run proves no parity. Check the stimulus is machine-space and matches a "
-            "corpus input region.")
+        # Zero is the CORRECT answer when every machine reached is inhibited —
+        # `true` means accept the event and do not pass it forward, so no
+        # transitions and no outputs is conformant, not broken. Agreement on
+        # zero is therefore a pass in exactly that case, and a vacuous pass in
+        # every other. The response cannot tell them apart, so read the flag.
+        inhibited = report["inhibited"]
+        known = {k: v for k, v in inhibited.items() if isinstance(v, dict)}
+        if known and all(v.get("total", 0) > 0 and v["inhibited"] == v["total"]
+                         for v in known.values()) and len(known) == len(counts):
+            report["zeroExplainedBy"] = "every machine inhibited on every runtime"
+        else:
+            report["failures"].append(
+                "every runtime returned 0 outputs and they are not all inhibited "
+                f"{inhibited} — the stimulus fired nothing, so this run proves no "
+                "parity. Check the stimulus is machine-space and matches a corpus "
+                "input region.")
 
     if len(signatures) > 1 and len({json.dumps(s, sort_keys=True) for s in signatures.values()}) > 1:
         report["failures"].append(

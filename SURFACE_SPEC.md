@@ -259,6 +259,66 @@ Stated here because it was not stated anywhere: the route appeared in the table
 above with three ticks and no semantics, and three runtimes read the blank
 differently. A tick means the path answers, not that it agrees.
 
+##### `transitionsInhibited` — accept the event, decide whether it flows
+
+A machine carries `transitionsInhibited`, and it governs what happens to a
+Universal Reality Event presented to that machine:
+
+| value | behaviour |
+|---|---|
+| `false` (**default**) | accept the Universal Reality Event and **flow it through** to the Reality Engine — the machine perceives it, its sequences may transition, and it may present an output |
+| `true` | **accept** the Universal Reality Event and **do not pass it forward** — the machine perceives nothing, no sequence transitions, and it presents no output |
+
+Both values *accept* the event. The flag decides whether it is carried forward,
+not whether it is admitted, and an inhibited machine is not an error: it returns
+the shape of a machine that matched nothing, with no state change. Refusing
+loudly would surface a condition the caller cannot act on, at a seam where the
+correct behaviour is a no-op.
+
+**All runtimes must implement it, and the defaults must agree.** The default is
+`false` — a machine flows events through unless something inhibits it — and that
+default is part of the contract rather than each runtime's own choice.
+
+Agreement on the default matters as much as agreement on the behaviour, because
+the flag is not on the wire. A runtime that defaults to `true` where the others
+default to `false` answers the same request with zero outputs instead of many,
+reports no error, and looks from outside exactly like a universe in which
+nothing fired. Nothing in the response distinguishes "inhibited by default" from
+"nothing matched", so a divergence in the default is a silent divergence in
+every result the route produces.
+
+The same applies to *when* a runtime sets the flag. C++ sets it on registry
+copies at `add_machine`; a runtime that sets it at a different point, or on a
+different collection, has agreed on the default and still disagrees on the
+answer. The contract is the pair: default `false`, and inhibited only for
+machines held outside the stepping path.
+
+Today only C++ has the flag at all (`Machine::transitionsInhibited`), and it was
+undocumented — which is how `POST /api/engine/process` came to iterate C++'s
+registry copies, every one of them inhibited, and return zero outputs where LSP
+and Scala returned 167 (RealityEngine_CI#254).
+
+**What it is for.** C++ holds two machine collections — the declared registry
+and the `PerceptualSpaceRuntime` — and only the runtime's copies are stepped by
+the PE→RE→PE path. Inhibiting the registry's copies stops an endpoint advancing
+a machine nothing else observes, which would fork the two. The flag is that
+guarantee made explicit rather than left to which collection a route happened to
+reach for.
+
+**Consequence for parity.** Zero outputs is a *correct* answer when every
+machine reached is inhibited, and a *defect* when it is not — the two are
+indistinguishable in the response, which carries no error either way. So a
+cross-runtime comparison of this route must read the flag rather than infer from
+the count. Two things are gated, not one:
+
+- **the defaults agree** — every runtime reports the same inhibited state for the
+  same machine set, checked directly rather than deduced from output counts;
+- **agreement on zero is parity only if they also agree they were inhibited** —
+  otherwise it is three runtimes independently returning nothing, which is the
+  vacuous pass a parity stage exists to prevent.
+
+`regression-engine-process-parity.py` gates both.
+
 #### `GET /api/engine/history` — the `/api/engine/process` audit trail
 
 One record per `POST /api/engine/process` call, newest first, capped at 256:
