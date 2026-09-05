@@ -40,7 +40,29 @@ internal contradiction: one machine with N asserted outputs enqueues N writes to
 the same region, so the merge applies *last* while its own arbiter declared
 *first* representative.
 
-## 1.1 Contributors are not only machines
+## 1.1 Contributors are not only machines — on the ISRE surface
+
+**Scope, stated first because this section is about ISRE and reads as though it
+covers both surfaces.** OSRE composition admits **machine contributions only**.
+An external provider takes no part in it. Providers act on the **ISRE**
+composition, asynchronously, through PE assembly, and the two surfaces meet at
+the presentation of the OSEV to the ISEV composition and nowhere earlier.
+
+The engines already draw this line, and only one of them could have drawn it
+differently: `reality.cpp` builds every contribution with `c.provider =
+"machine"` as a literal, and that is the sole provider assignment in the Reality
+Engine. `acp` appears only in the Perception Engine, as a source kind.
+
+This matters for reading the arbitration registry. Its `writers` list does not
+separate the surfaces, so its `machine+provider: 2835` entries are **ISRE-side**
+contention — a machine's output and an ACP source both landing in a position some
+other machine reads as input. Real contention, resolved on that surface. Only
+`machine-only: 2` describes two machines contending, and the registry's own
+`machineContendedCells: 270` is the figure the OSRE fold meets. Sizing the OSRE
+fold against 2,837 would serialise it against contention it never sees.
+
+With that scope fixed, the rest of this section is about who may contribute to a
+position on the ISRE surface.
 
 A position is a bus member because *some output event targets it and some machine
 reads it*. Nothing in that definition says the writer must be a machine. An
@@ -537,21 +559,90 @@ cells is OPTIONAL and SHOULD be off by default.
 
 The stage is structurally parallel: gather is a map, resolve is a per-cell
 reduction over an independent contributor set, commit is a scatter over disjoint
-cells. **Cells never interact.** Partition by cell range and the work is
-embarrassingly parallel; the commutative-monoid requirement in 4.1 is what makes
-any partitioning safe.
+cells. **Cells never interact.** The commutative-monoid requirement in 4.1 is
+what makes any partitioning safe.
 
-Each runtime SHOULD use its idiomatic concurrency rather than a ported design:
+### 7.1 The unit is a cell's contestants, not a cell range
+
+An earlier reading of this section directed implementations to "partition by cell
+range" and merge "at the barrier". That is one partitioning, and it carries a
+barrier the structure does not require: every machine must finish before any
+resolve begins.
+
+**The contestant is the output event, not the machine.** A cell's fold gets its
+value from each contesting Output Reality Event, and *that get is the entire
+synchronisation mechanism* — a future's read-block at the point the value is
+needed. Whether two contestants come from one machine or from four does not
+change the fold's shape.
+
+Two consequences:
+
+- **No gather barrier.** A cell resolves when its own contestants have resolved,
+  not when the corpus has. Machine completion feeds stage 2 directly.
+- **An uncontended cell is a commit, not a fold** — see 4.5. Across the
+  1328-machine corpus this is 4016 of the 4446 cells any machine can ever write;
+  the widest fold anywhere is 7, and 53% of contention is inside a single
+  machine.
+
+Sizing the parallelism against the arbitration registry's 2,837 contended cells
+is a mistake this section previously invited: those are overwhelmingly ISRE-side
+machine-versus-provider entries (1.1), and the OSRE fold meets at most 270.
+
+### 7.2 The rule attaches to the consumer
+
+The producer side is identical at both scopes — an output event resolves and its
+future is satisfied. What differs is **which consumer performs the get**:
+
+| consumer | contestants | rule |
+|---|---|---|
+| the machine | its own output events | its declared `outputMergeTransformation` |
+| the OSRE cell | events from 2+ machines | the registry rule — `PRECEDENCE` / `SEVERITY` |
+
+"All fold the same" holds within a machine by construction. It **cannot** be
+assumed at the cell: the values arriving there were already reduced under
+whatever rule each contributing machine declared, so a cell has no rule to
+inherit and MUST take its own from the registry. A cell that inherits a
+contributor's rule would pass every test against today's corpus, which is
+homogeneous (`or` ×1326, `join` ×2, all `outputAlphabetTop: 1`) — and would put a
+multi-valued machine's output through a Boolean gate the first time the corpus
+stops being homogeneous.
+
+### 7.3 The interconnection is editable at runtime
+
+The map from a machine to the cells it can ever write is derived from
+`sequences[].events[].outputEvents[]` and is fixed for the lifetime of *that
+machine* — but not of the corpus, since a machine can be edited and reloaded
+while the engine runs. An implementation caching it MUST regenerate on the fly,
+keyed on a version it checks at the point of use rather than on an invalidation
+call some future route has to remember to make.
+
+A stale map does not fail loudly: it yields a well-formed OSRE missing a writer,
+and every consumer downstream reads a plausible vector.
+
+### 7.4 Per-runtime concurrency
+
+Each runtime SHOULD use its idiomatic concurrency rather than a ported design —
+with the caveat that two of them now share a structure, and shared structure is
+what makes byte equivalence checkable rather than hopeful:
 
 - **RealityEngine_CPP** — `std::future` / `std::async` over disjoint cell
   partitions, or a thread pool with per-thread gather buffers merged at the
   barrier. No shared mutable state during resolve; commit writes disjoint cells
   so it needs no locking.
 
-- **RealityEngine_LSP** — actor-theory decomposition: an actor per contended cell
-  (or per cell shard) receiving contribution messages and resolving at the
-  instant barrier. Mailbox accumulation is naturally commutative, which matches
-  4.1 exactly; prefer message passing over shared structure.
+- **RealityEngine_LSP** — `lparallel`, which is semantically near-identical to
+  the C++ path above: `future` for the unit, `force` for the read-block, `*kernel*`
+  for the bounded pool, `pmap`/`pmapcar` for the fan-out. Follow C++'s structure
+  directly rather than re-deriving one. `lparallel` layers on `bordeaux-threads`,
+  already a declared dependency, so the existing actor code is unaffected; size
+  `*kernel*` once at startup rather than per request.
+
+  *This replaces an actor-per-contended-cell decomposition previously directed
+  here.* That shape would have extended the property that is the deeper problem
+  in this runtime — every route body already runs inside one actor, serialising
+  state access before iteration begins (RealityEngine_LSP#92) — and it would have
+  reproduced in Lisp a structure that exists in Scala only because its runtime is
+  built that way.
 
 - **RealityEngine_Scala** — the runtime is already Akka-based with per-machine
   actors. Shard L2 across typed actors by cell range and join with

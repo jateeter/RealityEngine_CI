@@ -316,6 +316,21 @@ instant the corpus's output for the step exists as a single-valued vector.
 presented to the corpus at step n. Observed immediately before the machines'
 input snapshots are extracted from it.
 
+The two are composed from different contributor sets, and the boundary between
+them is where they meet:
+
+- **OSRE composition admits machine contributions only.** External providers —
+  ACP, MCP, MQTT, HealthKit, localAI, sensors — take no part in it.
+- **Providers act on ISRE composition**, asynchronously, through PE assembly.
+- **The whole OSRE build finalises before it is offered to ISRE composition.**
+  There is no streaming of a partial OSRE into the next input space.
+
+`ARBITER_CONTRACT.md` §1.1 carries the same statement with the registry
+consequences, and §7.2 the fold rules either side of the boundary: a machine
+folds its own output events under its declared `outputMergeTransformation`, while
+an OSRE cell folds contestants from several machines under the registry rule and
+can never inherit a contributor's.
+
 The merge is not performed by the Reality Engine and is not observed here. The
 Perception Engine assembles `ISRE(n)` from its sources — which the previous
 step's output regions feed — and delivers it by push; the engine records what
