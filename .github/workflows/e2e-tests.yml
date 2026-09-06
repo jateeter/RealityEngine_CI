@@ -433,6 +433,10 @@ jobs:
         working-directory: RealityEngine_CI
         run: bash scripts/tests/test-parity-identity.sh
 
+      - name: Run endpoint resolver unit tests
+        working-directory: RealityEngine_CI
+        run: bash scripts/tests/test-resolve-endpoint.sh
+
 
       - name: Run regression comparison unit tests
         working-directory: RealityEngine_CI

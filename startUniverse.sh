@@ -1727,6 +1727,28 @@ if [ "$MULTI_ENGINE_MODE" = true ]; then
     [ "$_reg_n" -ge 10 ] && die "Registry REST shim on :${REGISTRY_PORT} did not become ready"
     ok "Registry REST shim ready  http://$HOST_IP:${REGISTRY_PORT}/re-registry.json"
 
+    # Publish the non-instance endpoints (RealityEngine_CI#278 step 1).
+    #
+    # The registry answers "where is engine X" and nothing else, so every
+    # consumer needing the Manager, the shim, MCP or the broker hardcoded a
+    # literal — 19 across the two workflow files, and five of six e2e specs.
+    #
+    # Written here and read by nothing yet. Allocation is still deterministic,
+    # so these are the same numbers the consumers already hardcode: the contract
+    # can be reviewed while provably inert, and each consumer's conversion then
+    # changes no behaviour. The values become interesting only when
+    # --free-ports lands and they stop being predictable.
+    # Which allocation template produced the ports below. Deterministic today;
+    # --free-ports (#278 step 4) will record "free" instead, and the same
+    # registry field is then the only thing distinguishing the two worlds.
+    registry_set_allocation "deterministic" 100
+    registry_set_service "registry"         "http://$HOST_IP:${REGISTRY_PORT}"
+    registry_set_service "manager_backend"  "http://$HOST_IP:3001"
+    registry_set_service "manager_frontend" "http://$HOST_IP:5173"
+    [ -n "${MQTT_BROKER_URL:-}" ] && registry_set_service "mqtt" "$MQTT_BROKER_URL"
+    [ -n "${MCP_URL:-}" ]         && registry_set_service "mcp" "$MCP_URL"
+    [ -n "${SWAGGER_URL:-}" ]     && registry_set_service "swagger" "$SWAGGER_URL"
+
     # Parse --engines=scala:2,cpp:1 and spawn each set of instances
     INSTANCE_IDX_SCALA=0; INSTANCE_IDX_CPP=0; INSTANCE_IDX_LSP=0
     IFS=',' read -ra _ENGINE_SPECS <<< "$ENGINES"
@@ -1763,6 +1785,20 @@ if [ "$MULTI_ENGINE_MODE" = true ]; then
 
     _inst_count=$(registry_ids 2>/dev/null | wc -l | tr -d ' ')
     ok "$_inst_count instance(s) registered"
+
+    # Re-record the allocation now that the instances exist, so `effective` and
+    # `shifted` reflect the ports actually taken rather than the nominal bases.
+    # Idempotent; the earlier call published the mode in case a spawn failed.
+    #
+    # Departing from the built-in default is routine, not an error: allocation
+    # fails rather than shifts when a base is busy, so a host whose base is taken
+    # (macOS gives 5000 to AirPlay Receiver) pins another in .env — here
+    # SCALA_PE_BASE=5100. A registry publishing only the default would contradict
+    # the endpoints beside it.
+    registry_set_allocation "deterministic" 100
+    _alloc_shifted=$(registry_allocation \
+        | python3 -c "import json,sys; print(','.join(json.load(sys.stdin).get('shifted',[])))" 2>/dev/null || true)
+    [ -n "$_alloc_shifted" ] && info "Port template shifted for: $_alloc_shifted (occupied base port)"
 
     # ── Corpus load phase ─────────────────────────────────────────────────────
     case "$MACHINE_LOAD" in
