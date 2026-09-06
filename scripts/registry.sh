@@ -65,11 +65,16 @@ EOF
 # decided, so a reader cannot tell a deterministic run from a free-port one, and
 # an artifact from a failed run does not say which world produced it.
 #
-# Nominal is not enough, because the nominal base is not always what happens.
-# On macOS, port 5000 is held by AirPlay Receiver, so Scala shifts up a stride
-# and comes up on 5100/5101 while the template says 5000/5001. Recording the
-# template alone would publish a number contradicted by the endpoints beside it
-# — worse than publishing nothing, because it reads as authoritative.
+# Nominal is not enough, because the nominal base is not always what is used.
+# `allocate_ports` does not shift when a port is busy — it fails. So on a host
+# where something already holds the base (macOS gives port 5000 to AirPlay
+# Receiver) the operator pins a different one: this checkout carries
+# SCALA_PE_BASE=5100 in .env, and Scala comes up on 5100/5101 while the built-in
+# default still reads 5000/5001.
+#
+# A record of the built-in default would therefore publish a number contradicted
+# by the endpoints beside it — worse than publishing nothing, because it reads
+# as authoritative.
 #
 # So both are recorded, and reconciled against the instances that actually
 # registered: `templates` is what allocation computed from, `effective` is what

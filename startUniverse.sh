@@ -1790,9 +1790,11 @@ if [ "$MULTI_ENGINE_MODE" = true ]; then
     # `shifted` reflect the ports actually taken rather than the nominal bases.
     # Idempotent; the earlier call published the mode in case a spawn failed.
     #
-    # The shift is routine, not an error: on macOS AirPlay Receiver holds 5000,
-    # so Scala comes up on 5100/5101 and departs from its template. A registry
-    # that published only the template would contradict the endpoints beside it.
+    # Departing from the built-in default is routine, not an error: allocation
+    # fails rather than shifts when a base is busy, so a host whose base is taken
+    # (macOS gives 5000 to AirPlay Receiver) pins another in .env — here
+    # SCALA_PE_BASE=5100. A registry publishing only the default would contradict
+    # the endpoints beside it.
     registry_set_allocation "deterministic" 100
     _alloc_shifted=$(registry_allocation \
         | python3 -c "import json,sys; print(','.join(json.load(sys.stdin).get('shifted',[])))" 2>/dev/null || true)
