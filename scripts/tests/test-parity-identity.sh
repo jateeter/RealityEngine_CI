@@ -25,6 +25,52 @@ spec = importlib.util.spec_from_file_location("pi", f"{sys.argv[1]}/scripts/lib/
 pi = importlib.util.module_from_spec(spec); spec.loader.exec_module(pi)
 out = []
 
+# Depth (RealityEngine_CI#281). The filters were applied only to the payload's
+# top level, but the augmentation they exist to exclude sits at
+# `.step.mergeBatch[].valuesPacked` — one level below where they looked. Five
+# parity failures per run, on a route where all three runtimes agreed.
+#
+# The bug was invisible by inspection: the key sets were right, the recursive
+# walk was right, and only their composition was wrong. So the test drives the
+# real shape rather than a flat record.
+def _payload(packed):
+    entry = {"cell": 4, "values": [0, 1]}
+    if packed:
+        entry["valuesPacked"] = {"base64": "QA==", "bitsPerElement": 1, "length": 2}
+    return {"success": True, "step": {"mergeBatch": [entry]}}
+
+three = {"cpp-1": _payload(False), "lsp-1": _payload(True), "scala-1": _payload(False)}
+sigs = {n: json.dumps(pi.parity_signature(v, pi.shared_keys(three)), sort_keys=True)
+        for n, v in three.items()}
+out.append(("nested augmentation does not split the signature", len(set(sigs.values())) == 1))
+
+# ...and the values it packs are still compared, so this is a filter and not a
+# hole: flip one and the runtimes must disagree again.
+diverged = {"cpp-1": _payload(False), "lsp-1": _payload(True), "scala-1": _payload(False)}
+diverged["scala-1"]["step"]["mergeBatch"][0]["values"] = [1, 1]
+dsigs = {n: json.dumps(pi.parity_signature(v, pi.shared_keys(diverged)), sort_keys=True)
+         for n, v in diverged.items()}
+out.append(("a real value difference still splits it", len(set(dsigs.values())) == 2))
+
+# Reported, never compared — SURFACE_SPEC.md, "The observable boundary". The
+# document already claimed this was reported; it was reported nowhere, because
+# shape_only_keys was also top-level-only.
+shape = pi.shape_only_keys(three)
+out.append(("nested extra is reported at its path",
+            shape.get("lsp-1") == [".step.mergeBatch[].valuesPacked"]))
+
+# Permitted augmentation is not a contract violation, or fixing the report
+# would just trade one false finding for another.
+out.append(("permitted augmentation raises no violation",
+            pi.uniformity_violations(three) == []))
+
+# A genuinely asymmetric key still does.
+asym = {"cpp-1": {"success": True, "step": {"a": 1, "extra": 2}},
+        "lsp-1": {"success": True, "step": {"a": 1}}}
+out.append(("an asymmetric nested key is still reported",
+            pi.shape_only_keys(asym).get("cpp-1") == [".step.extra"]))
+
+
 # Engine-minted identity is filtered; corpus-declared identity is kept.
 rec = {"machineId": "machine-1U358SX-92K0", "machineName": "Thermal",
        "sequenceId": "agx-001-urgent", "vectorId": "agx-001-normal",

@@ -528,6 +528,18 @@ jobs:
             # were the diagnosis and none of them were uploaded, so the cause
             # had to be recovered by reading the runtime's source instead.
             RealityEngine_CI/.regression-tests/runs/*/responses/universal-vectors/*.json
+            # The same reasoning, one stage over (#281). trajectory-parity
+            # writes trajectory-summary.json holding the per-runtime values at
+            # the diverging cell and the history lengths — everything needed to
+            # diagnose it. None of it was uploaded, so a hosted divergence that
+            # does not reproduce locally arrived as two lines naming a cell and
+            # a cluster, and a rerun produced the same two lines.
+            RealityEngine_CI/.regression-tests/runs/*/responses/trajectory-parity/*.json
+            # The engine-process parity stage's report (#254). Its verdict was
+            # recoverable from the stage log, but the counts, the per-runtime
+            # declared dimension and the universal probe live only here.
+            RealityEngine_CI/.regression-tests/runs/*/reports/engine-process-parity.json
+            RealityEngine_CI/.regression-tests/runs/*/reports/arbiter*.json
             RealityEngine_CI/.regression-tests/runs/*/reports/mqtt-yuma*.json
             RealityEngine_CI/.regression-tests/runs/*/reports/mcp-smoke.json
             RealityEngine_CI/.regression-tests/runs/*/reports/openclaw*.json
