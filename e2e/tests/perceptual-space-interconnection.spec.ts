@@ -1,5 +1,6 @@
 import { test, expect } from '@playwright/test';
 import { skipUnlessMachines } from '../helpers/require-machines';
+import { endpointOr, peEndpointOr } from '../lib/registry';
 
 /** Digital-logic fixtures this suite drives; absent from standard-deployment. */
 const REQUIRED_MACHINES = ['MultiStep', 'RS2', 'RSFlipFlop'];
@@ -26,9 +27,9 @@ const REQUIRED_MACHINES = ['MultiStep', 'RS2', 'RSFlipFlop'];
  * 5. (0,0,0) - Probe step: RS2 and RSFlipFlop observe [1,0] at PS[3:5] → both output [1,0]
  */
 
-const VISUALIZER_URL = 'https://localhost:5173';
-const API_URL = 'https://localhost:3001';
-const PERCEPTION_ENGINE_URL = 'https://localhost:3004';
+const VISUALIZER_URL = endpointOr('manager_frontend', 'https://localhost:5173');
+const API_URL = endpointOr('manager_backend', 'https://localhost:3001');
+const PERCEPTION_ENGINE_URL = peEndpointOr('https://localhost:3004');
 
 interface PerceptualVector {
   bytes: number[];

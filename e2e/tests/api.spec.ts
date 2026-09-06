@@ -1,11 +1,12 @@
 import { test, expect } from '@playwright/test';
+import { reEndpointOr } from '../lib/registry';
 
 /**
  * E2E Tests for Reality Engine API
  * Tests the API endpoints running in Docker
  */
 
-const API_BASE_URL = 'https://localhost:5001';
+const API_BASE_URL = reEndpointOr('https://localhost:5001');
 
 test.describe('Reality Engine API - Configuration', () => {
   test('should get current configuration', async ({ request }) => {

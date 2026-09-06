@@ -1,4 +1,5 @@
 import { test, expect, Page } from '@playwright/test';
+import { endpointOr } from '../lib/registry';
 
 /**
  * Visualizer UI — stable shell behavior.
@@ -15,7 +16,7 @@ import { test, expect, Page } from '@playwright/test';
  * is a strict-mode violation.
  */
 
-const VISUALIZER_URL = 'https://localhost:5173';
+const VISUALIZER_URL = endpointOr('manager_frontend', 'https://localhost:5173');
 
 /** Machine tree; also the signal that the engine's corpus reached the UI. */
 function machineTree(page: Page) {
