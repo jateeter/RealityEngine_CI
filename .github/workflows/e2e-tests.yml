@@ -437,6 +437,10 @@ jobs:
         working-directory: RealityEngine_CI
         run: bash scripts/tests/test-resolve-endpoint.sh
 
+      - name: No literal endpoint locates a service
+        working-directory: RealityEngine_CI
+        run: bash scripts/check-workflow-endpoints.sh
+
 
       - name: Run regression comparison unit tests
         working-directory: RealityEngine_CI
@@ -1116,12 +1120,28 @@ jobs:
       # it does not fail loudly, because the test asserts only that both
       # endpoints return an array. Selecting by the registry's `runtime` field
       # is the durable fix; tracked as RealityEngine_CI#274.
+      # Resolve service endpoints from the registry rather than repeating them
+      # (RealityEngine_CI#278 step 5). Each falls back to the literal it
+      # replaced, so this is inert while allocation is deterministic and
+      # correct once --free-ports makes the numbers unpredictable.
+      #
+      # RE_REGISTRY_URL is deliberately NOT resolved: it is the bootstrap. A
+      # registry cannot publish its own address to a reader that has not found
+      # it yet, so that one stays a literal and everything else derives from it.
+      - name: Resolve endpoints from the registry
+        working-directory: RealityEngine_CI
+        run: |
+          . scripts/lib/resolve-endpoint.sh
+          echo "VIZ_BASE_URL=$(service_endpoint manager_backend 2>/dev/null || echo 'http://127.0.0.1:3001')" >> "$GITHUB_ENV"
+          echo "PLAYWRIGHT_BASE_URL=$(service_endpoint manager_frontend 2>/dev/null || echo 'http://localhost:5173')" >> "$GITHUB_ENV"
+          echo "  VIZ_BASE_URL=$(service_endpoint manager_backend 2>/dev/null || echo 'http://127.0.0.1:3001')"
+          echo "  PLAYWRIGHT_BASE_URL=$(service_endpoint manager_frontend 2>/dev/null || echo 'http://localhost:5173')"
+
       - name: Run multi-instance integration tests (cpp-1 + cpp-2)
         working-directory: RealityEngine_Machines
         env:
           REUSE_SERVICES: 'true'
           RE_REGISTRY_URL: 'http://localhost:5999/re-registry.json'
-          VIZ_BASE_URL: 'http://127.0.0.1:3001'
         run: |
           npx playwright test tests/integration/multi-instance.spec.ts \
             --reporter=list
@@ -1145,7 +1165,6 @@ jobs:
         env:
           REUSE_SERVICES: 'true'
           RE_REGISTRY_URL: 'http://localhost:5999/re-registry.json'
-          VIZ_BASE_URL: 'http://127.0.0.1:3001'
           INTEGRATIONS_CONFIG: ${{ github.workspace }}/RealityEngine_CI/config/integrations.json
           PLAYWRIGHT_JSON_OUTPUT_NAME: contract-results.json
         run: |
@@ -1215,7 +1234,6 @@ jobs:
         env:
           REUSE_SERVICES: 'true'
           MULTI_ENGINE_E2E: 'true'
-          PLAYWRIGHT_BASE_URL: 'http://localhost:5173'
           PLAYWRIGHT_JSON_OUTPUT_NAME: tri-runtime-results.json
         run: |
           pw_exit=0
@@ -1247,7 +1265,6 @@ jobs:
         env:
           REUSE_SERVICES: 'true'
           RE_REGISTRY_URL: 'http://localhost:5999/re-registry.json'
-          VIZ_BASE_URL: 'http://127.0.0.1:3001'
         run: |
           stamp="${{ github.workspace }}/RealityEngine_CI/.universe-engine-selection"
           MACHINES_CORPUS_DIR="$(sed -n 's/^MACHINE_CORPUS_ACTIVE_DIR=//p' "$stamp" 2>/dev/null)"
