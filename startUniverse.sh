@@ -2324,7 +2324,10 @@ QDRANT_COLLS=$(curl -sf http://localhost:4333/collections 2>/dev/null || echo '{
 COLL_LIST=$(echo "$QDRANT_COLLS" | python3 -c \
     "import json,sys; print([c['name'] for c in json.load(sys.stdin).get('result',{}).get('collections',[])])" \
     2>/dev/null || echo "[]")
-for coll in "localai_docs" "reality-events"; do
+# Only localAIStack's own collection is checked here. `reality-events` used to be
+# created by the Scala RE at startup; no engine touches Qdrant now, so reporting that
+# it "will be created on first use" would state something untrue.
+for coll in "localai_docs"; do
     echo "$COLL_LIST" | grep -q "$coll" && ok "Qdrant collection: $coll" || \
         info "Qdrant '$coll': will be created on first use"
 done
