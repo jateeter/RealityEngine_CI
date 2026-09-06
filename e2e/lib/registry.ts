@@ -84,3 +84,67 @@ export function serviceEndpoint(name: string, path?: string): string {
 export function instanceIds(path?: string): string[] {
   return loadRegistry(path).instances.map((i) => i.id);
 }
+
+/**
+ * Resolve a service, falling back to a literal when the registry cannot answer.
+ *
+ * The fallback is what makes a conversion safe to land: with no registry — or a
+ * registry from before the services block existed — the caller gets exactly the
+ * endpoint it used before, so the change is inert where there is nothing to
+ * resolve from.
+ *
+ * Where the registry *can* answer, it wins, and that is a real change rather
+ * than a cosmetic one. The literals in these specs encode a deployment: they
+ * point at the nginx TLS proxy of the Docker stack (`https://localhost:5001`),
+ * which does not exist in a native multi-engine universe, where the same engine
+ * is at `http://<host>:5101`. That is why five of six specs were single-engine
+ * only — not because their assertions were engine-specific, but because their
+ * constants named a deployment (RealityEngine_CI#278).
+ */
+export function endpointOr(service: string, fallback: string, path?: string): string {
+  try {
+    return serviceEndpoint(service, path);
+  } catch {
+    return fallback;
+  }
+}
+
+/**
+ * Resolve an RE endpoint, by instance name, falling back to a literal.
+ *
+ * `RE_E2E_INSTANCE` names the instance when several are registered. A registry
+ * holding exactly one is unambiguous and used without asking. Never positional:
+ * #274 is the standing example of `instances[0]` passing while addressing
+ * something other than what the test claimed.
+ */
+export function reEndpointOr(fallback: string, path?: string): string {
+  try {
+    const named = process.env.RE_E2E_INSTANCE;
+    if (named) return reEndpoint(named, path);
+    const ids = instanceIds(path);
+    if (ids.length === 1) return reEndpoint(ids[0], path);
+    return fallback;
+  } catch {
+    return fallback;
+  }
+}
+
+/**
+ * Resolve a PE endpoint, by instance name, falling back to a literal.
+ *
+ * The fallback `https://localhost:3004` is the Docker stack's Perception
+ * Engine. In a native multi-engine universe there is no PE on 3004 at all —
+ * each instance carries its own (5300, 5600, 5100) — which is the specific
+ * reason the specs naming it could not run multi-engine.
+ */
+export function peEndpointOr(fallback: string, path?: string): string {
+  try {
+    const named = process.env.RE_E2E_INSTANCE;
+    if (named) return peEndpoint(named, path);
+    const ids = instanceIds(path);
+    if (ids.length === 1) return peEndpoint(ids[0], path);
+    return fallback;
+  } catch {
+    return fallback;
+  }
+}
