@@ -109,7 +109,7 @@ ENGINE_LOCAL_KEYS = frozenset(
 # The exclusion is narrow on purpose. Everything the flow *produces* — the
 # assembled input space, the active regions, the event bus writes, the machine
 # results — is a public surface and is held to the full contract below.
-# CONTRADICTS SURFACE_SPEC, unresolved — RealityEngine_CI#292.
+# CONTRADICTS SURFACE_SPEC, unresolved — RealityEngine_CI#293.
 #
 # The comment above says this whole surface is excluded from parity.
 # SURFACE_SPEC.md says the opposite: "`mergeBatch` itself is observable and
