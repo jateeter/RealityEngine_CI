@@ -1,5 +1,5 @@
 {
-  "_comment": "CES-as-observability-DSL — Grafana versions of the queries that scripts/ces-query.mjs surfaces from /examples/contracts.json. PromQL covers the aggregate questions (top-K, rates, per-team rollups). The structural queries (provenance contains, chain length, evidence-skip detection) live in the CLI because they need stable-id joins that PromQL can't express.",
+  "_comment": "CES-as-observability-DSL — PromQL covers the aggregate questions (top-K, rates, per-team rollups). These began as Grafana versions of the queries scripts/ces-query.mjs surfaced from examples/contracts.json; that CLI has been removed, so the structural queries it carried (provenance contains, chain length, evidence-skip detection) have no home — they need stable-id joins PromQL cannot express. This dashboard is self-contained and does not depend on the removed CLI.",
   "title": "Reality Engine — CES Activation Queries",
   "uid": "ces-trace-queries",
   "schemaVersion": 38,

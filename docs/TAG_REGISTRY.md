@@ -372,7 +372,14 @@ These tags are approaching established status. Prefer them over new single-use s
 
 ## Consolidation Rules
 
-The `scripts/consolidate-tags.py` script enforces these rules automatically.
+These rules were applied to the corpus as a one-time consolidation pass by
+`scripts/consolidate-tags.py`. That script has been removed: it read
+`RealityEngine_CI/examples/machines/` with a flat glob, so after the corpus moved
+to `RealityEngine_Machines/machines/domains/<domain>/` it could neither find the
+machines nor traverse into the domain directories. The rules below are retained
+as the record of what was applied and as the taxonomy new tags are judged
+against; `scripts/manage_machine_tags.mjs` is the surviving tool, and it is what
+1,016 corpus machines declare in `metadata.tagging.managedBy`.
 
 ### Stage 1 — Remove Noise Tags
 
@@ -426,12 +433,13 @@ wrong answer:
 
 A tag becomes established by meeting **all three** of these criteria:
 
-1. It appears in ≥ 10 distinct machine files in `examples/machines/`.
+1. It appears in ≥ 10 distinct machine files in
+   `RealityEngine_Machines/machines/`.
 2. It represents a stable domain concept that is unlikely to be renamed.
 3. It is not a more-specific variant of an existing established tag (use the existing tag instead).
 
-To promote a provisional tag, add it to the `ESTABLISHED` list in
-`scripts/consolidate-tags.py` (sorted longest-first) and re-run the script.
+To promote a provisional tag, add it to the term sets in
+`scripts/manage_machine_tags.mjs` and re-run the check below.
 
 To add an entirely new tag family, also add appropriate keyword entries to
 `visualizer/frontend/src/components/machineDomains.ts` so the domain classifier
@@ -439,15 +447,46 @@ can recognize machines carrying the new tags.
 
 ---
 
-## Running Consolidation
+## Checking Tag Drift
 
 ```bash
-# Dry run — show how many files would change without writing
-python3 scripts/consolidate-tags.py --dry-run
-
-# Apply consolidation to all machine files
-python3 scripts/consolidate-tags.py
+# Read-only — reports how many corpus machines diverge from the derived tagging
+node scripts/manage_machine_tags.mjs --check
 ```
 
-The script rewrites files in place with 2-space JSON indentation and a trailing
-newline, matching the format used by all other machine generation scripts.
+`manage_machine_tags.mjs` reads
+`RealityEngine_Machines/machines/**/*.json` (override with `MACHINES_DIR`),
+walking the domain subdirectories and keying on basename, which is globally
+unique across the corpus.
+
+### Two classes of drift, reported separately
+
+`--check` splits its result, because the fields in `metadata.tagging` are not
+equally consequential:
+
+**Load-bearing — must be zero, and fails the check.** `primaryDomain` decides
+domain membership (`domain_organization_test.py`, `build-region-allocation.py`,
+`audit-corpus.py`, `build-corpus-index.py`); `machineCode` is required by
+`ai-trigger-envelope.schema.json` and read by the writeback and autonomy
+backfills. Both are **preserved, never re-derived**, per the §9.1 precedence
+`tagging.primaryDomain` → `metadata.category` → `metadata.domain`.
+
+**Descriptive — reported, never fatal.** The tag arrays are read only by the wiki
+compendium, for counts and a search index. Nothing gates on them, so failing the
+check on them would only teach people to ignore it.
+
+### Ownership
+
+The script rewrites a machine only where `metadata.tagging.managedBy` names it
+(1,016 machines). It never adopts a machine tagged by something else (187) and
+never adopts one with no tagging block (125) — writing a block is a corpus
+expansion decision, not a drift repair, and those machines already resolve their
+domain through the §9.1 fallbacks. `FallSensorMotionPreaggregator` is the case
+that makes this concrete: it carries hand-authored `capabilityTags`
+(`sensor-preaggregator`, `firmware-contract`) that no metadata-derived rule
+reproduces.
+
+A write additionally refuses, per machine, to emit a `primaryDomain` that
+disagrees with the machine's domain directory — the `domain_organization_test.py`
+invariant, checked where the value is written rather than discovered later by the
+gate.

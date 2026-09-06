@@ -42,6 +42,32 @@ CONTRACTS=(
   # deprecated prototype outside the focus set.)
   "ARBITER_ARCHITECTURE.md|$ROOT_DIR/RealityEngine_CPP/ARBITER_ARCHITECTURE.md|$ROOT_DIR/RealityEngine_LSP/ARBITER_ARCHITECTURE.md|$ROOT_DIR/RealityEngine_Scala/ARBITER_ARCHITECTURE.md"
   "MACHINE_CONCEPT.md|$ROOT_DIR/RealityEngine_CPP/MACHINE_CONCEPT.md|$ROOT_DIR/RealityEngine_LSP/MACHINE_CONCEPT.md|$ROOT_DIR/RealityEngine_Scala/MACHINE_CONCEPT.md"
+  # What an external system must obey to contribute perceptual facts, factored
+  # out of the MQTT and OpenClaw documents that had each been stating a share of
+  # it. Registered with no pointers: the integration-specific documents cite it
+  # in prose and keep their own configuration material, so they are worked
+  # instances rather than pointers, and reducing them to pointers would delete
+  # the broker, gateway and mapping detail that is the reason they exist.
+  "docs/EXTERNAL_INTEGRATION_CONTRACT.md"
+  # The provider-neutral integration model every PE implements. It was forked
+  # into three copies — CI, CPP and LSP — that had diverged in *content*, not
+  # wording: the engine copies carried the `carekit` kind and a CareKit section
+  # the master lacked, while the master carried the canonical Ollama model
+  # precedence rules the copies lacked. Neither was a superset, so "the
+  # integration model" had no single answer and nothing went red. The LSP copy
+  # had even acquired a "## C++ Status" heading. Scala had no copy at all, which
+  # is the ARBITER_ARCHITECTURE.md failure — implementing a contract with no
+  # local sign it is written down elsewhere.
+  "docs/INTEGRATION_ARCHITECTURE.md|$ROOT_DIR/RealityEngine_CPP/docs/INTEGRATION_ARCHITECTURE.md|$ROOT_DIR/RealityEngine_LSP/docs/INTEGRATION_ARCHITECTURE.md|$ROOT_DIR/RealityEngine_Scala/perception-engine/docs/INTEGRATION_ARCHITECTURE.md"
+  # Who controls the builds. The engines are independent repositories that each
+  # know how to compile themselves, which is exactly why this needs saying: the
+  # convenience makes it easy to assume building in an engine repo is the
+  # control point. It is not — RealityEngine_CI owns the build phase, the
+  # prerequisite validation and the provenance gate. Every engine carries a
+  # pointer so the rule is visible where someone is about to run `make` or
+  # `sbt`, which is where the 2026-08-22 stale-jar investigation would have
+  # been prevented.
+  "docs/BUILD_CONTROL_CONTRACT.md|$ROOT_DIR/RealityEngine_CPP/BUILD_CONTROL_CONTRACT.md|$ROOT_DIR/RealityEngine_LSP/BUILD_CONTROL_CONTRACT.md|$ROOT_DIR/RealityEngine_Scala/BUILD_CONTROL_CONTRACT.md"
 )
 
 # A pointer is short and says where the master is. A fork is neither. The size
