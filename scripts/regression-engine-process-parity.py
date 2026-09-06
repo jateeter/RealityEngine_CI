@@ -113,6 +113,25 @@ def post(url: str, body: dict[str, Any], timeout: int = 300) -> tuple[int, Any]:
             return exc.code, None
 
 
+def declared_dimension(re_url: str, timeout: int = 30) -> int | None:
+    """The runtime's own space width, from GET /api/runtime/vector-space.
+
+    Asked rather than assumed. Length is what selects decomposition, so a
+    stimulus built to the wrong width is not a universal event at all — it is an
+    ordinary machine-space call that matches nothing and returns zero outputs.
+    That is indistinguishable from the #267 defect this stage gates on, so a
+    hardcoded width can fail the lane for a bug that is not there. It did: the
+    default was 16944 against a corpus whose space is 16934.
+    """
+    try:
+        with request.urlopen(f"{re_url}/api/runtime/vector-space", timeout=timeout) as response:
+            payload = json.loads(response.read().decode("utf-8"))
+    except (error.URLError, OSError, ValueError):
+        return None
+    value = payload.get("dimension")
+    return value if isinstance(value, int) else None
+
+
 def load_instances(registry_path: Path) -> list[dict[str, str]]:
     """RE/PE base URLs per runtime, from the runtime registry.
 
@@ -212,10 +231,11 @@ def main() -> int:
                         help="machine-space stimulus, comma separated. The default "
                              "matches the widest input region in the corpus and "
                              "fires 167 machines.")
-    parser.add_argument("--universal-dimension", type=int, default=16944,
-                        help="width of the universal stimulus; must equal the runtimes' "
-                             "declared dimension, since length is what selects "
-                             "decomposition")
+    parser.add_argument("--universal-dimension", type=int, default=None,
+                        help="override the universal stimulus width. Default: ask each "
+                             "runtime via /api/runtime/vector-space, since length is what "
+                             "selects decomposition and a wrong width silently degrades "
+                             "the probe into an ordinary machine-space call")
     parser.add_argument("--machines", type=Path, required=True,
                         help="RealityEngine_Machines root — the universal stimulus is "
                              "built from the corpus's own inputSequences")
@@ -365,8 +385,32 @@ def main() -> int:
             f"difference): {cluster(signatures)}")
 
     # Universal application — gated, since RealityEngine_CI#267 landed.
-    universal = universal_stimulus(args.machines, args.universal_dimension)
+    #
+    # Width comes from the runtimes themselves unless overridden. Two runtimes
+    # that disagree about how wide the space is cannot be given one stimulus that
+    # is universal to both, so that disagreement is reported as itself rather
+    # than surfacing later as a mysterious count difference.
+    dimensions = {i["id"]: declared_dimension(i["re_url"]) for i in instances}
+    report["declaredDimension"] = dimensions
+    if args.universal_dimension is not None:
+        width = args.universal_dimension
+    else:
+        known = {d for d in dimensions.values() if d is not None}
+        if len(known) > 1:
+            report["failures"].append(
+                f"runtimes declare different space widths {dimensions}: no single vector "
+                "is universal to all of them")
+        if not known:
+            report["failures"].append(
+                "no runtime reported a dimension on /api/runtime/vector-space; the "
+                "universal probe cannot be built, and a guessed width would test nothing")
+        width = min(known) if known else 0
+
+    universal = universal_stimulus(args.machines, width) if width else []
     for instance in instances:
+        if not universal:
+            report["universalProbe"][instance["id"]] = "skipped: no declared width"
+            continue
         try:
             _status, response = post(f"{instance['re_url']}/api/engine/process", {"vector": universal})
             report["universalProbe"][instance["id"]] = len(outputs_of(response))
@@ -393,7 +437,7 @@ def main() -> int:
 
     args.out.write_text(json.dumps(report, indent=2))
     print(f"engine-process parity: {report['status']}  counts={report['counts']}")
-    print(f"  universal application (decomposed per machine, gated): "
+    print(f"  universal application (decomposed per machine, gated, width={width}): "
           f"{report['universalProbe']}")
     for failure in report["failures"]:
         print(f"  FAIL {failure}", file=sys.stderr)
