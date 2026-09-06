@@ -7,6 +7,9 @@
 #   registry_list          — prints full JSON to stdout
 #   registry_get    <id>   — prints single instance JSON; exits 1 if not found
 #   registry_ids           — one id per line
+#   registry_set_service <name> <url>  — upsert a non-instance endpoint
+#   registry_services      — prints the services object
+#   registry_set_allocation <mode> <stride>  — record the active port template
 #   registry_start_server  — serves /tmp/re-registry.json on PORT 5999
 #   registry_stop_server   — kills the server started above
 
@@ -17,8 +20,133 @@ REGISTRY_PORT="${RE_REGISTRY_PORT:-5999}"
 _registry_init() {
     if [ ! -f "$REGISTRY_FILE" ]; then
         local host_ip="${HOST_IP:-127.0.0.1}"
-        printf '{"host":"%s","instances":[]}\n' "$host_ip" > "$REGISTRY_FILE"
+        printf '{"host":"%s","instances":[],"services":{}}\n' "$host_ip" > "$REGISTRY_FILE"
     fi
+}
+
+# Non-instance endpoints — Manager, the registry shim, MCP, Swagger, MQTT.
+#
+# The registry already answers "where is engine X" (`re_url`/`pe_url` per
+# instance). It could not answer "where is the Manager", so every consumer that
+# needed one hardcoded it: 19 literal host:port pairs across the two workflow
+# files, and five of six e2e specs (RealityEngine_CI#278).
+#
+# Published here and read by nothing at first, deliberately. While port
+# allocation is still deterministic these values are the same numbers the
+# consumers already hardcode, so the publication contract can be settled while
+# being provably inert — and the conversion of each consumer is then a change
+# that alters no behaviour.
+registry_set_service() {
+    local name="$1" url="$2"
+    [ -n "$name" ] && [ -n "$url" ] || return 0
+    _registry_init
+    python3 - "$REGISTRY_FILE" "$name" "$url" <<'EOF'
+import json, sys
+path, name, url = sys.argv[1:]
+with open(path) as f:
+    reg = json.load(f)
+# Backfill: a registry written before this existed has no `services` key, and a
+# reader that assumed one would fault on exactly the upgrade path this supports.
+services = reg.setdefault('services', {})
+def _port(u):
+    try:
+        return int(u.rsplit(':', 1)[-1].split('/')[0])
+    except Exception:
+        return 0
+services[name] = {'url': url, 'port': _port(url)}
+with open(path, 'w') as f:
+    json.dump(reg, f, indent=2)
+EOF
+}
+
+# The allocation template actually in force — RealityEngine_CI#278.
+#
+# Without this the registry says *where* an engine is and never *how* that was
+# decided, so a reader cannot tell a deterministic run from a free-port one, and
+# an artifact from a failed run does not say which world produced it.
+#
+# Nominal is not enough, because the nominal base is not always what happens.
+# On macOS, port 5000 is held by AirPlay Receiver, so Scala shifts up a stride
+# and comes up on 5100/5101 while the template says 5000/5001. Recording the
+# template alone would publish a number contradicted by the endpoints beside it
+# — worse than publishing nothing, because it reads as authoritative.
+#
+# So both are recorded, and reconciled against the instances that actually
+# registered: `templates` is what allocation computed from, `effective` is what
+# the ports turned out to be, and `shifted` names any runtime where they differ.
+# Call this again after spawning to fill `effective` in; it is idempotent, and
+# calling it early means the mode is published even if a spawn then fails.
+registry_set_allocation() {
+    local mode="${1:-deterministic}" stride="${2:-100}"
+    _registry_init
+    python3 - "$REGISTRY_FILE" "$mode" "$stride" \
+             "${SCALA_PE_BASE:-5000}" "${CPP_PE_BASE:-5300}" "${LSP_PE_BASE:-5600}" <<'EOF'
+import json, sys
+path, mode, stride, scala_pe, cpp_pe, lsp_pe = sys.argv[1:]
+stride = int(stride)
+with open(path) as f:
+    reg = json.load(f)
+
+def pair(pe):
+    pe = int(pe)
+    return {'pe_base': pe, 're_base': pe + 1}
+
+templates = {'scala': pair(scala_pe), 'cpp': pair(cpp_pe), 'lsp': pair(lsp_pe)}
+
+# Effective bases, derived from the instances that actually came up: take the
+# lowest-index instance of each runtime and subtract the stride it was offset
+# by. An id is "<runtime>-<n>" with n starting at 1.
+effective, shifted = {}, []
+lowest = {}
+for inst in reg.get('instances', []):
+    runtime = inst.get('runtime')
+    try:
+        idx = int(str(inst.get('id', '')).rsplit('-', 1)[1]) - 1
+    except (IndexError, ValueError):
+        continue
+    if runtime in templates and (runtime not in lowest or idx < lowest[runtime][0]):
+        lowest[runtime] = (idx, inst)
+for runtime, (idx, inst) in lowest.items():
+    re_port, pe_port = inst.get('re_port'), inst.get('pe_port')
+    if not re_port or not pe_port:
+        continue
+    base = {'pe_base': pe_port - idx * stride, 're_base': re_port - idx * stride}
+    effective[runtime] = base
+    if base != templates[runtime]:
+        shifted.append(runtime)
+
+reg['allocation'] = {
+    'mode': mode,
+    'stride': stride,
+    'inForce': mode == 'deterministic',
+    'templates': templates,
+    'effective': effective,
+    # Named rather than implied: a shifted runtime is normal (an occupied port,
+    # AirPlay on 5000), but a reader comparing a hardcoded literal against the
+    # template needs to know the template was departed from.
+    'shifted': sorted(shifted),
+}
+with open(path, 'w') as f:
+    json.dump(reg, f, indent=2)
+EOF
+}
+
+registry_allocation() {
+    [ -f "$REGISTRY_FILE" ] || { echo '{}'; return 0; }
+    python3 - "$REGISTRY_FILE" <<'EOF'
+import json, sys
+with open(sys.argv[1]) as f:
+    print(json.dumps(json.load(f).get('allocation', {})))
+EOF
+}
+
+registry_services() {
+    [ -f "$REGISTRY_FILE" ] || { echo '{}'; return 0; }
+    python3 - "$REGISTRY_FILE" <<'EOF'
+import json, sys
+with open(sys.argv[1]) as f:
+    print(json.dumps(json.load(f).get('services', {})))
+EOF
 }
 
 registry_add() {
