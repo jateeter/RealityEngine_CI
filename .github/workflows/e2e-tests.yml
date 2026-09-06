@@ -847,7 +847,19 @@ jobs:
   # via `--engines=scala:2`, tri-runtime-parity via `--engines=cpp:1,lsp:1,scala:1`)
   # — two full checkouts, two native toolchain installs, two Manager builds, two
   # `startUniverse.sh` bring-ups. Merged into one job, one boot:
-  # `--engines=scala:1,lsp:1,cpp:2` registers scala-1, lsp-1, cpp-1, cpp-2 in a
+  # `--engines=cpp:2,scala:1,lsp:1` registers cpp-1, cpp-2, scala-1, lsp-1 in a
+  #
+  # THE ORDER IS LOAD-BEARING, not cosmetic. `multi-instance.spec.ts` selects its
+  # pair positionally — `const [a, b] = instances` — and registry order is spawn
+  # order is the order of this flag (`registry_add` appends; startUniverse walks
+  # the spec list left to right). With cpp second and third, `instances[0..1]`
+  # was scala-1 and lsp-1: a CROSS-runtime pair, for a step named "cpp-1 + cpp-2".
+  # It passed anyway — the test only asserts both endpoints return an array, and
+  # its own comment says "state may differ (different runtimes / seeds)".
+  #
+  # The doubled family therefore comes first. This restores the intent; it does
+  # not remove the fragility, which is that a spec selects by position. Tracked
+  # as RealityEngine_CI#274.
   # single registry, and every gate below is reallocated onto that one pool
   # instead of re-deploying it.
   #
@@ -1076,7 +1088,7 @@ jobs:
         run: |
           ./startUniverse.sh --no-openclaw --no-local-ai --skip-seed \
             --machine-corpus=regression \
-            --engines=scala:1,lsp:1,cpp:2
+            --engines=cpp:2,scala:1,lsp:1
 
       - name: Show registry
         if: always()
@@ -1086,12 +1098,20 @@ jobs:
 
       # ── Gate: multi-engine (same-runtime comparison) ───────────────────────
       # Reallocated onto cpp-1 + cpp-2 (was scala-1 + scala-2 under the old
-      # --engines=scala:2 boot). The spec compares whatever same-runtime pair
-      # the registry reports, so this depends on it discovering pairs via the
-      # registry rather than assuming "scala" by name — unverified here because
-      # tests/integration/multi-instance.spec.ts lives in RealityEngine_Machines,
-      # a repo not present in this checkout. Flagged as a residual risk to
-      # confirm before relying on this job.
+      # --engines=scala:2 boot).
+      #
+      # The spec does NOT discover a same-runtime pair. multi-instance.spec.ts
+      # takes `const [a, b] = instances` — the first two in registry order — so
+      # which pair it compares is decided by the order of the --engines= flag
+      # above. That is why cpp comes first there, and why the order is
+      # load-bearing rather than cosmetic.
+      #
+      # An earlier note here recorded this as an unverified risk that the spec
+      # might assume "scala" by name. It was verified: there is no "scala"
+      # string in it. The assumption that bites is positional, not nominal — and
+      # it does not fail loudly, because the test asserts only that both
+      # endpoints return an array. Selecting by the registry's `runtime` field
+      # is the durable fix; tracked as RealityEngine_CI#274.
       - name: Run multi-instance integration tests (cpp-1 + cpp-2)
         working-directory: RealityEngine_Machines
         env:
