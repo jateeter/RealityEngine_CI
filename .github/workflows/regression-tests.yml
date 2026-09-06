@@ -22,11 +22,12 @@ on:
         type: boolean
         default: false
       machine_corpus:
-        description: 'Corpus to boot. arbiter-fixture is what exercises the arbiter conformance stage.'
+        description: 'Corpus to boot. `regression` is the default and the only deployment corpus with a contended cell, so it is what lets the arbiter stage run.'
         required: false
         type: choice
-        default: standard-deployment
+        default: regression
         options:
+          - regression
           - standard-deployment
           - arbiter-fixture
           - standard-deployment-plus-ring
@@ -405,7 +406,7 @@ jobs:
           mcp_url="${INPUT_MCP_URL:-http://127.0.0.1:7331}"
           swagger_url="${INPUT_SWAGGER_URL:-http://127.0.0.1:8088}"
           compare_run="${INPUT_COMPARE:-}"
-          machine_corpus="${INPUT_MACHINE_CORPUS:-standard-deployment}"
+          machine_corpus="${INPUT_MACHINE_CORPUS:-regression}"
           retain="${INPUT_RETAIN:-20}"
           archive_artifacts="${INPUT_ARCHIVE_ARTIFACTS:-true}"
 
@@ -418,10 +419,19 @@ jobs:
             mcp_url="${SCHEDULE_MCP_URL:-http://127.0.0.1:7331}"
             swagger_url="${SCHEDULE_SWAGGER_URL:-http://127.0.0.1:8088}"
             compare_run="${SCHEDULE_COMPARE:-}"
-            # The scheduled run stays on standard-deployment. The arbiter
-            # fixtures are a conformance corpus, not a deployment one; booting
-            # them nightly would change what every other stage measures.
-            machine_corpus="standard-deployment"
+            # The scheduled run boots `regression`.
+            #
+            # It stayed on standard-deployment because the alternative was
+            # arbiter-fixture — a conformance corpus, not a deployment one,
+            # whose nightly use would change what every other stage measures.
+            # That reasoning does not reach `regression`: it IS a deployment
+            # corpus, standard-deployment's twelve plus the RS ring pair and the
+            # contended arbitration trio, so every other stage measures what it
+            # measured before and the arbiter stage stops skipping.
+            #
+            # Without this the stage skips on every scheduled run — which it did,
+            # correctly, reporting "corpus has no contended cells" (#274).
+            machine_corpus="regression"
             retain="${SCHEDULE_RETAIN:-20}"
             archive_artifacts="${SCHEDULE_ARCHIVE_ARTIFACTS:-true}"
           fi
