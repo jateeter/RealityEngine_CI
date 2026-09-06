@@ -320,7 +320,72 @@ def parity_signature(payload: Any, keys: set[str] | None = None) -> Any:
         value = {k: v for k, v in value.items() if k not in INTERMEDIATE_SURFACE_KEYS}
         if keys is not None:
             value = {k: v for k, v in value.items() if k in keys}
-    return strip_engine_identity(value)
+    return canonical_numbers(drop_debug_projection(strip_engine_identity(value)))
+
+
+def drop_debug_projection(value: Any) -> Any:
+    """Drop `perceptualSpace` wherever the runtime declares it a debug projection.
+
+    Conditioned on the runtimes' own flag rather than excluded outright, because
+    SURFACE_SPEC.md says two things that only reconcile that way. The `step` key
+    table calls `perceptualSpace` "always present — the Reality Event after the
+    step, the reason the response exists", so its *presence* is contract. And
+    "Already-settled instances" says `step.perceptualSpace` is "a debug rendering
+    rather than an authoritative surface. A runtime is not obliged to make it
+    byte-comparable", recording that comparing it produced a retracted 13-cell
+    divergence.
+
+    `perceptualSpaceIsDebugProjection` is what carries that distinction, and
+    nothing read it. All three runtimes set it true and then disagreed on 13
+    cells — cpp and scala rendering 0 where lsp renders 0.5 — which failed the
+    hosted lane as an engine defect while every runtime was declaring, in the
+    same payload, that this surface does not have to agree (#281).
+
+    So presence stays enforced by the shape check, and the values stop being
+    compared exactly when the payload says they are a projection. A runtime that
+    reports the flag false is held to the full comparison.
+    """
+    if isinstance(value, dict):
+        out = {k: drop_debug_projection(v) for k, v in value.items()}
+        if out.get("perceptualSpaceIsDebugProjection") is True:
+            out.pop("perceptualSpace", None)
+        return out
+    if isinstance(value, list):
+        return [drop_debug_projection(v) for v in value]
+    return value
+
+
+def canonical_numbers(value: Any) -> Any:
+    """One JSON number type, so `0` and `0.0` are the same value.
+
+    JSON has a single number type; Python does not, and `json.loads` picks int
+    or float from how the runtime happened to render it. Callers key their
+    clusters on `json.dumps(...)`, which turns that into a string difference —
+    so a runtime emitting `0` and one emitting `0.0` were reported as diverging
+    while agreeing on every value.
+
+    This is not a `perceptualSpace` accommodation, it is a defect in the
+    comparator. SURFACE_SPEC.md records the instance under "Already-settled
+    instances": comparing `step.perceptualSpace` "produced a retracted 13-cell
+    divergence that was a rendering difference". The retraction was written down
+    and never enforced, so the same 13 cells failed the hosted lane again
+    (RealityEngine_CI#281). Fixing it at the number rather than at the field
+    keeps the projection compared — a genuine value divergence in it is still a
+    finding — and fixes every other numeric field at the same time.
+
+    Booleans are excluded deliberately: `isinstance(True, int)` is true in
+    Python, and coercing them would make `true` and `1.0` compare equal, which
+    is a real divergence rather than a rendering one.
+    """
+    if isinstance(value, bool):
+        return value
+    if isinstance(value, (int, float)):
+        return float(value)
+    if isinstance(value, dict):
+        return {k: canonical_numbers(v) for k, v in value.items()}
+    if isinstance(value, list):
+        return [canonical_numbers(v) for v in value]
+    return value
 
 
 def corpus_identity(machine: dict[str, Any]) -> str | None:
