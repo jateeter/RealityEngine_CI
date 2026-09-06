@@ -588,6 +588,20 @@ jobs:
               per_page: 100
             });
             const existing = issues.find((issue) => issue.title === title);
+            // This run's record, on its own. Referenced by both branches below
+            // and never defined, so this step threw `ReferenceError: entry is
+            // not defined` on every regression failure — the step whose whole
+            // job is recording a failure was the one that could not run when
+            // there was one to record.
+            const entry = [
+              `Actions run: ${runUrl}`,
+              `Run id: \`${runId}\``,
+              `Timestamp: ${new Date().toISOString()}`,
+              '',
+              '```markdown',
+              summary,
+              '```',
+            ].join('\n');
             const body = renderIssueBody({
               signature,
               runId,
@@ -612,12 +626,10 @@ jobs:
                 owner: context.repo.owner,
                 repo: context.repo.repo,
                 title,
-                body: [
-                  `Failing stages: \`${signature}\`.`,
-                  '',
-                  'Recurrences are added as comments; the run below is the first.',
-                  '',
-                  entry
-                ].join('\n')
+                // `body` is renderIssueBody's output — the occurrence block a
+                // later recurrence parses to carry history forward. Building a
+                // one-off body here instead left that block absent, so the
+                // first recurrence would have had nothing to accumulate onto.
+                body
               });
             }
