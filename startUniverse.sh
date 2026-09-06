@@ -103,6 +103,11 @@ RE_ENGINE="${RE_ENGINE:-ai}"       # ai | cpp | lsp
 PE_ENGINE="${PE_ENGINE:-ai}"       # ai | cpp | lsp
 ENGINES=""                         # multi-engine: "scala:2,cpp:1" etc.
 # Configurable native port bases — override in .env to avoid macOS AirPlay (port 5000)
+# Port allocation mode. `true` claims ports the OS reports free instead of
+# computing them from a base (RealityEngine_CI#278). Default deterministic —
+# every existing deployment, pin and hardcoded expectation keeps working.
+RE_FREE_PORTS="${RE_FREE_PORTS:-false}"
+export RE_FREE_PORTS
 SCALA_PE_BASE="${SCALA_PE_BASE:-5000}"
 CPP_PE_BASE="${CPP_PE_BASE:-5300}"
 LSP_PE_BASE="${LSP_PE_BASE:-5600}"
@@ -168,6 +173,8 @@ startUniverse.sh — engine-selectable CI orchestrator
   --no-mcp-http                 Skip RealityEngine MCP Streamable HTTP service startup
   --no-openapi-swagger          Skip OpenAPI/Swagger portal startup
   --warn-only                   Warn on sibling repo version mismatch instead of failing startup
+  --free-ports                  Claim ports the OS reports free instead of computing
+                                them from a base. Default: deterministic (#278).
   --dry-run                     Run all pre-flight checks and print the startup plan,
                                 but skip all docker compose up / nohup / registry start.
                                 Exits 0 on a coherent plan; non-zero if pre-flight fails.
@@ -206,6 +213,9 @@ for arg in "$@"; do
     --no-mcp-http)         MCP_HTTP_ENABLED=false ;;
     --no-openapi-swagger)  OPENAPI_SWAGGER_ENABLED=false ;;
     --warn-only)           VERSION_WARN_ONLY=true ;;
+    # RealityEngine_CI#278 step 4. Off by default: the universe starts the way
+    # it always has unless this is passed.
+    --free-ports)          RE_FREE_PORTS=true ;;
     --dry-run)             DRY_RUN=true ;;
     --help|-h)             print_usage; exit 0 ;;
     *)                     echo "Unknown argument: $arg"; print_usage; exit 2 ;;
@@ -1582,8 +1592,17 @@ if [ "$DRY_RUN" = true ]; then
                     cpp)   _dr_idx_c=$((_dr_idx_c+1)); _dr_idx=$_dr_idx_c ;;
                     lsp)   _dr_idx_l=$((_dr_idx_l+1)); _dr_idx=$_dr_idx_l ;;
                 esac
-                _dr_re=$(( _dr_base_re + (_dr_idx-1)*100 ))
-                _dr_pe=$(( _dr_base_pe + (_dr_idx-1)*100 ))
+                # The preview duplicates the deterministic arithmetic rather
+                # than calling allocate_ports, because a dry run must not claim
+                # a port. Under --free-ports there is no number to predict, so
+                # say that instead of printing one that will not be used.
+                if [ "$RE_FREE_PORTS" = "true" ]; then
+                    _dr_re="assigned-at-spawn"
+                    _dr_pe="assigned-at-spawn"
+                else
+                    _dr_re=$(( _dr_base_re + (_dr_idx-1)*100 ))
+                    _dr_pe=$(( _dr_base_pe + (_dr_idx-1)*100 ))
+                fi
                 case "$_dr_rt" in
                     scala) _dr_dir="$SCALA_DIR" ;;
                     cpp)   _dr_dir="$CPP_DIR" ;;
@@ -1741,7 +1760,7 @@ if [ "$MULTI_ENGINE_MODE" = true ]; then
     # Which allocation template produced the ports below. Deterministic today;
     # --free-ports (#278 step 4) will record "free" instead, and the same
     # registry field is then the only thing distinguishing the two worlds.
-    registry_set_allocation "deterministic" 100
+    registry_set_allocation "$([ "$RE_FREE_PORTS" = "true" ] && echo free || echo deterministic)" 100
     registry_set_service "registry"         "http://$HOST_IP:${REGISTRY_PORT}"
     registry_set_service "manager_backend"  "http://$HOST_IP:3001"
     registry_set_service "manager_frontend" "http://$HOST_IP:5173"
@@ -1795,7 +1814,7 @@ if [ "$MULTI_ENGINE_MODE" = true ]; then
     # (macOS gives 5000 to AirPlay Receiver) pins another in .env — here
     # SCALA_PE_BASE=5100. A registry publishing only the default would contradict
     # the endpoints beside it.
-    registry_set_allocation "deterministic" 100
+    registry_set_allocation "$([ "$RE_FREE_PORTS" = "true" ] && echo free || echo deterministic)" 100
     _alloc_shifted=$(registry_allocation \
         | python3 -c "import json,sys; print(','.join(json.load(sys.stdin).get('shifted',[])))" 2>/dev/null || true)
     [ -n "$_alloc_shifted" ] && info "Port template shifted for: $_alloc_shifted (occupied base port)"
