@@ -83,6 +83,12 @@ TRIGGER_CELLS = {
     16936: 1.0,  # ArbitrationProviderPeer -> writes [1,1] into 16940-16941
 }
 
+# Attempts at the 9a drive before calling it a failure. The drive is
+# deterministic; what is not is whether an unrelated push lands between it and
+# the read, so a handful of attempts converts a coin flip into a near-certainty
+# without masking a fixture that genuinely never asserts.
+FIXTURE_ATTEMPTS = 5
+
 CELLS_9A = [16930, 16931]
 CELLS_9B = [16940, 16941]
 EXPECTED_9A = 0.0  # SEVERITY: RED wins over AMBER, and RED asserts 0
@@ -377,11 +383,38 @@ def main() -> int:
         vector = [0.0] * TRIGGER_VECTOR_LENGTH
         for cell, value in TRIGGER_CELLS.items():
             vector[cell] = value
-        http("POST", f"{instance['re']}/api/perceive", {"vector": vector})
-        http("POST", f"{instance['re']}/api/perceptual-simulation/step", {})
-        time.sleep(args.settle_ms / 1000.0)
-        _, after = http("GET", f"{instance['re']}/api/arbitration")
-        records = cell_records(after, CELLS_9A)
+
+        # Drive and read until the fixture is observed, rather than once.
+        #
+        # `GET /api/arbitration` serves the LAST step's records on every runtime
+        # — C++ reads `hist.back().arbitration`, LSP holds
+        # `reality-state-arbitration` for the most recent step. So any step
+        # between the drive and the read replaces them, and the PE is pushing on
+        # its own interval throughout: a push landing in that window leaves a
+        # step in which the writers did not assert, and the read finds nothing.
+        #
+        # That is a race, not a runtime defect. The symptom — "9a cell 16930
+        # emitted no arbitration record" — has now been filed against two
+        # different runtimes and closed as not reproducible once already
+        # (jateeter/RealityEngine_CPP#32, jateeter/RealityEngine_CI#139),
+        # because in isolation the drive works on all three. Verified directly:
+        # driving this exact sequence against a quiet LSP yields both records.
+        #
+        # Retrying removes the race without redesigning the endpoint. A fixture
+        # that never appears across every attempt is a real failure and still
+        # reported as one.
+        records: dict[int, Any] = {}
+        for attempt in range(FIXTURE_ATTEMPTS):
+            http("POST", f"{instance['re']}/api/perceive", {"vector": vector})
+            http("POST", f"{instance['re']}/api/perceptual-simulation/step", {})
+            time.sleep(args.settle_ms / 1000.0)
+            _, after = http("GET", f"{instance['re']}/api/arbitration")
+            records = cell_records(after, CELLS_9A)
+            if all(records.get(cell) for cell in CELLS_9A):
+                entry["fixture9aAttempts"] = attempt + 1
+                break
+        else:
+            entry["fixture9aAttempts"] = FIXTURE_ATTEMPTS
         entry["fixture9a"] = {}
         for cell in CELLS_9A:
             record = records.get(cell)
