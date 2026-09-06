@@ -487,6 +487,22 @@ def main() -> int:
                 if "cell" in divergence:
                     where += f" cell {divergence['cell']}"
                 failures.append(f"{kind}-history diverges at {where} ({divergence['kind']}): {shape}")
+        # When the histories are different lengths, the index-wise comparison
+        # above is comparing different steps, so every value finding after it is
+        # a consequence rather than a cause. Record the head of each history so
+        # the *extra* entry can be identified from the artifact.
+        #
+        # RealityEngine_CI#281: the hosted lane reported "isre-history diverges
+        # at step 0 cell 0" and "osre-history diverges at step 8
+        # (historyLength)". They were one fact — lsp held 9 entries to cpp's and
+        # scala's 8, so lsp's index 0 was an entry the others never recorded.
+        # Reset cleared all three to zero and eight pushes produced eight entries
+        # on all three locally, so what the ninth is cannot be inferred and has
+        # to be captured.
+        if len(set(record.get("lengths", {}).values())) > 1:
+            record["headEntries"] = {
+                name: entries[:2] for name, entries in histories.items()
+            }
         summary["trajectories"][kind] = record
 
     summary["failures"] = failures
