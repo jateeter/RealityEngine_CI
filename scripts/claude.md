@@ -201,8 +201,13 @@ accumulated state.
 
 Notes that bite when changing these:
 
-- Machines are matched by corpus `name`. Ids are minted per runtime and any
-  check that reaches for one reports divergence unconditionally.
+- What a comparison may compare is contract, not local convention:
+  `SURFACE_SPEC.md`, "The OSRE value is the equality indicator across runtimes".
+  In short — compare **values**, match by corpus `name`, never compare identity,
+  and treat order as evidence only for the two fields that declare one
+  (`activeRegions`, `mergeBatch`). Everything else compares as a multiset.
+  `scripts/lib/parity_identity.py` applies the identity half so it is stated
+  once rather than per stage.
 - Per-iteration `POST /api/engine/reset` is what makes RE histories comparable:
   it clears ISRE/OSRE *and* zeroes the step counter.
 - The corpus needs a perceptual space of 16944, well above the 7680 every engine
