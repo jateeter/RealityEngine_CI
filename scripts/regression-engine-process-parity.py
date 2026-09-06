@@ -60,15 +60,24 @@ WHAT IT ASSERTS
                    nothing, which is the vacuous pass this stage exists to
                    prevent, and it is reported as a failure.
 
-WHAT IT DELIBERATELY DOES NOT ASSERT
+  universal application
+                   the route accepts a Universal Reality Event and decomposes it,
+                   each machine receiving the slice at its own
+                   perceptualMapping.input (SURFACE_SPEC, "The input may be
+                   universal or machine-space, and length says which").
 
-  Universal Reality Event application. All three runtimes read `body["vector"]`
-  and pass it straight to each machine, so the route takes a MACHINE-SPACE
-  vector; a universal one matches nothing anywhere and returns empty on all
-  three. That is consistent, so it is not a parity failure — it is
-  RealityEngine_CI#267, a decomposition defect. This stage PROBES it and records
-  the result under `universalProbe` without failing, so the day #267 lands the
-  change shows up here as a recorded number rather than as a surprise.
+                   This was a recorded probe rather than a gate while the
+                   behaviour was missing: all three read `body["vector"]` and
+                   passed it to every machine, so a universal event matched
+                   nothing and returned empty everywhere — consistent, therefore
+                   not a parity failure, and filed as RealityEngine_CI#267. That
+                   landed, so it is gated now.
+
+                   The stimulus is the corpus's own: each machine's first
+                   `inputSequences` step written at that machine's input offset.
+                   A zero vector would not do — it fires nothing, so gating on it
+                   would assert that nothing happens, which is what the route did
+                   when it was broken.
 """
 from __future__ import annotations
 
@@ -146,6 +155,47 @@ def signature(outputs: list[Any]) -> list[Any]:
                   for o in outputs)
 
 
+def universal_stimulus(machines_root: Path, dimension: int) -> list[float]:
+    """A universal vector that actually fires machines, from the corpus itself.
+
+    Each machine's first `inputSequences` step, written at that machine's
+    declared input offset. That is the corpus stating how it expects to be
+    driven, so the stimulus stays correct as the corpus changes rather than
+    encoding a fixture here.
+    """
+    vector = [0.0] * dimension
+    # Scoped to `machines/`, not the repo root: the root also holds package.json,
+    # generated registries and manifests, some of which are arrays rather than
+    # objects. Scanning everything and calling .get on the result raises on the
+    # first one.
+    corpus = machines_root / "machines" if (machines_root / "machines").is_dir() else machines_root
+    for path in sorted(corpus.rglob("*.json")):
+        try:
+            document = json.loads(path.read_text(encoding="utf-8"))
+        except (ValueError, OSError):
+            continue
+        if not isinstance(document, dict):
+            continue
+        machine = document.get("machine")
+        if not isinstance(machine, dict):
+            continue
+        mapping = (machine.get("perceptualMapping") or {}).get("input") or {}
+        offset, length = mapping.get("offset"), mapping.get("length")
+        sequences = machine.get("inputSequences") or []
+        if offset is None or not length or not sequences:
+            continue
+        steps = sequences[0].get("events") or []
+        if not steps:
+            continue
+        for index, value in enumerate(steps[0][:length]):
+            if offset + index < dimension:
+                try:
+                    vector[offset + index] = float(value)
+                except (TypeError, ValueError):
+                    continue
+    return vector
+
+
 def cluster(values: dict[str, Any]) -> str:
     """`a+b | c` — which runtimes agreed with which, for the failure line."""
     groups: dict[str, list[str]] = {}
@@ -163,7 +213,12 @@ def main() -> int:
                              "matches the widest input region in the corpus and "
                              "fires 167 machines.")
     parser.add_argument("--universal-dimension", type=int, default=16944,
-                        help="width of the universal probe recorded under universalProbe")
+                        help="width of the universal stimulus; must equal the runtimes' "
+                             "declared dimension, since length is what selects "
+                             "decomposition")
+    parser.add_argument("--machines", type=Path, required=True,
+                        help="RealityEngine_Machines root — the universal stimulus is "
+                             "built from the corpus's own inputSequences")
     args = parser.parse_args()
 
     instances = load_instances(args.registry)
@@ -309,8 +364,8 @@ def main() -> int:
             f"(compared order-independently, so this is a genuine content "
             f"difference): {cluster(signatures)}")
 
-    # Universal probe — recorded, never failed. See the module docstring.
-    universal = [0.0] * args.universal_dimension
+    # Universal application — gated, since RealityEngine_CI#267 landed.
+    universal = universal_stimulus(args.machines, args.universal_dimension)
     for instance in instances:
         try:
             _status, response = post(f"{instance['re_url']}/api/engine/process", {"vector": universal})
@@ -318,12 +373,27 @@ def main() -> int:
         except (error.URLError, OSError, ValueError) as exc:
             report["universalProbe"][instance["id"]] = f"error: {exc}"
 
+    probe = {k: v for k, v in report["universalProbe"].items() if isinstance(v, int)}
+    if probe and set(probe.values()) == {0}:
+        # The failure #267 described: a universal event decomposed by nobody,
+        # every machine compared against a vector thousands of cells wider than
+        # its input region, and a well-formed empty result. Agreement on zero
+        # here is agreement that the route ignores the shape it exists to take.
+        report["failures"].append(
+            f"every runtime returned 0 outputs for a UNIVERSAL vector {probe} — the "
+            "route is not decomposing it (SURFACE_SPEC, \"The input may be universal "
+            "or machine-space\"; RealityEngine_CI#267)")
+    elif len(set(probe.values())) > 1:
+        report["failures"].append(
+            f"runtimes disagree on how many outputs a universal vector produces "
+            f"{probe}: {cluster(probe)}")
+
     if report["failures"]:
         report["status"] = "failed"
 
     args.out.write_text(json.dumps(report, indent=2))
     print(f"engine-process parity: {report['status']}  counts={report['counts']}")
-    print(f"  universal probe (RealityEngine_CI#267, recorded not gated): "
+    print(f"  universal application (decomposed per machine, gated): "
           f"{report['universalProbe']}")
     for failure in report["failures"]:
         print(f"  FAIL {failure}", file=sys.stderr)
