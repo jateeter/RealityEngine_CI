@@ -1349,6 +1349,27 @@ run_arbiter() {
     --out "$REPORT_DIR/arbiter.json"
 }
 
+run_engine_process_parity() {
+  step "POST /api/engine/process parity across runtimes"
+  local ci; ci="$(repo_root RealityEngine_CI)"
+  # Nothing compared this route until RealityEngine_CI#254 item 3, and that
+  # absence is how two defects survived: Scala walked sequences instead of
+  # machines, and C++ walked the server registry — whose copies carry
+  # transitionsInhibited — so it returned 0 outputs where the other two returned
+  # 167. A well-formed empty result is indistinguishable from a universe in
+  # which nothing fired, which this corpus produces routinely. Only a comparison
+  # finds it.
+  #
+  # --machines because the universal stimulus is built from the corpus's own
+  # inputSequences rather than a fixture pinned here: the corpus states how it
+  # expects to be driven, and a zero vector fires nothing, so gating on one
+  # would assert that nothing happens.
+  run_cmd "engine-process-parity" python3 "$ci/scripts/regression-engine-process-parity.py" \
+    --registry /tmp/re-registry/re-registry.json \
+    --machines "$(repo_root RealityEngine_Machines)" \
+    --out "$REPORT_DIR/engine-process-parity.json"
+}
+
 run_mcp() {
   step "MCP open service"
   local ci
@@ -1652,6 +1673,12 @@ if [ "$LIVE_TESTS" = true ]; then
   run_stage "mqtt-yuma"         run_mqtt_yuma
   run_stage "mcp"               run_mcp
   run_stage "arbiter"           run_arbiter
+  # Beside the arbiter: both are conformance gates that need the engines up and
+  # a corpus that can exercise them, and both compare across runtimes rather
+  # than checking one. This one drives /api/engine/process and resets both
+  # halves first, so it goes after the stages that want a universe nothing has
+  # touched.
+  run_stage "engine-process-parity" run_engine_process_parity
   run_stage "localai-machines"  run_localai_machines
   run_stage "local-ai"          run_local_ai
   run_stage "openclaw"          run_openclaw
