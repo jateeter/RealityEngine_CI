@@ -343,6 +343,48 @@ onto that pattern, not to invent it.
 
 Tracked as RealityEngine_CI#254.
 
+##### The input may be universal or machine-space, and length says which
+
+The route's purpose is to process the currently active Reality Events across the
+universe, so it MUST accept a **Universal Reality Event** — and until
+RealityEngine_CI#267 it could not. All three runtimes passed `body["vector"]`
+straight to every machine, so a machine whose input region is four cells wide was
+compared against a 16,944-cell vector, matched nothing, and reported having
+matched nothing. No error, no warning, a well-formed empty result.
+
+**The shape is decided by length**, against the runtime's declared vector
+dimension:
+
+| `vector.length` | read as | applied |
+|---|---|---|
+| `== dimension` | a Universal Reality Event | **decomposed** — each machine receives the slice at its own `perceptualMapping.input` |
+| otherwise | machine-space | passed to every machine unchanged |
+
+Length rather than a flag because the two are already distinguishable and a flag
+would let a caller assert a shape the payload contradicts. The machine-space
+form is retained rather than removed: it is what every existing caller sends,
+including the smoke tests, and it remains the direct way to drive every machine
+with one input.
+
+**Decomposition is the same operation as the OSRE merge, reflected.** A machine's
+input is a slice of the universal space at its declared mapping, exactly as its
+output is written back to a slice at another:
+
+```
+extract_machine_input (mapping.input)    universal -> machine   decompose
+merge_machine_output  (mapping.output)   machine   -> universal compose
+```
+
+Both are per machine, both bounded by a declared region, both independent across
+machines — so the decomposition parallelises over the same partition the fan-out
+already uses, and the atomic collection that makes the fan-out consistent makes
+the decomposition consistent too.
+
+A machine whose declared input region falls outside the presented vector
+contributes nothing and is not an error: the universe is larger than any one
+deployment's space, and refusing would make a partial space unusable rather than
+partial.
+
 Stated here because it was not stated anywhere: the route appeared in the table
 above with three ticks and no semantics, and three runtimes read the blank
 differently. A tick means the path answers, not that it agrees.
