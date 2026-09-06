@@ -1,6 +1,7 @@
 import { test, expect } from '@playwright/test';
 import type { Page } from '@playwright/test';
 import { skipUnlessMachines } from '../helpers/require-machines';
+import { endpointOr, peEndpointOr, reEndpointOr } from '../lib/registry';
 
 /** Digital-logic fixtures this suite drives; absent from standard-deployment. */
 const REQUIRED_MACHINES = ['MultiStep', 'RS2', 'RSFlipFlop'];
@@ -28,10 +29,10 @@ const REQUIRED_MACHINES = ['MultiStep', 'RS2', 'RSFlipFlop'];
  *   after the terminal match allows RS2 and RSFlipFlop to latch their response.
  */
 
-const VISUALIZER_URL = 'https://localhost:5173';
-const PERCEPTUAL_API_URL = 'https://localhost:3001';  // Visualizer backend (perceptual simulation)
-const API_URL = 'https://localhost:5001';              // Reality Engine direct (Docker/Scala via nginx)
-const PERCEPTION_ENGINE_URL = 'https://localhost:3004'; // Perception Engine backend
+const VISUALIZER_URL = endpointOr('manager_frontend', 'https://localhost:5173');
+const PERCEPTUAL_API_URL = endpointOr('manager_backend', 'https://localhost:3001');  // Visualizer backend (perceptual simulation)
+const API_URL = reEndpointOr('https://localhost:5001');              // Reality Engine direct (Docker/Scala via nginx)
+const PERCEPTION_ENGINE_URL = peEndpointOr('https://localhost:3004'); // Perception Engine backend
 
 /** Load all three machines required for the interconnection test. */
 async function loadMachines(page: Page) {

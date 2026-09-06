@@ -1,4 +1,5 @@
 import { test, expect } from '@playwright/test';
+import { endpointOr, reEndpointOr } from '../lib/registry';
 
 /**
  * Full Integration E2E Tests
@@ -8,8 +9,8 @@ import { test, expect } from '@playwright/test';
  * 3. Verify changes in Visualizer UI
  */
 
-const API_BASE_URL = 'https://localhost:5001';
-const VISUALIZER_URL = 'https://localhost:5173';
+const API_BASE_URL = reEndpointOr('https://localhost:5001');
+const VISUALIZER_URL = endpointOr('manager_frontend', 'https://localhost:5173');
 
 test.describe('Full Integration - End to End Flow', () => {
   test('should create sequence, process vector, and see results in UI', async ({ page, request }) => {
@@ -177,7 +178,7 @@ test.describe('Full Integration - End to End Flow', () => {
     console.log('✓ Reality Engine is healthy');
 
     // Check Visualizer Backend
-    const vizBackendResponse = await request.get('https://localhost:3001/health');
+    const vizBackendResponse = await request.get(`${endpointOr('manager_backend', 'https://localhost:3001')}/health`);
     expect(vizBackendResponse.ok()).toBeTruthy();
     console.log('✓ Visualizer Backend is healthy');
 
