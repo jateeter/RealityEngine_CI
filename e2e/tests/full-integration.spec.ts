@@ -1,5 +1,6 @@
 import { test, expect } from '@playwright/test';
 import { endpointOr, reEndpointOr } from '../lib/registry';
+import { trackCreated } from '../lib/cleanup';
 
 /**
  * Full Integration E2E Tests
@@ -13,6 +14,12 @@ const API_BASE_URL = reEndpointOr('https://localhost:5001');
 const VISUALIZER_URL = endpointOr('manager_frontend', 'https://localhost:5173');
 
 test.describe('Full Integration - End to End Flow', () => {
+  // Teardown, not inline cleanup. The delete below runs inside the test that
+  // created the sequence, so a failing test skips it — which is how
+  // "Integration Test Sequence" was left on cpp-1 and not cpp-2 (#278).
+  const created = trackCreated();
+  test.afterAll(async ({ request }) => { await created.cleanup(request); });
+
   test('should create sequence, process vector, and see results in UI', async ({ page, request }) => {
     // Step 1: Create a test sequence via API
     console.log('Step 1: Creating test sequence...');
@@ -55,6 +62,7 @@ test.describe('Full Integration - End to End Flow', () => {
     const responseData = await createResponse.json();
     const sequence = responseData.sequence || responseData;
     const sequenceId = sequence.id;
+    created.sequence(API_BASE_URL, sequenceId);
     console.log(`✓ Sequence created with ID: ${sequenceId}`);
 
     // Step 2: Process an input vector that should trigger transitions
@@ -219,6 +227,7 @@ test.describe('Full Integration - End to End Flow', () => {
     const responseData = await createResponse.json();
     const sequence = responseData.sequence || responseData;
     const sequenceId = sequence.id;
+    created.sequence(API_BASE_URL, sequenceId);
     console.log(`✓ Sequence created: ${sequenceId}`);
 
     // Note: In a real test, you would restart the Docker container here

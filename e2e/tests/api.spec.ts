@@ -1,5 +1,6 @@
 import { test, expect } from '@playwright/test';
 import { reEndpointOr } from '../lib/registry';
+import { trackCreated } from '../lib/cleanup';
 
 /**
  * E2E Tests for Reality Engine API
@@ -7,6 +8,12 @@ import { reEndpointOr } from '../lib/registry';
  */
 
 const API_BASE_URL = reEndpointOr('https://localhost:5001');
+
+// Module scope, not per-describe: this file creates a sequence in the Sequences
+// suite and deletes it in a later test of the same suite, so a failure between
+// them leaves it behind. One tracker shared by every describe, torn down once
+// (RealityEngine_CI#278).
+const created = trackCreated();
 
 test.describe('Reality Engine API - Configuration', () => {
   test('should get current configuration', async ({ request }) => {
@@ -155,6 +162,7 @@ test.describe('Reality Engine API - Sequences', () => {
     const sequence = result.sequence || result;
     expect(sequence).toHaveProperty('id');
     sequenceId = sequence.id;
+    created.sequence(API_BASE_URL, sequenceId);
   });
 
   test('should get specific sequence', async ({ request }) => {
@@ -241,4 +249,8 @@ test.describe('Reality Engine API - Sampler', () => {
     const stats = result.stats || result;
     expect(stats).toHaveProperty('isRunning');
   });
+});
+
+test.afterAll(async ({ request }) => {
+  await created.cleanup(request);
 });
