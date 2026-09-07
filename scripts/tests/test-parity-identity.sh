@@ -98,6 +98,29 @@ out.append(("ordering divergence is preserved, not normalized",
 # Arbiter internals are excluded; their effect shows up in the vectors.
 out.append(("mergeBatch excluded as intermediate",
             "mergeBatch" not in pi.parity_signature({"mergeBatch": [1], "perceptualSpace": [0]})))
+# JSON has one number type; Python does not, and the comparators key clusters on
+# json.dumps(). `0` and `0.0` are the same JSON number and must not split.
+out.append(("int and float renderings of the same number agree",
+            json.dumps(pi.parity_signature({"x": [0, 1]}), sort_keys=True)
+            == json.dumps(pi.parity_signature({"x": [0.0, 1.0]}), sort_keys=True)))
+out.append(("booleans are not coerced to numbers",
+            json.dumps(pi.parity_signature({"x": True}), sort_keys=True)
+            != json.dumps(pi.parity_signature({"x": 1}), sort_keys=True)))
+
+# A debug projection is excluded only where the payload says it is one
+# (RealityEngine_CI#281): all three runtimes set the flag true and then
+# disagreed on 13 cells of a surface SURFACE_SPEC says need not be comparable.
+proj = {"step": {"perceptualSpaceIsDebugProjection": True, "perceptualSpace": [0, 0]}}
+proj2 = {"step": {"perceptualSpaceIsDebugProjection": True, "perceptualSpace": [0.5, 0.5]}}
+out.append(("declared debug projection is not compared",
+            json.dumps(pi.parity_signature(proj), sort_keys=True)
+            == json.dumps(pi.parity_signature(proj2), sort_keys=True)))
+authoritative = {"step": {"perceptualSpaceIsDebugProjection": False, "perceptualSpace": [0, 0]}}
+authoritative2 = {"step": {"perceptualSpaceIsDebugProjection": False, "perceptualSpace": [0.5, 0.5]}}
+out.append(("an authoritative perceptualSpace is still compared",
+            json.dumps(pi.parity_signature(authoritative), sort_keys=True)
+            != json.dumps(pi.parity_signature(authoritative2), sort_keys=True)))
+
 out.append(("perceptualSpace retained",
             "perceptualSpace" in pi.parity_signature({"mergeBatch": [1], "perceptualSpace": [0]})))
 
