@@ -1272,6 +1272,60 @@ PYEOF
   esac
 }
 
+# Mute or restore every MQTT bridge — RealityEngine_CI#307.
+#
+# Measurement stages need exclusivity, and a live bridge cannot provide it. The
+# bridge pushes *on change*, the fixture values vary unpredictably, so pushes are
+# unpredictable in both count and timing: waiting for the counters to settle
+# narrows the window but never closes it, because the next change can arrive
+# inside the stage that already checked.
+#
+# Muting after the fixtures have landed keeps what #304 wanted and drops what
+# #307 suffered. The stamps are already ingested, so sensors stay contemporaneous;
+# they simply stop moving. That is strictly better for parity than the previous
+# behaviour: the later stages used to read sensors a live bridge was rewriting
+# with random values, and now read the same frozen values on every engine
+# instance, ageing out together rather than one at a time — which is the exact
+# asymmetry that produced #304.
+#
+# Only muting lives here, deliberately. Disabling is a bare POST with no body;
+# enabling requires the broker URL and the full mapping set, which
+# scripts/test-mqtt-yuma.sh already resolves (file -> PE example -> inline
+# default) and applies. A "restore" helper here would have to either duplicate
+# that resolution or post an empty body and fail silently, so the stage that
+# wants a live bridge enables it itself.
+#
+# A future mqtt-parity stage follows the same contract: enable via
+# test-mqtt-yuma.sh (or its own enable call), measure, then `mqtt_bridges mute`
+# before returning, so it is the only stage holding a live bridge while it runs
+# and it hands exclusivity back on the way out.
+mqtt_bridges() {
+  local action="$1" endpoint verb
+  case "$action" in
+    mute) endpoint="/api/mqtt/disable"; verb="muted" ;;
+    *)
+      log "  mqtt_bridges: unsupported action '$action' (only 'mute'; enabling"
+      log "                needs a broker and mappings — see run_mqtt_yuma)"
+      return 0 ;;
+  esac
+  [ "$LIVE_TESTS" = true ] || return 0
+
+  local touched=0 instance_id runtime pe_url code
+  while IFS='|' read -r instance_id runtime pe_url; do
+    [ -n "$instance_id" ] || continue
+    code="$(curl -s -o /dev/null -w '%{http_code}' -X POST \
+      -H 'Content-Type: application/json' -d '{}' \
+      --max-time 20 "$pe_url$endpoint" 2>/dev/null || echo 000)"
+    case "$code" in
+      2*) touched=$((touched + 1)) ;;
+      *)  log "  WARN $instance_id: POST $endpoint returned $code" ;;
+    esac
+  done < <(registry_instance_lines)
+
+  [ "$touched" -gt 0 ] && log "  mqtt bridges $verb on $touched instance(s)"
+  return 0
+}
+
 run_trajectory_parity() {
   step "ISRE/OSRE trajectory parity"
   local ci
@@ -1432,7 +1486,11 @@ run_mqtt_yuma() {
   fi
   local ci
   ci="$(repo_root RealityEngine_CI)"
-  local mqtt_args=(--broker-url "$MQTT_BROKER_URL" --skip-enable)
+  # No --skip-enable: measurement stages run with the bridges muted (#307), so
+  # this stage enables the bridge it is about to test — test-mqtt-yuma.sh resolves
+  # the mappings and POSTs /api/mqtt/enable itself. That also makes the enable
+  # path covered rather than assumed to have succeeded at boot.
+  local mqtt_args=(--broker-url "$MQTT_BROKER_URL")
   [ -n "$MQTT_MAPPINGS" ] && mqtt_args+=(--mappings "$MQTT_MAPPINGS")
   local found=false
   while IFS='|' read -r instance_id runtime pe_url; do
@@ -1443,6 +1501,10 @@ run_mqtt_yuma() {
       --report-json "$REPORT_DIR/mqtt-yuma-$instance_id.json" \
       "${mqtt_args[@]}"
   done < <(registry_instance_lines)
+
+  # Hand exclusivity back to the stages that follow. Without this the bridge this
+  # stage enabled would push into arbiter, engine-process-parity and the rest.
+  mqtt_bridges mute
   [ "$found" = true ] || { log "SKIP MQTT: no running PE instances in registry"; write_mqtt_skip_report "no running PE instances in registry"; return 0; }
 }
 
@@ -1801,6 +1863,10 @@ if [ "$LIVE_TESTS" = true ]; then
   # from the same window, so a TTL cannot expire on one runtime and not another
   # between boot and comparison (#304).
   refresh_mqtt_fixtures
+  # Fixtures have landed and the bridges have settled; from here every stage is a
+  # measurement and gets exclusivity. run_mqtt_yuma restores its own bridge and
+  # re-mutes when it is done (#307).
+  mqtt_bridges mute
   run_stage "service-inventory" run_service_inventory
   run_stage "pe-step-contract" run_pe_step_contract
   # Parity first: it is the result the multi-engine deployment rests on, and it
