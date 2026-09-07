@@ -1179,11 +1179,97 @@ refresh_mqtt_fixtures() {
 
   if [ "$published" -gt 0 ]; then
     log "  republished $published retained topic(s) after boot"
-    # Let the bridges deliver before the first stage reads a source.
-    sleep 3
+    wait_for_mqtt_quiescence
   else
     log "  no fixtures republished; sensors keep their boot-time stamps"
   fi
+}
+
+# Block until every MQTT bridge has stopped acting on the fixtures just
+# republished — RealityEngine_CI#307.
+#
+# This was `sleep 3`, which is a hope rather than a guarantee. Retained messages
+# are delivered to subscribers the moment they are published, each mapped
+# message can trigger a PE push, and the bridges drain at different rates: on
+# hosted run 34154771062 lsp-1 mapped 91 messages and triggered 7 pushes while
+# cpp-1 and scala-1 triggered 2 each. Whichever bridge is still working when the
+# sleep expires pushes into the next stage's measurement.
+#
+# The cost was three years of misattribution in miniature: the trajectory stage
+# reset to zero, a late bridge push landed on lsp-1 before the baseline read, and
+# the stage reported "lsp recorded 9 entries for 8 pushes" as an engine
+# divergence. It never reproduced locally because the bridge is disabled there
+# (`/api/mqtt/status` returns {"enabled": false}), so the interfering app
+# instance simply does not exist on a developer machine.
+#
+# So wait for the counters to actually stop moving. An instance with the bridge
+# disabled is quiet by definition and needs no wait.
+wait_for_mqtt_quiescence() {
+  local stable_needed=3 interval=1 waited=0 max_wait=45
+  local prev="" cur="" stable=0
+
+  while [ "$waited" -lt "$max_wait" ]; do
+    cur="$(python3 - /tmp/re-registry/re-registry.json <<'PYEOF'
+import json, sys, urllib.request
+
+try:
+    registry = json.load(open(sys.argv[1]))
+except Exception:
+    print("unreadable")
+    raise SystemExit(0)
+
+parts = []
+for item in registry.get("instances", []):
+    if item.get("status") != "running":
+        continue
+    pe_url = item.get("pe_url")
+    if not pe_url:
+        continue
+    try:
+        with urllib.request.urlopen(f"{pe_url}/api/mqtt/status", timeout=10) as resp:
+            status = json.loads(resp.read().decode())
+    except Exception:
+        # An unreadable bridge is not a quiet bridge; keep it in the fingerprint
+        # as an unstable value so the wait does not conclude early.
+        parts.append(f"{item.get('id')}:unknown")
+        continue
+    if not status.get("enabled", False):
+        parts.append(f"{item.get('id')}:disabled")
+        continue
+    bridge = status.get("bridge", status)
+    parts.append("{}:{}/{}/{}".format(
+        item.get("id"),
+        bridge.get("messagesReceived"),
+        bridge.get("messagesMapped"),
+        bridge.get("pushesTriggered")))
+print(" ".join(parts) if parts else "none")
+PYEOF
+)"
+    if [ "$cur" = "$prev" ] && [ -n "$cur" ] && [ "$cur" != "unreadable" ]; then
+      stable=$((stable + 1))
+      [ "$stable" -ge "$stable_needed" ] && break
+    else
+      stable=0
+    fi
+    prev="$cur"
+    sleep "$interval"
+    waited=$((waited + interval))
+  done
+
+  case "$cur" in
+    *disabled*|none)
+      log "  mqtt bridges quiet after ${waited}s ($cur)" ;;
+    *)
+      if [ "$stable" -ge "$stable_needed" ]; then
+        log "  mqtt bridges quiesced after ${waited}s ($cur)"
+      else
+        # Not fatal: the stages still run, but say so, because a bridge still
+        # pushing is exactly the condition that invalidates the next
+        # measurement rather than merely delaying it.
+        log "  WARN mqtt bridges still active after ${max_wait}s ($cur) — a late"
+        log "       push may land inside the next stage (see #307)"
+      fi ;;
+  esac
 }
 
 run_trajectory_parity() {
