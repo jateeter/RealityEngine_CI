@@ -17,7 +17,7 @@ async function globalSetup(_config: FullConfig) {
 }
 
 /**
- * Endpoint resolution, registry first (RealityEngine_CI#278).
+ * Endpoint resolution, instance registry first (RealityEngine_CI#278).
  *
  * Every spec passes through this file, so its hardcoded ports were the real
  * blocker rather than the ones in the specs: `https://localhost:5001` is the
@@ -26,7 +26,7 @@ async function globalSetup(_config: FullConfig) {
  *
  * Falls back to the previous literals when no registry is present, which is
  * what makes this conversion behaviour-preserving: while allocation stays
- * deterministic the registry returns the same numbers that were hardcoded, and
+ * deterministic the instance registry returns the same numbers that were hardcoded,
  * where there is no registry at all nothing changes.
  */
 function resolve(service: string, fallback: string): string {
@@ -42,7 +42,7 @@ function resolve(service: string, fallback: string): string {
  *
  * By name, never by position — #274 is the standing example of `instances[0]`
  * passing while pointing at something other than what the test claimed. An
- * explicit RE_E2E_INSTANCE wins; a registry holding exactly one instance is
+ * explicit RE_E2E_INSTANCE wins; an instance registry holding exactly one engine instance is
  * unambiguous and is used; anything else is asked for rather than guessed.
  */
 function singleEngineRe(fallback: string): string {

@@ -24,7 +24,7 @@ _registry_init() {
     fi
 }
 
-# Non-instance endpoints — Manager, the registry shim, MCP, Swagger, MQTT.
+# Non-instance endpoints — Manager, the instance-registry shim, MCP, Swagger, MQTT.
 #
 # The registry already answers "where is engine X" (`re_url`/`pe_url` per
 # instance). It could not answer "where is the Manager", so every consumer that
@@ -45,7 +45,7 @@ import json, sys
 path, name, url = sys.argv[1:]
 with open(path) as f:
     reg = json.load(f)
-# Backfill: a registry written before this existed has no `services` key, and a
+# Backfill: an instance registry written before this existed has no `services` key,
 # reader that assumed one would fault on exactly the upgrade path this supports.
 services = reg.setdefault('services', {})
 def _port(u):
@@ -61,7 +61,7 @@ EOF
 
 # The allocation template actually in force — RealityEngine_CI#278.
 #
-# Without this the registry says *where* an engine is and never *how* that was
+# Without this the instance registry says *where* an engine is and never *how* that
 # decided, so a reader cannot tell a deterministic run from a free-port one, and
 # an artifact from a failed run does not say which world produced it.
 #
