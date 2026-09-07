@@ -23,10 +23,41 @@ CI_E2E_LIB_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 
 # Space-separated, repo-relative. Specs proven safe against a multi-engine
 # universe.
-: "${CI_E2E_MULTI_ENGINE_SPECS:=e2e/tests/tree-to-pe-manager-equivalence.spec.ts}"
+# Promotions are earned by a measured run against a real multi-engine universe,
+# not by inspection. Each entry below names what was observed.
+#
+#   tree-to-pe-manager-equivalence  registry-aware from the start
+#   visualizer-ui                   4 passed against cpp:2,lsp:1,scala:1 on
+#                                   2026-09-07, after #301 made global-setup and
+#                                   the spec resolve endpoints from the instance
+#                                   registry rather than hardcoding the Docker
+#                                   TLS proxy (RealityEngine_CI#278)
+: "${CI_E2E_MULTI_ENGINE_SPECS:=e2e/tests/tree-to-pe-manager-equivalence.spec.ts e2e/tests/visualizer-ui.spec.ts}"
 
 # Reason surfaced for each spec excluded from a multi-engine run.
-: "${CI_E2E_SINGLE_ENGINE_REASON:=single-engine only - hardcodes Docker RE/PE endpoints, not registry-aware}"
+# The blanket reason no longer fits every excluded spec: #301 made them all
+# registry-aware, so what keeps the remaining four out is specific and per-spec.
+#
+#   api                  resolves correctly; 14 passed / 1 failed multi-engine.
+#                        The failure is `should get engine statistics` — the
+#                        three runtimes return three different shapes from
+#                        GET /api/engine/stats, which /api/engine/stats-next
+#                        exists to fix. Promote when that lands, not before:
+#                        promoting now would make the multi-engine job red for
+#                        a contract defect it did not cause.
+#   full-integration     resolves correctly; 6 passed / 1 failed multi-engine.
+#                        The failing test is the UI leg of
+#                        "create sequence, process vector, and see results in
+#                        UI". Undiagnosed — creation succeeds on all three
+#                        runtimes, so the failure is later in the flow.
+#   multi-step-output-workflow        skips on this corpus (4 skipped)
+#   perceptual-space-interconnection  skips on this corpus (2 skipped)
+#
+# The last two skip for the same reason the already-promoted
+# tree-to-pe-manager-equivalence skips here, so skipping is not evidence
+# against them — they need a corpus that exercises them before promotion means
+# anything.
+: "${CI_E2E_SINGLE_ENGINE_REASON:=not yet promoted - see per-spec notes in this file}"
 
 # ci_e2e_all_specs [root]
 #   Repo-relative paths of every CI e2e spec, sorted. `root` defaults to the
