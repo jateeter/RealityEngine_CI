@@ -62,6 +62,33 @@ Build the observation plane before theorising. For #307 that was:
    when run twice with no intervening reset — clearing concurrency outright and
    leaving the out-of-band push as the only surviving explanation.
 
+### The CI#307 interferer, in full
+
+Worth stating concretely, because the shape recurs. `refresh_mqtt_fixtures`
+republishes retained MQTT topics so sensor stamps are contemporaneous (the #304
+fix), then waited `sleep 3`. The bridges are live, **each mapped message can
+trigger a PE push**, and pushes are emitted *on change*. The broker's fixture
+values vary unpredictably, so the pushes are unpredictable in both **count and
+timing**. Hosted run 34154771062:
+
+| engine instance | deliveries (messagesMapped ÷ 13 mappings) | pushesTriggered |
+|---|---:|---:|
+| cpp-1 | 2 | 2 |
+| lsp-1 | 7 | 7 |
+| scala-1 | 3 | **2** |
+
+Two facts to read from that table. All three subscribe to the same broker and
+the same topics, so a broker-side timer would deliver to all three equally — the
+2/7/3 spread means the driver is per-client, not broker-side. And `scala-1`
+received three full sets while pushing twice: pushes ≤ deliveries, because one
+delivery carried no change. Change-driven emission over varying values explains
+both, where a periodic publisher explains neither.
+
+**The consequence for any fix: waiting for quiet is necessary but not
+sufficient.** A change can arrive at any later moment, including inside a stage
+that already checked. Only exclusivity — muting the bridge, or asserting the
+measurement afterwards — actually holds.
+
 ### Persistence is why these survive investigation
 
 The surplus entry an out-of-band push creates **never washes out**. Every later
