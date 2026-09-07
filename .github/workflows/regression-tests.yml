@@ -32,7 +32,11 @@ on:
           - arbiter-fixture
           - standard-deployment-plus-ring
       mqtt_broker_url:
-        description: 'MQTT broker URL for the Yuma stream; empty skips MQTT live checks'
+        description: >-
+          MQTT broker URL for the Yuma stream. Empty does NOT skip: hosted runs
+          fall back to the broker this job seeds at mqtt://127.0.0.1:1883, whose
+          bridges push into the engines during every stage. Pass `none` to
+          genuinely skip the live MQTT checks and leave the engines unbridged.
         required: false
         default: ''
       mqtt_mappings:
@@ -436,11 +440,30 @@ jobs:
             archive_artifacts="${SCHEDULE_ARCHIVE_ARTIFACTS:-true}"
           fi
 
+          # `none` is the explicit opt-out. It exists because this input was
+          # documented as "empty skips MQTT live checks" while empty in fact fell
+          # through to the seeded broker below — so a run dispatched to be
+          # MQTT-free came up fully bridged, and those bridges pushed into the
+          # engines mid-stage (RealityEngine_CI#307). The fallback itself is
+          # deliberate and kept; what was missing was any way to say the other
+          # thing, and a description that told the truth about the default.
+          mqtt_opt_out=false
+          case "$mqtt_broker_url" in
+            none|None|NONE|skip|off) mqtt_broker_url=""; mqtt_opt_out=true ;;
+          esac
+
           # Neither the input nor the schedule variable named a broker, so use
           # the one this job started. Without a broker the stage writes a skip
-          # report and passes, which is indistinguishable from coverage.
-          if [ -z "$mqtt_broker_url" ]; then
+          # report and passes, which is indistinguishable from coverage — that is
+          # why empty falls back instead of skipping.
+          if [ -z "$mqtt_broker_url" ] && [ "$mqtt_opt_out" != true ]; then
             mqtt_broker_url="${HOSTED_MQTT_BROKER_URL:-}"
+          fi
+
+          if [ "$mqtt_opt_out" = true ]; then
+            echo "mqtt: opted out via 'none' — no broker, bridges stay unconfigured"
+          elif [ -n "$mqtt_broker_url" ]; then
+            echo "mqtt: broker $mqtt_broker_url — bridges are live during every stage"
           fi
 
           args=(
