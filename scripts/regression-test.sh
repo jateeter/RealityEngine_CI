@@ -1135,6 +1135,57 @@ active_machines_dir() {
 # which nothing in the comparison strips. That is why it reports "no majority"
 # on every event regardless of what the engines did. It stays for the contract
 # checks it does perform; it is not the parity result.
+# Re-publish the retained MQTT fixtures once every engine is up.
+#
+# RealityEngine_CI#304. The workflow seeds the broker with retained topics
+# *before* the universe starts, so each engine's MQTT bridge receives them when
+# it subscribes — that is, at its own boot time. Engines boot sequentially and
+# not at the same speed: on run 34069594600 the spread between the first and
+# last `lastUpdated` was 65,059 ms against a 60,000 ms sensor TTL.
+#
+# The consequence is that by the time a parity stage reads them, the engines
+# that booted early have stale sensors contributing nothing, and the one that
+# booted last is still inside its window and contributing 0.5 to 13 cells. Same
+# rule on every runtime, different clocks — reported three times as an engine
+# divergence, against three different runtimes, and closed twice as not
+# reproducible.
+#
+# Retained topics redeliver on publish, so one republish after the whole
+# universe is up lands on every subscribed bridge within milliseconds and gives
+# every sensor a timestamp from the same window. This does not lengthen the TTL
+# or exclude sensors from comparison; it makes the comparison contemporaneous,
+# which is what it was always assumed to be.
+refresh_mqtt_fixtures() {
+  [ "$LIVE_TESTS" = true ] || return 0
+  local container="${REGRESSION_MQTT_CONTAINER:-regression-mqtt}"
+  local mappings="${MQTT_MAPPINGS:-}"
+
+  if [ -z "$mappings" ] || [ ! -f "$mappings" ]; then
+    log "SKIP mqtt refresh: no mappings resolved; sensors keep their boot-time stamps"
+    return 0
+  fi
+  if ! docker ps --format '{{.Names}}' 2>/dev/null | grep -qx "$container"; then
+    log "SKIP mqtt refresh: no '$container' container; sensors keep their boot-time stamps"
+    return 0
+  fi
+
+  step "Refresh retained MQTT fixtures (contemporaneous sensor stamps)"
+  local published=0 topic payload
+  while IFS="$(printf '\t')" read -r topic payload; do
+    [ -n "$topic" ] || continue
+    docker exec "$container" mosquitto_pub -h 127.0.0.1 -r -t "$topic" -m "$payload" 2>/dev/null || continue
+    published=$((published + 1))
+  done < <(python3 "$(repo_root RealityEngine_CI)/scripts/seed-mqtt-fixtures.py" "$mappings" 2>/dev/null || true)
+
+  if [ "$published" -gt 0 ]; then
+    log "  republished $published retained topic(s) after boot"
+    # Let the bridges deliver before the first stage reads a source.
+    sleep 3
+  else
+    log "  no fixtures republished; sensors keep their boot-time stamps"
+  fi
+}
+
 run_trajectory_parity() {
   step "ISRE/OSRE trajectory parity"
   local ci
@@ -1660,6 +1711,10 @@ if [ "$LIVE_TESTS" = true ]; then
   # start_universe stays fatal: with no universe the later stages have nothing
   # to measure, and their failures would say nothing about the runtimes.
   start_universe
+  # Before any stage reads a source: give every engine's sensors a timestamp
+  # from the same window, so a TTL cannot expire on one runtime and not another
+  # between boot and comparison (#304).
+  refresh_mqtt_fixtures
   run_stage "service-inventory" run_service_inventory
   run_stage "pe-step-contract" run_pe_step_contract
   # Parity first: it is the result the multi-engine deployment rests on, and it
