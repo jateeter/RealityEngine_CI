@@ -2035,6 +2035,19 @@ SH
             fi
             add_warn "Manager frontend not reachable on :5173 — check $(ls "$MGR_DIR"/.manager-logs/frontend.log 2>/dev/null || echo '/tmp/manager_universe.log')"
         fi
+        # Re-publish now that the Manager is actually listening.
+        #
+        # The first pass runs when the registry shim comes up, which is before
+        # the Manager starts, so its probes cannot succeed and both entries fall
+        # back to the LAN form. On a host where the Manager binds loopback only
+        # — the frontend binds `[::1]:5173` — that published an address nothing
+        # answers on. Idempotent, and the same two-pass shape the allocation
+        # record uses for the same reason: publish early so the key exists,
+        # re-publish once the truth is knowable.
+        if declare -F _publish_service >/dev/null 2>&1; then
+            _publish_service "manager_backend"  3001 "/health"
+            _publish_service "manager_frontend" 5173 "/"
+        fi
     else
         add_warn "RealityEngine_Manager/start.sh not found — port 5173 will not be available"
     fi
