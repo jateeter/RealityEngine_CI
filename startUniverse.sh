@@ -1761,9 +1761,31 @@ if [ "$MULTI_ENGINE_MODE" = true ]; then
     # --free-ports (#278 step 4) will record "free" instead, and the same
     # registry field is then the only thing distinguishing the two worlds.
     registry_set_allocation "$([ "$RE_FREE_PORTS" = "true" ] && echo free || echo deterministic)" 100
-    registry_set_service "registry"         "http://$HOST_IP:${REGISTRY_PORT}"
-    registry_set_service "manager_backend"  "http://$HOST_IP:3001"
-    registry_set_service "manager_frontend" "http://$HOST_IP:5173"
+    # Publish the address that actually answers, not the one we assume.
+    #
+    # The Manager frontend binds loopback only — `[::1]:5173` — so publishing it
+    # at $HOST_IP names an address nothing is listening on. That is invisible on
+    # a hosted runner, where HOST_IP *is* 127.0.0.1 and the two strings are the
+    # same, and breaks every e2e spec on a workstation, where HOST_IP is the LAN
+    # address. A registry whose entries cannot be dialled is worse than no
+    # registry, because consumers trust it (#278).
+    _publish_service() {
+        local name="$1" port="$2" path="${3:-/}"
+        local lan="http://$HOST_IP:$port" loop="http://localhost:$port"
+        if curl -sf --max-time 3 "$lan$path" >/dev/null 2>&1; then
+            registry_set_service "$name" "$lan"
+        elif curl -sf --max-time 3 "$loop$path" >/dev/null 2>&1; then
+            registry_set_service "$name" "$loop"
+            info "  $name published on localhost (binds loopback only)"
+        else
+            # Neither answered — publish the LAN form so the entry exists and a
+            # consumer fails against a stated address rather than a missing key.
+            registry_set_service "$name" "$lan"
+        fi
+    }
+    _publish_service "registry"         "${REGISTRY_PORT}" "/re-registry.json"
+    _publish_service "manager_backend"  3001 "/health"
+    _publish_service "manager_frontend" 5173 "/"
     [ -n "${MQTT_BROKER_URL:-}" ] && registry_set_service "mqtt" "$MQTT_BROKER_URL"
     [ -n "${MCP_URL:-}" ]         && registry_set_service "mcp" "$MCP_URL"
     [ -n "${SWAGGER_URL:-}" ]     && registry_set_service "swagger" "$SWAGGER_URL"
@@ -2012,6 +2034,19 @@ SH
                 die "Manager frontend not reachable on :5173 — check $(ls "$MGR_DIR"/.manager-logs/frontend.log 2>/dev/null || echo '/tmp/manager_universe.log')"
             fi
             add_warn "Manager frontend not reachable on :5173 — check $(ls "$MGR_DIR"/.manager-logs/frontend.log 2>/dev/null || echo '/tmp/manager_universe.log')"
+        fi
+        # Re-publish now that the Manager is actually listening.
+        #
+        # The first pass runs when the registry shim comes up, which is before
+        # the Manager starts, so its probes cannot succeed and both entries fall
+        # back to the LAN form. On a host where the Manager binds loopback only
+        # — the frontend binds `[::1]:5173` — that published an address nothing
+        # answers on. Idempotent, and the same two-pass shape the allocation
+        # record uses for the same reason: publish early so the key exists,
+        # re-publish once the truth is knowable.
+        if declare -F _publish_service >/dev/null 2>&1; then
+            _publish_service "manager_backend"  3001 "/health"
+            _publish_service "manager_frontend" 5173 "/"
         fi
     else
         add_warn "RealityEngine_Manager/start.sh not found — port 5173 will not be available"
