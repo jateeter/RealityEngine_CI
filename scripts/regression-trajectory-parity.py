@@ -244,7 +244,8 @@ def longest_interned_sequence(instance: dict[str, Any]) -> int:
 
 def run_seed_sequence(instance: dict[str, Any], steps: int, settle_ms: int,
                       baseline: int | None = None,
-                      violations: set[str] | None = None) -> list[str]:
+                      violations: set[str] | None = None,
+                      reset_expected: bool = False) -> list[str]:
     """Drive one engine with the corpus's own stimulus, letting its loop run.
 
     The seed is **composed, not supplied**. Ingesting a machine interns its
@@ -319,8 +320,32 @@ def run_seed_sequence(instance: dict[str, Any], steps: int, settle_ms: int,
             time.sleep(settle_ms / 1000.0)
 
     after = history_length(instance, "isre")
-    if before is not None and after is not None:
+    if before is None or after is None:
+        # Silently skipping here is how the hosted lane produced an unexplained
+        # lsp-1 divergence on run 34154771062 with exclusivityViolations empty:
+        # an unreadable baseline disabled the assertion without saying so.
+        if violations is not None:
+            violations.add(instance["id"])
+        failures.append(
+            f"{instance['id']}: could not read isre-history to assert exclusivity "
+            f"(before={before}, after={after}), so this runtime's trajectory is "
+            f"unverified rather than agreeing."
+        )
+    else:
         observed = after - before
+        if reset_expected and before != 0:
+            # The delta check alone cannot see this: a residue of r entries plus
+            # n clean pushes gives delta n and passes, while the totals differ by
+            # r for the whole comparison. This is the persistence case.
+            if violations is not None:
+                violations.add(instance["id"])
+            failures.append(
+                f"{instance['id']}: reset reported success but {before} isre entr"
+                f"{'y' if before == 1 else 'ies'} remained before the drive, so "
+                f"this runtime starts the comparison ahead of the others "
+                f"(RealityEngine_CI#307). Harness/reset condition, not an engine "
+                f"divergence — see docs/OBSERVATION_EXCLUSIVITY.md."
+            )
         if observed != driven:
             if violations is not None:
                 violations.add(instance["id"])
@@ -511,12 +536,19 @@ def main() -> int:
     # check reduces to "n pushes produced exactly n entries".
     baselines = {i["id"]: history_length(i, "isre") for i in instances}
 
+    # Recorded in the artifact: without it, run 34154771062 could not be
+    # diagnosed after the fact — the divergence was real, exclusivityViolations
+    # was empty, and nothing said what each runtime started from.
+    summary_baselines = dict(baselines)
+
+    reset_clean = bool(args.reset) and not reset_failures
     exclusivity_violations: set[str] = set()
     for instance in instances:
         failures.extend(
             run_seed_sequence(instance, steps, args.settle_ms,
                               baseline=baselines.get(instance["id"]),
-                              violations=exclusivity_violations)
+                              violations=exclusivity_violations,
+                              reset_expected=reset_clean)
         )
 
     summary: dict[str, Any] = {
@@ -591,6 +623,8 @@ def main() -> int:
             }
         summary["trajectories"][kind] = record
 
+    summary["isreBaselines"] = summary_baselines
+    summary["resetClean"] = reset_clean
     summary["exclusivityViolations"] = sorted(exclusivity_violations)
     summary["failures"] = failures
     (args.out / "trajectory-summary.json").write_text(
