@@ -450,6 +450,10 @@ jobs:
         working-directory: RealityEngine_CI
         run: bash scripts/tests/test-trajectory-parity.sh
 
+      - name: Run MQTT broker URL opt-out unit tests
+        working-directory: RealityEngine_CI
+        run: bash scripts/tests/test-mqtt-broker-url-opt-out.sh
+
       - name: Run corpus parity checkpoint unit tests
         working-directory: RealityEngine_CI
         run: bash scripts/tests/test-corpus-parity-checkpoint.sh

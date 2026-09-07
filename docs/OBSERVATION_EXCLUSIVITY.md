@@ -28,6 +28,7 @@ measurement.
 | [#283](https://github.com/jateeter/RealityEngine_CI/issues/283) | a runtime failed to emit an arbitration record | records survive exactly one step; a concurrent PE push replaced them before the harness read |
 | [#304](https://github.com/jateeter/RealityEngine_CI/issues/304) | LSP wrote 13 half-activated ISRE cells the others left at zero | MQTT fixtures reached the engine instances 65s apart against a 60s sensor TTL — some stale at read time, one not |
 | [#307](https://github.com/jateeter/RealityEngine_CI/issues/307) | LSP recorded 9 trajectory entries for 8 pushes | an out-of-band push landed inside the drive window; the surplus entry persisted into every later run; nothing in the history says who asked |
+| [#311](https://github.com/jateeter/RealityEngine_CI/issues/311) | a fixed post-fixture sleep and an ambiguous MQTT opt-out could let live bridge traffic reach the parity stage | the sleep assumed delivery on a clock instead of observing it, and `mqtt_broker_url: ''` was documented as "skips MQTT" when it actually falls through to the seeded hosted broker |
 
 ## How to recognise it
 
@@ -101,6 +102,27 @@ suspecting the current run.**
 4. **Prefer naming the interference to suppressing it.** Quiescing other app
    instances changes what is being measured; ignoring the extra records hides a
    real signal about who else is writing. Report it.
+5. **A "wait" is a claim about another app instance's state, so observe it —
+   don't assume a duration covers it.** The MQTT fixture republish
+   (`refresh_mqtt_fixtures` in `scripts/regression-test.sh`) used to follow with
+   a fixed `sleep 3` before the parity stage read anything. A fixed sleep is
+   exactly the failure mode this document is about, aimed at itself: on a slow
+   runner it can expire before delivery finishes, on a fast one it is dead
+   time. `wait_for_mqtt_quiescence` polls every running PE's own
+   `GET /api/mqtt/status` until `messagesReceived` stops changing, bounded by a
+   timeout that logs a warning and proceeds rather than hanging the run
+   (#311).
+6. **A baseline a caller intends to rely on must be recorded, not just used.**
+   `regression-trajectory-parity.py` reads each instance's pre-drive
+   `isre-history` length as the exclusivity baseline, but a reset call
+   reporting success only means the reset request succeeded — it says nothing
+   about whether the history actually came back to zero. `evaluate_baselines()`
+   checks the read-back value explicitly and reports it as a failure, not a
+   silent baseline, when a "successful" reset left a non-zero or unreadable
+   history (#311). The baselines themselves, and this check's outcome, are
+   written into `trajectory-summary.json` under `reset.baselines` /
+   `reset.baselineFailures` / `reset.clean` so the artifact — not just the
+   exit code — says whether the comparison started from a known state.
 
 ## Why this grows
 

@@ -334,6 +334,41 @@ def run_seed_sequence(instance: dict[str, Any], steps: int, settle_ms: int,
     return failures
 
 
+def evaluate_baselines(instance_ids: list[str], baselines: dict[str, int | None],
+                        reset_requested: bool, reset_failures: list[str]) -> list[str]:
+    """Failures for a baseline that a "successful" reset should not have left.
+
+    A successful reset (no reset_failures) only means the reset calls
+    themselves returned success; reset_instances() never reads history back.
+    If the read here is unavailable (None) or comes back non-zero even though
+    every reset call succeeded, that is either a transient read failure or a
+    reset that did not actually clear history — and either way the
+    exclusivity check downstream would be anchored to an unknown, not a zero.
+    Called only when reset was requested and reported no failures; otherwise
+    the baseline is expected to be whatever it is, and there is nothing to
+    flag (RealityEngine_CI#311).
+    """
+    if not (reset_requested and not reset_failures):
+        return []
+    out: list[str] = []
+    for instance_id in instance_ids:
+        value = baselines.get(instance_id)
+        if value is None:
+            out.append(
+                f"{instance_id}: isre-history baseline unreadable after a reset "
+                f"reported success — cannot confirm the reset produced a clean (0) "
+                f"starting point; trajectories below are not measured from a known "
+                f"baseline"
+            )
+        elif value != 0:
+            out.append(
+                f"{instance_id}: isre-history baseline is {value} after a reset "
+                f"reported success — the reset did not clear history; trajectories "
+                f"below are measured against this baseline, not a clean (0) one"
+            )
+    return out
+
+
 def history_length(instance: dict[str, Any], kind: str) -> int | None:
     """Entry count for one history, or None when it cannot be read.
 
@@ -511,6 +546,15 @@ def main() -> int:
     # check reduces to "n pushes produced exactly n entries".
     baselines = {i["id"]: history_length(i, "isre") for i in instances}
 
+    # A successful reset (no reset_failures) is not the same fact as "the
+    # baseline is clean" — see evaluate_baselines(). Recording it explicitly
+    # here is what makes a silently-non-clean baseline visible in the artifact
+    # instead of only showing up later as an unexplained trajectory-length
+    # divergence.
+    baseline_failures = evaluate_baselines(
+        [i["id"] for i in instances], baselines, args.reset, reset_failures)
+    failures.extend(baseline_failures)
+
     exclusivity_violations: set[str] = set()
     for instance in instances:
         failures.extend(
@@ -529,6 +573,14 @@ def main() -> int:
             "requested": args.reset,
             "scope": "re+pe" if args.reset else "disabled",
             "failures": reset_failures,
+            # The baseline this stage actually measured from, per instance,
+            # and whether it was clean (reset requested, reset succeeded, and
+            # every baseline read back exactly 0). Absence of this is what let
+            # a silently non-zero or unreadable baseline pass as "reset ok" —
+            # see baseline_failures above and RealityEngine_CI#311.
+            "baselines": baselines,
+            "baselineFailures": baseline_failures,
+            "clean": (args.reset and not reset_failures and not baseline_failures),
         },
         "arbiterRule": args.arbiter_rule or "corpus-declared",
         "arbiterConfig": arbiter_configs,

@@ -75,6 +75,21 @@ elif case == "clusters":
 
 elif case == "dense":
     print(json.dumps(mod.dense(entry(0, 32, {3: 1.5}))))
+
+elif case == "baseline-clean":
+    print(json.dumps(mod.evaluate_baselines(["cpp", "lsp"], {"cpp": 0, "lsp": 0}, True, [])))
+
+elif case == "baseline-nonzero":
+    print(json.dumps(mod.evaluate_baselines(["cpp", "lsp"], {"cpp": 0, "lsp": 3}, True, [])))
+
+elif case == "baseline-unreadable":
+    print(json.dumps(mod.evaluate_baselines(["cpp", "lsp"], {"cpp": 0, "lsp": None}, True, [])))
+
+elif case == "baseline-reset-failed":
+    print(json.dumps(mod.evaluate_baselines(["cpp"], {"cpp": 5}, True, ["cpp: reset failed"])))
+
+elif case == "baseline-no-reset":
+    print(json.dumps(mod.evaluate_baselines(["cpp"], {"cpp": 5}, False, [])))
 PY
 
 echo "== first_divergence =="
@@ -116,6 +131,22 @@ assert_eq "$(run_py clusters)" '[["cpp", "lsp"], ["scala"]]' \
   "clusters sort by size so the split is legible, not by engine name"
 assert_eq "$(run_py dense)" '{"3": 1.5}' \
   "sparse entries expand to index -> value"
+
+echo
+echo "== evaluate_baselines =="
+
+assert_eq "$(run_py baseline-clean)" "[]" \
+  "a clean reset (0 on every instance) reports no baseline failures"
+assert_eq "$(run_py baseline-nonzero | python3 -c 'import json,sys; d=json.load(sys.stdin); print(len(d), "lsp" in d[0])')" \
+  "1 True" \
+  "a non-zero baseline after a successful reset is reported by instance"
+assert_eq "$(run_py baseline-unreadable | python3 -c 'import json,sys; d=json.load(sys.stdin); print(len(d), "unreadable" in d[0])')" \
+  "1 True" \
+  "an unreadable baseline after a successful reset is reported, distinctly from non-zero"
+assert_eq "$(run_py baseline-reset-failed)" "[]" \
+  "a baseline is not second-guessed when the reset itself already reported failures"
+assert_eq "$(run_py baseline-no-reset)" "[]" \
+  "a baseline is not checked when reset was not requested at all"
 
 rm -f "$CI_DIR/scripts/tests/_trajectory_probe.py"
 
