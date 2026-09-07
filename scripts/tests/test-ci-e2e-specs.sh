@@ -74,8 +74,17 @@ assert_contains "$(ci_e2e_specs_for_mode multi-engine "$CI_DIR")" \
 # ── T6: specs with hardcoded Docker endpoints are not in the multi-engine set ─
 # Direct check of the property the allowlist encodes, so a spec cannot be
 # promoted while still pinning Docker-only URLs.
+#
+# A Docker URL passed to a resolver — `reEndpointOr('https://localhost:5001')`
+# — is not a pinned endpoint, it is the documented fallback for when there is no
+# instance registry to resolve from (RealityEngine_CI#278 step 3). The property
+# this test defends is "the spec does not *reach* Docker-only URLs", not "the
+# string never appears". Grepping for the string alone would forbid the very
+# construct that makes a spec registry-aware, so resolver arguments are excluded
+# and anything else still fails.
 for spec in $(ci_e2e_specs_for_mode multi-engine "$CI_DIR"); do
-  if grep -qE "https://localhost:(5001|3004)" "$CI_DIR/$spec" 2>/dev/null; then
+  if grep -E "https://localhost:(5001|3004)" "$CI_DIR/$spec" 2>/dev/null \
+       | grep -qvE "(reEndpointOr|peEndpointOr|endpointOr)\("; then
     echo "  FAIL: $spec is allowlisted for multi-engine but hardcodes Docker endpoints"
     FAIL=$((FAIL+1))
   else

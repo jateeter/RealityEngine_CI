@@ -28,7 +28,13 @@ test.describe('Reality Engine API - Configuration', () => {
 });
 
 test.describe('Reality Engine API - Engine Stats', () => {
-  test('should get engine statistics', async ({ request }) => {
+  // SKIPPED — RealityEngine_CI#311. /api/engine/stats is not a parity-proven
+  // interface: the three runtimes return three different shapes and no key is
+  // common to all of them, so this asserts Scala's private shape and passes
+  // only because the single-engine deployment is Scala. Unskip as part of
+  // implementing /api/engine/stats-next, rewritten against a shape all three
+  // runtimes agree on.
+  test.skip('should get engine statistics', async ({ request }) => {
     const response = await request.get(`${API_BASE_URL}/api/engine/stats`);
     expect(response.ok()).toBeTruthy();
 

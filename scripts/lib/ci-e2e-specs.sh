@@ -23,10 +23,29 @@ CI_E2E_LIB_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 
 # Space-separated, repo-relative. Specs proven safe against a multi-engine
 # universe.
-: "${CI_E2E_MULTI_ENGINE_SPECS:=e2e/tests/tree-to-pe-manager-equivalence.spec.ts}"
+# Promotions are earned by a measured run against a real multi-engine universe,
+# not by inspection. Each entry names what was observed on
+# cpp:2,lsp:1,scala:1 with the regression corpus, 2026-09-07:
+#
+#   tree-to-pe-manager-equivalence  registry-aware from the start
+#   visualizer-ui                   4 passed
+#   api                             14 passed, 1 skipped (#311)
+#   full-integration                7 passed
+#
+# All four became answerable only after RealityEngine_CI#301 made global-setup
+# and the specs resolve endpoints from the instance registry instead of
+# hardcoding the Docker stack's TLS proxy. Before that the suite died in
+# global-setup before a single test ran.
+: "${CI_E2E_MULTI_ENGINE_SPECS:=e2e/tests/tree-to-pe-manager-equivalence.spec.ts e2e/tests/visualizer-ui.spec.ts e2e/tests/api.spec.ts e2e/tests/full-integration.spec.ts}"
 
 # Reason surfaced for each spec excluded from a multi-engine run.
-: "${CI_E2E_SINGLE_ENGINE_REASON:=single-engine only - hardcodes Docker RE/PE endpoints, not registry-aware}"
+# The old blanket reason — "hardcodes Docker RE/PE endpoints, not
+# registry-aware" — stopped being true when #301 converted them. What keeps the
+# last two out is that they skip on this corpus, exactly as the
+# already-promoted tree-to-pe-manager-equivalence does here. Skipping is
+# therefore not evidence against them: they need a corpus that exercises them
+# before promotion means anything.
+: "${CI_E2E_SINGLE_ENGINE_REASON:=skips on this corpus - needs a corpus that exercises it before promotion is meaningful}"
 
 # ci_e2e_all_specs [root]
 #   Repo-relative paths of every CI e2e spec, sorted. `root` defaults to the
