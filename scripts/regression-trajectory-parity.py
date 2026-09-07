@@ -242,7 +242,9 @@ def longest_interned_sequence(instance: dict[str, Any]) -> int:
     return longest
 
 
-def run_seed_sequence(instance: dict[str, Any], steps: int, settle_ms: int) -> list[str]:
+def run_seed_sequence(instance: dict[str, Any], steps: int, settle_ms: int,
+                      baseline: int | None = None,
+                      violations: set[str] | None = None) -> list[str]:
     """Drive one engine with the corpus's own stimulus, letting its loop run.
 
     The seed is **composed, not supplied**. Ingesting a machine interns its
@@ -274,14 +276,76 @@ def run_seed_sequence(instance: dict[str, Any], steps: int, settle_ms: int) -> l
             f"PE_SOURCE_BOOTSTRAP=off; check the engine booted with a corpus."
         ]
 
+    # Exclusivity, measured rather than assumed — RealityEngine_CI#307.
+    #
+    # This comparison is only valid if nothing else drove the engine while it
+    # ran. It never checked. An MQTT bridge delivering a retained message, a PE
+    # auto-push, an operator with curl — any other app instance pushing during
+    # the drive adds an entry, and after the fact the history cannot say who
+    # asked. The result read as "this runtime recorded an extra step", was filed
+    # against three different runtimes in turn, and closed twice as not
+    # reproducible.
+    #
+    # Measured, not assumed. Driving all four instances concurrently from a
+    # clean reset produced exact parity in 10 of 10 rounds, and 16/16/16/16 when
+    # run twice without an intervening reset — so concurrency across instances
+    # is not the cause. One out-of-band push is: it adds an entry, and that
+    # entry *persists*, so every later un-reset comparison carries the surplus
+    # forward and reports it at whatever step it happens to reach. That is why
+    # the same defect was filed against three different runtimes in turn.
+    #
+    # Hence an absolute check against a baseline read before any instance is
+    # driven: it catches the out-of-band push and a silently failed reset alike.
+    # See docs/OBSERVATION_EXCLUSIVITY.md.
+    #
+    # So the drive records what it caused, and the caller compares that against
+    # what actually appeared. A mismatch is reported as interference, naming the
+    # condition, instead of surfacing later as a history-length divergence that
+    # blames whichever engine happened to be slowest.
+    # The window is the whole stage, not this instance's turn. Instances are
+    # driven one after another, so a baseline read here would already contain
+    # anything that landed while an earlier instance was driven — which is how
+    # the first version of this check missed an induced interloper entirely.
+    before = baseline if baseline is not None else history_length(instance, "isre")
+
+    driven = 0
     for index in range(steps):
         status, _ = post_json(f"{pe}/api/push", {"compact": True})
         if status != 200:
             failures.append(f"{instance['id']}: push {index} failed (status {status})")
             break
+        driven += 1
         if settle_ms:
             time.sleep(settle_ms / 1000.0)
+
+    after = history_length(instance, "isre")
+    if before is not None and after is not None:
+        observed = after - before
+        if observed != driven:
+            if violations is not None:
+                violations.add(instance["id"])
+            failures.append(
+                f"{instance['id']}: drove {driven} push(es) but isre-history grew by "
+                f"{observed} ({before} -> {after}). Another app instance pushed during "
+                f"the drive, so this runtime's trajectory is not comparable with the "
+                f"others (RealityEngine_CI#307). This is a harness condition, not an "
+                f"engine divergence — see docs/OBSERVATION_EXCLUSIVITY.md."
+            )
     return failures
+
+
+def history_length(instance: dict[str, Any], kind: str) -> int | None:
+    """Entry count for one history, or None when it cannot be read.
+
+    None rather than 0 on failure: a history that could not be fetched is not a
+    history of length zero, and treating it as one would manufacture an
+    exclusivity violation out of a transient read error.
+    """
+    status, payload = get_json(f"{instance['re']}/api/engine/{kind}-history")
+    if status != 200 or not isinstance(payload, dict):
+        return None
+    history = payload.get("history")
+    return len(history) if isinstance(history, list) else None
 
 
 # The arbiter rules every runtime implements. Kept here rather than derived from
@@ -442,8 +506,18 @@ def main() -> int:
             for item in reset_failures
         )
 
+    # Read before any instance is driven, so each instance's exclusivity window
+    # spans the whole stage. After a successful reset these are all 0, and the
+    # check reduces to "n pushes produced exactly n entries".
+    baselines = {i["id"]: history_length(i, "isre") for i in instances}
+
+    exclusivity_violations: set[str] = set()
     for instance in instances:
-        failures.extend(run_seed_sequence(instance, steps, args.settle_ms))
+        failures.extend(
+            run_seed_sequence(instance, steps, args.settle_ms,
+                              baseline=baselines.get(instance["id"]),
+                              violations=exclusivity_violations)
+        )
 
     summary: dict[str, Any] = {
         "runId": args.run_id,
@@ -486,7 +560,19 @@ def main() -> int:
                 where = f"step {divergence['step']}"
                 if "cell" in divergence:
                     where += f" cell {divergence['cell']}"
-                failures.append(f"{kind}-history diverges at {where} ({divergence['kind']}): {shape}")
+                note = ""
+                if exclusivity_violations:
+                    # The drive already established that something else acted, so
+                    # this comparison is measuring an engine against a history it
+                    # did not solely produce. Report it as the consequence it is,
+                    # not a second independent finding against whichever runtime
+                    # happened to lose the race.
+                    note = (f" — consequence of the exclusivity violation above "
+                            f"({'+'.join(sorted(exclusivity_violations))}); "
+                            f"not an engine divergence")
+                failures.append(
+                    f"{kind}-history diverges at {where} "
+                    f"({divergence['kind']}): {shape}{note}")
         # When the histories are different lengths, the index-wise comparison
         # above is comparing different steps, so every value finding after it is
         # a consequence rather than a cause. Record the head of each history so
@@ -505,6 +591,7 @@ def main() -> int:
             }
         summary["trajectories"][kind] = record
 
+    summary["exclusivityViolations"] = sorted(exclusivity_violations)
     summary["failures"] = failures
     (args.out / "trajectory-summary.json").write_text(
         json.dumps(summary, indent=2, sort_keys=True), encoding="utf-8")
