@@ -41,6 +41,11 @@ const ENGINES: EngineTarget[] = [
   { id: 'cpp-1', runtime: 'cpp' },
 ];
 
+const NO_CACHE_HEADERS = {
+  'Cache-Control': 'no-cache, no-store, max-age=0, must-revalidate',
+  Pragma: 'no-cache',
+} as const;
+
 test.describe.configure({ mode: 'serial' });
 
 function sha256(bytes: Buffer): string {
@@ -109,7 +114,7 @@ async function captureRequestResponse(engine: EngineTarget, method: string, resp
 async function switchEngine(request: APIRequestContext, engine: EngineTarget): Promise<CapturedResponse> {
   const res = await request.post('/api/engines/active', {
     data: { id: engine.id },
-    headers: { 'Content-Type': 'application/json' },
+    headers: { 'Content-Type': 'application/json', ...NO_CACHE_HEADERS },
   });
   const capture = await captureRequestResponse(engine, 'POST', res);
   expect(res.ok(), `engine switch to ${engine.id} failed: ${res.status()}`).toBeTruthy();
@@ -119,7 +124,7 @@ async function switchEngine(request: APIRequestContext, engine: EngineTarget): P
 async function resetPE(request: APIRequestContext, engine: EngineTarget): Promise<CapturedResponse> {
   const res = await request.post('/api/pe/reset', {
     data: {},
-    headers: { 'Content-Type': 'application/json' },
+    headers: { 'Content-Type': 'application/json', ...NO_CACHE_HEADERS },
   });
   const capture = await captureRequestResponse(engine, 'POST', res);
   expect(res.ok(), `PE reset failed: ${res.status()}`).toBeTruthy();
@@ -131,7 +136,16 @@ async function resetPE(request: APIRequestContext, engine: EngineTarget): Promis
 // job spawned cpp+lsp+scala — that it accumulated the same UI drift already
 // fixed in visualizer-ui.spec.ts (#82).
 async function loadCompleteTree(page: Page): Promise<{ rowCount: number; loadedOk: boolean }> {
-  await page.goto('/');
+  await page.goto('/', { waitUntil: 'domcontentloaded' });
+  await page.addInitScript(() => {
+    const originalFetch = window.fetch.bind(window);
+    window.fetch = (input: RequestInfo | URL, init: RequestInit = {}) => {
+      const headers = new Headers(init.headers || {});
+      headers.set('Cache-Control', 'no-cache, no-store, max-age=0, must-revalidate');
+      headers.set('Pragma', 'no-cache');
+      return originalFetch(input, { ...init, headers });
+    };
+  });
   await expect(page.locator('.rep-title')).toContainText(/Reality\s*Engine/, { timeout: 30_000 });
   await expect(page.getByTitle('Open Perception Engine management')).toBeVisible({ timeout: 10_000 });
   return waitForTreeRows(page);
@@ -198,7 +212,7 @@ async function captureEngineFlow(page: Page, engine: EngineTarget): Promise<Engi
 
     let sourcePresentationOk = true;
     try {
-      await expect(page.locator('text=/^Sources \\([1-9]/').first()).toBeVisible({ timeout: 15_000 });
+      await expect(page.locator('text=/^Sources \([1-9]/').first()).toBeVisible({ timeout: 15_000 });
       await forceAllSourcesOn(page);
       await expect(page.getByTitle('Disable source').first()).toBeVisible({ timeout: 15_000 });
     } catch (error: any) {
@@ -206,8 +220,8 @@ async function captureEngineFlow(page: Page, engine: EngineTarget): Promise<Engi
       errors.push(`source presentation failed: ${error?.message ?? String(error)}`);
     }
 
-    const sourceCountText = await page.locator('text=/^Sources \\(/').first().innerText().catch(() => 'Sources (?)');
-    const activeCountText = await page.locator('text=/\\d+\\/\\d+ active/').first().innerText().catch(() => '?/? active');
+    const sourceCountText = await page.locator('text=/^Sources \(/').first().innerText().catch(() => 'Sources (?)');
+    const activeCountText = await page.locator('text=/\d+\/\d+ active/').first().innerText().catch(() => '?/? active');
     const disableSourceCount = await page.getByTitle('Disable source').count();
     const enableSourceCount = await page.getByTitle('Enable source').count();
 
@@ -322,7 +336,7 @@ async function writeCaptureBodies(runs: EngineRun[], testInfo: TestInfo) {
  */
 async function missingEngines(request: APIRequestContext): Promise<string[]> {
   try {
-    const res = await request.get('/api/engines');
+    const res = await request.get('/api/engines', { headers: NO_CACHE_HEADERS });
     if (!res.ok()) return ENGINES.map(e => e.id);
     const body = await res.json();
     const list: Array<{ id?: string }> = Array.isArray(body) ? body : (body.engines ?? body.instances ?? []);
