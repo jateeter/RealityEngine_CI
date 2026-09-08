@@ -795,6 +795,12 @@ jobs:
           REUSE_SERVICES: 'true'
           SKIP_GLOBAL_SETUP: 'true'
           RE_REGISTRY_URL: ${{ env.RE_REGISTRY_URL }}
+          # engine-switcher.spec.ts (tests/e2e) reads VIZ_FRONTEND_URL and
+          # falls back to the Docker stack's TLS literal (https://localhost:5173)
+          # when it is unset. This native core serves plain HTTP on 5173, so an
+          # unset VIZ_FRONTEND_URL here previously sent that spec's page.goto at
+          # https and it failed every attempt with ERR_SSL_PROTOCOL_ERROR.
+          VIZ_FRONTEND_URL: ${{ env.PLAYWRIGHT_BASE_URL }}
         run: |
           npx playwright test \
             tests/integration/corpus-integrity.spec.ts \
