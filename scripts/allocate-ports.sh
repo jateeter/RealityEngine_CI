@@ -33,10 +33,11 @@
 # after the holder exits, so a late reader with a stale endpoint gets a refused
 # connection rather than a different engine that inherited the number.
 _RE_CLAIMED_PORTS="${_RE_CLAIMED_PORTS:-}"
+_RE_ALLOCATED_PORT=""
 
 _claim_free_port() {
     local attempt port
-    for attempt in 1 2 3 4 5; do
+    for _ in 1 2 3 4 5; do
         port=$(python3 -c "
 import socket
 s = socket.socket()
@@ -50,7 +51,7 @@ s.close()
             continue
         fi
         _RE_CLAIMED_PORTS="$_RE_CLAIMED_PORTS $port"
-        echo "$port"
+        _RE_ALLOCATED_PORT="$port"
         return 0
     done
     echo "_claim_free_port: no free port after 5 attempts" >&2
@@ -68,8 +69,10 @@ allocate_ports() {
             scala|cpp|lsp) ;;
             *) echo "allocate_ports: unknown runtime '$runtime'" >&2; return 1 ;;
         esac
-        re_port=$(_claim_free_port) || return 1
-        pe_port=$(_claim_free_port) || return 1
+        _claim_free_port || return 1
+        re_port="$_RE_ALLOCATED_PORT"
+        _claim_free_port || return 1
+        pe_port="$_RE_ALLOCATED_PORT"
         echo "${re_port} ${pe_port}"
         return 0
     fi

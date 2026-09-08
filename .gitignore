@@ -2,6 +2,7 @@
 .env
 .env~
 .universe-engine-selection
+.universe-registry-url
 nginx/conf.d/
 config/integrations.json
 config/.healthkit-bridge-token

@@ -117,7 +117,7 @@ assert_eq "$_before" "5701 5700" "T9: default mode is unchanged deterministic ar
 # not be read as truthy.
 _false=$(RE_FREE_PORTS=false LSP_PE_BASE=5600 allocate_ports lsp 2 2>/dev/null || echo "failed")
 assert_eq "$_false" "5701 5700" "T10: RE_FREE_PORTS=false is deterministic"
-_empty=$(RE_FREE_PORTS= LSP_PE_BASE=5600 allocate_ports lsp 2 2>/dev/null || echo "failed")
+_empty=$(RE_FREE_PORTS='' LSP_PE_BASE=5600 allocate_ports lsp 2 2>/dev/null || echo "failed")
 assert_eq "$_empty" "5701 5700" "T11: empty RE_FREE_PORTS is deterministic"
 _zero=$(RE_FREE_PORTS=0 LSP_PE_BASE=5600 allocate_ports lsp 2 2>/dev/null || echo "failed")
 assert_eq "$_zero" "5701 5700" "T12: RE_FREE_PORTS=0 is deterministic, not truthy"
@@ -144,13 +144,26 @@ _c2=$(RE_FREE_PORTS=true allocate_ports cpp 2 2>/dev/null)
 _c_unique=$(printf '%s %s' "$_c1" "$_c2" | tr ' ' '\n' | sort -u | wc -l | tr -d ' ')
 assert_eq "$_c_unique" "4" "T16: successive free claims are all distinct"
 
-# T17: an unknown runtime is still rejected in free mode — the mode changes how
+# T17: the claim ledger survives command substitution and prevents a released
+# probe port from being handed out again in the same shell.
+_RE_CLAIMED_PORTS=""
+_claim_free_port 2>/dev/null
+_claimed_first="$_RE_ALLOCATED_PORT"
+_claim_free_port 2>/dev/null
+_claimed_second="$_RE_ALLOCATED_PORT"
+if [ "$_claimed_first" != "$_claimed_second" ]; then
+  echo "  PASS: T17: free claims remain retired within the run"; PASS=$((PASS+1))
+else
+  echo "  FAIL: T17: free claims remain retired within the run"; FAIL=$((FAIL+1))
+fi
+
+# T18: an unknown runtime is still rejected in free mode — the mode changes how
 # a port is chosen, not what a valid runtime is.
 set +e
 RE_FREE_PORTS=true allocate_ports bogus 1 >/dev/null 2>&1
 _bogus_exit=$?
 set -e
-assert_exit "$_bogus_exit" "1" "T17: unknown runtime rejected in free mode"
+assert_exit "$_bogus_exit" "1" "T18: unknown runtime rejected in free mode"
 
 echo ""
 echo "allocate-ports: $PASS passed, $FAIL failed"

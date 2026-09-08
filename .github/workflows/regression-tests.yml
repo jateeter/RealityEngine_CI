@@ -46,11 +46,11 @@ on:
       mcp_url:
         description: 'MCP Streamable HTTP service base URL'
         required: true
-        default: 'http://127.0.0.1:7331'
+        default: ''
       swagger_url:
         description: 'OpenAPI Swagger service base URL'
         required: true
-        default: 'http://127.0.0.1:8088'
+        default: ''
       compare:
         description: 'Optional previous run id to compare against'
         required: false
@@ -310,13 +310,15 @@ jobs:
           # /mosquitto/config depends on image-specific ownership. A mount does
           # not, and it leaves the image's own entrypoint and command in place.
           mkdir -p "$RUNNER_TEMP/mosquitto"
-          printf 'listener 1883 0.0.0.0\nallow_anonymous true\n' > "$RUNNER_TEMP/mosquitto/mosquitto.conf"
-          docker run -d --name regression-mqtt -p 1883:1883 \
+          mqtt_port="$(python3 -c 'import socket; s=socket.socket(); s.bind((\"\", 0)); print(s.getsockname()[1]); s.close()')"
+          printf 'listener %s 0.0.0.0\nallow_anonymous true\n' "$mqtt_port" > "$RUNNER_TEMP/mosquitto/mosquitto.conf"
+          docker run -d --name regression-mqtt -p "$mqtt_port:$mqtt_port" \
             -v "$RUNNER_TEMP/mosquitto/mosquitto.conf:/mosquitto/config/mosquitto.conf:ro" \
             eclipse-mosquitto:2
+          echo "HOSTED_MQTT_BROKER_URL=mqtt://127.0.0.1:$mqtt_port" >> "$GITHUB_ENV"
 
           for i in $(seq 1 30); do
-            if docker exec regression-mqtt mosquitto_pub -h 127.0.0.1 -t healthz -m up 2>/dev/null; then
+            if docker exec regression-mqtt mosquitto_pub -h 127.0.0.1 -p "$mqtt_port" -t healthz -m up 2>/dev/null; then
               echo "broker ready after ${i}s"; break
             fi
             [ "$i" = "30" ] && { echo "::error::MQTT broker did not become ready"; docker logs regression-mqtt; exit 1; }
@@ -372,7 +374,6 @@ jobs:
           # The broker seeded above. Only a fallback — an explicit dispatch
           # input or REGRESSION_MQTT_BROKER_URL still wins, so pointing a run
           # at the live Yuma broker remains one field away.
-          HOSTED_MQTT_BROKER_URL: ${{ runner.environment == 'github-hosted' && 'mqtt://127.0.0.1:1883' || '' }}
           # MACHINES_DIR is deliberately NOT set. startUniverse.sh honours it
           # from the environment, and the regression run starts from its own
           # cold-start worktrees — pinning it to the top-level checkout would
@@ -393,8 +394,8 @@ jobs:
           SCHEDULE_OPENCLAW: ${{ vars.REGRESSION_OPENCLAW || 'false' }}
           SCHEDULE_MQTT_BROKER_URL: ${{ vars.REGRESSION_MQTT_BROKER_URL || '' }}
           SCHEDULE_MQTT_MAPPINGS: ${{ vars.REGRESSION_MQTT_MAPPINGS || '' }}
-          SCHEDULE_MCP_URL: ${{ vars.REGRESSION_MCP_URL || 'http://127.0.0.1:7331' }}
-          SCHEDULE_SWAGGER_URL: ${{ vars.REGRESSION_SWAGGER_URL || 'http://127.0.0.1:8088' }}
+          SCHEDULE_MCP_URL: ${{ vars.REGRESSION_MCP_URL || '' }}
+          SCHEDULE_SWAGGER_URL: ${{ vars.REGRESSION_SWAGGER_URL || '' }}
           SCHEDULE_COMPARE: ${{ vars.REGRESSION_COMPARE_RUN || '' }}
           SCHEDULE_RETAIN: ${{ vars.REGRESSION_RETAIN || '20' }}
           SCHEDULE_ARCHIVE_ARTIFACTS: ${{ vars.REGRESSION_ARCHIVE_ARTIFACTS || 'true' }}
@@ -407,8 +408,8 @@ jobs:
           openclaw="${INPUT_OPENCLAW:-false}"
           mqtt_broker_url="${INPUT_MQTT_BROKER_URL:-}"
           mqtt_mappings="${INPUT_MQTT_MAPPINGS:-}"
-          mcp_url="${INPUT_MCP_URL:-http://127.0.0.1:7331}"
-          swagger_url="${INPUT_SWAGGER_URL:-http://127.0.0.1:8088}"
+          mcp_url="${INPUT_MCP_URL:-${SCHEDULE_MCP_URL:-}}"
+          swagger_url="${INPUT_SWAGGER_URL:-${SCHEDULE_SWAGGER_URL:-}}"
           compare_run="${INPUT_COMPARE:-}"
           machine_corpus="${INPUT_MACHINE_CORPUS:-regression}"
           retain="${INPUT_RETAIN:-20}"
@@ -420,8 +421,8 @@ jobs:
             openclaw="${SCHEDULE_OPENCLAW:-false}"
             mqtt_broker_url="${SCHEDULE_MQTT_BROKER_URL:-}"
             mqtt_mappings="${SCHEDULE_MQTT_MAPPINGS:-}"
-            mcp_url="${SCHEDULE_MCP_URL:-http://127.0.0.1:7331}"
-            swagger_url="${SCHEDULE_SWAGGER_URL:-http://127.0.0.1:8088}"
+            mcp_url="${SCHEDULE_MCP_URL:-}"
+            swagger_url="${SCHEDULE_SWAGGER_URL:-}"
             compare_run="${SCHEDULE_COMPARE:-}"
             # The scheduled run boots `regression`.
             #
