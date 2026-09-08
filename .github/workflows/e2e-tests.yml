@@ -786,6 +786,13 @@ jobs:
           first_id="$(registry_instance_ids | head -1)"
           echo "RE_BASE_URL=$(re_endpoint "$first_id")" >> "$GITHUB_ENV"
           echo "PE_BASE_URL=$(pe_endpoint "$first_id")" >> "$GITHUB_ENV"
+          # e2e/lib/registry.ts's reEndpointOr()/peEndpointOr() (RealityEngine_CI
+          # api.spec.ts, full-integration.spec.ts) only auto-resolve without this
+          # when the registry holds exactly one instance. Against this
+          # cpp:2,scala:1,lsp:1 core there are four, so they otherwise fall back
+          # to the unreachable Docker literal (https://localhost:5001) — same
+          # failure mode as RE_BASE_URL above, same fix: name the instance.
+          echo "RE_E2E_INSTANCE=$first_id" >> "$GITHUB_ENV"
 
       # All suites consume this same registry-backed universe. Keeping these
       # commands in the bring-up job is intentional: hosted runners do not
@@ -836,9 +843,19 @@ jobs:
           REUSE_SERVICES: 'true'
           MULTI_ENGINE_E2E: 'true'
           RE_REGISTRY_URL: ${{ env.RE_REGISTRY_URL }}
+          # api.spec.ts and full-integration.spec.ts resolve their RE/PE
+          # endpoints by instance id when the registry holds more than one
+          # (see e2e/lib/registry.ts). Without this, against a
+          # cpp:2,scala:1,lsp:1 core (four instances) they fall back to the
+          # unreachable Docker-stack literal and fail with ECONNREFUSED.
+          RE_E2E_INSTANCE: ${{ env.RE_E2E_INSTANCE }}
         run: |
           . scripts/lib/ci-e2e-specs.sh
-          specs="$(ci_e2e_all_specs | tr '\n' ' ')"
+          # Only the specs in CI_E2E_MULTI_ENGINE_SPECS resolve endpoints from
+          # the instance registry; the rest hardcode the Docker stack's
+          # endpoints and fail on connection against this native multi-engine
+          # core (see scripts/lib/ci-e2e-specs.sh).
+          specs="$(ci_e2e_specs_for_mode multi-engine | tr '\n' ' ')"
           # shellcheck disable=SC2086
           npx playwright test $specs --project=chromium --workers=1 --reporter=list
 
