@@ -32,7 +32,11 @@ on:
           - arbiter-fixture
           - standard-deployment-plus-ring
       mqtt_broker_url:
-        description: 'MQTT broker URL for the Yuma stream; empty skips MQTT live checks'
+        description: >-
+          MQTT broker URL for the Yuma stream. Empty does NOT skip MQTT: on a
+          hosted runner it falls through to this job's own seeded local broker
+          (self-hosted runs skip only because they set no fallback). Use
+          none/off/skip to explicitly disable MQTT checks instead.
         required: false
         default: ''
       mqtt_mappings:
@@ -439,6 +443,12 @@ jobs:
           # Neither the input nor the schedule variable named a broker, so use
           # the one this job started. Without a broker the stage writes a skip
           # report and passes, which is indistinguishable from coverage.
+          #
+          # An explicit opt-out (none/off/skip, #311) is deliberately NOT
+          # empty here, so it never reaches this fallback — it is passed
+          # through verbatim to scripts/regression-test.sh, which normalises
+          # it to "" itself and skips MQTT without ever consulting
+          # HOSTED_MQTT_BROKER_URL. Only a truly empty input falls through.
           if [ -z "$mqtt_broker_url" ]; then
             mqtt_broker_url="${HOSTED_MQTT_BROKER_URL:-}"
           fi

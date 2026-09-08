@@ -136,7 +136,10 @@ Options:
   --skip-start              Skip universe start phase; use current deployment.
   --build-only              Create worktrees and build only; skip start/live tests.
   --engines SPEC            Engine spec. Default: cpp:1,lsp:1,scala:1
-  --mqtt-broker-url URL     Yuma MQTT broker URL.
+  --mqtt-broker-url URL     Yuma MQTT broker URL. 'none'/'off'/'skip' (any case)
+                            is an explicit opt-out: MQTT checks are skipped and
+                            no caller-side fallback (e.g. the workflow's seeded
+                            hosted broker) is applied over it.
   --mqtt-mappings PATH      Yuma MQTT mappings file.
   --mcp-url URL             MCP HTTP base URL. Default: http://127.0.0.1:7331
   --swagger-url URL         OpenAPI Swagger base URL. Default: http://127.0.0.1:8088
@@ -213,6 +216,20 @@ while [ $# -gt 0 ]; do
     *) echo "Unknown argument: $1" >&2; usage; exit 2 ;;
   esac
 done
+
+# An explicit opt-out, not just an absent value. RealityEngine_CI#311: the
+# workflow's `mqtt_broker_url` input was documented as "empty skips MQTT live
+# checks", but empty is exactly what falls through to the hosted lane's seeded
+# broker (see .github/workflows/regression-tests.yml) — so the input's own
+# description contradicted its behaviour, and there was no way to actually
+# disable MQTT on a hosted run short of pointing it at a broker guaranteed to
+# fail. 'none'/'off'/'skip' say so unambiguously and are handled here, once,
+# rather than by every caller re-deriving "empty vs. disabled" for itself.
+case "$(printf '%s' "$MQTT_BROKER_URL" | tr '[:upper:]' '[:lower:]')" in
+  none|off|skip)
+    MQTT_BROKER_URL=""
+    ;;
+esac
 
 # ── Profile resolution ───────────────────────────────────────────────────────
 # An unset knob takes the profile's value; a knob the caller set is checked
@@ -1155,6 +1172,60 @@ active_machines_dir() {
 # every sensor a timestamp from the same window. This does not lengthen the TTL
 # or exclude sensors from comparison; it makes the comparison contemporaneous,
 # which is what it was always assumed to be.
+# Bounded wait for MQTT bridge quiescence, replacing a fixed sleep.
+#
+# RealityEngine_CI#311. The fixed `sleep 3` that used to follow the republish
+# below assumed delivery finished by a clock, not because anything was
+# observed. On a slow runner (or a genuinely wedged bridge) the next stage
+# could start reading while a bridge was still mid-delivery — the very race
+# republishing retained topics was meant to close; on a fast runner the 3s was
+# pure cost paid on every run. This polls each running PE's own
+# GET /api/mqtt/status until every instance reports the same
+# `messagesReceived` count on two consecutive reads, which is what "delivered"
+# actually means — the same principle #307's exclusivity check applies to
+# trajectory pushes (docs/OBSERVATION_EXCLUSIVITY.md): treat "settled" as an
+# observed fact, not an assumed duration.
+#
+# Bounded, not indefinite: a bridge that never settles, or a PE whose
+# /api/mqtt/status never responds, must not hang the run. It gets a logged
+# warning and the run proceeds — the fixtures were still published, so the
+# worst case is the same race the fixed sleep already tolerated, not a new
+# failure mode.
+wait_for_mqtt_quiescence() {
+  local timeout="${1:-15}" interval="${2:-1}"
+  local elapsed=0 prev="" cur=""
+
+  while [ "$elapsed" -lt "$timeout" ]; do
+    cur=""
+    while IFS='|' read -r _id _runtime pe_url; do
+      [ -n "$pe_url" ] || continue
+      local n
+      n="$(curl -fsS -k --max-time 2 "$pe_url/api/mqtt/status" 2>/dev/null | python3 -c '
+import json, sys
+try:
+    d = json.load(sys.stdin)
+except Exception:
+    print("?")
+else:
+    b = d.get("bridge", d.get("stats", d)) if isinstance(d, dict) else {}
+    print(b.get("messagesReceived", "?") if isinstance(b, dict) else "?")
+' 2>/dev/null)"
+      cur="${cur}${pe_url}=${n:-?};"
+    done < <(registry_instance_lines)
+
+    if [ -n "$cur" ] && [ "$cur" = "$prev" ]; then
+      log "  mqtt bridges quiescent after ${elapsed}s ($cur)"
+      return 0
+    fi
+    prev="$cur"
+    sleep "$interval"
+    elapsed=$((elapsed + interval))
+  done
+
+  log "WARN: mqtt bridges still active after ${timeout}s; proceeding anyway (last read: ${cur:-<no running PE instances>})"
+  return 0
+}
+
 refresh_mqtt_fixtures() {
   [ "$LIVE_TESTS" = true ] || return 0
   local container="${REGRESSION_MQTT_CONTAINER:-regression-mqtt}"
@@ -1179,8 +1250,8 @@ refresh_mqtt_fixtures() {
 
   if [ "$published" -gt 0 ]; then
     log "  republished $published retained topic(s) after boot"
-    # Let the bridges deliver before the first stage reads a source.
-    sleep 3
+    # Wait for delivery to be observed rather than assumed (#311).
+    wait_for_mqtt_quiescence "${MQTT_QUIESCE_TIMEOUT:-15}" "${MQTT_QUIESCE_INTERVAL:-1}"
   else
     log "  no fixtures republished; sensors keep their boot-time stamps"
   fi

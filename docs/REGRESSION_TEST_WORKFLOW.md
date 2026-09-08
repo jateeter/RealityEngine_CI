@@ -179,6 +179,10 @@ Required behavior:
   status, mapping count, expected Yuma source coverage, observed MQTT source
   count, final MQTT status, and categorized errors. If no broker URL is
   configured, write `mqtt-yuma-skipped.json` with the skip reason.
+- After republishing retained fixtures post-boot, wait for the bridges to
+  report quiescence (`wait_for_mqtt_quiescence` in `scripts/regression-test.sh`
+  polling each PE's `GET /api/mqtt/status`) rather than a fixed sleep, bounded
+  by a timeout that warns and proceeds instead of hanging (#311).
 
 ## MCP Requirement
 
@@ -364,6 +368,13 @@ Manual `workflow_dispatch` inputs:
 - `openclaw`: explicit opt-in for OpenClaw async integration checks. Setting it
   on a hosted runner fails the run — see Two Lanes above.
 - `mqtt_broker_url` and `mqtt_mappings`: Yuma MQTT stream configuration.
+  `mqtt_broker_url` empty does **not** mean "skip MQTT" — on a hosted runner it
+  falls through to the local broker this job seeds and starts for the run (see
+  MQTT Requirement below); only a self-hosted run with nothing else configured
+  ends up with no broker. To explicitly disable MQTT checks regardless of that
+  fallback, set `mqtt_broker_url` to `none`, `off`, or `skip` (case
+  insensitive) — `scripts/regression-test.sh` normalises any of these to "no
+  broker configured" before the fallback is ever consulted (#311).
 - `mcp_url`: MCP Streamable HTTP service base URL.
 - `swagger_url`: OpenAPI Swagger service base URL.
 - `compare`: optional previous run id.
