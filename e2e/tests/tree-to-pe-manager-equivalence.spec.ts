@@ -131,12 +131,7 @@ async function resetPE(request: APIRequestContext, engine: EngineTarget): Promis
   return capture;
 }
 
-// The PE nav button renders "Perception" beside a ◎ icon span, not "PE Manager".
-// Its title is the stable handle. This spec self-skipped for so long — no hosted
-// job spawned cpp+lsp+scala — that it accumulated the same UI drift already
-// fixed in visualizer-ui.spec.ts (#82).
-async function loadCompleteTree(page: Page): Promise<{ rowCount: number; loadedOk: boolean }> {
-  await page.goto('/', { waitUntil: 'domcontentloaded' });
+async function installNoCacheFetch(page: Page): Promise<void> {
   await page.addInitScript(() => {
     const originalFetch = window.fetch.bind(window);
     window.fetch = (input: RequestInfo | URL, init: RequestInit = {}) => {
@@ -146,6 +141,14 @@ async function loadCompleteTree(page: Page): Promise<{ rowCount: number; loadedO
       return originalFetch(input, { ...init, headers });
     };
   });
+}
+
+// The PE nav button renders "Perception" beside a ◎ icon span, not "PE Manager".
+// Its title is the stable handle. This spec self-skipped for so long — no hosted
+// job spawned cpp+lsp+scala — that it accumulated the same UI drift already
+// fixed in visualizer-ui.spec.ts (#82).
+async function loadCompleteTree(page: Page): Promise<{ rowCount: number; loadedOk: boolean }> {
+  await page.goto('/', { waitUntil: 'domcontentloaded' });
   await expect(page.locator('.rep-title')).toContainText(/Reality\s*Engine/, { timeout: 30_000 });
   await expect(page.getByTitle('Open Perception Engine management')).toBeVisible({ timeout: 10_000 });
   return waitForTreeRows(page);
@@ -349,6 +352,7 @@ async function missingEngines(request: APIRequestContext): Promise<string[]> {
 
 test('tree view to PE Manager verifies all sources on and compares captured API response bytes across all engines', async ({ page, request }, testInfo: TestInfo) => {
   test.setTimeout(300_000);
+  await installNoCacheFetch(page);
 
   // Skip rather than 404 on a universe that never spawned these runtimes.
   // Needs `startUniverse.sh --engines=cpp:1,lsp:1,scala:1`; no hosted job
