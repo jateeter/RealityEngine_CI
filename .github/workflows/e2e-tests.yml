@@ -777,6 +777,15 @@ jobs:
           . scripts/lib/resolve-endpoint.sh
           echo "VIZ_BASE_URL=$(service_endpoint manager_backend)" >> "$GITHUB_ENV"
           echo "PLAYWRIGHT_BASE_URL=$(service_endpoint manager_frontend)" >> "$GITHUB_ENV"
+          # corpus-integrity.spec.ts (RealityEngine_Machines) falls back to the
+          # Docker stack's https://localhost:5001 for RE_BASE_URL when it is
+          # unset, which nothing listens on here — the first registered
+          # instance (cpp-1, given the cpp:2,scala:1,lsp:1 engine mix started
+          # above) stands in for "the RE" the same way scripts/run-all-tests.sh
+          # does locally.
+          first_id="$(registry_instance_ids | head -1)"
+          echo "RE_BASE_URL=$(re_endpoint "$first_id")" >> "$GITHUB_ENV"
+          echo "PE_BASE_URL=$(pe_endpoint "$first_id")" >> "$GITHUB_ENV"
 
       # All suites consume this same registry-backed universe. Keeping these
       # commands in the bring-up job is intentional: hosted runners do not
@@ -801,6 +810,10 @@ jobs:
           # unset VIZ_FRONTEND_URL here previously sent that spec's page.goto at
           # https and it failed every attempt with ERR_SSL_PROTOCOL_ERROR.
           VIZ_FRONTEND_URL: ${{ env.PLAYWRIGHT_BASE_URL }}
+          # corpus-integrity.spec.ts reads RE_BASE_URL the same way, falling
+          # back to https://localhost:5001 — nothing listens there in this
+          # native core, so it previously failed with ECONNREFUSED.
+          RE_BASE_URL: ${{ env.RE_BASE_URL }}
         run: |
           npx playwright test \
             tests/integration/corpus-integrity.spec.ts \
