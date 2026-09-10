@@ -57,7 +57,12 @@
 #   --help            This message.
 #
 # Environment:
-#   DEPLOYMENT_MACHINE_CORPUS=standard-deployment|full
+#   DEPLOYMENT_MACHINE_CORPUS=regression|standard-deployment|full
+#     Default is `regression`. standard-deployment boots 12 machines and none of
+#     them is one the RAG/session deployment gates assert on, so those gates
+#     failed against a universe that never contained what they test. The
+#     regression corpus adds the ring (propagation), the contended trio (the
+#     only machines that make the arbiter run), and localAIStack's RAG trio.
 #                     Machine corpus passed to startUniverse during deployment
 #                     validation (default: standard-deployment).
 #   DEPLOYMENT_POST_START_FULL_CORPUS=off|seed
@@ -73,13 +78,43 @@ WS="$(cd "$CI_DIR/.." && pwd)"
 SCALA_DIR="$WS/RealityEngine_Scala"
 MGR_DIR="$WS/RealityEngine_Manager"
 MACHINES_DIR="$WS/RealityEngine_Machines"
+# CPP_DIR/LSP_DIR were referenced by phase_native_lane but never assigned. Under
+# `set -u` that aborted the run at the first CPP line — taking Phase 4 and the
+# Phase 5 summary with it, and skipping the two runtimes for which native is the
+# *only* lane. The agent reported exit 1 with no summary and no roadmap status.
+CPP_DIR="$WS/RealityEngine_CPP"
+LSP_DIR="$WS/RealityEngine_LSP"
 LAS_DIR="$WS/localAIStack"
 OCS_DIR="$WS/localOpenClawStack"
 
-# The CI docker-compose.yml requires these for build contexts and the RE machine
-# volume (`${MACHINES_DIR:?...}/machines`). Export them so direct `docker compose`
-# calls in the restart matrix interpolate the same way startUniverse.sh does.
+# The CI docker-compose.yml requires these for build contexts. Export them so
+# direct `docker compose` calls in the restart matrix interpolate the same way
+# startUniverse.sh does.
+#
+# MACHINES_DIR stays the *repository* — it is what `$MACHINES_DIR/node_modules`
+# and the repo-presence checks mean. The RE's machine volume is a different
+# question and now reads MACHINE_CORPUS_DIR, resolved per compose call by
+# corpus_dir() below.
 export SCALA_DIR MGR_DIR MACHINES_DIR
+
+# The corpus this deployment actually selected, from the stamp startUniverse
+# writes. Resolved fresh at each call rather than once at the top, because the
+# stamp does not exist until Phase 1 has deployed.
+#
+# Without this the restart matrix recreated `reality-engine` with the full
+# 1,328-machine repo mounted, discarding whatever corpus had just been
+# materialized — so --machine-corpus was honoured by the materializer and
+# silently dropped by the container (#328). Three deployment gates then failed
+# against a universe that never held the machines they assert on.
+corpus_dir() {
+  local sel="$CI_DIR/.universe-engine-selection" stamped=""
+  [ -f "$sel" ] && stamped="$(sed -n 's/^MACHINE_CORPUS_ACTIVE_DIR=//p' "$sel" | tail -1)"
+  if [ -n "$stamped" ] && [ -d "$stamped/machines" ]; then
+    printf '%s' "$stamped"
+  else
+    printf '%s' "$MACHINES_DIR"
+  fi
+}
 
 STATE_DIR="$CI_DIR/.deploy-validate"
 ISSUE_DIR="$STATE_DIR/issues"
@@ -244,10 +279,32 @@ EOF
         && info "Updated existing issue $GH_OWNER/$repo#$existing" \
         || warn "Could not comment on $GH_OWNER/$repo#$existing"
     else
-      local url
+      local url err
+      # Labels are best-effort. `--label` makes `gh issue create` fail outright
+      # when a label is absent from the target repo ("could not add label:
+      # 'deployment' not found"), and neither of these exists in most repos
+      # here. That failure used to be swallowed by 2>/dev/null and the finding
+      # was lost entirely — no issue, and no draft either, because the draft
+      # fallback below only fires when gh is *unavailable*. An agent whose one
+      # job is to not lose findings must not lose them when gh works.
+      err="$(mktemp)"
       url="$(gh issue create -R "$GH_OWNER/$repo" --title "$title" --body "$body" \
-               --label "deployment,validation-agent" 2>/dev/null || true)"
-      [ -n "$url" ] && ok "Filed issue: $url" || warn "gh issue create failed for $repo"
+               --label "deployment,validation-agent" 2>"$err" || true)"
+      if [ -z "$url" ]; then
+        # Retry unlabelled before giving up — the labels carry no information the
+        # body does not already have.
+        url="$(gh issue create -R "$GH_OWNER/$repo" --title "$title" --body "$body" \
+                 2>>"$err" || true)"
+      fi
+      if [ -n "$url" ]; then
+        ok "Filed issue: $url"
+      else
+        # Every path failed: fall through to a draft rather than drop it.
+        local draft="$ISSUE_DIR/${repo}__${unit}__${phase}.md"
+        { echo "# $title"; echo "# repo: $GH_OWNER/$repo"; echo ""; echo "$body"; } > "$draft"
+        warn "gh issue create failed for $repo ($(tr -d '\n' < "$err" | cut -c1-120)) — wrote draft: $draft"
+      fi
+      rm -f "$err"
     fi
   else
     # Offline / unauthenticated fallback: write a draft so the cycle never blocks.
@@ -308,8 +365,8 @@ phase_deploy() {
   local oc_flag=""
   case "$OPENCLAW" in yes) oc_flag="--openclaw" ;; no) oc_flag="--no-openclaw" ;; esac
   if [ "$DRY_RUN" = true ]; then
-    info "Dry-run: ./startUniverse.sh --dry-run ${FRESH_FLAG:+$FRESH_FLAG }$oc_flag --machine-corpus=${DEPLOYMENT_MACHINE_CORPUS:-standard-deployment}"
-    ( cd "$CI_DIR" && bash ./startUniverse.sh --dry-run $FRESH_FLAG $oc_flag "--machine-corpus=${DEPLOYMENT_MACHINE_CORPUS:-standard-deployment}" ) \
+    info "Dry-run: ./startUniverse.sh --dry-run ${FRESH_FLAG:+$FRESH_FLAG }$oc_flag --machine-corpus=${DEPLOYMENT_MACHINE_CORPUS:-regression}"
+    ( cd "$CI_DIR" && bash ./startUniverse.sh --dry-run $FRESH_FLAG $oc_flag "--machine-corpus=${DEPLOYMENT_MACHINE_CORPUS:-regression}" ) \
       && pass orchestration deploy "startUniverse dry-run plan coherent" \
       || fail orchestration deploy "startUniverse dry-run failed preflight" "See $RUN_LOG"
     return 0
@@ -349,7 +406,7 @@ phase_deploy() {
   # run so the test gate's stack-health check probes the live Docker stack
   # instead of dead registry endpoints (a stale registry => false "live stack down").
   rm -f "${RE_REGISTRY_FILE:-/tmp/re-registry/re-registry.json}" 2>/dev/null || true
-  local machine_corpus="${DEPLOYMENT_MACHINE_CORPUS:-standard-deployment}"
+  local machine_corpus="${DEPLOYMENT_MACHINE_CORPUS:-regression}"
   local post_start_full_corpus="${DEPLOYMENT_POST_START_FULL_CORPUS:-off}"
   local args=( --warn-only "--machine-corpus=$machine_corpus" "--post-start-full-corpus=$post_start_full_corpus" )
   [ "$FRESH" = true ] && args+=( --fresh )
@@ -400,14 +457,14 @@ restart_compose_service() {  # <unit> <health-url> <label> <svc...>
   local svcs=( "$@" ) build=()
   [ "$FRESH" = true ] && build=( --build )
   info "Restarting $label (compose: ${svcs[*]})..."
-  ( cd "$CI_DIR" && docker compose up -d --force-recreate --no-deps ${build[@]+"${build[@]}"} "${svcs[@]}" ) >>"$RUN_LOG" 2>&1 \
+  ( cd "$CI_DIR" && MACHINE_CORPUS_DIR="$(corpus_dir)" docker compose up -d --force-recreate --no-deps ${build[@]+"${build[@]}"} "${svcs[@]}" ) >>"$RUN_LOG" 2>&1 \
     || { fail "$unit" restart "$label recreate failed" "docker compose up ${svcs[*]}"; return 1; }
   # Recreating a backend gives it a NEW container IP, but the nginx tls-proxy
   # resolves upstream hostnames once and caches the IP — so the public endpoint
   # (RE :5001, PE :3004, Viz :3001/:5173) 502s on the stale upstream until the
   # proxy re-resolves. Recreate the tls-proxy so it picks up the new IPs before
   # we health-check the public URL.
-  ( cd "$CI_DIR" && docker compose up -d --force-recreate --no-deps tls-proxy ) >>"$RUN_LOG" 2>&1 || true
+  ( cd "$CI_DIR" && MACHINE_CORPUS_DIR="$(corpus_dir)" docker compose up -d --force-recreate --no-deps tls-proxy ) >>"$RUN_LOG" 2>&1 || true
   poll "$url" "$label back up" 30 && pass "$unit" restart "$label restarted cleanly" \
                                   || fail "$unit" restart "$label did not return healthy after restart" "$url"
 }
@@ -475,9 +532,23 @@ native_runtime() {
   local -a env_extra=()
   [ "$unit" = scala ] && env_extra=( "SBT=$(resolve_sbt 2>/dev/null || echo sbt)" )
 
+  # Load the corpus the Docker lane actually deployed, not the whole repo.
+  #
+  # The native lane inherited the exported MACHINES_DIR — the full 1,328-machine
+  # RealityEngine_Machines tree — while Phase 1 deployed
+  # --machine-corpus=standard-deployment (12). Scala then spent longer than the
+  # 45s RE budget loading legal-services machines and was recorded as a start
+  # failure; C++ and LSP happened to fit. That is a lane comparing two different
+  # deployments and calling the slower one broken.
+  #
+  # startUniverse stamps the materialised corpus root it booted from, so use it
+  # when present and fall back to the repo otherwise.
+  local native_machines_dir; native_machines_dir="$(corpus_dir)"
+
   _native_start() {
     ( cd "$dir" && env INSTANCE_ID="$DV_INST" REALITY_ENGINE_PORT="$re_port" \
-        PERCEPTION_ENGINE_PORT="$pe_port" RE_LOAD_MACHINES=1 ${env_extra[@]+"${env_extra[@]}"} \
+        PERCEPTION_ENGINE_PORT="$pe_port" RE_LOAD_MACHINES=1 \
+        MACHINES_DIR="$native_machines_dir" ${env_extra[@]+"${env_extra[@]}"} \
         bash start.sh ) >>"$RUN_LOG" 2>&1
   }
   _native_stop() { ( cd "$dir" && bash stop.sh --instance="$DV_INST" ) >>"$RUN_LOG" 2>&1 || true; }

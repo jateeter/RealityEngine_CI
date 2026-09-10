@@ -1173,6 +1173,51 @@ touched. Neither were the `/api/vectors` route segments, the numeric vectors
 `POST /api/perceptual-simulation/configure/chunk` accepts, or Qdrant's own
 `"vectors": { size, distance }` collection body.
 
+## Participation States
+
+**A surface that will not answer must say so. Silence is not a state.**
+
+Every integration-backed surface reports one of these when asked to take part in
+a lane. The set is closed: a caller may switch on it exhaustively, and a value
+outside it is a contract violation rather than an extension point.
+
+| State | Means | Conforming? |
+|---|---|---|
+| `active` | Participating; answers are real. | yes |
+| `not-configured` | The integration is implemented but this deployment gave it nothing to talk to — no broker, no endpoint, no credential. | yes |
+| `not-active` | Configured and reachable, deliberately not participating in this lane. | yes |
+| `unsupported` | This runtime does not implement the surface at all. | yes |
+| `unavailable` | Configured and expected to participate, but could not — the dependency is down or erroring. | **no** — a finding |
+
+### Why the vocabulary exists
+
+`not-configured`, `not-active` and `unsupported` are all *conforming* answers, and
+they are not interchangeable: they say, respectively, that the deployment
+withheld something, that the lane withheld something, and that the runtime never
+had it. `unavailable` is the only one that means something is wrong.
+
+**A runtime that simply returns nothing is none of these, and that is the
+defect.** Absence and refusal are indistinguishable at the wire, so a comparison
+across runtimes reads both as "no disagreement" — which is how a Scala PE paired
+with a C++ engine reported an empty `provenance()` audit trail with no error
+(#321), how a bootstrap counter divergence rode along as an allowance, and how a
+trajectory exclusivity check disabled itself without saying so (#307). Each was
+one surface staying quiet where it should have declared.
+
+### Reporting
+
+- `GET /api/health` carries the state per integration it owns.
+- A comparison gate records the declared state alongside each signature, so a
+  skipped surface is auditable rather than merely absent from the output.
+- **Where every runtime answers `unsupported` for a signature, that agreement is
+  itself a result and must be reported as one**: it says the shape is
+  unimplemented everywhere, which is a real and useful fact about the surface —
+  a gap in the contract rather than a gap in one engine. Reporting it is how an
+  unbuilt surface becomes visible instead of looking like a surface nobody
+  happened to exercise.
+
+---
+
 ## Response Shape Conventions
 
 All runtimes must conform to these envelope shapes. Deviations are bugs in the runtime, not workarounds to implement in the Manager.

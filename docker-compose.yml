@@ -115,7 +115,12 @@ services:
     extra_hosts:
       - "host.docker.internal:host-gateway"
     volumes:
-      - ${MACHINES_DIR:?MACHINES_DIR must be set — run via startUniverse.sh}/machines:/app/machines:ro
+      # MACHINE_CORPUS_DIR, not MACHINES_DIR. The two are different questions —
+      # "where is the Machines repo" (node_modules, presence checks) and "which
+      # corpus did this deployment select" — and one name answering both is how
+      # --machine-corpus came to be honoured by the materializer and discarded
+      # here (#328). Falls back to the repo when no corpus was materialized.
+      - ${MACHINE_CORPUS_DIR:-${MACHINES_DIR:?MACHINES_DIR must be set — run via startUniverse.sh}}/machines:/app/machines:ro
       - ./certs:/etc/certs:ro
     logging:
       driver: loki
