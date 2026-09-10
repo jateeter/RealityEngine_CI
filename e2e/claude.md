@@ -43,9 +43,11 @@ and the source set those counters describe is compared byte-for-byte by
 `GET /api/pe/sources`, so no coverage is lost.
 
 What is **not** an allowance is the case that looks identical from a distance.
-`sequences[].initialEventIds` on `GET /api/machines` is Scala-only and might
-read as permitted internal augmentation — except it has a consumer, so it is a
-conformance gap and stays compared. See SURFACE_SPEC.md, "Open gaps".
+`sequences[].initialEventIds` on `GET /api/machines` was Scala-only and might
+have read as permitted internal augmentation — except it has a consumer, so it
+was a conformance gap and stayed compared. CPP#91 and LSP#105 closed it; the
+rule stays allowance-free so a runtime dropping the key is reported again. See
+SURFACE_SPEC.md, "Open gaps".
 
 Identity filtering deliberately is *not* mirrored from
 `scripts/lib/parity_identity.py`. That module strips engine-minted ids because

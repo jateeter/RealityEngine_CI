@@ -114,12 +114,15 @@ test('the bootstrap allowance drops the counters and nothing else', () => {
   assert.deepEqual(finding.allowances, ['created', 'skipped']);
 });
 
-test('#321: /api/machines keeps failing on initialEventIds, and names the key', () => {
+test('#321: /api/machines fails on a dropped initialEventIds, and names the key', () => {
   const signature = 'GET /api/machines';
   const rule = ruleFor(signature);
 
   // Not an allowance. The Scala PE reads this key off this route for
   // provenance(), so filtering it would hide a gap that has a consumer.
+  // CPP#91 and LSP#105 closed the original divergence; this fixture is the
+  // regression guard, holding the #321 payloads so a rule change that would
+  // re-hide the key fails here.
   assert.equal(rule.boundaryFiltered, undefined);
   assert.equal(rule.historyDependent, undefined);
 
@@ -138,12 +141,12 @@ test('#321: /api/machines keeps failing on initialEventIds, and names the key', 
     scala: capture(withIds),
     cpp: capture(summary),
   });
-  assert.ok(finding, 'the conformance gap must still fail');
+  assert.ok(finding, 'a runtime dropping the key must fail');
   assert.deepEqual(finding.shapeOnly, {
     scala: ['machines[].sequences[].initialEventIds'],
   });
 
-  // And it passes the day cpp and lsp emit the key.
+  // And it passes now that cpp and lsp emit the key, which is the live state.
   assert.equal(compareSurface(signature, agreeing(withIds)), null);
 });
 

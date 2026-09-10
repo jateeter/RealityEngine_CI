@@ -23,20 +23,23 @@
  *   divergence (`scripts/CLAUDE.md`, #163): lsp's reset discards its sources
  *   so the call creates them, cpp's keeps them so the call skips them.
  *
- * `GET /api/machines` is the other one, and it is *not* an allowance. Scala
- * emits 125629 bytes against 124066 for cpp and lsp, and the whole 1563-byte
- * delta is one key: `sequences[].initialEventIds`. It looks like permitted
- * internal augmentation and is not, because it has a consumer. The Scala PE
+ * `GET /api/machines` was the other one, and it was *not* an allowance. Scala
+ * emitted 125629 bytes against 124066 for cpp and lsp, and the whole 1563-byte
+ * delta was one key: `sequences[].initialEventIds`. It looked like permitted
+ * internal augmentation and was not, because it has a consumer. The Scala PE
  * builds its machine corpus from this exact route and reads that key for
  * `provenance()` — see `MachineCorpus.scala`, whose header states "everything
  * comes from `GET /api/machines` ... and each sequence's initial vector ids".
- * cpp (`reality.cpp`, `Machine::to_json`) and lsp (`model.lisp`,
- * `machine-summary-json`) emit a `{id, name}` summary on the non-`full` path
- * that this route takes, so a Scala PE paired with a cpp or lsp RE silently
- * gets an empty audit trail. That is a conformance gap in the machine-list
- * sequence summary, so it stays compared and this surface stays red until the
- * runtimes agree — filtering it would have hidden a defect with a consumer
- * behind the rule written for fields that have none.
+ * cpp and lsp emitted a `{id, name}` summary on the non-`full` path this route
+ * takes, so a Scala PE paired with a cpp or lsp RE silently got an empty audit
+ * trail. That was a conformance gap, so it stayed compared rather than being
+ * filtered — and filtering it would have hidden a defect with a consumer behind
+ * the rule written for fields that have none.
+ *
+ * **Both runtimes now emit the key** (`RealityEngine_CPP#91`,
+ * `RealityEngine_LSP#105`, settled in `SURFACE_SPEC.md`, "Open gaps"), so this
+ * surface agrees. The rule below is unchanged and stays `projection` with no
+ * allowance: it is what would report the key again were it ever dropped.
  *
  * The answer is not a looser comparison, it is a declared one. Every signature
  * the three runtimes have in common resolves to a rule in `PARITY_SURFACE`
@@ -144,17 +147,17 @@ const EXACT: Readonly<Record<string, SurfaceRule>> = {
 
   'GET /api/machines': {
     compare: 'projection',
-    // No allowance, deliberately. `sequences[].initialEventIds` is scala-only
-    // on this route and has a consumer — the Scala PE reads it here for
-    // `provenance()` — so it is a conformance gap in the machine-list sequence
-    // summary, not internal augmentation. Left compared so the gap is reported
-    // rather than filtered; `projection` rather than `bytes` only so the
-    // finding arrives as a named key instead of a byte count.
+    // No allowance, deliberately. `sequences[].initialEventIds` has a consumer —
+    // the Scala PE reads it here for `provenance()` — so a runtime dropping it
+    // is a conformance gap, not internal augmentation. All three emit it as of
+    // CPP#91 / LSP#105; this rule is what reports it again if one stops.
+    // `projection` rather than `bytes` only so the finding arrives as a named
+    // key instead of a byte count.
     why:
       'the loaded corpus, which every runtime read from the same machine files. ' +
-      'Compared in full: the one key that differs, `sequences[].initialEventIds`, ' +
-      'is consumed by the Scala PE off this exact route (MachineCorpus.scala) ' +
-      'and omitted by cpp and lsp, which emit a `{id, name}` sequence summary here',
+      'Compared in full, with no allowance: `sequences[].initialEventIds` is ' +
+      'consumed by the Scala PE off this exact route (MachineCorpus.scala), so ' +
+      'a runtime omitting it hands the PE an empty audit trail and no error',
   },
   'POST /api/pe/sources/bootstrap-from-machines': {
     compare: 'projection',
