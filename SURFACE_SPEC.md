@@ -1057,19 +1057,20 @@ observed at the next reset — makes it inactive again.
 
 ### Open gaps
 
-All routes listed in this spec are implemented by all three runtimes. One
-**payload** gap is open.
+All routes listed in this spec are implemented by all three runtimes, and the
+one open **payload** gap has since been closed. It is kept here because the
+register is the record of how a gap was settled, not only of which are open.
 
-#### `GET /api/machines` — the sequence summary is not the same shape everywhere
+#### `GET /api/machines` — the sequence summary is not the same shape everywhere *(settled 2026-09-09)*
 
 This route serves each machine's sequences in summary form rather than in full.
 The runtimes disagree about what that summary contains:
 
-| Runtime | `sequences[]` keys on this route | Emitted by |
-|---------|----------------------------------|------------|
-| CPP | `id`, `name` | `reality.cpp`, `Machine::to_json` (non-`full` arm) |
-| LSP | `id`, `name` | `model.lisp`, machine summary JSON (non-`full` arm) |
-| Scala | `id`, `name`, `initialEventIds` | `Machine.scala` |
+| Runtime | `sequences[]` keys on this route | Emitted by | Before |
+|---------|----------------------------------|------------|--------|
+| CPP | `id`, `name`, `initialEventIds` | `reality.cpp`, `Machine::to_json` (non-`full` arm) | `id`, `name` |
+| LSP | `id`, `name`, `initialEventIds` | `model.lisp`, `machine-json` (non-`full` arm) | `id`, `name` |
+| Scala | `id`, `name`, `initialEventIds` | `Machine.scala` | unchanged |
 
 **This is not internal augmentation, and the distinction is the point.** The
 rule under "The observable boundary" permits a runtime to carry more than its
@@ -1083,18 +1084,34 @@ back to an empty vector when the key is absent. A Scala PE paired with a CPP or
 LSP Reality Engine therefore reports an empty provenance trail and no error,
 which is the failure mode this register exists to catch.
 
-So the summary shape is a contract this document has never stated, and the three
-runtimes answered it two ways. Settling it means either declaring
-`initialEventIds` part of the summary and adding it to CPP and LSP — both
-already compute the initial-event list on the `full` path, so it is a small
-change — or declaring it out and fixing the Scala PE to source provenance
-elsewhere. Until then the surface is held to the full comparison and reports the
-asymmetry.
+So the summary shape is a contract this document had never stated, and the three
+runtimes answered it two ways.
+
+**Settled the first way: `initialEventIds` is part of the sequence summary, and
+CPP and LSP now emit it.** Both already computed the initial-event list on the
+`full` path, so each change was small — `RealityEngine_CPP#91` made
+`CriticalEventSequence::initial_vector_ids()` public for the summary builder,
+and `RealityEngine_LSP#105` factored `sequence-initial-event-ids` out for the
+same reason. The ids are id-sorted in all three, so a majority comparison has
+something to agree on (#197).
+
+The alternative — declaring the key out and fixing the Scala PE to source
+provenance elsewhere — was rejected because the PE would then need a
+full-detail request per machine to read one field.
+
+Verified on a live `cpp:1,lsp:1,scala:1` universe over the full 1338-machine
+corpus: all three emit the key on every machine, and the three-way comparison
+finds no disagreement across 5112 sequences.
+`RealityEngine_Machines/tests/integration/machine-summary-initial-events.spec.ts`
+holds it there, asserting presence before agreement — three runtimes that all
+omit the key agree perfectly.
 
 Discovered by the tri-runtime comparison in
 `e2e/tests/tree-to-pe-manager-equivalence.spec.ts` on 2026-09-08
 (RealityEngine_CI#321), where it appeared as a 1563-byte difference on a route
-nothing had declared byte-equivalent. `e2e/lib/parity-surface.ts` is where the
+nothing had declared byte-equivalent — which is the case for a declared surface
+rather than a blanket hash: the same run raised two findings, and only this one
+was a defect. `e2e/lib/parity-surface.ts` is where the
 comparison now records what each captured surface is held to and why.
 
 ---
