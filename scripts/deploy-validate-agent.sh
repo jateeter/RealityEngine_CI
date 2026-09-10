@@ -73,6 +73,12 @@ WS="$(cd "$CI_DIR/.." && pwd)"
 SCALA_DIR="$WS/RealityEngine_Scala"
 MGR_DIR="$WS/RealityEngine_Manager"
 MACHINES_DIR="$WS/RealityEngine_Machines"
+# CPP_DIR/LSP_DIR were referenced by phase_native_lane but never assigned. Under
+# `set -u` that aborted the run at the first CPP line — taking Phase 4 and the
+# Phase 5 summary with it, and skipping the two runtimes for which native is the
+# *only* lane. The agent reported exit 1 with no summary and no roadmap status.
+CPP_DIR="$WS/RealityEngine_CPP"
+LSP_DIR="$WS/RealityEngine_LSP"
 LAS_DIR="$WS/localAIStack"
 OCS_DIR="$WS/localOpenClawStack"
 
@@ -244,10 +250,32 @@ EOF
         && info "Updated existing issue $GH_OWNER/$repo#$existing" \
         || warn "Could not comment on $GH_OWNER/$repo#$existing"
     else
-      local url
+      local url err
+      # Labels are best-effort. `--label` makes `gh issue create` fail outright
+      # when a label is absent from the target repo ("could not add label:
+      # 'deployment' not found"), and neither of these exists in most repos
+      # here. That failure used to be swallowed by 2>/dev/null and the finding
+      # was lost entirely — no issue, and no draft either, because the draft
+      # fallback below only fires when gh is *unavailable*. An agent whose one
+      # job is to not lose findings must not lose them when gh works.
+      err="$(mktemp)"
       url="$(gh issue create -R "$GH_OWNER/$repo" --title "$title" --body "$body" \
-               --label "deployment,validation-agent" 2>/dev/null || true)"
-      [ -n "$url" ] && ok "Filed issue: $url" || warn "gh issue create failed for $repo"
+               --label "deployment,validation-agent" 2>"$err" || true)"
+      if [ -z "$url" ]; then
+        # Retry unlabelled before giving up — the labels carry no information the
+        # body does not already have.
+        url="$(gh issue create -R "$GH_OWNER/$repo" --title "$title" --body "$body" \
+                 2>>"$err" || true)"
+      fi
+      if [ -n "$url" ]; then
+        ok "Filed issue: $url"
+      else
+        # Every path failed: fall through to a draft rather than drop it.
+        local draft="$ISSUE_DIR/${repo}__${unit}__${phase}.md"
+        { echo "# $title"; echo "# repo: $GH_OWNER/$repo"; echo ""; echo "$body"; } > "$draft"
+        warn "gh issue create failed for $repo ($(tr -d '\n' < "$err" | cut -c1-120)) — wrote draft: $draft"
+      fi
+      rm -f "$err"
     fi
   else
     # Offline / unauthenticated fallback: write a draft so the cycle never blocks.
