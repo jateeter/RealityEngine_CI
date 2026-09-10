@@ -30,6 +30,44 @@ below are preserved as written, including sketch code that differs from what
 shipped. For current behaviour read `startUniverse.sh --help`, the live
 registry, and `docs/BUILD_CONTROL_CONTRACT.md`.
 
+### The instance registry is the authoritative port assignment
+
+**For every deployable and deployed system, the port an instance is listening on
+is whatever the instance registry says it is.** Nothing else is authoritative:
+not this file, not `ROADMAP.md`'s port table, not a workflow literal, not a
+`docker-compose.yml` published port, and not a base constant in
+`scripts/allocate-ports.sh` — that computes a *candidate*, and the registry
+records what was actually claimed.
+
+```
+http://<HOST_IP>:5999/re-registry.json     ← ask this
+RE_REGISTRY_URL                            ← how everything downstream asks it
+```
+
+Qualified deliberately: this is the **instance** registry — the one
+`startUniverse.sh` starts in stage 3.5 and publishes as `Instance Registry`. It
+is not the arbitration registry, not the tag registry, and there is no "machine
+registry" in this workspace. A bare "the registry" in this system is ambiguous
+enough to send a reader to the wrong artifact.
+
+Three properties make it the authority rather than merely a convenience:
+
+1. **It records the claim, not the intent.** `--free-ports` claims ports the OS
+   reports free (#278), so under that mode no base constant can predict the
+   answer and only the registry knows it.
+2. **Its defaults are overridable.** `SCALA_PE_BASE`, `CPP_PE_BASE` and
+   `LSP_PE_BASE` shift a runtime's whole block. Native multi-engine mode sets
+   `SCALA_PE_BASE=5100`, which is why `scala-1` is not where the table below
+   says.
+3. **Multiple instances of one runtime.** `--engines=cpp:2` produces two C++
+   instances; "the C++ port" stops being a meaningful phrase, and only per-`id`
+   registry entries resolve it.
+
+The practical rule, and the reason the hosted lane dropped its endpoint
+literals: **resolve through `RE_REGISTRY_URL`; never hard-code a port.** Every
+port written down anywhere else is a copy, and a copy is a thing that goes
+stale. This document already proved that — see Scala, below.
+
 ### What shipped differently
 
 Worth stating, because the plan's literals are the kind a reader copies:
@@ -455,16 +493,24 @@ S = ~1 hour, M = ~2–4 hours, L = ~4–8 hours
 
 ---
 
-## Port Reference (Extended)
+## Port Reference (Extended) — superseded by the instance registry
 
-Appended to the main ROADMAP.md port table:
+> **Do not read ports out of this table.** It is the 2026-06 plan, it is already
+> wrong about Scala, and it cannot be right under `--free-ports` or with more
+> than one instance of a runtime. Ask the instance registry:
+>
+> ```bash
+> curl -s "$RE_REGISTRY_URL" | python3 -m json.tool
+> ```
+>
+> Kept only because the phases above refer to it.
 
-| Service | Host Port | Notes |
+| Service | Host Port (planned 2026-06) | Notes |
 |---|---|---|
-| Instance Registry REST | 5999 | `/re-registry.json` — JSON file served by python3 |
-| Scala RE instance 1 | 5001 | default; +100 per additional instance |
-| Scala PE instance 1 | 5000 | default; +100 per additional instance |
-| CPP RE instance 1 | 5301 | +100 per additional instance |
-| CPP PE instance 1 | 5300 | +100 per additional instance |
-| LSP RE instance 1 | 5601 | +100 per additional instance |
-| LSP PE instance 1 | 5600 | +100 per additional instance |
+| Instance registry REST | 5999 | `/re-registry.json` — the one entry here still relied upon |
+| Scala RE instance 1 | 5001 | **stale** — native multi-engine runs 5101 (`SCALA_PE_BASE=5100`) |
+| Scala PE instance 1 | 5000 | **stale** — native multi-engine runs 5100 |
+| CPP RE instance 1 | 5301 | base only; `+100` per additional instance, and unused under `--free-ports` |
+| CPP PE instance 1 | 5300 | as above |
+| LSP RE instance 1 | 5601 | as above |
+| LSP PE instance 1 | 5600 | as above |
