@@ -373,6 +373,14 @@ jobs:
         with:
           path: RealityEngine_CI
 
+      # The parity-surface test imports the TypeScript module the e2e spec uses,
+      # which needs the type stripping Node enables by default from 23. Pinned to
+      # the same 25.5 the other jobs use rather than trusting the runner default.
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: '25.5'
+
       - name: Run registry unit tests
         working-directory: RealityEngine_CI
         run: bash scripts/tests/test-registry.sh
@@ -432,6 +440,13 @@ jobs:
       - name: Run observability contract unit tests
         working-directory: RealityEngine_CI
         run: bash scripts/tests/test-parity-identity.sh
+
+      # The e2e-side half of the same contract: which captured surfaces the
+      # tri-runtime comparison may compare, and how. Its fixtures are the #321
+      # payloads, so a rule change that would have re-hidden either one fails here.
+      - name: Run parity surface unit tests
+        working-directory: RealityEngine_CI
+        run: npm run test:parity-surface
 
       - name: Run endpoint resolver unit tests
         working-directory: RealityEngine_CI
