@@ -87,10 +87,34 @@ LSP_DIR="$WS/RealityEngine_LSP"
 LAS_DIR="$WS/localAIStack"
 OCS_DIR="$WS/localOpenClawStack"
 
-# The CI docker-compose.yml requires these for build contexts and the RE machine
-# volume (`${MACHINES_DIR:?...}/machines`). Export them so direct `docker compose`
-# calls in the restart matrix interpolate the same way startUniverse.sh does.
+# The CI docker-compose.yml requires these for build contexts. Export them so
+# direct `docker compose` calls in the restart matrix interpolate the same way
+# startUniverse.sh does.
+#
+# MACHINES_DIR stays the *repository* — it is what `$MACHINES_DIR/node_modules`
+# and the repo-presence checks mean. The RE's machine volume is a different
+# question and now reads MACHINE_CORPUS_DIR, resolved per compose call by
+# corpus_dir() below.
 export SCALA_DIR MGR_DIR MACHINES_DIR
+
+# The corpus this deployment actually selected, from the stamp startUniverse
+# writes. Resolved fresh at each call rather than once at the top, because the
+# stamp does not exist until Phase 1 has deployed.
+#
+# Without this the restart matrix recreated `reality-engine` with the full
+# 1,328-machine repo mounted, discarding whatever corpus had just been
+# materialized — so --machine-corpus was honoured by the materializer and
+# silently dropped by the container (#328). Three deployment gates then failed
+# against a universe that never held the machines they assert on.
+corpus_dir() {
+  local sel="$CI_DIR/.universe-engine-selection" stamped=""
+  [ -f "$sel" ] && stamped="$(sed -n 's/^MACHINE_CORPUS_ACTIVE_DIR=//p' "$sel" | tail -1)"
+  if [ -n "$stamped" ] && [ -d "$stamped/machines" ]; then
+    printf '%s' "$stamped"
+  else
+    printf '%s' "$MACHINES_DIR"
+  fi
+}
 
 STATE_DIR="$CI_DIR/.deploy-validate"
 ISSUE_DIR="$STATE_DIR/issues"
@@ -433,14 +457,14 @@ restart_compose_service() {  # <unit> <health-url> <label> <svc...>
   local svcs=( "$@" ) build=()
   [ "$FRESH" = true ] && build=( --build )
   info "Restarting $label (compose: ${svcs[*]})..."
-  ( cd "$CI_DIR" && docker compose up -d --force-recreate --no-deps ${build[@]+"${build[@]}"} "${svcs[@]}" ) >>"$RUN_LOG" 2>&1 \
+  ( cd "$CI_DIR" && MACHINE_CORPUS_DIR="$(corpus_dir)" docker compose up -d --force-recreate --no-deps ${build[@]+"${build[@]}"} "${svcs[@]}" ) >>"$RUN_LOG" 2>&1 \
     || { fail "$unit" restart "$label recreate failed" "docker compose up ${svcs[*]}"; return 1; }
   # Recreating a backend gives it a NEW container IP, but the nginx tls-proxy
   # resolves upstream hostnames once and caches the IP — so the public endpoint
   # (RE :5001, PE :3004, Viz :3001/:5173) 502s on the stale upstream until the
   # proxy re-resolves. Recreate the tls-proxy so it picks up the new IPs before
   # we health-check the public URL.
-  ( cd "$CI_DIR" && docker compose up -d --force-recreate --no-deps tls-proxy ) >>"$RUN_LOG" 2>&1 || true
+  ( cd "$CI_DIR" && MACHINE_CORPUS_DIR="$(corpus_dir)" docker compose up -d --force-recreate --no-deps tls-proxy ) >>"$RUN_LOG" 2>&1 || true
   poll "$url" "$label back up" 30 && pass "$unit" restart "$label restarted cleanly" \
                                   || fail "$unit" restart "$label did not return healthy after restart" "$url"
 }
@@ -519,13 +543,7 @@ native_runtime() {
   #
   # startUniverse stamps the materialised corpus root it booted from, so use it
   # when present and fall back to the repo otherwise.
-  local native_machines_dir="$MACHINES_DIR"
-  local sel="$CI_DIR/.universe-engine-selection"
-  if [ -f "$sel" ]; then
-    local stamped
-    stamped="$(sed -n 's/^MACHINE_CORPUS_ACTIVE_DIR=//p' "$sel" | tail -1)"
-    [ -n "$stamped" ] && [ -d "$stamped/machines" ] && native_machines_dir="$stamped"
-  fi
+  local native_machines_dir; native_machines_dir="$(corpus_dir)"
 
   _native_start() {
     ( cd "$dir" && env INSTANCE_ID="$DV_INST" REALITY_ENGINE_PORT="$re_port" \

@@ -1295,7 +1295,12 @@ if [ -n "$MQTT_MAPPINGS_OVERRIDE" ]; then
 fi
 
 # Pass sibling repo paths to docker-compose so build contexts and volume mounts resolve correctly.
-export SCALA_DIR MGR_DIR MACHINES_DIR PROMETHEUS_FILE_SD_DIR
+# The corpus this deployment actually selected. MACHINES_DIR has already been
+# repointed at the materialized work dir above when a corpus was chosen; naming
+# it separately is what lets a later `docker compose` call reproduce the same
+# mount without having to know that (#328).
+MACHINE_CORPUS_DIR="$MACHINES_DIR"
+export SCALA_DIR MGR_DIR MACHINES_DIR MACHINE_CORPUS_DIR PROMETHEUS_FILE_SD_DIR
 export ACP_ENABLED ACP_PLATFORM ACP_SURFACE ACP_GATEWAY_URL OPENCLAW_GATEWAY_URL
 export ACP_SESSION_KEY OPENCLAW_ACP_SESSION ACP_TARGET_AGENT ACP_COMPLETION_SOURCE_MAPPING_ID INTEGRATIONS_CONFIG
 
