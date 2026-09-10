@@ -34,9 +34,10 @@ on:
       mqtt_broker_url:
         description: >-
           MQTT broker URL for the Yuma stream. Empty does NOT skip MQTT: on a
-          hosted runner it falls through to this job's own seeded local broker
-          (self-hosted runs skip only because they set no fallback). Use
-          none/off/skip to explicitly disable MQTT checks instead.
+          hosted runner it falls through to the broker this job seeds at
+          mqtt://127.0.0.1:1883, whose bridges push into the engines during
+          every stage (self-hosted runs skip only because they set no
+          fallback). Use none/off/skip to explicitly disable MQTT checks.
         required: false
         default: ''
       mqtt_mappings:
@@ -440,9 +441,28 @@ jobs:
             archive_artifacts="${SCHEDULE_ARCHIVE_ARTIFACTS:-true}"
           fi
 
+          # `none` is the explicit opt-out. It exists because this input was
+          # documented as "empty skips MQTT live checks" while empty in fact fell
+          # through to the seeded broker below — so a run dispatched to be
+          # MQTT-free came up fully bridged, and those bridges pushed into the
+          # engines mid-stage (RealityEngine_CI#307). The fallback itself is
+          # deliberate and kept; what was missing was any way to say the other
+          # thing, and a description that told the truth about the default.
+          # Detected here only so the log line below can say which of the two
+          # silences this is. The value is deliberately NOT blanked: blanking it
+          # is indistinguishable from an empty input, which falls through to the
+          # seeded broker two lines down and is exactly the bug both #307 and
+          # #311 were fixing. scripts/regression-test.sh does the normalising,
+          # once, after the fallback can no longer apply.
+          mqtt_opt_out=false
+          case "$(printf '%s' "$mqtt_broker_url" | tr '[:upper:]' '[:lower:]')" in
+            none|off|skip) mqtt_opt_out=true ;;
+          esac
+
           # Neither the input nor the schedule variable named a broker, so use
           # the one this job started. Without a broker the stage writes a skip
-          # report and passes, which is indistinguishable from coverage.
+          # report and passes, which is indistinguishable from coverage — that is
+          # why empty falls back instead of skipping.
           #
           # An explicit opt-out (none/off/skip, #311) is deliberately NOT
           # empty here, so it never reaches this fallback — it is passed
@@ -451,6 +471,12 @@ jobs:
           # HOSTED_MQTT_BROKER_URL. Only a truly empty input falls through.
           if [ -z "$mqtt_broker_url" ]; then
             mqtt_broker_url="${HOSTED_MQTT_BROKER_URL:-}"
+          fi
+
+          if [ "$mqtt_opt_out" = true ]; then
+            echo "mqtt: opted out via '$mqtt_broker_url' — no broker, bridges stay unconfigured"
+          elif [ -n "$mqtt_broker_url" ]; then
+            echo "mqtt: broker $mqtt_broker_url — bridges are live during every stage"
           fi
 
           args=(

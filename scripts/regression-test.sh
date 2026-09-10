@@ -1172,59 +1172,6 @@ active_machines_dir() {
 # every sensor a timestamp from the same window. This does not lengthen the TTL
 # or exclude sensors from comparison; it makes the comparison contemporaneous,
 # which is what it was always assumed to be.
-# Bounded wait for MQTT bridge quiescence, replacing a fixed sleep.
-#
-# RealityEngine_CI#311. The fixed `sleep 3` that used to follow the republish
-# below assumed delivery finished by a clock, not because anything was
-# observed. On a slow runner (or a genuinely wedged bridge) the next stage
-# could start reading while a bridge was still mid-delivery — the very race
-# republishing retained topics was meant to close; on a fast runner the 3s was
-# pure cost paid on every run. This polls each running PE's own
-# GET /api/mqtt/status until every instance reports the same
-# `messagesReceived` count on two consecutive reads, which is what "delivered"
-# actually means — the same principle #307's exclusivity check applies to
-# trajectory pushes (docs/OBSERVATION_EXCLUSIVITY.md): treat "settled" as an
-# observed fact, not an assumed duration.
-#
-# Bounded, not indefinite: a bridge that never settles, or a PE whose
-# /api/mqtt/status never responds, must not hang the run. It gets a logged
-# warning and the run proceeds — the fixtures were still published, so the
-# worst case is the same race the fixed sleep already tolerated, not a new
-# failure mode.
-wait_for_mqtt_quiescence() {
-  local timeout="${1:-15}" interval="${2:-1}"
-  local elapsed=0 prev="" cur=""
-
-  while [ "$elapsed" -lt "$timeout" ]; do
-    cur=""
-    while IFS='|' read -r _id _runtime pe_url; do
-      [ -n "$pe_url" ] || continue
-      local n
-      n="$(curl -fsS -k --max-time 2 "$pe_url/api/mqtt/status" 2>/dev/null | python3 -c '
-import json, sys
-try:
-    d = json.load(sys.stdin)
-except Exception:
-    print("?")
-else:
-    b = d.get("bridge", d.get("stats", d)) if isinstance(d, dict) else {}
-    print(b.get("messagesReceived", "?") if isinstance(b, dict) else "?")
-' 2>/dev/null)"
-      cur="${cur}${pe_url}=${n:-?};"
-    done < <(registry_instance_lines)
-
-    if [ -n "$cur" ] && [ "$cur" = "$prev" ]; then
-      log "  mqtt bridges quiescent after ${elapsed}s ($cur)"
-      return 0
-    fi
-    prev="$cur"
-    sleep "$interval"
-    elapsed=$((elapsed + interval))
-  done
-
-  log "WARN: mqtt bridges still active after ${timeout}s; proceeding anyway (last read: ${cur:-<no running PE instances>})"
-  return 0
-}
 
 refresh_mqtt_fixtures() {
   [ "$LIVE_TESTS" = true ] || return 0
@@ -1251,10 +1198,173 @@ refresh_mqtt_fixtures() {
   if [ "$published" -gt 0 ]; then
     log "  republished $published retained topic(s) after boot"
     # Wait for delivery to be observed rather than assumed (#311).
-    wait_for_mqtt_quiescence "${MQTT_QUIESCE_TIMEOUT:-15}" "${MQTT_QUIESCE_INTERVAL:-1}"
+    wait_for_mqtt_quiescence "${MQTT_QUIESCE_TIMEOUT:-45}" "${MQTT_QUIESCE_INTERVAL:-1}"
   else
     log "  no fixtures republished; sensors keep their boot-time stamps"
   fi
+}
+
+# Block until every MQTT bridge has stopped acting on the fixtures just
+# republished — RealityEngine_CI#307.
+#
+# This was `sleep 3`, which is a hope rather than a guarantee. Retained messages
+# are delivered to subscribers the moment they are published, each mapped
+# message can trigger a PE push, and the bridges drain at different rates: on
+# hosted run 34154771062 lsp-1 mapped 91 messages and triggered 7 pushes while
+# cpp-1 and scala-1 triggered 2 each. Whichever bridge is still working when the
+# sleep expires pushes into the next stage's measurement.
+#
+# The cost was three years of misattribution in miniature: the trajectory stage
+# reset to zero, a late bridge push landed on lsp-1 before the baseline read, and
+# the stage reported "lsp recorded 9 entries for 8 pushes" as an engine
+# divergence. It never reproduced locally because the bridge is disabled there
+# (`/api/mqtt/status` returns {"enabled": false}), so the interfering app
+# instance simply does not exist on a developer machine.
+#
+# So wait for the counters to actually stop moving. An instance with the bridge
+# disabled is quiet by definition and needs no wait.
+#
+# #311 arrived at the same fix independently and landed first, polling
+# `messagesReceived` until two consecutive reads matched. This keeps that
+# principle — treat "settled" as an observed fact, not an assumed duration —
+# and tightens it in three ways the trajectory stage needs:
+#
+#   * three consecutive stable reads, not two, because two reads one second
+#     apart match routinely mid-drain;
+#   * `messagesMapped` and `pushesTriggered` as well as `messagesReceived`, since
+#     a bridge that has received everything and is still mapping and pushing is
+#     precisely the one that lands in the next stage's measurement;
+#   * an unreadable PE counted as unstable rather than as a value. Under #311 an
+#     unreachable `/api/mqtt/status` read `?` on every poll, two `?`s matched,
+#     and the wait returned "quiescent" after one interval — a silent skip of
+#     the check, which is the failure mode #307 exists to remove.
+#
+# Bounded, not indefinite: a bridge that never settles gets a logged warning and
+# the run proceeds. The fixtures were still published, so the worst case is the
+# race the fixed sleep already tolerated, not a new failure mode.
+wait_for_mqtt_quiescence() {
+  # Bounds are arguments so a caller can tighten them (#311); the defaults are
+  # this function's own, not that caller's.
+  local max_wait="${1:-45}" interval="${2:-1}"
+  local stable_needed=3 waited=0
+  local prev="" cur="" stable=0
+
+  while [ "$waited" -lt "$max_wait" ]; do
+    cur="$(python3 - /tmp/re-registry/re-registry.json <<'PYEOF'
+import json, sys, urllib.request
+
+try:
+    registry = json.load(open(sys.argv[1]))
+except Exception:
+    print("unreadable")
+    raise SystemExit(0)
+
+parts = []
+for item in registry.get("instances", []):
+    if item.get("status") != "running":
+        continue
+    pe_url = item.get("pe_url")
+    if not pe_url:
+        continue
+    try:
+        with urllib.request.urlopen(f"{pe_url}/api/mqtt/status", timeout=10) as resp:
+            status = json.loads(resp.read().decode())
+    except Exception:
+        # An unreadable bridge is not a quiet bridge; keep it in the fingerprint
+        # as an unstable value so the wait does not conclude early.
+        parts.append(f"{item.get('id')}:unknown")
+        continue
+    if not status.get("enabled", False):
+        parts.append(f"{item.get('id')}:disabled")
+        continue
+    bridge = status.get("bridge", status)
+    parts.append("{}:{}/{}/{}".format(
+        item.get("id"),
+        bridge.get("messagesReceived"),
+        bridge.get("messagesMapped"),
+        bridge.get("pushesTriggered")))
+print(" ".join(parts) if parts else "none")
+PYEOF
+)"
+    if [ "$cur" = "$prev" ] && [ -n "$cur" ] && [ "$cur" != "unreadable" ]; then
+      stable=$((stable + 1))
+      [ "$stable" -ge "$stable_needed" ] && break
+    else
+      stable=0
+    fi
+    prev="$cur"
+    sleep "$interval"
+    waited=$((waited + interval))
+  done
+
+  case "$cur" in
+    *disabled*|none)
+      log "  mqtt bridges quiet after ${waited}s ($cur)" ;;
+    *)
+      if [ "$stable" -ge "$stable_needed" ]; then
+        log "  mqtt bridges quiesced after ${waited}s ($cur)"
+      else
+        # Not fatal: the stages still run, but say so, because a bridge still
+        # pushing is exactly the condition that invalidates the next
+        # measurement rather than merely delaying it.
+        log "  WARN mqtt bridges still active after ${max_wait}s ($cur) — a late"
+        log "       push may land inside the next stage (see #307)"
+      fi ;;
+  esac
+}
+
+# Mute or restore every MQTT bridge — RealityEngine_CI#307.
+#
+# Measurement stages need exclusivity, and a live bridge cannot provide it. The
+# bridge pushes *on change*, the fixture values vary unpredictably, so pushes are
+# unpredictable in both count and timing: waiting for the counters to settle
+# narrows the window but never closes it, because the next change can arrive
+# inside the stage that already checked.
+#
+# Muting after the fixtures have landed keeps what #304 wanted and drops what
+# #307 suffered. The stamps are already ingested, so sensors stay contemporaneous;
+# they simply stop moving. That is strictly better for parity than the previous
+# behaviour: the later stages used to read sensors a live bridge was rewriting
+# with random values, and now read the same frozen values on every engine
+# instance, ageing out together rather than one at a time — which is the exact
+# asymmetry that produced #304.
+#
+# Only muting lives here, deliberately. Disabling is a bare POST with no body;
+# enabling requires the broker URL and the full mapping set, which
+# scripts/test-mqtt-yuma.sh already resolves (file -> PE example -> inline
+# default) and applies. A "restore" helper here would have to either duplicate
+# that resolution or post an empty body and fail silently, so the stage that
+# wants a live bridge enables it itself.
+#
+# A future mqtt-parity stage follows the same contract: enable via
+# test-mqtt-yuma.sh (or its own enable call), measure, then `mqtt_bridges mute`
+# before returning, so it is the only stage holding a live bridge while it runs
+# and it hands exclusivity back on the way out.
+mqtt_bridges() {
+  local action="$1" endpoint verb
+  case "$action" in
+    mute) endpoint="/api/mqtt/disable"; verb="muted" ;;
+    *)
+      log "  mqtt_bridges: unsupported action '$action' (only 'mute'; enabling"
+      log "                needs a broker and mappings — see run_mqtt_yuma)"
+      return 0 ;;
+  esac
+  [ "$LIVE_TESTS" = true ] || return 0
+
+  local touched=0 instance_id runtime pe_url code
+  while IFS='|' read -r instance_id runtime pe_url; do
+    [ -n "$instance_id" ] || continue
+    code="$(curl -s -o /dev/null -w '%{http_code}' -X POST \
+      -H 'Content-Type: application/json' -d '{}' \
+      --max-time 20 "$pe_url$endpoint" 2>/dev/null || echo 000)"
+    case "$code" in
+      2*) touched=$((touched + 1)) ;;
+      *)  log "  WARN $instance_id: POST $endpoint returned $code" ;;
+    esac
+  done < <(registry_instance_lines)
+
+  [ "$touched" -gt 0 ] && log "  mqtt bridges $verb on $touched instance(s)"
+  return 0
 }
 
 run_trajectory_parity() {
@@ -1417,7 +1527,11 @@ run_mqtt_yuma() {
   fi
   local ci
   ci="$(repo_root RealityEngine_CI)"
-  local mqtt_args=(--broker-url "$MQTT_BROKER_URL" --skip-enable)
+  # No --skip-enable: measurement stages run with the bridges muted (#307), so
+  # this stage enables the bridge it is about to test — test-mqtt-yuma.sh resolves
+  # the mappings and POSTs /api/mqtt/enable itself. That also makes the enable
+  # path covered rather than assumed to have succeeded at boot.
+  local mqtt_args=(--broker-url "$MQTT_BROKER_URL")
   [ -n "$MQTT_MAPPINGS" ] && mqtt_args+=(--mappings "$MQTT_MAPPINGS")
   local found=false
   while IFS='|' read -r instance_id runtime pe_url; do
@@ -1428,6 +1542,10 @@ run_mqtt_yuma() {
       --report-json "$REPORT_DIR/mqtt-yuma-$instance_id.json" \
       "${mqtt_args[@]}"
   done < <(registry_instance_lines)
+
+  # Hand exclusivity back to the stages that follow. Without this the bridge this
+  # stage enabled would push into arbiter, engine-process-parity and the rest.
+  mqtt_bridges mute
   [ "$found" = true ] || { log "SKIP MQTT: no running PE instances in registry"; write_mqtt_skip_report "no running PE instances in registry"; return 0; }
 }
 
@@ -1786,6 +1904,10 @@ if [ "$LIVE_TESTS" = true ]; then
   # from the same window, so a TTL cannot expire on one runtime and not another
   # between boot and comparison (#304).
   refresh_mqtt_fixtures
+  # Fixtures have landed and the bridges have settled; from here every stage is a
+  # measurement and gets exclusivity. run_mqtt_yuma restores its own bridge and
+  # re-mutes when it is done (#307).
+  mqtt_bridges mute
   run_stage "service-inventory" run_service_inventory
   run_stage "pe-step-contract" run_pe_step_contract
   # Parity first: it is the result the multi-engine deployment rests on, and it
