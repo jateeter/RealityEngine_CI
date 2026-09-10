@@ -465,6 +465,10 @@ jobs:
         working-directory: RealityEngine_CI
         run: bash scripts/tests/test-trajectory-parity.sh
 
+      - name: Run MQTT broker URL opt-out unit tests
+        working-directory: RealityEngine_CI
+        run: bash scripts/tests/test-mqtt-broker-url-opt-out.sh
+
       - name: Run corpus parity checkpoint unit tests
         working-directory: RealityEngine_CI
         run: bash scripts/tests/test-corpus-parity-checkpoint.sh
@@ -675,7 +679,10 @@ jobs:
     name: E2E Tests
     runs-on: ubuntu-latest
     timeout-minutes: 60
-    needs: smoke-tests
+    # This job owns its own single-engine Docker universe, so it can run beside
+    # smoke-tests on another free runner. Keep the shared prerequisite gates,
+    # but do not couple either job to the other's engine lifecycle.
+    needs: [shellcheck, scripts-unit-tests, dry-run-validate]
 
     steps:
       - name: Checkout RealityEngine_CI

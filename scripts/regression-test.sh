@@ -136,7 +136,10 @@ Options:
   --skip-start              Skip universe start phase; use current deployment.
   --build-only              Create worktrees and build only; skip start/live tests.
   --engines SPEC            Engine spec. Default: cpp:1,lsp:1,scala:1
-  --mqtt-broker-url URL     Yuma MQTT broker URL.
+  --mqtt-broker-url URL     Yuma MQTT broker URL. 'none'/'off'/'skip' (any case)
+                            is an explicit opt-out: MQTT checks are skipped and
+                            no caller-side fallback (e.g. the workflow's seeded
+                            hosted broker) is applied over it.
   --mqtt-mappings PATH      Yuma MQTT mappings file.
   --mcp-url URL             MCP HTTP base URL. Default: http://127.0.0.1:7331
   --swagger-url URL         OpenAPI Swagger base URL. Default: http://127.0.0.1:8088
@@ -213,6 +216,20 @@ while [ $# -gt 0 ]; do
     *) echo "Unknown argument: $1" >&2; usage; exit 2 ;;
   esac
 done
+
+# An explicit opt-out, not just an absent value. RealityEngine_CI#311: the
+# workflow's `mqtt_broker_url` input was documented as "empty skips MQTT live
+# checks", but empty is exactly what falls through to the hosted lane's seeded
+# broker (see .github/workflows/regression-tests.yml) — so the input's own
+# description contradicted its behaviour, and there was no way to actually
+# disable MQTT on a hosted run short of pointing it at a broker guaranteed to
+# fail. 'none'/'off'/'skip' say so unambiguously and are handled here, once,
+# rather than by every caller re-deriving "empty vs. disabled" for itself.
+case "$(printf '%s' "$MQTT_BROKER_URL" | tr '[:upper:]' '[:lower:]')" in
+  none|off|skip)
+    MQTT_BROKER_URL=""
+    ;;
+esac
 
 # ── Profile resolution ───────────────────────────────────────────────────────
 # An unset knob takes the profile's value; a knob the caller set is checked
@@ -1155,6 +1172,7 @@ active_machines_dir() {
 # every sensor a timestamp from the same window. This does not lengthen the TTL
 # or exclude sensors from comparison; it makes the comparison contemporaneous,
 # which is what it was always assumed to be.
+
 refresh_mqtt_fixtures() {
   [ "$LIVE_TESTS" = true ] || return 0
   local container="${REGRESSION_MQTT_CONTAINER:-regression-mqtt}"
@@ -1179,7 +1197,8 @@ refresh_mqtt_fixtures() {
 
   if [ "$published" -gt 0 ]; then
     log "  republished $published retained topic(s) after boot"
-    wait_for_mqtt_quiescence
+    # Wait for delivery to be observed rather than assumed (#311).
+    wait_for_mqtt_quiescence "${MQTT_QUIESCE_TIMEOUT:-45}" "${MQTT_QUIESCE_INTERVAL:-1}"
   else
     log "  no fixtures republished; sensors keep their boot-time stamps"
   fi
@@ -1204,8 +1223,30 @@ refresh_mqtt_fixtures() {
 #
 # So wait for the counters to actually stop moving. An instance with the bridge
 # disabled is quiet by definition and needs no wait.
+#
+# #311 arrived at the same fix independently and landed first, polling
+# `messagesReceived` until two consecutive reads matched. This keeps that
+# principle — treat "settled" as an observed fact, not an assumed duration —
+# and tightens it in three ways the trajectory stage needs:
+#
+#   * three consecutive stable reads, not two, because two reads one second
+#     apart match routinely mid-drain;
+#   * `messagesMapped` and `pushesTriggered` as well as `messagesReceived`, since
+#     a bridge that has received everything and is still mapping and pushing is
+#     precisely the one that lands in the next stage's measurement;
+#   * an unreadable PE counted as unstable rather than as a value. Under #311 an
+#     unreachable `/api/mqtt/status` read `?` on every poll, two `?`s matched,
+#     and the wait returned "quiescent" after one interval — a silent skip of
+#     the check, which is the failure mode #307 exists to remove.
+#
+# Bounded, not indefinite: a bridge that never settles gets a logged warning and
+# the run proceeds. The fixtures were still published, so the worst case is the
+# race the fixed sleep already tolerated, not a new failure mode.
 wait_for_mqtt_quiescence() {
-  local stable_needed=3 interval=1 waited=0 max_wait=45
+  # Bounds are arguments so a caller can tighten them (#311); the defaults are
+  # this function's own, not that caller's.
+  local max_wait="${1:-45}" interval="${2:-1}"
+  local stable_needed=3 waited=0
   local prev="" cur="" stable=0
 
   while [ "$waited" -lt "$max_wait" ]; do

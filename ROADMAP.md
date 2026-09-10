@@ -96,7 +96,8 @@ New flag: `--skip-seed` bypasses seeding when corpus is already loaded.
 ## Phase 4 · GitHub Actions CI Workflow  ✓
 
 Updated `.github/workflows/e2e-tests.yml`:
-- Two jobs: `smoke-tests` (fast, blocks e2e) + `e2e-tests`
+- Two independent jobs: `smoke-tests` and `e2e-tests` share prerequisite gates
+  but can allocate separate free runners and Docker universes concurrently
 - Checks out all 6 sibling repos at sibling paths before starting
 - Calls `startUniverse.sh` (not bare `docker compose up`)
 - Runs tests from `RealityEngine_Machines/tests/` (smoke → integration → e2e)

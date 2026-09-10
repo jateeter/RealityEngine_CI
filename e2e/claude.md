@@ -88,7 +88,7 @@ still pins `:5001` or `:3004`.
 
 | Job | Universe | Specs |
 |---|---|---|
-| `e2e-tests` | single-engine Docker | `ci_e2e_single_engine_specs` — the five Docker-pinned specs |
+| `e2e-tests` | single-engine Docker | `ci_e2e_single_engine_specs` — the five Docker-pinned specs; runs independently of `smoke-tests` |
 | `multi-engine-tests` | `--engines=scala:2` + registry | Machines' `multi-instance.spec.ts` only |
 | *(none yet)* | `--engines=cpp:1,lsp:1,scala:1` | `tree-to-pe-manager-equivalence.spec.ts` |
 
@@ -135,4 +135,3 @@ Prefer stable classes over role+name where names collide:
 
 `RealityEngine_Manager/visualizer/frontend/e2e/` tracks this UI closely and is
 the best reference for current selectors.
-

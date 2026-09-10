@@ -10,7 +10,8 @@
  * pass while silently comparing a different pair than the test claimed. If a
  * spec wants "the cpp one", it asks for `cpp-1`.
  *
- * Reads RE_REGISTRY_FILE, defaulting to the path startUniverse.sh writes.
+ * Reads RE_REGISTRY_FILE — the instance registry — defaulting to the path
+ * startUniverse.sh writes.
  */
 import { readFileSync } from 'node:fs';
 
@@ -42,7 +43,7 @@ export function loadRegistry(path: string = REGISTRY_FILE): Registry {
   return {
     host: parsed.host,
     instances: parsed.instances ?? [],
-    // A registry written before the services block existed must resolve to
+    // An instance registry written before the services block existed must resolve to
     // "not found" rather than throwing — that is the upgrade path this supports.
     services: parsed.services ?? {},
   };
@@ -86,14 +87,14 @@ export function instanceIds(path?: string): string[] {
 }
 
 /**
- * Resolve a service, falling back to a literal when the registry cannot answer.
+ * Resolve a service, falling back to a literal when the instance registry cannot answer.
  *
  * The fallback is what makes a conversion safe to land: with no registry — or a
  * registry from before the services block existed — the caller gets exactly the
  * endpoint it used before, so the change is inert where there is nothing to
  * resolve from.
  *
- * Where the registry *can* answer, it wins, and that is a real change rather
+ * Where the instance registry *can* answer, it wins, and that is a real change rather
  * than a cosmetic one. The literals in these specs encode a deployment: they
  * point at the nginx TLS proxy of the Docker stack (`https://localhost:5001`),
  * which does not exist in a native multi-engine universe, where the same engine
