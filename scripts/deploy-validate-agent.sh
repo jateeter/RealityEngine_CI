@@ -57,7 +57,12 @@
 #   --help            This message.
 #
 # Environment:
-#   DEPLOYMENT_MACHINE_CORPUS=standard-deployment|full
+#   DEPLOYMENT_MACHINE_CORPUS=regression|standard-deployment|full
+#     Default is `regression`. standard-deployment boots 12 machines and none of
+#     them is one the RAG/session deployment gates assert on, so those gates
+#     failed against a universe that never contained what they test. The
+#     regression corpus adds the ring (propagation), the contended trio (the
+#     only machines that make the arbiter run), and localAIStack's RAG trio.
 #                     Machine corpus passed to startUniverse during deployment
 #                     validation (default: standard-deployment).
 #   DEPLOYMENT_POST_START_FULL_CORPUS=off|seed
@@ -336,8 +341,8 @@ phase_deploy() {
   local oc_flag=""
   case "$OPENCLAW" in yes) oc_flag="--openclaw" ;; no) oc_flag="--no-openclaw" ;; esac
   if [ "$DRY_RUN" = true ]; then
-    info "Dry-run: ./startUniverse.sh --dry-run ${FRESH_FLAG:+$FRESH_FLAG }$oc_flag --machine-corpus=${DEPLOYMENT_MACHINE_CORPUS:-standard-deployment}"
-    ( cd "$CI_DIR" && bash ./startUniverse.sh --dry-run $FRESH_FLAG $oc_flag "--machine-corpus=${DEPLOYMENT_MACHINE_CORPUS:-standard-deployment}" ) \
+    info "Dry-run: ./startUniverse.sh --dry-run ${FRESH_FLAG:+$FRESH_FLAG }$oc_flag --machine-corpus=${DEPLOYMENT_MACHINE_CORPUS:-regression}"
+    ( cd "$CI_DIR" && bash ./startUniverse.sh --dry-run $FRESH_FLAG $oc_flag "--machine-corpus=${DEPLOYMENT_MACHINE_CORPUS:-regression}" ) \
       && pass orchestration deploy "startUniverse dry-run plan coherent" \
       || fail orchestration deploy "startUniverse dry-run failed preflight" "See $RUN_LOG"
     return 0
@@ -377,7 +382,7 @@ phase_deploy() {
   # run so the test gate's stack-health check probes the live Docker stack
   # instead of dead registry endpoints (a stale registry => false "live stack down").
   rm -f "${RE_REGISTRY_FILE:-/tmp/re-registry/re-registry.json}" 2>/dev/null || true
-  local machine_corpus="${DEPLOYMENT_MACHINE_CORPUS:-standard-deployment}"
+  local machine_corpus="${DEPLOYMENT_MACHINE_CORPUS:-regression}"
   local post_start_full_corpus="${DEPLOYMENT_POST_START_FULL_CORPUS:-off}"
   local args=( --warn-only "--machine-corpus=$machine_corpus" "--post-start-full-corpus=$post_start_full_corpus" )
   [ "$FRESH" = true ] && args+=( --fresh )

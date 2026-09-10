@@ -4,7 +4,7 @@ set -euo pipefail
 
 usage() {
   cat <<'USAGE'
-materialize-machine-corpus.sh SOURCE_ROOT MANIFEST OUTPUT_ROOT
+materialize-machine-corpus.sh SOURCE_ROOT MANIFEST OUTPUT_ROOT [EXTRA_MACHINE_DIR...]
 
 SOURCE_ROOT must contain machines/**/*.json.
 MANIFEST lists machine JSON paths relative to SOURCE_ROOT/machines, one per
@@ -14,15 +14,26 @@ recursive basename search so the manifest stays valid across corpus
 reorganisations.
 OUTPUT_ROOT will be recreated with a machines/ directory containing the selected
 machine files.
+
+EXTRA_MACHINE_DIR are additional directories searched, in order, for manifest
+entries not found under SOURCE_ROOT/machines. They exist because not every
+machine a regression lane needs is owned by the corpus repo: localAIStack
+declares its own (rag_corrective_cycle, session_rag_context,
+session_agent_context) under data/machines and registers them into the RE at
+its own startup. Copying those into RealityEngine_Machines would make two
+repos the source of truth for one machine, so the manifest reaches them
+instead.
 USAGE
 }
 
 [ "${1:-}" = "--help" ] && { usage; exit 0; }
-[ "$#" -eq 3 ] || { usage >&2; exit 2; }
+[ "$#" -ge 3 ] || { usage >&2; exit 2; }
 
 source_root="$1"
 manifest="$2"
 output_root="$3"
+shift 3
+extra_dirs=( "$@" )
 source_machines="$source_root/machines"
 output_machines="$output_root/machines"
 
@@ -54,6 +65,15 @@ while IFS= read -r raw || [ -n "$raw" ]; do
   if [ ! -f "$src" ]; then
     matches="$(find "$source_machines" -type f -name "$line" 2>/dev/null)"
     match_count="$(printf '%s' "$matches" | grep -c . || true)"
+    if [ "$match_count" -eq 0 ]; then
+      # Fall back to the extra roots before declaring the entry missing.
+      for _extra in ${extra_dirs[@]+"${extra_dirs[@]}"}; do
+        [ -d "$_extra" ] || continue
+        matches="$(find "$_extra" -type f -name "$(basename "$line")" 2>/dev/null)"
+        match_count="$(printf '%s' "$matches" | grep -c . || true)"
+        [ "$match_count" -ge 1 ] && break
+      done
+    fi
     if [ "$match_count" -eq 0 ]; then
       missing="$missing  $line"$'\n'
       continue

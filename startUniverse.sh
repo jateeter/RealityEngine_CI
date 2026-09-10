@@ -254,8 +254,14 @@ if [ "$MACHINE_CORPUS" = "regression" ] && [ "$MACHINE_CORPUS_MANIFEST" = "$CI_D
 fi
 
 if [ "$MACHINE_CORPUS" = "standard-deployment" ] || [ "$MACHINE_CORPUS" = "regression" ]; then
+    # localAIStack's data/machines is passed as an extra source root: the
+    # regression corpus lists rag_corrective_cycle / session_rag_context /
+    # session_agent_context, which localAIStack owns and the corpus repo does
+    # not. Listing them beats copying them — two repos declaring one machine is
+    # how a definition drifts.
     bash "$CI_DIR/scripts/materialize-machine-corpus.sh" \
-        "$FULL_MACHINES_DIR" "$MACHINE_CORPUS_MANIFEST" "$MACHINE_CORPUS_WORK_DIR" >/tmp/machine_corpus_materialize.log 2>&1 || {
+        "$FULL_MACHINES_DIR" "$MACHINE_CORPUS_MANIFEST" "$MACHINE_CORPUS_WORK_DIR" \
+        "$LAS_DIR/data/machines" >/tmp/machine_corpus_materialize.log 2>&1 || {
         cat /tmp/machine_corpus_materialize.log >&2
         exit 1
     }
