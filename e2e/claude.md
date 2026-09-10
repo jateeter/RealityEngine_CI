@@ -7,6 +7,53 @@ This directory contains full-stack tests for the composed RealityEngine applicat
 - Capture evidence without assuming generated reports should be committed.
 - When failures diverge by engine, compare C++, LSP, and Scala payload identity before byte equality.
 
+## The declared parity surface
+
+`lib/parity-surface.ts` states, per captured signature, what agreement means
+for that surface and why. `tree-to-pe-manager-equivalence.spec.ts` compares
+against it instead of hashing every `/api/*` response the browser happened to
+issue.
+
+Why it exists: byte equivalence is something `SURFACE_SPEC.md` grants a surface
+**explicitly** — `GET /api/engine/config` carries a "Byte equivalence applies"
+heading and says why — and a response captured because a React component
+fetched it inherits no such grant. Requiring it everywhere asserted more than
+the specification says, and on #321 that reported two non-divergences as
+failures.
+
+Three strictness levels:
+
+| Level | Meaning |
+|---|---|
+| `bytes` | bodies identical — whitespace and key order included, because uniform presentation is part of the API |
+| `projection` | identical after the rule's **named** allowances are removed; key and array order still compared |
+| `observed` | captured and reported, never compared (the Manager control plane) |
+
+An undeclared signature is byte-compared, which is what everything got before
+rules existed — so declaring nothing changes nothing, and a route that joins the
+flow later cannot slip in under a weaker rule than its peers. Its finding says
+`undeclared surface` and asks to be classified.
+
+**An allowance is a named key with a citation, and the test of whether it is
+honest is whether what it gives up is covered elsewhere.** The one allowance
+today is `created`/`skipped` on `POST /api/pe/sources/bootstrap-from-machines`:
+they report what an idempotent call did given what was already registered, so
+they carry the reset divergence (#163) rather than anything about this call —
+and the source set those counters describe is compared byte-for-byte by
+`GET /api/pe/sources`, so no coverage is lost.
+
+What is **not** an allowance is the case that looks identical from a distance.
+`sequences[].initialEventIds` on `GET /api/machines` is Scala-only and might
+read as permitted internal augmentation — except it has a consumer, so it is a
+conformance gap and stays compared. See SURFACE_SPEC.md, "Open gaps".
+
+Identity filtering deliberately is *not* mirrored from
+`scripts/lib/parity_identity.py`. That module strips engine-minted ids because
+the payloads it compares carry ids invented per process; these captures carry
+corpus-derived ones (`machine-arbitrationreader`), so the same filter would drop
+real content. `scripts/tests/parity-surface.test.mjs` fixes the rules against
+the actual #321 payloads.
+
 ## Which specs run in which universe shape
 
 `tests/` is the canonical home of the app-level specs — they were deduped here

@@ -1057,7 +1057,45 @@ observed at the next reset — makes it inactive again.
 
 ### Open gaps
 
-None. All routes listed in this spec are implemented by all three runtimes.
+All routes listed in this spec are implemented by all three runtimes. One
+**payload** gap is open.
+
+#### `GET /api/machines` — the sequence summary is not the same shape everywhere
+
+This route serves each machine's sequences in summary form rather than in full.
+The runtimes disagree about what that summary contains:
+
+| Runtime | `sequences[]` keys on this route | Emitted by |
+|---------|----------------------------------|------------|
+| CPP | `id`, `name` | `reality.cpp`, `Machine::to_json` (non-`full` arm) |
+| LSP | `id`, `name` | `model.lisp`, machine summary JSON (non-`full` arm) |
+| Scala | `id`, `name`, `initialEventIds` | `Machine.scala` |
+
+**This is not internal augmentation, and the distinction is the point.** The
+rule under "The observable boundary" permits a runtime to carry more than its
+peers and directs the boundary to *filter* rather than replicate — but that rule
+is about fields no consumer reads, which is what made `valuesPacked` a
+non-issue (#208). `initialEventIds` has a consumer. The Scala Perception Engine
+builds its machine corpus from this exact route and reads the key for
+`provenance()`; `MachineCorpus.scala` states it outright — "everything comes
+from `GET /api/machines` ... and each sequence's initial vector ids" — and falls
+back to an empty vector when the key is absent. A Scala PE paired with a CPP or
+LSP Reality Engine therefore reports an empty provenance trail and no error,
+which is the failure mode this register exists to catch.
+
+So the summary shape is a contract this document has never stated, and the three
+runtimes answered it two ways. Settling it means either declaring
+`initialEventIds` part of the summary and adding it to CPP and LSP — both
+already compute the initial-event list on the `full` path, so it is a small
+change — or declaring it out and fixing the Scala PE to source provenance
+elsewhere. Until then the surface is held to the full comparison and reports the
+asymmetry.
+
+Discovered by the tri-runtime comparison in
+`e2e/tests/tree-to-pe-manager-equivalence.spec.ts` on 2026-09-08
+(RealityEngine_CI#321), where it appeared as a 1563-byte difference on a route
+nothing had declared byte-equivalent. `e2e/lib/parity-surface.ts` is where the
+comparison now records what each captured surface is held to and why.
 
 ---
 
