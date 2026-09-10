@@ -56,7 +56,7 @@ assertion in the suite.
 both `:5173` and `:3001` answer **302 → https://**. Nothing downstream of page
 load is being tested.
 
-- **Unfiled.** Should be.
+- Tracked: **RealityEngine_Manager#117**
 - Consequence beyond this suite: the testid migration in Manager#116 is
   compile-verified only and cannot be proven until this clears
   (`docs/VISUALIZER_REDESIGN_ROADMAP.md`, M1).
@@ -72,7 +72,7 @@ load is being tested.
 under CI**, so the local gate exercises three projects CI has never run and
 nobody has ever kept green.
 
-- **Unfiled.**
+- Tracked: **RealityEngine_CI#330**
 - Decide deliberately: either the gate runs chromium only (matching CI), or the
   other three become supported and get fixed. Today's state — running them and
   ignoring the result — is the worst of both.
@@ -101,7 +101,7 @@ Two candidates, and they are distinguishable:
 
 Cheap to tell apart: run the suite alone against a quiet machine.
 
-- **Unfiled.**
+- Tracked: **RealityEngine_Scala#110**
 
 ---
 
@@ -119,12 +119,21 @@ The suite's own output ends:
 declaring success, or a later step fails silently and the `[pass]` line is not
 the last word.
 
-**This is the most alarming of the six** and the least visible. A suite whose
-self-report and exit code disagree can fail while claiming to pass — and the
-inverse is what the whole session has been finding. Worth resolving before the
-others regardless of how the OpenClaw integration itself is doing.
+Verified: the suite's captured output genuinely ends on that `[pass]` line and
+the gate still records FAIL, so the script exits non-zero *after* declaring
+success. The script's own tail is `RESULT_STATUS="passed"; write_report
+"passed"` with no explicit exit, so it inherits whatever `write_report` returns.
 
-- **Unfiled.**
+**HELD — not filed, by owner decision (2026-09-10).** A move to NVIDIA
+NEMOCLAW is under consideration, and fixing the OpenClaw integration ahead of
+that platform decision is work that may not survive it.
+
+One caveat worth carrying into that decision, because it is the half that
+outlives the platform: **if the non-zero exit is in `write_report` or the
+harness's capture of it rather than in the OpenClaw assertions, the same bug
+will greet NEMOCLAW.** A suite that can exit non-zero while printing `[pass]`
+is a reporting defect wearing an integration's name. Worth ten minutes of
+`bash -x` before the migration, separately from any OpenClaw work.
 
 ---
 
@@ -142,23 +151,28 @@ never going to reach it. The RE holds 27 machines (17 corpus + 10 localAI,
 verified by enumeration); whether a *sensor* covers `[64:72]` is a separate
 registration path.
 
-- **Unfiled.** The only one of the six that is a plain product question.
+- Tracked: **RealityEngine_Machines#124**
+- The only one of the six that is a plain product question.
 
 ---
 
 ## Working order
 
-| Step | Why first |
-|---|---|
-| 1 · **D1** OpenClaw exit-code integrity | A gate that can pass while failing invalidates every other reading |
-| 2 · **B1** Manager HTTPS redirect | Unblocks a whole suite and Manager#116's unproven migration |
-| 3 · **B2** browser-project decision | One config decision retires 6 failures |
-| 4 · **C1** Scala PE readiness | Diagnosis is one isolated run |
-| 5 · **E1** RAG sensor region | Genuine product work, needs no harness change |
-| 6 · **A1** contracts re-record | Blocked on the quorum shaping conversation |
+| Step | Issue | Why here |
+|---|---|---|
+| 1 · **B1** Manager HTTPS redirect | Manager#117 | Unblocks an entire suite and Manager#116's unproven testid migration |
+| 2 · **B2** browser-project decision | CI#330 | One config decision retires 6 of the gate's 9 failures |
+| 3 · **C1** Scala PE readiness | Scala#110 | Diagnosis is a single isolated run |
+| 4 · **E1** RAG sensor region | Machines#124 | Genuine product work, needs no harness change |
+| 5 · **A1** contracts re-record | CI#327 | Blocked on the quorum shaping conversation |
+| — · **D1** OpenClaw exit code | *held* | Parked pending the NEMOCLAW decision |
 
-Steps 1–3 are configuration and reporting; they should move the floor from
-28/1 to close to 28/0 without touching a runtime. Steps 4–6 are real work.
+Steps 1–2 are configuration; they should move the floor from 28/1 toward 28/0
+without touching a runtime. Steps 3–5 are real work.
+
+D1 led this list until 2026-09-10 on the grounds that a gate which can pass
+while failing invalidates every other reading. That reasoning still holds — it
+is parked on a platform decision, not withdrawn.
 
 ## Maintenance
 
