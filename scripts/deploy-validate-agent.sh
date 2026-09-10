@@ -503,9 +503,29 @@ native_runtime() {
   local -a env_extra=()
   [ "$unit" = scala ] && env_extra=( "SBT=$(resolve_sbt 2>/dev/null || echo sbt)" )
 
+  # Load the corpus the Docker lane actually deployed, not the whole repo.
+  #
+  # The native lane inherited the exported MACHINES_DIR — the full 1,328-machine
+  # RealityEngine_Machines tree — while Phase 1 deployed
+  # --machine-corpus=standard-deployment (12). Scala then spent longer than the
+  # 45s RE budget loading legal-services machines and was recorded as a start
+  # failure; C++ and LSP happened to fit. That is a lane comparing two different
+  # deployments and calling the slower one broken.
+  #
+  # startUniverse stamps the materialised corpus root it booted from, so use it
+  # when present and fall back to the repo otherwise.
+  local native_machines_dir="$MACHINES_DIR"
+  local sel="$CI_DIR/.universe-engine-selection"
+  if [ -f "$sel" ]; then
+    local stamped
+    stamped="$(sed -n 's/^MACHINE_CORPUS_ACTIVE_DIR=//p' "$sel" | tail -1)"
+    [ -n "$stamped" ] && [ -d "$stamped/machines" ] && native_machines_dir="$stamped"
+  fi
+
   _native_start() {
     ( cd "$dir" && env INSTANCE_ID="$DV_INST" REALITY_ENGINE_PORT="$re_port" \
-        PERCEPTION_ENGINE_PORT="$pe_port" RE_LOAD_MACHINES=1 ${env_extra[@]+"${env_extra[@]}"} \
+        PERCEPTION_ENGINE_PORT="$pe_port" RE_LOAD_MACHINES=1 \
+        MACHINES_DIR="$native_machines_dir" ${env_extra[@]+"${env_extra[@]}"} \
         bash start.sh ) >>"$RUN_LOG" 2>&1
   }
   _native_stop() { ( cd "$dir" && bash stop.sh --instance="$DV_INST" ) >>"$RUN_LOG" 2>&1 || true; }

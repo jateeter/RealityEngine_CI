@@ -488,6 +488,15 @@ run_machines_offline() {
 run_localai_tests() {
     local label="localAIStack pytest"
     repo_present "$label" "$LOCALAI_DIR" || return
+    # MACHINES_DIR means different things in different repos, and this suite is
+    # where the collision bites. Here and in RealityEngine_* it names the shared
+    # corpus repo; in localAIStack `core/reality_bridge` reads the same variable
+    # to find its *own* data/machines (rag_corrective_cycle, medication_adherence
+    # …). deploy-validate-agent.sh exports the corpus meaning for compose's
+    # benefit, so under the agent every CareKit test looked for its machine in
+    # RealityEngine_Machines and failed — twelve red tests that pass standalone.
+    # Unset it so localAIStack resolves its own documented default.
+    unset MACHINES_DIR
     local py_env; py_env="$(python_venv_env "$LOCALAI_DIR")"
     if [ -d "$LOCALAI_DIR/.venv" ]; then
         run_shell_suite "$label" "$LOCALAI_DIR" "$py_env && python -m pytest services/api/tests"
