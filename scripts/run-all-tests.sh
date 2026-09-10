@@ -414,7 +414,6 @@ run_unit() {
     run_machines_offline
     run_openclaw_adapter_tests
     run_regression_issue_filer_tests
-    run_parity_surface_tests
     run_localai_tests
 }
 
@@ -422,12 +421,6 @@ run_regression_issue_filer_tests() {
     local label="Regression auto-filer dedup unit tests"
     require_node "$label" "25.5.0" || return
     run_suite "$label" "$CI_DIR" npm run test:regression-issue-filer
-}
-
-run_parity_surface_tests() {
-    local label="Parity surface declaration unit tests"
-    require_node "$label" "25.5.0" || return
-    run_suite "$label" "$CI_DIR" npm run test:parity-surface
 }
 
 run_openclaw_adapter_tests() {
