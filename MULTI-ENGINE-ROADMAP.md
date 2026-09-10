@@ -6,16 +6,89 @@ able to dynamically connect to any running instance.
 
 ---
 
-## Current State
+## Status: All Phases Delivered ✓
 
-| Aspect | Current behavior |
-|---|---|
-| Engine count | One RE + one PE at fixed ports |
-| Bind address | `localhost` / `127.0.0.1` (Scala ENV `HOST`; CPP/LSP default `0.0.0.0`) |
-| Manager target | Single `RE_RUNTIME_URL` + `PE_RUNTIME_URL` env var pair, set at startup |
-| Port assignments | Scala RE :5001, PE :5000 (native); CPP RE :5301, PE :5300; LSP RE :5601, PE :5600 |
-| Instance registry | None — no discovery mechanism exists |
-| Nginx routing | Docker service names hardcoded — no dynamic upstreams |
+Verified 2026-09-10 against a live `--engines=cpp:1,lsp:1,scala:1` universe, by
+checking the shipped artifact for each phase rather than by reading the plan.
+
+| Phase | Delivered as | Evidence |
+|---|---|---|
+| 1 · Host IP detection | `scripts/detect-host-ip.sh` | registry publishes `192.168.1.194`, not `localhost` |
+| 2 · Instance registry | `scripts/registry.sh` + REST shim | `GET :5999/re-registry.json` → 200, three instances |
+| 3 · Port allocation | `scripts/allocate-ports.sh` | `allocate_ports <runtime> <index>`, base + (index−1)×100 |
+| 4 · Multi-instance flags | `startUniverse.sh --engines=SPEC` | the canonical launch in the workspace `CLAUDE.md` |
+| 5a · Manager registry polling | `GET /api/engines`, `POST /api/engines/active` | live on `:3001`, returns all three instances |
+| 5b · Engine switcher UI | `visualizer/frontend/src/components/EngineSwitcher.tsx` | present |
+| 5c · Backward compatibility | `RE_BASE_URL` / `PE_BASE_URL` fallback | the fallback every spec in `RealityEngine_Machines` uses |
+| 6 · Nginx dynamic upstreams | `scripts/gen-nginx-upstreams.sh` | generates `nginx/conf.d/multi-engine-upstreams.conf` |
+| 7 · Per-instance teardown | `stopUniverse.sh --instance=`, `--engines-only` | both flags present |
+| 8 · Test suite adaptation | `RealityEngine_Machines/tests/integration/multi-instance.spec.ts` | present; registry-backed specs are now the norm |
+| 9 · CI multi-engine job | `multi-engine-and-parity-tests` in `.github/workflows/e2e-tests.yml` | the job that gates every PR |
+
+**This file is planning history.** It records what was intended; the sections
+below are preserved as written, including sketch code that differs from what
+shipped. For current behaviour read `startUniverse.sh --help`, the live
+registry, and `docs/BUILD_CONTROL_CONTRACT.md`.
+
+### The instance registry is the authoritative port assignment
+
+**For every deployable and deployed system, the port an instance is listening on
+is whatever the instance registry says it is.** Nothing else is authoritative:
+not this file, not `ROADMAP.md`'s port table, not a workflow literal, not a
+`docker-compose.yml` published port, and not a base constant in
+`scripts/allocate-ports.sh` — that computes a *candidate*, and the registry
+records what was actually claimed.
+
+```
+http://<HOST_IP>:5999/re-registry.json     ← ask this
+RE_REGISTRY_URL                            ← how everything downstream asks it
+```
+
+Qualified deliberately: this is the **instance** registry — the one
+`startUniverse.sh` starts in stage 3.5 and publishes as `Instance Registry`. It
+is not the arbitration registry, not the tag registry, and there is no "machine
+registry" in this workspace. A bare "the registry" in this system is ambiguous
+enough to send a reader to the wrong artifact.
+
+Three properties make it the authority rather than merely a convenience:
+
+1. **It records the claim, not the intent.** `--free-ports` claims ports the OS
+   reports free (#278), so under that mode no base constant can predict the
+   answer and only the registry knows it.
+2. **Its defaults are overridable.** `SCALA_PE_BASE`, `CPP_PE_BASE` and
+   `LSP_PE_BASE` shift a runtime's whole block. Native multi-engine mode sets
+   `SCALA_PE_BASE=5100`, which is why `scala-1` is not where the table below
+   says.
+3. **Multiple instances of one runtime.** `--engines=cpp:2` produces two C++
+   instances; "the C++ port" stops being a meaningful phrase, and only per-`id`
+   registry entries resolve it.
+
+The practical rule, and the reason the hosted lane dropped its endpoint
+literals: **resolve through `RE_REGISTRY_URL`; never hard-code a port.** Every
+port written down anywhere else is a copy, and a copy is a thing that goes
+stale. This document already proved that — see Scala, below.
+
+### What shipped differently
+
+Worth stating, because the plan's literals are the kind a reader copies:
+
+- **Registry path.** `RE_REGISTRY_FILE` defaults to
+  `/tmp/re-registry/re-registry.json`, not `/tmp/re-registry.json` as sketched
+  below. The URL is unchanged.
+- **Scala's ports.** The table below says Scala RE :5001 / PE :5000. Native
+  multi-engine mode runs `SCALA_PE_BASE=5100`, so `scala-1` is RE :5101 /
+  PE :5100 — the Docker footprint holds 5000/5001. **The registry is the source
+  of truth for what any instance is actually listening on**; a document that
+  restates a port is a second copy that can go stale, which is what happened
+  here.
+- **Deterministic vs free ports.** `--free-ports` claims ports the OS reports
+  free instead of computing them from a base (#278). Deterministic is the
+  default; the hosted lane uses `--free-ports`, which is why workflow endpoint
+  literals were removed in favour of registry resolution.
+- **Beyond the plan.** Engine selection grew corpus, machine-load, PE-bootstrap
+  and provenance controls the plan never anticipated — `--machine-load`,
+  `--machine-corpus`, `--pe-source-bootstrap`, and the build-provenance gate
+  that refuses to launch stale artifacts.
 
 ---
 
@@ -35,7 +108,7 @@ Manager: switchable via UI dropdown — active instance = one RE+PE URL pair
 
 ---
 
-## Phase 1 · Host IP Detection Utility  ✓ Target
+## Phase 1 · Host IP Detection Utility  ✓ Delivered
 
 Extract the host's primary LAN IP once at startup and export it for all
 downstream consumers. All URLs emitted hereafter use this IP, not `localhost`.
@@ -65,7 +138,7 @@ arguments replaced with `$HOST_IP`.
 
 ---
 
-## Phase 2 · Instance Registry
+## Phase 2 · Instance Registry  ✓ Delivered
 
 A lightweight JSON file at `/tmp/re-registry.json` tracks every spawned instance.
 A minimal HTTP shim (one `python3 -m http.server` or `socat` invocation) exposes
@@ -115,7 +188,7 @@ Port `5999` added to Port Reference table in ROADMAP.md.
 
 ---
 
-## Phase 3 · Port Allocation Strategy
+## Phase 3 · Port Allocation Strategy  ✓ Delivered
 
 Each instance receives a unique `(RE_PORT, PE_PORT)` pair. Allocation is
 deterministic: base port + (instance_index × 100).
@@ -148,7 +221,7 @@ allocate_ports() {
 
 ---
 
-## Phase 4 · `startUniverse.sh` Multi-Instance Flags
+## Phase 4 · `startUniverse.sh` Multi-Instance Flags  ✓ Delivered
 
 New CLI syntax:
 ```bash
@@ -225,7 +298,7 @@ env vars and exec the appropriate native binary.
 
 ---
 
-## Phase 5 · `RealityEngine_Manager` Dynamic Connection
+## Phase 5 · `RealityEngine_Manager` Dynamic Connection  ✓ Delivered
 
 Manager currently supports one fixed `RE_RUNTIME_URL` / `PE_RUNTIME_URL` pair.
 Changes needed:
@@ -286,7 +359,7 @@ change for existing single-engine deployments.
 
 ---
 
-## Phase 6 · Nginx / TLS Dynamic Upstreams
+## Phase 6 · Nginx / TLS Dynamic Upstreams  ✓ Delivered
 
 Nginx currently has hardcoded upstream blocks for Docker service names.
 For multi-instance native mode, generate `nginx/conf.d/upstreams.conf`
@@ -321,7 +394,7 @@ remain unchanged; this file is only generated in native/multi-instance mode.
 
 ---
 
-## Phase 7 · `stopUniverse.sh` Per-Instance Teardown
+## Phase 7 · `stopUniverse.sh` Per-Instance Teardown  ✓ Delivered
 
 New flags:
 ```bash
@@ -350,7 +423,7 @@ Registry server PID killed last; `/tmp/re-registry.json` removed on full stop.
 
 ---
 
-## Phase 8 · Test Suite Adaptation
+## Phase 8 · Test Suite Adaptation  ✓ Delivered
 
 `RealityEngine_Machines/tests/` changes:
 
@@ -371,7 +444,7 @@ Registry server PID killed last; `/tmp/re-registry.json` removed on full stop.
 
 ---
 
-## Phase 9 · GitHub Actions Multi-Engine CI Job
+## Phase 9 · GitHub Actions Multi-Engine CI Job  ✓ Delivered
 
 `.github/workflows/e2e-tests.yml` additions:
 
@@ -400,6 +473,8 @@ multi-engine-tests:
 
 ## Implementation Order
 
+Historical estimates, kept as written. Every row is delivered.
+
 | Phase | Description | Effort | Blocking |
 |---|---|---|---|
 | 1 | Host IP detection | S | — |
@@ -418,16 +493,24 @@ S = ~1 hour, M = ~2–4 hours, L = ~4–8 hours
 
 ---
 
-## Port Reference (Extended)
+## Port Reference (Extended) — superseded by the instance registry
 
-Appended to the main ROADMAP.md port table:
+> **Do not read ports out of this table.** It is the 2026-06 plan, it is already
+> wrong about Scala, and it cannot be right under `--free-ports` or with more
+> than one instance of a runtime. Ask the instance registry:
+>
+> ```bash
+> curl -s "$RE_REGISTRY_URL" | python3 -m json.tool
+> ```
+>
+> Kept only because the phases above refer to it.
 
-| Service | Host Port | Notes |
+| Service | Host Port (planned 2026-06) | Notes |
 |---|---|---|
-| Instance Registry REST | 5999 | `/re-registry.json` — JSON file served by python3 |
-| Scala RE instance 1 | 5001 | default; +100 per additional instance |
-| Scala PE instance 1 | 5000 | default; +100 per additional instance |
-| CPP RE instance 1 | 5301 | +100 per additional instance |
-| CPP PE instance 1 | 5300 | +100 per additional instance |
-| LSP RE instance 1 | 5601 | +100 per additional instance |
-| LSP PE instance 1 | 5600 | +100 per additional instance |
+| Instance registry REST | 5999 | `/re-registry.json` — the one entry here still relied upon |
+| Scala RE instance 1 | 5001 | **stale** — native multi-engine runs 5101 (`SCALA_PE_BASE=5100`) |
+| Scala PE instance 1 | 5000 | **stale** — native multi-engine runs 5100 |
+| CPP RE instance 1 | 5301 | base only; `+100` per additional instance, and unused under `--free-ports` |
+| CPP PE instance 1 | 5300 | as above |
+| LSP RE instance 1 | 5601 | as above |
+| LSP PE instance 1 | 5600 | as above |
