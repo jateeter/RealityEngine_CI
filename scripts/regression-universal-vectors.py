@@ -298,11 +298,11 @@ def active_region_order_violations(instance_id: str, payload: Any) -> list[str]:
     Checked here rather than assumed because this stage is what the old
     behaviour broke. All three runtimes built the list by walking their own
     machine collection in their own iteration order and reported the same
-    regions in three different orders (#197) — so no two agreed byte-for-byte,
-    `agreement_clusters` never found a majority, and every divergence reported
-    as "no majority — runtimes split evenly" whatever the engines had done. A
-    regression here would silently restore that, and it would look like an
-    engine disagreement rather than an ordering one.
+    regions in three different orders (#197) — so no two agreed byte-for-byte
+    and `agreement_clusters` returned three singleton clusters on every event,
+    whatever the engines had actually done. A regression here would silently
+    restore that, and it would look like an engine disagreement rather than an
+    ordering one.
     """
     regions = jget(payload, "step", "activeRegions") or jget(payload, "activeRegions")
     if not isinstance(regions, list) or len(regions) < 2:
@@ -391,6 +391,32 @@ def source_set_divergence(censuses: dict[str, dict[str, Any]]) -> dict[str, Any]
     }
 
 
+NATIVE_QUORUM = ("cpp", "lsp", "scala")
+
+
+def quorum_composition(instances: list[dict[str, str]]) -> dict[str, Any]:
+    """Which native runtimes are present, and whether a quorum can be formed.
+
+    Quorum is 3-of-3 over the native runtimes (docs/QUORUM_CONTRACT.md §1), so
+    the composition is a precondition of the comparison, not a detail of it. A
+    run holding two runtimes can still show they agree; it cannot show parity,
+    and reporting it as parity is how an absent runtime becomes indistinguish-
+    able from a conforming one (§2).
+
+    Reported, never fatal: refusing to run would make a launch failure look
+    like a parity failure, which is the inversion this stage exists to avoid.
+    """
+    present = {inst["runtime"] for inst in instances}
+    missing = [runtime for runtime in NATIVE_QUORUM if runtime not in present]
+    return {
+        "rule": "3-of-3",
+        "required": list(NATIVE_QUORUM),
+        "present": sorted(present),
+        "missing": missing,
+        "formed": not missing,
+    }
+
+
 def agreement_clusters(signatures: dict[str, Any], instance_order: list[str]) -> list[list[str]]:
     """Group instances by identical signature, largest cluster first.
 
@@ -400,8 +426,10 @@ def agreement_clusters(signatures: dict[str, Any], instance_order: list[str]) ->
     two runtimes agreeing exactly with each other were both reported as
     diverging (#138).
 
-    Ties are left tied: with runtimes split evenly there is no majority, and
-    resolving it arbitrarily would reinstate the designated-baseline problem.
+    Largest-first is a presentation order and carries no authority. Quorum is
+    3-of-3 (docs/QUORUM_CONTRACT.md): any result with more than one cluster is a
+    disagreement, and the biggest cluster is not the answer. Do not reintroduce
+    a "reference" member here or in the consumer.
     """
     clusters: dict[str, list[str]] = {}
     for instance_key in instance_order:
@@ -412,11 +440,18 @@ def agreement_clusters(signatures: dict[str, Any], instance_order: list[str]) ->
     )
 
 
-def signature_diff(baseline: Any, actual: Any) -> dict[str, Any]:
-    return {
-        "baselineSignature": baseline,
-        "actualSignature": actual,
-    }
+def cluster_signatures(agreement: list[list[str]], signatures: dict[str, Any]) -> list[dict[str, Any]]:
+    """One entry per cluster, each carrying the signature its members emitted.
+
+    Symmetric by construction: no cluster is the baseline and none is "the
+    divergent one". Quorum is 3-of-3, so a reader needs every party's emission
+    to act on the disagreement, not one party measured against another
+    (docs/QUORUM_CONTRACT.md §5).
+    """
+    return [
+        {"instances": members, "signature": signatures.get(members[0])}
+        for members in agreement
+    ]
 
 
 def run_event(instance: dict[str, str], event: dict[str, Any], run_id: str) -> tuple[int, Any, Any]:
@@ -504,7 +539,23 @@ def main() -> int:
     instances = load_instances(args.registry)
     failures: list[str] = []
     comparisons: list[dict[str, Any]] = []
-    summary: dict[str, Any] = {"runId": args.run_id, "events": events, "instances": instances, "results": [], "comparisons": comparisons}
+    quorum = quorum_composition(instances)
+    summary: dict[str, Any] = {
+        "runId": args.run_id,
+        "events": events,
+        "instances": instances,
+        "quorum": quorum,
+        "results": [],
+        "comparisons": comparisons,
+    }
+    if not quorum["formed"]:
+        # Stated once, up front, rather than per event: the shortfall is a
+        # property of the run. Every agreement recorded below is still true and
+        # still worth having — it is just not a parity result.
+        failures.append(
+            f"quorum not formed: 3-of-3 requires {'+'.join(NATIVE_QUORUM)}, "
+            f"missing {'+'.join(quorum['missing'])} — agreements below do not demonstrate parity"
+        )
 
     # Known starting state before the first assertion (#139). Skippable for a
     # caller deliberately measuring accumulated state.
@@ -614,44 +665,48 @@ def main() -> int:
         # RealityEngine_LSP#38 was filed on that reading. See #138.
         #
         # Group by signature instead. Agreement is reported either way, so a
-        # reader can tell "one runtime is the outlier" from "all three disagree"
-        # without knowing which instance came first.
+        # reader can tell a 2-1 split from a 1-1-1 split without knowing which
+        # instance came first — and, under 3-of-3, without either shape being
+        # treated as closer to consensus than the other.
         agreement = agreement_clusters(signatures, instance_order)
         summary.setdefault("agreement", []).append(
             {"event": event["id"], "clusters": agreement}
         )
 
         if len(agreement) != 1:
-            # The largest cluster is the reference, and ties are reported as
-            # ties rather than resolved arbitrarily — with two runtimes
-            # disagreeing 1-1 there is no majority and saying so is the honest
-            # result.
-            largest = max(len(members) for members in agreement)
-            majorities = [m for m in agreement if len(m) == largest]
-            tied = len(majorities) > 1
-            reference_members = majorities[0]
-            reference_sig = signatures.get(reference_members[0])
-
-            for members in agreement:
-                if members is reference_members or members == reference_members:
-                    continue
-                actual = signatures.get(members[0])
-                comparisons.append(
-                    {
-                        "event": event["id"],
-                        "machineFile": event.get("machineFile"),
-                        "machineId": event.get("machineId"),
-                        "sequenceId": event.get("sequenceId"),
-                        "referenceInstances": reference_members,
-                        "divergentInstances": members,
-                        "referenceIsTied": tied,
-                        "sourceSetsEqual": None if unreadable else stimulus is None,
-                        "sourceSetDivergence": stimulus,
-                        **signature_diff(reference_sig, actual),
-                    }
-                )
+            # Quorum is 3-of-3 (docs/QUORUM_CONTRACT.md §1). More than one
+            # cluster is a disagreement — full stop. There is no reference
+            # member, no majority and no "divergent" party.
+            #
+            # This branch used to name the largest cluster the reference and
+            # compare the rest against it. It reported the split rather than
+            # hiding it, so nothing passed silently, but the framing recorded
+            # the outnumbered runtime's behaviour as the deviation on no
+            # evidence beyond a head count. #349 is why that matters: cpp
+            # emitted graph edges in map order while lsp and scala used
+            # canonical order, at identical byte length. Two agreed, one did
+            # not, and the one was right to be reported — but it was the two
+            # that were correct only by accident of which defect existed.
+            # Under a majority rule that reads as consensus.
+            comparisons.append(
+                {
+                    "event": event["id"],
+                    "machineFile": event.get("machineFile"),
+                    "machineId": event.get("machineId"),
+                    "sequenceId": event.get("sequenceId"),
+                    "quorum": "3-of-3",
+                    "verdict": "disagreement",
+                    "clusters": cluster_signatures(agreement, signatures),
+                    "sourceSetsEqual": None if unreadable else stimulus is None,
+                    "sourceSetDivergence": stimulus,
+                }
+            )
             shape = " | ".join("+".join(members) for members in agreement)
-            note = " (no majority — runtimes split evenly)" if tied else ""
+            # The rule is stated on the failure line, per QUORUM_CONTRACT §5: a
+            # reader must be able to tell what was required without inferring it
+            # from the shape. "2 of 3 agreed" is not a mitigating detail here
+            # and is deliberately not printed as one.
+            note = f" (quorum 3-of-3 — {len(agreement)} distinct signatures across {len(instance_order)} runtimes)"
             # The stimulus verdict rides on the failure line itself. A reader of
             # the nightly issue sees whether the runtimes were given the same
             # thing without opening the artifact bundle — which is the whole
@@ -666,6 +721,8 @@ def main() -> int:
         if len(instance_order) == 1:
             # Unchanged in meaning, moved out of the mismatch branch: a single
             # signature cannot demonstrate parity whether or not it "agrees".
+            # The run-level quorum failure above says this once; this says it
+            # per event, because the summary is read per event.
             failures.append(f"{event['id']} parity mismatch with only one runtime signature")
 
     summary["failures"] = failures

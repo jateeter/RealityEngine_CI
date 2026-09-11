@@ -5,6 +5,7 @@ import path from 'node:path';
 import {
   compareSurface,
   describeFinding,
+  unanimousSilence,
   isDeclared,
   ruleFor,
   type Runtime,
@@ -298,23 +299,50 @@ function compareRuns(runs: EngineRun[]) {
     runs.map(run => [run.engine.runtime, latestComparableBySignature(run)])
   ) as Record<Runtime, Map<string, CapturedResponse>>;
 
-  const signatures = [...byRuntime.lsp.keys()]
-    .filter(sig => byRuntime.scala.has(sig) && byRuntime.cpp.has(sig))
-    .sort();
+  const runtimes: Runtime[] = ['lsp', 'scala', 'cpp'];
+  const allSignatures = [...new Set(runtimes.flatMap(r => [...byRuntime[r].keys()]))].sort();
+  const signatures = allSignatures.filter(sig => runtimes.every(r => byRuntime[r].has(sig)));
+
+  // Quorum is 3-of-3, so a signature only some runtimes answered cannot be
+  // compared — but it is not nothing, and dropping it silently is how an
+  // absent runtime becomes indistinguishable from a conforming one
+  // (`docs/QUORUM_CONTRACT.md` §2). Enumerated, with who held it, rather than
+  // filtered away. These are browser-observed captures, so an asymmetry here
+  // usually means the UI took a different path per engine — which is itself
+  // the thing worth seeing.
+  const signaturesOutsideQuorum = allSignatures
+    .filter(sig => !signatures.includes(sig))
+    .map(sig => ({
+      signature: sig,
+      answeredBy: runtimes.filter(r => byRuntime[r].has(sig)),
+      absentFrom: runtimes.filter(r => !byRuntime[r].has(sig)),
+    }));
 
   const findings: SurfaceFinding[] = [];
+  const noRuntimeImplements: ReturnType<typeof unanimousSilence>[] = [];
   for (const signature of signatures) {
     const captures = {
       lsp: asSurfaceCapture(byRuntime.lsp.get(signature)!),
       scala: asSurfaceCapture(byRuntime.scala.get(signature)!),
       cpp: asSurfaceCapture(byRuntime.cpp.get(signature)!),
     };
+    // Checked before the comparison: all three refusing identically agrees,
+    // and `compareSurface` will say so by returning null. What that agreement
+    // *means* — nobody implements this shape — is the more useful reading and
+    // has to be recorded separately or it is lost in the pass (§3).
+    const silence = unanimousSilence(signature, captures);
+    if (silence) noRuntimeImplements.push(silence);
     const finding = compareSurface(signature, captures);
     if (finding) findings.push(finding);
   }
 
   return {
+    quorum: { rule: '3-of-3', runtimes, contract: 'docs/QUORUM_CONTRACT.md' },
     comparableSignatures: signatures,
+    signaturesOutsideQuorum,
+    // Unanimous refusals. Not a failure of any engine; a statement that the
+    // shape is unimplemented everywhere (§3).
+    noRuntimeImplements,
     // The rule each compared signature resolved to, recorded whether it agreed
     // or not. A gate that only reports its failures cannot be audited for what
     // it stopped checking.
@@ -435,8 +463,11 @@ test('tree view to PE Manager verifies all sources on and compares captured API 
       capturedApiResponses: run.captures.length,
     })),
     comparison: {
+      quorum: comparison.quorum,
       comparableResponseCount: comparison.comparableSignatures.length,
       comparableSignatures: comparison.comparableSignatures,
+      signaturesOutsideQuorum: comparison.signaturesOutsideQuorum,
+      noRuntimeImplements: comparison.noRuntimeImplements,
       surfaceRules: comparison.surfaceRules,
       findingCount: comparison.findings.length,
       findings: comparison.findings,
@@ -458,6 +489,21 @@ test('tree view to PE Manager verifies all sources on and compares captured API 
     expect(run.sourcePresentationOk, `${run.engine.runtime} should present imported active sources: ${run.errors.join('; ')}`).toBe(true);
     expect(run.disableSourceCount, `${run.engine.runtime} should present active source toggles`).toBeGreaterThan(0);
     expect(run.enableSourceCount, `${run.engine.runtime} should have all visible sources ON`).toBe(0);
+  }
+
+  // Enumerated on stdout, not only in the attached manifest. Both of these
+  // pass the gate, and both carry information the pass would otherwise swallow
+  // (`docs/QUORUM_CONTRACT.md` §2, §3): a shape no runtime implements, and a
+  // signature the quorum could not be formed over.
+  for (const silent of comparison.noRuntimeImplements) {
+    console.log(
+      `  no runtime implements this shape: ${silent!.signature} — all three answered HTTP ${silent!.status}`,
+    );
+  }
+  for (const outside of comparison.signaturesOutsideQuorum) {
+    console.log(
+      `  outside quorum (not compared): ${outside.signature} — answered by ${outside.answeredBy.join('+')}, absent from ${outside.absentFrom.join('+')}`,
+    );
   }
 
   // Each finding names the surface, the rule it was held to, and what that rule

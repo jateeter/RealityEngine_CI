@@ -360,6 +360,42 @@ export function compareSurface(
   };
 }
 
+/**
+ * A signature every runtime answered the same way, and that way was a refusal.
+ *
+ * Quorum is 3-of-3 (`docs/QUORUM_CONTRACT.md` §3). Unanimous agreement on a
+ * non-2xx status is still unanimous, so `compareSurface` correctly returns no
+ * finding — but the information it carries is not "this surface is fine". It
+ * is "no runtime implements this shape", which is a gap in the contract rather
+ * than in any one engine, and it is the more valuable of the two readings.
+ *
+ * Reported and enumerated, never summarised as a count and never folded into
+ * the pass. Enumeration is the point: an unbuilt surface and one nothing
+ * happened to exercise look identical once they are a number.
+ */
+export interface UnanimousSilence {
+  signature: string;
+  status: number;
+  byteLength: Record<Runtime, number>;
+}
+
+export function unanimousSilence(
+  signature: string,
+  captures: Record<Runtime, SurfaceCapture>,
+): UnanimousSilence | null {
+  const runtimes: Runtime[] = ['lsp', 'scala', 'cpp'];
+  const status = captures.lsp.status;
+  if (status >= 200 && status < 300) return null;
+  if (!runtimes.every(r => captures[r].status === status)) return null;
+  return {
+    signature,
+    status,
+    byteLength: Object.fromEntries(
+      runtimes.map(r => [r, captures[r].body.length]),
+    ) as Record<Runtime, number>,
+  };
+}
+
 /** One line per finding, saying what disagreed and what the rule allowed. */
 export function describeFinding(finding: SurfaceFinding): string {
   const bytes = `lsp=${finding.byteLength.lsp} scala=${finding.byteLength.scala} cpp=${finding.byteLength.cpp}`;
