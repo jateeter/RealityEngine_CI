@@ -14,11 +14,14 @@ job_block() {
   ' "$WORKFLOW"
 }
 
-smoke="$(job_block smoke-tests)"
-e2e="$(job_block e2e-tests)"
+core="$(job_block multi-engine-and-parity-tests)"
 
-grep -q '^    needs: \[shellcheck, scripts-unit-tests, dry-run-validate\]$' <<<"$smoke"
-grep -q '^    needs: \[shellcheck, scripts-unit-tests, dry-run-validate\]$' <<<"$e2e"
-! grep -q '^    needs: smoke-tests$' <<<"$e2e"
+grep -q '^    needs: \[shellcheck, scripts-unit-tests, dry-run-validate\]$' <<<"$core"
+grep -q 'Run smoke tests against shared core' <<<"$core"
+grep -q 'Run integration and e2e tests against shared core' <<<"$core"
+grep -q 'Run all CI e2e specs against shared core' <<<"$core"
+test "$(grep -c -- '--engines=cpp:2,scala:1,lsp:1' <<<"$core")" -eq 1
+! grep -q '^  smoke-tests:' "$WORKFLOW"
+! grep -q '^  e2e-tests:' "$WORKFLOW"
 
-echo "workflow topology: smoke-tests and e2e-tests share prerequisites without serializing"
+echo "workflow topology: all suites run in one registry-backed core job"

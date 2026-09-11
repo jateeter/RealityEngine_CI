@@ -1746,6 +1746,14 @@ if [ "$MULTI_ENGINE_MODE" = true ]; then
     fi
 
     # Initialise the registry file and start the REST shim on :5999
+    # In free-port mode the registry itself must not remain a fixed collision
+    # point. Claim it before the shim is started and publish the selected port
+    # through the same registry that consumers already use for engine ports.
+    if [ "$RE_FREE_PORTS" = "true" ]; then
+        _claim_free_port || die "Cannot allocate a free registry port"
+        REGISTRY_PORT="$_RE_ALLOCATED_PORT"
+        export REGISTRY_PORT
+    fi
     rm -f "$REGISTRY_FILE"
     registry_start_server
     # Poll until the REST shim accepts connections (python3 server takes 1-2 s to bind)
@@ -1756,6 +1764,8 @@ if [ "$MULTI_ENGINE_MODE" = true ]; then
     done
     [ "$_reg_n" -ge 10 ] && die "Registry REST shim on :${REGISTRY_PORT} did not become ready"
     ok "Registry REST shim ready  http://$HOST_IP:${REGISTRY_PORT}/re-registry.json"
+    printf 'http://%s:%s/re-registry.json\n' "$HOST_IP" "$REGISTRY_PORT" \
+        > "$CI_DIR/.universe-registry-url"
 
     # Publish the non-instance endpoints (RealityEngine_CI#278 step 1).
     #
