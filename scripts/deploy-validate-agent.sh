@@ -236,12 +236,24 @@ gh_ready() {
 file_issue() {
   local unit="$1" phase="$2" label="$3" note="$4"
   local repo; repo="$(owner_repo "$unit")"
-  local marker="<!-- deploy-validate-agent:${unit}:${phase} -->"
+  # The dedup key, and it must be VISIBLE text.
+  #
+  # This was an HTML comment: `<!-- deploy-validate-agent:unit:phase -->`.
+  # GitHub's `in:body` search does not index HTML comments, so the lookup below
+  # matched nothing on every run and a fresh issue was filed each cycle.
+  # Measured before the fix, on RealityEngine_Machines:
+  #
+  #   search for the exact marker   ->  0 results
+  #   the same string as plain text ->  8 results
+  #   open issues with that title   ->  8
+  #
+  # Twelve duplicates across four repos, and the 6-hourly schedule was adding
+  # roughly four a day. A dedup key the search engine cannot see is not a dedup
+  # key. This one is rendered in the issue footer where search can reach it.
+  local marker="deploy-validate-agent-key: ${unit}/${phase}"
   local title="[deploy-validate] ${phase}: ${label}"
   local body
   body="$(cat <<EOF
-${marker}
-
 **Detected by** \`deploy-validate-agent.sh\` on $(date -u +%FT%TZ)
 **Cycle phase:** ${phase}
 **Failing unit:** \`${unit}\`  →  routed to \`${GH_OWNER}/${repo}\`
@@ -261,6 +273,9 @@ scripts/deploy-validate-agent.sh ${FRESH_FLAG}
 \`\`\`
 
 Run log: \`${RUN_LOG}\`
+
+---
+<sub>${marker}</sub>
 EOF
 )"
 
@@ -271,8 +286,16 @@ EOF
   if gh_ready; then
     # Dedup: find an open issue carrying our marker for this unit+phase.
     local existing
-    existing="$(gh issue list -R "$GH_OWNER/$repo" --state open --search "$marker in:body" \
+    # Quoted so the phrase matches as a unit; the key is visible text, so
+    # `in:body` can actually find it. Falls back to a title match, because a
+    # dedup that silently files a duplicate is the failure mode being fixed.
+    existing="$(gh issue list -R "$GH_OWNER/$repo" --state open --search "\"$marker\" in:body" \
                   --json number --jq '.[0].number' 2>/dev/null || true)"
+    if [ -z "$existing" ] || [ "$existing" = "null" ]; then
+      existing="$(gh issue list -R "$GH_OWNER/$repo" --state open --limit 100 \
+                    --json number,title \
+                    --jq "[.[] | select(.title == \"$title\")] | .[0].number" 2>/dev/null || true)"
+    fi
     if [ -n "$existing" ] && [ "$existing" != "null" ]; then
       gh issue comment -R "$GH_OWNER/$repo" "$existing" \
         --body "Recurred on $(date -u +%FT%TZ) (cycle phase ${phase}).\n\n${note}" >/dev/null 2>&1 \
