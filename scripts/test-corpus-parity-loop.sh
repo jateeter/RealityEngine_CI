@@ -49,7 +49,37 @@ set -euo pipefail
 
 SCRIPT="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/$(basename "${BASH_SOURCE[0]}")"
 CI_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+# The corpus this loop walks.
+#
+# Unlike owl-reasoner-check / verify-audit-chain / verify-semantic-parity —
+# which resolve repository artifacts (scripts/, semantics/) and must stay on the
+# repo — this script iterates $MACHINES_DIR/machines and is genuinely
+# corpus-scoped. Given a deployment that selected a corpus, walking the whole
+# 1,328-machine repo compares machines the engines were never started with.
+#
+# Resolution order, and the default is the full repo so behaviour is unchanged
+# when nothing was selected:
+#
+#   1. MACHINE_CORPUS_DIR          explicit override
+#   2. MACHINE_CORPUS_ACTIVE_DIR   stamped by startUniverse.sh in
+#                                  .universe-engine-selection (see
+#                                  docs/BUILD_CONTROL_CONTRACT.md for why the
+#                                  deployed artifact, not the repo, is what a
+#                                  parity claim may be made from)
+#   3. MACHINES_DIR / the sibling repo   full corpus
+#
+# Background: docs/MACHINES_DIR_SWEEP.md — one name, three meanings, four
+# symptoms, of which RealityEngine_CI#328 was this exact shape.
 MACHINES_DIR="${MACHINES_DIR:-$CI_DIR/../RealityEngine_Machines}"
+if [ -n "${MACHINE_CORPUS_DIR:-}" ] && [ -d "${MACHINE_CORPUS_DIR}/machines" ]; then
+  MACHINES_DIR="$MACHINE_CORPUS_DIR"
+elif [ -f "$CI_DIR/.universe-engine-selection" ]; then
+  _stamped="$(sed -n 's/^MACHINE_CORPUS_ACTIVE_DIR=//p' "$CI_DIR/.universe-engine-selection" | tail -1)"
+  if [ -n "$_stamped" ] && [ -d "$_stamped/machines" ]; then
+    MACHINES_DIR="$_stamped"
+  fi
+  unset _stamped
+fi
 REGISTRY_PORT="${RE_REGISTRY_PORT:-5999}"
 
 SEED_MACHINE="domains/digital-logic/DLX011_req-ack-handshake.json"
