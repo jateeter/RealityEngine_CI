@@ -70,15 +70,34 @@ repository. That split works and is the model for the rest.
 
 ## Remaining exposure
 
-Unaudited consumers that re-derive from the repo and would therefore ignore a
-selected corpus:
+**Corrected 2026-09-10 after auditing each.** The first sweep listed four CI
+scripts as "would ignore a selected corpus". Three of them *should*: they
+resolve **repository** artifacts, and a materialised corpus contains only
+`machines/` and a manifest — no `scripts/`, no `semantics/` — so pointing them
+at one breaks them outright.
 
-- `owl-reasoner-check.sh`, `verify-audit-chain.sh`, `verify-semantic-parity.sh`,
-  `test-corpus-parity-loop.sh` — all default to **A**. If any is meant to
-  operate on the deployed corpus rather than the whole repo, it is silently
-  wrong today, exactly as the Docker RE was.
+| Script | Resolves | Correct scope |
+|---|---|---|
+| `owl-reasoner-check.sh` | `$MACHINES_DIR/scripts/reason-owl.sh` | **repo** |
+| `verify-audit-chain.sh` | `$machines_dir/semantics/abox-manifest.json` | **repo** |
+| `verify-semantic-parity.sh` | `$machines_dir/semantics/abox-manifest.json` | **repo** |
+| `test-corpus-parity-loop.sh` | walks `$MACHINES_DIR/machines` | **corpus** |
+
+Only the last was genuinely exposed, and it was #328's shape again: walking
+1,328 machines to compare engines started with 20. It now resolves
+`MACHINE_CORPUS_DIR` → the stamped `MACHINE_CORPUS_ACTIVE_DIR` → full repo, so
+the default is unchanged when nothing was selected.
+
+The three repo-scoped scripts now declare that in a header and read
+`MACHINES_REPO`, still accepting `MACHINES_DIR`, which makes the intent legible
+rather than accidental.
+
+The general lesson holds and is sharper for the correction: **"uses
+MACHINES_DIR" is not the same question as "wants the corpus"**, and a grep
+cannot tell them apart. Each consumer has to be read.
 - `SemanticMetrics.scala:32` and `Routes.scala:38` both default to **B**
-  independently of `Main.scala:79`. Three defaults for one runtime.
+  independently of `Main.scala:79`. Three defaults for one runtime, still
+  outstanding.
 
 ## Proposed shape
 

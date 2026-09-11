@@ -27,7 +27,18 @@ set -euo pipefail
 
 CI_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 REGISTRY_URL="${RE_REGISTRY_URL:-http://127.0.0.1:5999/re-registry.json}"
-MACHINES_DIR="${MACHINES_DIR:-$(cd "$CI_DIR/.." && pwd)/RealityEngine_Machines}"
+#
+# MACHINES_REPO, not a corpus. This resolves repository-level artifacts —
+# scripts/ and semantics/ — which a materialised corpus does not contain: it
+# holds machines/ and a manifest, nothing else. Pointing this at a selected
+# corpus breaks it outright.
+#
+# The distinction is documented in docs/MACHINES_DIR_SWEEP.md: MACHINES_DIR has
+# meant the repo root, the machines/ directory, and localAIStack's own machines
+# in different places, and four separate defects came out of it. MACHINES_DIR is
+# still accepted here so existing callers and CI workflows keep working.
+MACHINES_REPO="${MACHINES_REPO:-${MACHINES_DIR:-$(cd "$CI_DIR/.." && pwd)/RealityEngine_Machines}}"
+MACHINES_DIR="$MACHINES_REPO"   # retained: existing references below
 MACHINE_NAME="Fall Detection"
 WARN_ONLY=false
 
