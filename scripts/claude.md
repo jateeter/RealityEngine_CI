@@ -26,6 +26,41 @@ If you are adding a stage and reach for "compare everything against
 `instance_order[0]`", that is the defect in #138 and the reason this rule is
 written down.
 
+## The CES contract, and why it has no oracle
+
+`regression-ces-contracts.py` derives `config/ces-contracts.json` from **3-of-3
+agreement** across the cpp, lsp and scala runtimes. It replaces
+`cesgen-contracts.mjs`, which replayed the corpus through one nominated engine.
+
+That difference is the point. A contract recorded by replaying through one
+engine makes that engine **unfalsifiable**: regenerating makes it pass by
+construction, the gate can never find a defect *in* it, and to regenerate you
+must already trust the thing the gate exists to check. Its nominated engine was
+the deprecated TypeScript prototype, which is out of the focus set; the oracle
+is not being rebuilt, it is being removed (#327, direction (2)).
+
+Four verdicts, and only the first becomes a contract:
+
+| verdict | means |
+|---|---|
+| `agreed` | all three produced the same stream — **this is the contract** |
+| `disagreement` | they differ; every cluster's stream is carried, none is the reference |
+| `no-runtime-emits` | all three ran and emitted nothing — nobody implements this shape |
+| `unmeasurable` | a runtime could not be driven; no evidence either way |
+
+`unmeasurable` exists so a 500 never reads as silence, and `no-runtime-emits`
+so silence never reads as a contract with an empty stream. All four are
+enumerated in the artifact, never reduced to counts.
+
+Recording is **refused** without a formed quorum or after a failed reset. The
+comparison stages can report honestly against a partial lane; this one writes a
+file that is consumed later *as* the contract, and a caveat inside a file is
+read by whoever opens the file.
+
+This is not an oracle in the strong sense — three runtimes can still be wrong
+the same way. Deriving the expected stream from the corpus plus the declared
+fold rule would be that, and it is option (3) on #327, not this.
+
 ## Parity stages
 
 - `regression-trajectory-parity.py`: ISRE/OSRE trajectory comparison across the

@@ -1,6 +1,40 @@
 #!/usr/bin/env node
 /**
- * cesgen-contracts — per-machine output-stream contracts for cross-runtime parity.
+ * cesgen-contracts — SUPERSEDED by scripts/regression-ces-contracts.py.
+ *
+ * ┌────────────────────────────────────────────────────────────────────────┐
+ * │ Do not re-record with this tool. It cannot run, and that is correct.   │
+ * └────────────────────────────────────────────────────────────────────────┘
+ *
+ * This recorded the expected stream by replaying the corpus through one
+ * nominated engine, which made that engine unfalsifiable: regenerating made it
+ * pass by construction, so the gate could never find a defect in the very
+ * thing every other runtime was judged against. To regenerate you had to
+ * already trust what the gate exists to check.
+ *
+ * The nominated engine was a compiled build of the deprecated TypeScript
+ * prototype. It is out of the focus set and is not coming back, so `loadEngine`
+ * below now throws rather than falling back to it. The oracle is not being
+ * rebuilt — it is being removed.
+ *
+ * The replacement derives the contract from **3-of-3 agreement** across the
+ * cpp, lsp and scala runtimes (`docs/QUORUM_CONTRACT.md`, RealityEngine_CI#327
+ * direction (2)). Where they agree, that is the contract; where they disagree,
+ * the disagreement is the finding and is recorded in full. No runtime is
+ * privileged, so a defect in one is visible rather than definitional.
+ *
+ *     scripts/regression-ces-contracts.py --record   # config/ces-contracts.json
+ *     scripts/regression-ces-contracts.py --check
+ *
+ * `enumerateChains` below was the one engine-independent part; it is ported
+ * verbatim into the replacement and verified identical over all 1328 machines
+ * and 4941 chains. Everything else here is kept only until the new artifact is
+ * recorded from a live three-runtime universe and `cesgen_contracts_parity.cpp`
+ * is repointed at it.
+ *
+ * ── original header ─────────────────────────────────────────────────────────
+ *
+ * Per-machine output-stream contracts for cross-runtime parity.
  *
  * For every input chain we can enumerate from a machine's JSON (same paths
  * the cesgen-oracles tool produces), we run the chain through the AI engine

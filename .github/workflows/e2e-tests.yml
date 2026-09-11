@@ -413,6 +413,14 @@ jobs:
         working-directory: RealityEngine_CI
         run: bash scripts/tests/test-parity-source-census.sh
 
+      # The CES contract is derived from 3-of-3 agreement rather than replayed
+      # through a nominated engine (#327). These pin the classification: a 2-1
+      # split must not become a contract, unanimous silence must not become an
+      # empty one, and an undriveable runtime must not read as either.
+      - name: Run CES contract quorum unit tests
+        working-directory: RealityEngine_CI
+        run: bash scripts/tests/test-ces-contracts-quorum.sh
+
       # Gates RealityEngine_CI#220 layer 1c. Fails when any site still reads or
       # writes a legacy Reality Event key. It runs from the CI checkout and
       # scans the sibling repos, so it needs them present — the same checkout
