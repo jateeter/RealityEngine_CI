@@ -225,7 +225,13 @@ async function captureEngineFlow(page: Page, engine: EngineTarget): Promise<Engi
 
     let sourcePresentationOk = true;
     try {
-      await expect(page.locator('text=/^Sources \([1-9]/').first()).toBeVisible({ timeout: 15_000 });
+      // `\\(` — the backslash must survive the string literal to reach the regex.
+      // Written as '\\(' in a single-quoted TS string, JS drops the backslash and
+      // Playwright compiles /^Sources ([1-9]/ — an unterminated group — which
+      // throws SyntaxError at match time rather than failing an assertion. The
+      // header of this file warns about the same class of bug in the spec it
+      // replaced; this is it in the opposite direction (under-escaped).
+      await expect(page.locator('text=/^Sources \\([1-9]/').first()).toBeVisible({ timeout: 15_000 });
       await forceAllSourcesOn(page);
       await expect(page.getByTitle('Disable source').first()).toBeVisible({ timeout: 15_000 });
     } catch (error: any) {
@@ -233,7 +239,7 @@ async function captureEngineFlow(page: Page, engine: EngineTarget): Promise<Engi
       errors.push(`source presentation failed: ${error?.message ?? String(error)}`);
     }
 
-    const sourceCountText = await page.locator('text=/^Sources \(/').first().innerText().catch(() => 'Sources (?)');
+    const sourceCountText = await page.locator('text=/^Sources \\(/').first().innerText().catch(() => 'Sources (?)');
     const activeCountText = await page.locator('text=/\d+\/\d+ active/').first().innerText().catch(() => '?/? active');
     const disableSourceCount = await page.getByTitle('Disable source').count();
     const enableSourceCount = await page.getByTitle('Enable source').count();
