@@ -2,8 +2,15 @@ import { test, expect, Page, APIRequestContext, APIResponse, TestInfo } from '@p
 import crypto from 'node:crypto';
 import fs from 'node:fs/promises';
 import path from 'node:path';
-
-type Runtime = 'lsp' | 'scala' | 'cpp';
+import {
+  compareSurface,
+  describeFinding,
+  isDeclared,
+  ruleFor,
+  type Runtime,
+  type SurfaceCapture,
+  type SurfaceFinding,
+} from '../lib/parity-surface';
 
 interface EngineTarget {
   id: string;
@@ -41,6 +48,11 @@ const ENGINES: EngineTarget[] = [
   { id: 'cpp-1', runtime: 'cpp' },
 ];
 
+const NO_CACHE_HEADERS = {
+  'Cache-Control': 'no-cache, no-store, max-age=0, must-revalidate',
+  Pragma: 'no-cache',
+} as const;
+
 test.describe.configure({ mode: 'serial' });
 
 function sha256(bytes: Buffer): string {
@@ -73,13 +85,16 @@ function capturedResponse(engine: Runtime, method: string, url: string, status: 
   };
 }
 
-function comparable(path: string): boolean {
-  // Manager control-plane calls are captured, but they are not runtime API
-  // responses. They intentionally vary by selected engine instance.
-  if (path === '/api/engines') return false;
-  if (path === '/api/engines/active') return false;
-  if (/^\/api\/engines\/[^/]+\/health$/.test(path)) return false;
-  return true;
+/**
+ * Whether a signature is compared at all.
+ *
+ * The Manager control-plane exclusions that used to live here as three inline
+ * path checks are now `observed` rules in `e2e/lib/parity-surface.ts`, next to
+ * every other statement about what agreement means for a surface. One table,
+ * one place to read, one place to change.
+ */
+function comparable(method: string, path: string): boolean {
+  return ruleFor(`${method} ${path}`).compare !== 'observed';
 }
 
 async function waitForTreeRows(page: Page): Promise<{ rowCount: number; loadedOk: boolean }> {
@@ -109,7 +124,7 @@ async function captureRequestResponse(engine: EngineTarget, method: string, resp
 async function switchEngine(request: APIRequestContext, engine: EngineTarget): Promise<CapturedResponse> {
   const res = await request.post('/api/engines/active', {
     data: { id: engine.id },
-    headers: { 'Content-Type': 'application/json' },
+    headers: { 'Content-Type': 'application/json', ...NO_CACHE_HEADERS },
   });
   const capture = await captureRequestResponse(engine, 'POST', res);
   expect(res.ok(), `engine switch to ${engine.id} failed: ${res.status()}`).toBeTruthy();
@@ -119,11 +134,23 @@ async function switchEngine(request: APIRequestContext, engine: EngineTarget): P
 async function resetPE(request: APIRequestContext, engine: EngineTarget): Promise<CapturedResponse> {
   const res = await request.post('/api/pe/reset', {
     data: {},
-    headers: { 'Content-Type': 'application/json' },
+    headers: { 'Content-Type': 'application/json', ...NO_CACHE_HEADERS },
   });
   const capture = await captureRequestResponse(engine, 'POST', res);
   expect(res.ok(), `PE reset failed: ${res.status()}`).toBeTruthy();
   return capture;
+}
+
+async function installNoCacheFetch(page: Page): Promise<void> {
+  await page.addInitScript(() => {
+    const originalFetch = window.fetch.bind(window);
+    window.fetch = (input: RequestInfo | URL, init: RequestInit = {}) => {
+      const headers = new Headers(init.headers || {});
+      headers.set('Cache-Control', 'no-cache, no-store, max-age=0, must-revalidate');
+      headers.set('Pragma', 'no-cache');
+      return originalFetch(input, { ...init, headers });
+    };
+  });
 }
 
 // The PE nav button renders "Perception" beside a ◎ icon span, not "PE Manager".
@@ -131,7 +158,7 @@ async function resetPE(request: APIRequestContext, engine: EngineTarget): Promis
 // job spawned cpp+lsp+scala — that it accumulated the same UI drift already
 // fixed in visualizer-ui.spec.ts (#82).
 async function loadCompleteTree(page: Page): Promise<{ rowCount: number; loadedOk: boolean }> {
-  await page.goto('/');
+  await page.goto('/', { waitUntil: 'domcontentloaded' });
   await expect(page.locator('.rep-title')).toContainText(/Reality\s*Engine/, { timeout: 30_000 });
   await expect(page.getByTitle('Open Perception Engine management')).toBeVisible({ timeout: 10_000 });
   return waitForTreeRows(page);
@@ -198,7 +225,7 @@ async function captureEngineFlow(page: Page, engine: EngineTarget): Promise<Engi
 
     let sourcePresentationOk = true;
     try {
-      await expect(page.locator('text=/^Sources \\([1-9]/').first()).toBeVisible({ timeout: 15_000 });
+      await expect(page.locator('text=/^Sources \([1-9]/').first()).toBeVisible({ timeout: 15_000 });
       await forceAllSourcesOn(page);
       await expect(page.getByTitle('Disable source').first()).toBeVisible({ timeout: 15_000 });
     } catch (error: any) {
@@ -206,8 +233,8 @@ async function captureEngineFlow(page: Page, engine: EngineTarget): Promise<Engi
       errors.push(`source presentation failed: ${error?.message ?? String(error)}`);
     }
 
-    const sourceCountText = await page.locator('text=/^Sources \\(/').first().innerText().catch(() => 'Sources (?)');
-    const activeCountText = await page.locator('text=/\\d+\\/\\d+ active/').first().innerText().catch(() => '?/? active');
+    const sourceCountText = await page.locator('text=/^Sources \(/').first().innerText().catch(() => 'Sources (?)');
+    const activeCountText = await page.locator('text=/\d+\/\d+ active/').first().innerText().catch(() => '?/? active');
     const disableSourceCount = await page.getByTitle('Disable source').count();
     const enableSourceCount = await page.getByTitle('Enable source').count();
 
@@ -236,12 +263,30 @@ async function captureEngineFlow(page: Page, engine: EngineTarget): Promise<Engi
 function latestComparableBySignature(run: EngineRun): Map<string, CapturedResponse> {
   const out = new Map<string, CapturedResponse>();
   for (const capture of run.captures) {
-    if (!comparable(capture.path)) continue;
+    if (!comparable(capture.method, capture.path)) continue;
     out.set(`${capture.method} ${capture.path}`, capture);
   }
   return out;
 }
 
+function asSurfaceCapture(capture: CapturedResponse): SurfaceCapture {
+  return {
+    status: capture.status,
+    body: Buffer.from(capture.bodyBase64, 'base64'),
+    sha256: capture.sha256,
+  };
+}
+
+/**
+ * Compare every signature all three runtimes produced, each under its declared
+ * rule.
+ *
+ * Only the intersection is compared, as before: a signature one runtime never
+ * issued is not evidence about the others. What changed is that agreement is
+ * now defined per surface in `e2e/lib/parity-surface.ts` rather than assumed to
+ * be byte identity everywhere — which asserted more than SURFACE_SPEC.md grants
+ * and reported two non-divergences as failures on #321.
+ */
 function compareRuns(runs: EngineRun[]) {
   const byRuntime = Object.fromEntries(
     runs.map(run => [run.engine.runtime, latestComparableBySignature(run)])
@@ -251,29 +296,36 @@ function compareRuns(runs: EngineRun[]) {
     .filter(sig => byRuntime.scala.has(sig) && byRuntime.cpp.has(sig))
     .sort();
 
-  const mismatches = [];
+  const findings: SurfaceFinding[] = [];
   for (const signature of signatures) {
-    const lsp = byRuntime.lsp.get(signature)!;
-    const scala = byRuntime.scala.get(signature)!;
-    const cpp = byRuntime.cpp.get(signature)!;
-    const sameStatus = lsp.status === scala.status && lsp.status === cpp.status;
-    const sameBytes = lsp.bodyBase64 === scala.bodyBase64 && lsp.bodyBase64 === cpp.bodyBase64;
-    if (!sameStatus || !sameBytes) {
-      mismatches.push({
-        signature,
-        status: { lsp: lsp.status, scala: scala.status, cpp: cpp.status },
-        byteLength: { lsp: lsp.byteLength, scala: scala.byteLength, cpp: cpp.byteLength },
-        sha256: { lsp: lsp.sha256, scala: scala.sha256, cpp: cpp.sha256 },
-      });
-    }
+    const captures = {
+      lsp: asSurfaceCapture(byRuntime.lsp.get(signature)!),
+      scala: asSurfaceCapture(byRuntime.scala.get(signature)!),
+      cpp: asSurfaceCapture(byRuntime.cpp.get(signature)!),
+    };
+    const finding = compareSurface(signature, captures);
+    if (finding) findings.push(finding);
   }
 
   return {
     comparableSignatures: signatures,
-    mismatches,
+    // The rule each compared signature resolved to, recorded whether it agreed
+    // or not. A gate that only reports its failures cannot be audited for what
+    // it stopped checking.
+    surfaceRules: signatures.map(signature => {
+      const rule = ruleFor(signature);
+      return {
+        signature,
+        compare: rule.compare,
+        declared: isDeclared(signature),
+        why: rule.why,
+        allowances: [...(rule.boundaryFiltered ?? []), ...(rule.historyDependent ?? [])],
+      };
+    }),
+    findings,
     skippedManagerControlCalls: runs.map(run => ({
       runtime: run.engine.runtime,
-      count: run.captures.filter(c => !comparable(c.path)).length,
+      count: run.captures.filter(c => !comparable(c.method, c.path)).length,
     })),
   };
 }
@@ -305,7 +357,7 @@ async function writeCaptureBodies(runs: EngineRun[], testInfo: TestInfo) {
         ok: capture.ok,
         byteLength: capture.byteLength,
         sha256: capture.sha256,
-        comparable: comparable(capture.path),
+        comparable: comparable(capture.method, capture.path),
         bodyFile: path.relative(testInfo.outputDir, bodyPath),
       });
       index += 1;
@@ -322,7 +374,7 @@ async function writeCaptureBodies(runs: EngineRun[], testInfo: TestInfo) {
  */
 async function missingEngines(request: APIRequestContext): Promise<string[]> {
   try {
-    const res = await request.get('/api/engines');
+    const res = await request.get('/api/engines', { headers: NO_CACHE_HEADERS });
     if (!res.ok()) return ENGINES.map(e => e.id);
     const body = await res.json();
     const list: Array<{ id?: string }> = Array.isArray(body) ? body : (body.engines ?? body.instances ?? []);
@@ -335,6 +387,7 @@ async function missingEngines(request: APIRequestContext): Promise<string[]> {
 
 test('tree view to PE Manager verifies all sources on and compares captured API response bytes across all engines', async ({ page, request }, testInfo: TestInfo) => {
   test.setTimeout(300_000);
+  await installNoCacheFetch(page);
 
   // Skip rather than 404 on a universe that never spawned these runtimes.
   // Needs `startUniverse.sh --engines=cpp:1,lsp:1,scala:1`; no hosted job
@@ -378,8 +431,9 @@ test('tree view to PE Manager verifies all sources on and compares captured API 
     comparison: {
       comparableResponseCount: comparison.comparableSignatures.length,
       comparableSignatures: comparison.comparableSignatures,
-      mismatchCount: comparison.mismatches.length,
-      mismatches: comparison.mismatches,
+      surfaceRules: comparison.surfaceRules,
+      findingCount: comparison.findings.length,
+      findings: comparison.findings,
       skippedManagerControlCalls: comparison.skippedManagerControlCalls,
     },
     captures: captureManifest,
@@ -400,8 +454,11 @@ test('tree view to PE Manager verifies all sources on and compares captured API 
     expect(run.enableSourceCount, `${run.engine.runtime} should have all visible sources ON`).toBe(0);
   }
 
+  // Each finding names the surface, the rule it was held to, and what that rule
+  // already allows — so a failure states which contract was broken rather than
+  // leaving a reader to infer it from two byte counts.
   expect(
-    comparison.mismatches,
-    `API response byte mismatches:\n${JSON.stringify(comparison.mismatches, null, 2)}`
+    comparison.findings.map(f => f.signature),
+    'declared parity surface violated:\n' + comparison.findings.map(describeFinding).join('\n')
   ).toEqual([]);
 });

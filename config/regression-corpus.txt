@@ -77,3 +77,18 @@ domains/digital-logic/ArbitrationReader.json
 # that surface is not running there and the fixture would sit in the corpus
 # proving nothing. It stays in config/arbiter-fixture-corpus.txt, which the
 # arbiter stage boots on the local lane where the provider exists.
+
+# ── The localAI trio: RAG round-trip and session carry ──────────────────────
+#
+# Owned by localAIStack (data/machines), not by the corpus repo, and registered
+# into the RE by its own FastAPI startup hooks. They are listed here because
+# three deployment gates assert on them being present —
+# RealityEngine_Machines/tests/integration/rag-round-trip.spec.ts
+# ("rag_corrective_cycle machine is registered in RE", "session machines are
+# registered in RE") and pe-sensor-registration.spec.ts (RAG signal regions
+# [64:72]) — and those gates failed against a boot corpus that never contained
+# them. Resolved through the materializer's extra source roots rather than
+# copied here, so localAIStack stays the single source of truth for them.
+rag_corrective_cycle.json
+session_rag_context.json
+session_agent_context.json

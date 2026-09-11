@@ -1057,7 +1057,62 @@ observed at the next reset — makes it inactive again.
 
 ### Open gaps
 
-None. All routes listed in this spec are implemented by all three runtimes.
+All routes listed in this spec are implemented by all three runtimes, and the
+one open **payload** gap has since been closed. It is kept here because the
+register is the record of how a gap was settled, not only of which are open.
+
+#### `GET /api/machines` — the sequence summary is not the same shape everywhere *(settled 2026-09-09)*
+
+This route serves each machine's sequences in summary form rather than in full.
+The runtimes disagree about what that summary contains:
+
+| Runtime | `sequences[]` keys on this route | Emitted by | Before |
+|---------|----------------------------------|------------|--------|
+| CPP | `id`, `name`, `initialEventIds` | `reality.cpp`, `Machine::to_json` (non-`full` arm) | `id`, `name` |
+| LSP | `id`, `name`, `initialEventIds` | `model.lisp`, `machine-json` (non-`full` arm) | `id`, `name` |
+| Scala | `id`, `name`, `initialEventIds` | `Machine.scala` | unchanged |
+
+**This is not internal augmentation, and the distinction is the point.** The
+rule under "The observable boundary" permits a runtime to carry more than its
+peers and directs the boundary to *filter* rather than replicate — but that rule
+is about fields no consumer reads, which is what made `valuesPacked` a
+non-issue (#208). `initialEventIds` has a consumer. The Scala Perception Engine
+builds its machine corpus from this exact route and reads the key for
+`provenance()`; `MachineCorpus.scala` states it outright — "everything comes
+from `GET /api/machines` ... and each sequence's initial vector ids" — and falls
+back to an empty vector when the key is absent. A Scala PE paired with a CPP or
+LSP Reality Engine therefore reports an empty provenance trail and no error,
+which is the failure mode this register exists to catch.
+
+So the summary shape is a contract this document had never stated, and the three
+runtimes answered it two ways.
+
+**Settled the first way: `initialEventIds` is part of the sequence summary, and
+CPP and LSP now emit it.** Both already computed the initial-event list on the
+`full` path, so each change was small — `RealityEngine_CPP#91` made
+`CriticalEventSequence::initial_vector_ids()` public for the summary builder,
+and `RealityEngine_LSP#105` factored `sequence-initial-event-ids` out for the
+same reason. The ids are id-sorted in all three, so a majority comparison has
+something to agree on (#197).
+
+The alternative — declaring the key out and fixing the Scala PE to source
+provenance elsewhere — was rejected because the PE would then need a
+full-detail request per machine to read one field.
+
+Verified on a live `cpp:1,lsp:1,scala:1` universe over the full 1338-machine
+corpus: all three emit the key on every machine, and the three-way comparison
+finds no disagreement across 5112 sequences.
+`RealityEngine_Machines/tests/integration/machine-summary-initial-events.spec.ts`
+holds it there, asserting presence before agreement — three runtimes that all
+omit the key agree perfectly.
+
+Discovered by the tri-runtime comparison in
+`e2e/tests/tree-to-pe-manager-equivalence.spec.ts` on 2026-09-08
+(RealityEngine_CI#321), where it appeared as a 1563-byte difference on a route
+nothing had declared byte-equivalent — which is the case for a declared surface
+rather than a blanket hash: the same run raised two findings, and only this one
+was a defect. `e2e/lib/parity-surface.ts` is where the
+comparison now records what each captured surface is held to and why.
 
 ---
 
@@ -1117,6 +1172,51 @@ Language-level data structures — `std::vector`, the C++ `Vector` alias, Scala
 touched. Neither were the `/api/vectors` route segments, the numeric vectors
 `POST /api/perceptual-simulation/configure/chunk` accepts, or Qdrant's own
 `"vectors": { size, distance }` collection body.
+
+## Participation States
+
+**A surface that will not answer must say so. Silence is not a state.**
+
+Every integration-backed surface reports one of these when asked to take part in
+a lane. The set is closed: a caller may switch on it exhaustively, and a value
+outside it is a contract violation rather than an extension point.
+
+| State | Means | Conforming? |
+|---|---|---|
+| `active` | Participating; answers are real. | yes |
+| `not-configured` | The integration is implemented but this deployment gave it nothing to talk to — no broker, no endpoint, no credential. | yes |
+| `not-active` | Configured and reachable, deliberately not participating in this lane. | yes |
+| `unsupported` | This runtime does not implement the surface at all. | yes |
+| `unavailable` | Configured and expected to participate, but could not — the dependency is down or erroring. | **no** — a finding |
+
+### Why the vocabulary exists
+
+`not-configured`, `not-active` and `unsupported` are all *conforming* answers, and
+they are not interchangeable: they say, respectively, that the deployment
+withheld something, that the lane withheld something, and that the runtime never
+had it. `unavailable` is the only one that means something is wrong.
+
+**A runtime that simply returns nothing is none of these, and that is the
+defect.** Absence and refusal are indistinguishable at the wire, so a comparison
+across runtimes reads both as "no disagreement" — which is how a Scala PE paired
+with a C++ engine reported an empty `provenance()` audit trail with no error
+(#321), how a bootstrap counter divergence rode along as an allowance, and how a
+trajectory exclusivity check disabled itself without saying so (#307). Each was
+one surface staying quiet where it should have declared.
+
+### Reporting
+
+- `GET /api/health` carries the state per integration it owns.
+- A comparison gate records the declared state alongside each signature, so a
+  skipped surface is auditable rather than merely absent from the output.
+- **Where every runtime answers `unsupported` for a signature, that agreement is
+  itself a result and must be reported as one**: it says the shape is
+  unimplemented everywhere, which is a real and useful fact about the surface —
+  a gap in the contract rather than a gap in one engine. Reporting it is how an
+  unbuilt surface becomes visible instead of looking like a surface nobody
+  happened to exercise.
+
+---
 
 ## Response Shape Conventions
 

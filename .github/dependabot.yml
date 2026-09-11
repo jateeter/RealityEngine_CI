@@ -1,0 +1,97 @@
+version: 2
+
+# Dependency currency for the orchestration repo.
+#
+# House policy across this workspace: weekly, and **majors are proposed too**.
+# Dependabot opens the PR; merging is still a human act, so "automatic" here
+# means the bump is surfaced rather than silently skipped. A major that nobody
+# is told about is not a decision, it is drift — which is precisely how
+# `grafana/loki` reached 3.4.2 in localAIStack by hand.
+#
+# **One major in this repo is a known config migration, not a version change.**
+# `docker-compose.yml` pins `grafana/loki:2.9.3` and `grafana/promtail:2.9.3`,
+# and `config/loki-config.yml` uses `shared_store` in three places — valid in
+# 2.x, removed in 3.x. When the loki 3.x PR arrives, Loki will reject this
+# config on every boot and crash-loop *quietly*, because a logging sidecar
+# fails without failing anything else; localAIStack#77 sat that way for weeks
+# and only surfaced when `api`'s depends_on turned it into a failed stack
+# start. Migrate `config/loki-config.yml` in the same PR
+# (`shared_store` -> `delete_request_store`, all three occurrences) or the
+# green checks will not mean what they appear to.
+
+updates:
+
+  # Compose service images + the repo's own Dockerfiles.
+  - package-ecosystem: docker
+    directory: /
+    schedule:
+      interval: weekly
+      day: monday
+      time: "06:00"
+      timezone: America/Chicago
+    groups:
+      observability:
+        patterns:
+          - "grafana/*"
+          - "prom/*"
+    open-pull-requests-limit: 5
+
+  - package-ecosystem: docker
+    directory: /mcp
+    schedule:
+      interval: weekly
+      day: monday
+      time: "06:00"
+      timezone: America/Chicago
+    open-pull-requests-limit: 3
+
+  - package-ecosystem: docker
+    directory: /docker/scala
+    schedule:
+      interval: weekly
+      day: monday
+      time: "06:00"
+      timezone: America/Chicago
+    open-pull-requests-limit: 3
+
+  - package-ecosystem: docker
+    directory: /docker/perception-engine-frontend
+    schedule:
+      interval: weekly
+      day: monday
+      time: "06:00"
+      timezone: America/Chicago
+    open-pull-requests-limit: 3
+
+  # Orchestration tooling (Playwright, TypeScript) and the MCP service.
+  - package-ecosystem: npm
+    directory: /
+    schedule:
+      interval: weekly
+      day: monday
+      time: "06:00"
+      timezone: America/Chicago
+    groups:
+      playwright:
+        patterns:
+          - "@playwright/*"
+          - "playwright*"
+    open-pull-requests-limit: 5
+
+  - package-ecosystem: npm
+    directory: /mcp
+    schedule:
+      interval: weekly
+      day: monday
+      time: "06:00"
+      timezone: America/Chicago
+    open-pull-requests-limit: 3
+
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: weekly
+      day: monday
+      time: "06:00"
+      timezone: America/Chicago
+    open-pull-requests-limit: 5
