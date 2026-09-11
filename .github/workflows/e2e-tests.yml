@@ -204,7 +204,7 @@ jobs:
           token: ${{ secrets.REPO_ACCESS_TOKEN || github.token }}
 
       - name: Setup Node.js
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@v7
         with:
           node-version: '25.5'
           cache: 'npm'
@@ -377,7 +377,7 @@ jobs:
       # which needs the type stripping Node enables by default from 23. Pinned to
       # the same 25.5 the other jobs use rather than trusting the runner default.
       - name: Set up Node
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@v7
         with:
           node-version: '25.5'
 
@@ -659,7 +659,7 @@ jobs:
           token: ${{ secrets.REPO_ACCESS_TOKEN || github.token }}
 
       - name: Setup Node.js
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@v7
         with:
           node-version: '25.5'
           cache: 'npm'
