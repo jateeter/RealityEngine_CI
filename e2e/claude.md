@@ -9,6 +9,11 @@ This directory contains full-stack tests for the composed RealityEngine applicat
 
 ## The declared parity surface
 
+Quorum is 3-of-3 — `docs/QUORUM_CONTRACT.md`. All three native runtimes
+agree or the signature is a disagreement; a runtime that did not answer is
+enumerated, never counted as agreement; and a shape all three refuse is
+reported as "no runtime implements this" rather than passing quietly.
+
 `lib/parity-surface.ts` states, per captured signature, what agreement means
 for that surface and why. `tree-to-pe-manager-equivalence.spec.ts` compares
 against it instead of hashing every `/api/*` response the browser happened to

@@ -7,6 +7,25 @@ This directory contains operational helpers for startup, testing, OpenAPI, and v
 - Preserve compatibility with native multi-engine runs.
 - Use `bash-language-server` for shell changes.
 
+## Quorum is 3-of-3
+
+Every stage in this directory that compares runtimes is bound by
+`docs/QUORUM_CONTRACT.md`. The short form:
+
+- **All three native runtimes must agree, or it is a disagreement.** No
+  majority, no reference member, no designated baseline. A 2-1 split is not a
+  result with an outlier; it is a disagreement with three parties.
+- **A runtime that does not answer is not agreement.** `regression-universal-
+  vectors.py` reports the composition up front (`quorum_composition`) so a
+  two-runtime run is never read as parity.
+- **Unanimous refusal is a finding**, and says nobody implements the shape.
+- **A disagreement carries every party's emission**, not one measured against
+  another, and states the rule it was held to on the failure line.
+
+If you are adding a stage and reach for "compare everything against
+`instance_order[0]`", that is the defect in #138 and the reason this rule is
+written down.
+
 ## Parity stages
 
 - `regression-trajectory-parity.py`: ISRE/OSRE trajectory comparison across the

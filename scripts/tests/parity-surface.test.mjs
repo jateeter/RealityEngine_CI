@@ -20,6 +20,7 @@ import {
   project,
   ruleFor,
   shapeOnlyKeys,
+  unanimousSilence,
   DEFAULT_RULE,
 } from '../../e2e/lib/parity-surface.ts';
 
@@ -170,4 +171,74 @@ test('a projection rule on a non-JSON body falls back to bytes', () => {
     cpp: capture('not json'),
   });
   assert.ok(finding, 'an unparseable body must compare as bytes, not as nothing');
+});
+
+// ---------------------------------------------------------------------------
+// Quorum is 3-of-3 — docs/QUORUM_CONTRACT.md
+// ---------------------------------------------------------------------------
+
+test('a 2-1 split is a finding, not a majority with an outlier', () => {
+  // The #349 shape: two runtimes agree, one does not. Under a majority rule
+  // this reads as consensus with a deviant. It must read as a disagreement,
+  // and the finding must carry all three emissions — not two measured against
+  // a designated reference.
+  const finding = compareSurface('GET /api/machine-graph', {
+    lsp: capture({ edges: ['a->b', 'b->c'] }),
+    scala: capture({ edges: ['a->b', 'b->c'] }),
+    cpp: capture({ edges: ['b->c', 'a->b'] }),
+  });
+
+  assert.ok(finding, 'a 2-1 split must produce a finding');
+  // Every runtime is represented. Nothing in the record names a reference,
+  // a baseline, a majority or a divergent party.
+  for (const runtime of ['lsp', 'scala', 'cpp']) {
+    assert.ok(finding.sha256[runtime], `${runtime} must be in the record`);
+    assert.ok(finding.byteLength[runtime] > 0, `${runtime} byte length`);
+  }
+  const serialized = JSON.stringify(finding);
+  for (const banned of ['baseline', 'reference', 'majority', 'divergent']) {
+    assert.ok(
+      !serialized.toLowerCase().includes(banned),
+      `the finding must not frame the split in terms of "${banned}"`,
+    );
+  }
+});
+
+test('a 2-1 split is reported identically whichever runtime is the odd one out', () => {
+  // Symmetry is the property, and it is the one a designated baseline breaks.
+  const odd = value => JSON.stringify(compareSurface('GET /api/machine-graph', value)?.status);
+  const a = odd({ lsp: capture({ e: 1 }), scala: capture({ e: 1 }), cpp: capture({ e: 2 }) });
+  const b = odd({ lsp: capture({ e: 2 }), scala: capture({ e: 1 }), cpp: capture({ e: 1 }) });
+  assert.equal(a, b, 'the verdict must not depend on which runtime dissents');
+});
+
+test('unanimous refusal is a reportable result, not a quiet pass', () => {
+  const captures = {
+    lsp: capture({ error: 'not found' }, 404),
+    scala: capture({ error: 'not found' }, 404),
+    cpp: capture({ error: 'not found' }, 404),
+  };
+
+  // The comparison is right to find nothing: they agree.
+  assert.equal(compareSurface('GET /api/scxml/export', captures), null);
+
+  // But the agreement means "nobody implements this shape", and that is the
+  // information worth keeping (QUORUM_CONTRACT §3).
+  const silence = unanimousSilence('GET /api/scxml/export', captures);
+  assert.ok(silence, 'unanimous non-2xx must be surfaced');
+  assert.equal(silence.status, 404);
+  assert.equal(silence.signature, 'GET /api/scxml/export');
+});
+
+test('unanimous success is not silence, and a split refusal is not unanimous', () => {
+  assert.equal(unanimousSilence('GET /api/machines', agreeing({ machines: [] })), null);
+  assert.equal(
+    unanimousSilence('GET /api/machines', {
+      lsp: capture({}, 404),
+      scala: capture({}, 404),
+      cpp: capture({}, 200),
+    }),
+    null,
+    'a split status is a disagreement for compareSurface to report, not silence',
+  );
 });

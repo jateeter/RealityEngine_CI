@@ -208,7 +208,7 @@ runtime compares nothing.
 
 Controls are emitted **sorted by `name`**, for the reason the active-region
 ordering exists: a set walked in each runtime's own iteration order reports the
-same content three ways and no comparison finds a majority (#197).
+same content three ways and no two runtimes ever agree (#197).
 
 ##### Phase 1 — `transitionsInhibited`
 
@@ -684,10 +684,10 @@ lsp-1 vs scala-1:  order differs | set SAME
 ```
 
 Because no two runtimes agreed byte-for-byte, the clustering in the
-universal-vectors stage never found a majority, and **every** divergence in
-that stage reported as "no majority — runtimes split evenly" regardless of what
-the engines had actually done. An unactionable verdict on every run, which
-masked the real content of #162 for as long as that issue was open.
+universal-vectors stage returned three singleton clusters on **every** event,
+regardless of what the engines had actually done. An unactionable verdict on
+every run, which masked the real content of #162 for as long as that issue was
+open.
 
 Implemented in `reality.cpp` (`std::sort` after the machineResults walk),
 `PerceptualSpaceRuntime.scala` (`sortBy`), and `reality-service.lisp`
@@ -1092,7 +1092,7 @@ CPP and LSP now emit it.** Both already computed the initial-event list on the
 `full` path, so each change was small — `RealityEngine_CPP#91` made
 `CriticalEventSequence::initial_vector_ids()` public for the summary builder,
 and `RealityEngine_LSP#105` factored `sequence-initial-event-ids` out for the
-same reason. The ids are id-sorted in all three, so a majority comparison has
+same reason. The ids are id-sorted in all three, so the comparison has
 something to agree on (#197).
 
 The alternative — declaring the key out and fixing the Scala PE to source
@@ -1172,6 +1172,29 @@ Language-level data structures — `std::vector`, the C++ `Vector` alias, Scala
 touched. Neither were the `/api/vectors` route segments, the numeric vectors
 `POST /api/perceptual-simulation/configure/chunk` accepts, or Qdrant's own
 `"vectors": { size, distance }` collection body.
+
+## Quorum is 3-of-3
+
+**All three native runtimes — C++, LSP, Scala — must agree, or the signature is
+a disagreement.** There is no majority rule, no reference runtime and no
+designated baseline. A 2-of-3 split is a disagreement, not a decision.
+
+The TypeScript PE conforms to the agreed contract; it is not a fourth vote.
+Manager follows it.
+
+The full rule, with the reasoning and the conformance checklist a harness is
+held to, is **`docs/QUORUM_CONTRACT.md`**. It is binding on every harness that
+compares runtimes, and the Participation States below are how a runtime declines
+to take part without being counted as agreement.
+
+Why a majority is not enough, in one case: on `GET /api/machine-graph` the LSP
+and Scala runtimes emitted identical bodies and C++ emitted a different one at
+*identical byte length* — the same six edges in map order rather than canonical
+order (#349, `RealityEngine_CPP#94`). Two agreed. They were correct only by
+accident of which defect happened to exist, and under a majority rule the result
+reads as consensus.
+
+---
 
 ## Participation States
 
