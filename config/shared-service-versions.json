@@ -1,0 +1,67 @@
+{
+  "$comment": [
+    "Single source of truth for the container images shared across this workspace.",
+    "",
+    "These five services are each declared by more than one repository, and every",
+    "one of them had drifted: loki 2.9.3 vs 3.4.2, grafana 10.2.3 vs 11.6.1,",
+    "prometheus v2.51.2 vs v2.53.4, qdrant v1.9.7 vs v1.14.1, open-webui :main vs",
+    "v0.9.6. Nothing compared them, so nothing reported it — the loki split only",
+    "surfaced when a config written for 2.x met the 3.x binary and crash-looped",
+    "(localAIStack#77).",
+    "",
+    "qdrant is the one that is not merely untidy: the engines and localAIStack",
+    "share a single running instance (RealityEngine_CPP/stop.sh says so), so two",
+    "repos declaring different versions of the same vector store is a data-format",
+    "question, not a packaging one.",
+    "",
+    "scripts/check-shared-service-versions.py compares every declaration against",
+    "this file. Change a version here and in the compose files together; the",
+    "checker fails when they disagree."
+  ],
+  "services": {
+    "grafana/loki": {
+      "version": "3.4.2",
+      "declared_in": [
+        "RealityEngine_CI/docker-compose.yml",
+        "localAIStack/docker-compose.yml"
+      ],
+      "migration_note": "3.x removed compactor.shared_store; config/loki-config.yml must use delete_request_store."
+    },
+    "grafana/promtail": {
+      "version": "3.4.2",
+      "declared_in": ["RealityEngine_CI/docker-compose.yml"],
+      "migration_note": "Kept in lockstep with loki; promtail and loki are released together."
+    },
+    "grafana/grafana": {
+      "version": "11.6.1",
+      "declared_in": [
+        "RealityEngine_CI/docker-compose.yml",
+        "localAIStack/docker-compose.yml"
+      ]
+    },
+    "prom/prometheus": {
+      "version": "v2.53.4",
+      "declared_in": [
+        "RealityEngine_CI/docker-compose.yml",
+        "localAIStack/docker-compose.yml"
+      ]
+    },
+    "qdrant/qdrant": {
+      "version": "v1.14.1",
+      "declared_in": [
+        "RealityEngine_CI/Dockerfile.qdrant",
+        "localAIStack/docker-compose.yml"
+      ],
+      "migration_note": "One instance is shared at runtime. RealityEngine_CI/Dockerfile.qdrant exists only to add a healthcheck binary that v1.9.7 lacked; re-check whether that is still required."
+    },
+    "ghcr.io/open-webui/open-webui": {
+      "version": "v0.11.3",
+      "declared_in": [
+        "localAIStack/docker-compose.yml",
+        "localOpenClawStack/docker-compose.yml",
+        "localOpenClawStack/.env.example"
+      ],
+      "migration_note": "localOpenClawStack resolves a @sha256 digest into .env via scripts/update-versions.sh; the tag here is what that digest must correspond to. localAIStack tracked :main, which is not a version at all."
+    }
+  }
+}
