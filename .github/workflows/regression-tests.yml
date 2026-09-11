@@ -269,7 +269,7 @@ jobs:
       # repo-local quicklisp/, which a fresh worktree never does.
       - name: Cache Quicklisp
         if: runner.environment == 'github-hosted'
-        uses: actions/cache@v4
+        uses: actions/cache@v6
         with:
           path: ~/quicklisp
           key: quicklisp-home-${{ runner.os }}-${{ hashFiles('RealityEngine_LSP/reality-engine-lsp.asd') }}
@@ -349,7 +349,7 @@ jobs:
       # fighting over one.
       - name: Restore previous regression status (comparison baseline)
         if: ${{ github.event_name == 'schedule' || github.event_name == 'workflow_dispatch' }}
-        uses: actions/cache@v4
+        uses: actions/cache@v6
         with:
           path: RealityEngine_CI/.regression-baseline
           key: regression-baseline-${{ github.run_id }}
