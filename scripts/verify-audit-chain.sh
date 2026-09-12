@@ -128,6 +128,30 @@ for inst in instances:
     label = inst.get("id") or inst.get("engine") or inst["re_url"]
     re_url = inst["re_url"].rstrip("/")
     try:
+        # Snapshot the buffer BEFORE driving, and measure only what this drive
+        # added.
+        #
+        # POST /api/reset does not clear the semantic audit ring buffer on any
+        # runtime, so the buffer is cumulative across every drive the process
+        # has served. Measured: three consecutive runs of this script left lsp
+        # and scala reporting the confirmed-fall path three times over, counts
+        # climbing 14 -> 28 -> 42, and cpp reporting 89 observations of which
+        # thirteen were repeats of fall-conf-v1 left by unrelated earlier
+        # pushes. The invariant still held every time, so the failure was not
+        # that the gate went red — it was that the numbers it printed described
+        # the process's whole history while reading as one drive's result.
+        #
+        # Records are compared whole rather than by index: the buffer is a ring
+        # and evicts under pressure, so "everything after position N" stops
+        # being meaningful exactly when the buffer is busiest.
+        try:
+            seen_before = {
+                json.dumps(r, sort_keys=True)
+                for r in (call(f"{re_url}/api/audit/semantics?limit=1000").get("records") or [])
+            }
+        except (urllib.error.URLError, OSError, ValueError):
+            seen_before = set()
+
         for motion, stillness in TICKS:
             vector = [0.0] * dimension
             vector[offset] = float(motion)
@@ -139,6 +163,12 @@ for inst in instances:
                 "includePerceptualSpace": False,
             })
         audit = call(f"{re_url}/api/audit/semantics?limit=1000")
+        audit = {
+            "records": [
+                r for r in (audit.get("records") or [])
+                if json.dumps(r, sort_keys=True) not in seen_before
+            ]
+        }
     except (urllib.error.URLError, OSError, ValueError) as exc:
         # Unreachable is not an incomplete chain. The engine produced no
         # evidence either way, so it is reported separately rather than as a
