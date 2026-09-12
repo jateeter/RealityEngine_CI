@@ -1,0 +1,2986 @@
+{
+  "contract": "docs/QUORUM_CONTRACT.md",
+  "contracts": [
+    {
+      "agreedBy": [
+        "cpp-1",
+        "lsp-1",
+        "scala-1"
+      ],
+      "chain": "ArbitrationReader.json::arb-c-observe-zero::arb-c-event-zero",
+      "inputRegion": {
+        "length": 2,
+        "offset": 16930
+      },
+      "inputs": [
+        [
+          0,
+          0
+        ]
+      ],
+      "machineFile": "ArbitrationReader.json",
+      "machineName": "Arbitration Reader",
+      "outputStream": [
+        {
+          "eventBus": [],
+          "mergeBatch": [
+            {
+              "provenance": [
+                "arb-c-event-zero"
+              ],
+              "region": {
+                "length": 2,
+                "offset": 16932
+              },
+              "sequenceIds": [
+                "arb-c-observe-zero"
+              ],
+              "values": [
+                0,
+                1
+              ]
+            }
+          ],
+          "step": 0
+        }
+      ],
+      "quorum": "3-of-3",
+      "sequenceId": "arb-c-observe-zero",
+      "terminalEventId": "arb-c-event-zero",
+      "verdict": "agreed"
+    },
+    {
+      "agreedBy": [
+        "cpp-1",
+        "lsp-1",
+        "scala-1"
+      ],
+      "chain": "ArbitrationReader.json::arb-c-observe::arb-c-event",
+      "inputRegion": {
+        "length": 2,
+        "offset": 16930
+      },
+      "inputs": [
+        [
+          1,
+          0
+        ]
+      ],
+      "machineFile": "ArbitrationReader.json",
+      "machineName": "Arbitration Reader",
+      "outputStream": [
+        {
+          "eventBus": [],
+          "mergeBatch": [
+            {
+              "provenance": [
+                "arb-c-event"
+              ],
+              "region": {
+                "length": 2,
+                "offset": 16932
+              },
+              "sequenceIds": [
+                "arb-c-observe"
+              ],
+              "values": [
+                1,
+                0
+              ]
+            }
+          ],
+          "step": 0
+        }
+      ],
+      "quorum": "3-of-3",
+      "sequenceId": "arb-c-observe",
+      "terminalEventId": "arb-c-event",
+      "verdict": "agreed"
+    },
+    {
+      "agreedBy": [
+        "cpp-1",
+        "lsp-1",
+        "scala-1"
+      ],
+      "chain": "ArbitrationWriterA.json::arb-a-assert::arb-a-event",
+      "inputRegion": {
+        "length": 2,
+        "offset": 16924
+      },
+      "inputs": [
+        [
+          1,
+          0
+        ]
+      ],
+      "machineFile": "ArbitrationWriterA.json",
+      "machineName": "Arbitration Writer A",
+      "outputStream": [
+        {
+          "eventBus": [],
+          "mergeBatch": [
+            {
+              "provenance": [
+                "arb-a-event"
+              ],
+              "region": {
+                "length": 2,
+                "offset": 16930
+              },
+              "sequenceIds": [
+                "arb-a-assert"
+              ],
+              "values": [
+                1,
+                1
+              ]
+            }
+          ],
+          "step": 0
+        }
+      ],
+      "quorum": "3-of-3",
+      "sequenceId": "arb-a-assert",
+      "terminalEventId": "arb-a-event",
+      "verdict": "agreed"
+    },
+    {
+      "agreedBy": [
+        "cpp-1",
+        "lsp-1",
+        "scala-1"
+      ],
+      "chain": "ArbitrationWriterB.json::arb-b-assert::arb-b-event",
+      "inputRegion": {
+        "length": 2,
+        "offset": 16926
+      },
+      "inputs": [
+        [
+          1,
+          0
+        ]
+      ],
+      "machineFile": "ArbitrationWriterB.json",
+      "machineName": "Arbitration Writer B",
+      "outputStream": [
+        {
+          "eventBus": [],
+          "mergeBatch": [
+            {
+              "provenance": [
+                "arb-b-event"
+              ],
+              "region": {
+                "length": 2,
+                "offset": 16930
+              },
+              "sequenceIds": [
+                "arb-b-assert"
+              ],
+              "values": [
+                0,
+                0
+              ]
+            }
+          ],
+          "step": 0
+        }
+      ],
+      "quorum": "3-of-3",
+      "sequenceId": "arb-b-assert",
+      "terminalEventId": "arb-b-event",
+      "verdict": "agreed"
+    },
+    {
+      "agreedBy": [
+        "cpp-1",
+        "lsp-1",
+        "scala-1"
+      ],
+      "chain": "DCMemoryAlertFF.json::dc-mem-alert-reset-sequence::dc-mem-alert-reset-event",
+      "inputRegion": {
+        "length": 2,
+        "offset": 1367
+      },
+      "inputs": [
+        [
+          0,
+          1
+        ]
+      ],
+      "machineFile": "DCMemoryAlertFF.json",
+      "machineName": "DC Memory Alert Flip-Flop",
+      "outputStream": [
+        {
+          "eventBus": [],
+          "mergeBatch": [
+            {
+              "provenance": [
+                "dc-mem-alert-reset-event"
+              ],
+              "region": {
+                "length": 2,
+                "offset": 1377
+              },
+              "sequenceIds": [
+                "dc-mem-alert-reset-sequence"
+              ],
+              "values": [
+                0,
+                1
+              ]
+            }
+          ],
+          "step": 0
+        }
+      ],
+      "quorum": "3-of-3",
+      "sequenceId": "dc-mem-alert-reset-sequence",
+      "terminalEventId": "dc-mem-alert-reset-event",
+      "verdict": "agreed"
+    },
+    {
+      "agreedBy": [
+        "cpp-1",
+        "lsp-1",
+        "scala-1"
+      ],
+      "chain": "DCMemoryAlertFF.json::dc-mem-alert-set-sequence::dc-mem-alert-set-event",
+      "inputRegion": {
+        "length": 2,
+        "offset": 1367
+      },
+      "inputs": [
+        [
+          1,
+          0
+        ]
+      ],
+      "machineFile": "DCMemoryAlertFF.json",
+      "machineName": "DC Memory Alert Flip-Flop",
+      "outputStream": [
+        {
+          "eventBus": [],
+          "mergeBatch": [
+            {
+              "provenance": [
+                "dc-mem-alert-set-event"
+              ],
+              "region": {
+                "length": 2,
+                "offset": 1377
+              },
+              "sequenceIds": [
+                "dc-mem-alert-set-sequence"
+              ],
+              "values": [
+                1,
+                0
+              ]
+            }
+          ],
+          "step": 0
+        }
+      ],
+      "quorum": "3-of-3",
+      "sequenceId": "dc-mem-alert-set-sequence",
+      "terminalEventId": "dc-mem-alert-set-event",
+      "verdict": "agreed"
+    },
+    {
+      "agreedBy": [
+        "cpp-1",
+        "lsp-1",
+        "scala-1"
+      ],
+      "chain": "DCNetworkThrottleFF.json::dc-net-throttle-reset-sequence::dc-net-throttle-reset-event",
+      "inputRegion": {
+        "length": 2,
+        "offset": 1365
+      },
+      "inputs": [
+        [
+          0,
+          1
+        ]
+      ],
+      "machineFile": "DCNetworkThrottleFF.json",
+      "machineName": "DC Network Throttle Flip-Flop",
+      "outputStream": [
+        {
+          "eventBus": [],
+          "mergeBatch": [
+            {
+              "provenance": [
+                "dc-net-throttle-set-event"
+              ],
+              "region": {
+                "length": 2,
+                "offset": 1373
+              },
+              "sequenceIds": [
+                "dc-net-throttle-set-sequence"
+              ],
+              "values": [
+                1,
+                0
+              ]
+            }
+          ],
+          "step": 0
+        }
+      ],
+      "quorum": "3-of-3",
+      "sequenceId": "dc-net-throttle-reset-sequence",
+      "terminalEventId": "dc-net-throttle-reset-event",
+      "verdict": "agreed"
+    },
+    {
+      "agreedBy": [
+        "cpp-1",
+        "lsp-1",
+        "scala-1"
+      ],
+      "chain": "DCNetworkThrottleFF.json::dc-net-throttle-set-sequence::dc-net-throttle-set-event",
+      "inputRegion": {
+        "length": 2,
+        "offset": 1365
+      },
+      "inputs": [
+        [
+          1,
+          0
+        ]
+      ],
+      "machineFile": "DCNetworkThrottleFF.json",
+      "machineName": "DC Network Throttle Flip-Flop",
+      "outputStream": [
+        {
+          "eventBus": [],
+          "mergeBatch": [
+            {
+              "provenance": [
+                "dc-net-throttle-reset-event"
+              ],
+              "region": {
+                "length": 2,
+                "offset": 1373
+              },
+              "sequenceIds": [
+                "dc-net-throttle-reset-sequence"
+              ],
+              "values": [
+                0,
+                1
+              ]
+            }
+          ],
+          "step": 0
+        }
+      ],
+      "quorum": "3-of-3",
+      "sequenceId": "dc-net-throttle-set-sequence",
+      "terminalEventId": "dc-net-throttle-set-event",
+      "verdict": "agreed"
+    },
+    {
+      "agreedBy": [
+        "cpp-1",
+        "lsp-1",
+        "scala-1"
+      ],
+      "chain": "DLX011_req-ack-handshake.json::dlx-011-match::dlx-011-step-2",
+      "inputRegion": {
+        "length": 4,
+        "offset": 4017
+      },
+      "inputs": [
+        [
+          1,
+          0,
+          0,
+          0
+        ],
+        [
+          0,
+          1,
+          0,
+          0
+        ]
+      ],
+      "machineFile": "DLX011_req-ack-handshake.json",
+      "machineName": "Logical Infrastructure Req Ack Handshake",
+      "outputStream": [
+        {
+          "eventBus": [],
+          "mergeBatch": [
+            {
+              "provenance": [
+                "dlx-011-step-1",
+                "dlx-011-step-2"
+              ],
+              "region": {
+                "length": 2,
+                "offset": 1583
+              },
+              "sequenceIds": [
+                "dlx-011-match"
+              ],
+              "values": [
+                1,
+                0
+              ]
+            }
+          ],
+          "step": 0
+        },
+        {
+          "eventBus": [],
+          "mergeBatch": [],
+          "step": 1
+        }
+      ],
+      "quorum": "3-of-3",
+      "sequenceId": "dlx-011-match",
+      "terminalEventId": "dlx-011-step-2",
+      "verdict": "agreed"
+    },
+    {
+      "agreedBy": [
+        "cpp-1",
+        "lsp-1",
+        "scala-1"
+      ],
+      "chain": "DLX034_watchdog-kick-window.json::dlx-034-match::dlx-034-step-2",
+      "inputRegion": {
+        "length": 4,
+        "offset": 1681
+      },
+      "inputs": [
+        [
+          1,
+          0,
+          0,
+          0
+        ],
+        [
+          0,
+          1,
+          0,
+          0
+        ]
+      ],
+      "machineFile": "DLX034_watchdog-kick-window.json",
+      "machineName": "Logical Infrastructure Watchdog Kick Window",
+      "outputStream": [
+        {
+          "eventBus": [],
+          "mergeBatch": [
+            {
+              "provenance": [
+                "dlx-034-step-1",
+                "dlx-034-step-2"
+              ],
+              "region": {
+                "length": 2,
+                "offset": 1685
+              },
+              "sequenceIds": [
+                "dlx-034-match"
+              ],
+              "values": [
+                1,
+                0
+              ]
+            }
+          ],
+          "step": 0
+        },
+        {
+          "eventBus": [],
+          "mergeBatch": [],
+          "step": 1
+        }
+      ],
+      "quorum": "3-of-3",
+      "sequenceId": "dlx-034-match",
+      "terminalEventId": "dlx-034-step-2",
+      "verdict": "agreed"
+    },
+    {
+      "agreedBy": [
+        "cpp-1",
+        "lsp-1",
+        "scala-1"
+      ],
+      "chain": "DLX041_one-hot-grant.json::dlx-041-match::dlx-041-step-2",
+      "inputRegion": {
+        "length": 4,
+        "offset": 4067
+      },
+      "inputs": [
+        [
+          1,
+          0,
+          0,
+          0
+        ],
+        [
+          0,
+          1,
+          0,
+          0
+        ]
+      ],
+      "machineFile": "DLX041_one-hot-grant.json",
+      "machineName": "Logical Infrastructure One Hot Grant",
+      "outputStream": [
+        {
+          "eventBus": [],
+          "mergeBatch": [],
+          "step": 0
+        },
+        {
+          "eventBus": [],
+          "mergeBatch": [
+            {
+              "provenance": [
+                "dlx-041-step-1",
+                "dlx-041-step-2"
+              ],
+              "region": {
+                "length": 2,
+                "offset": 1713
+              },
+              "sequenceIds": [
+                "dlx-041-match"
+              ],
+              "values": [
+                1,
+                0
+              ]
+            }
+          ],
+          "step": 1
+        }
+      ],
+      "quorum": "3-of-3",
+      "sequenceId": "dlx-041-match",
+      "terminalEventId": "dlx-041-step-2",
+      "verdict": "agreed"
+    },
+    {
+      "agreedBy": [
+        "cpp-1",
+        "lsp-1",
+        "scala-1"
+      ],
+      "chain": "DataCenterDcx001010Interconnect.json::dcx-001-010-domain-family-monitoring::dcx-001-010-domain-family-monitoring-state",
+      "inputRegion": {
+        "length": 30,
+        "offset": 14127
+      },
+      "inputs": [
+        [
+          0,
+          0,
+          1,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          1,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          1,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0
+        ]
+      ],
+      "machineFile": "DataCenterDcx001010Interconnect.json",
+      "machineName": "Data Center DCX-001-010 Interconnect",
+      "outputStream": [
+        {
+          "eventBus": [],
+          "mergeBatch": [
+            {
+              "provenance": [
+                "dcx-001-010-domain-family-optimization-state"
+              ],
+              "region": {
+                "length": 4,
+                "offset": 14157
+              },
+              "sequenceIds": [
+                "dcx-001-010-domain-family-optimization"
+              ],
+              "values": [
+                0,
+                1,
+                0,
+                0
+              ]
+            }
+          ],
+          "step": 0
+        }
+      ],
+      "quorum": "3-of-3",
+      "sequenceId": "dcx-001-010-domain-family-monitoring",
+      "terminalEventId": "dcx-001-010-domain-family-monitoring-state",
+      "verdict": "agreed"
+    },
+    {
+      "agreedBy": [
+        "cpp-1",
+        "lsp-1",
+        "scala-1"
+      ],
+      "chain": "DataCenterDcx001010Interconnect.json::dcx-001-010-domain-family-optimization::dcx-001-010-domain-family-optimization-state",
+      "inputRegion": {
+        "length": 30,
+        "offset": 14127
+      },
+      "inputs": [
+        [
+          0,
+          1,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          1,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          1,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0
+        ]
+      ],
+      "machineFile": "DataCenterDcx001010Interconnect.json",
+      "machineName": "Data Center DCX-001-010 Interconnect",
+      "outputStream": [
+        {
+          "eventBus": [],
+          "mergeBatch": [
+            {
+              "provenance": [
+                "dcx-001-010-domain-family-review-state"
+              ],
+              "region": {
+                "length": 4,
+                "offset": 14157
+              },
+              "sequenceIds": [
+                "dcx-001-010-domain-family-review"
+              ],
+              "values": [
+                1,
+                0,
+                0,
+                0
+              ]
+            }
+          ],
+          "step": 0
+        }
+      ],
+      "quorum": "3-of-3",
+      "sequenceId": "dcx-001-010-domain-family-optimization",
+      "terminalEventId": "dcx-001-010-domain-family-optimization-state",
+      "verdict": "agreed"
+    },
+    {
+      "agreedBy": [
+        "cpp-1",
+        "lsp-1",
+        "scala-1"
+      ],
+      "chain": "DataCenterDcx001010Interconnect.json::dcx-001-010-domain-family-review::dcx-001-010-domain-family-review-state",
+      "inputRegion": {
+        "length": 30,
+        "offset": 14127
+      },
+      "inputs": [
+        [
+          1,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          1,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          1,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0
+        ]
+      ],
+      "machineFile": "DataCenterDcx001010Interconnect.json",
+      "machineName": "Data Center DCX-001-010 Interconnect",
+      "outputStream": [
+        {
+          "eventBus": [],
+          "mergeBatch": [
+            {
+              "provenance": [
+                "dcx-001-010-domain-family-monitoring-state"
+              ],
+              "region": {
+                "length": 4,
+                "offset": 14157
+              },
+              "sequenceIds": [
+                "dcx-001-010-domain-family-monitoring"
+              ],
+              "values": [
+                0,
+                0,
+                1,
+                0
+              ]
+            }
+          ],
+          "step": 0
+        }
+      ],
+      "quorum": "3-of-3",
+      "sequenceId": "dcx-001-010-domain-family-review",
+      "terminalEventId": "dcx-001-010-domain-family-review-state",
+      "verdict": "agreed"
+    },
+    {
+      "agreedBy": [
+        "cpp-1",
+        "lsp-1",
+        "scala-1"
+      ],
+      "chain": "DataCenterDcx001010Interconnect.json::dcx-001-010-domain-family-stable::dcx-001-010-domain-family-stable-state",
+      "inputRegion": {
+        "length": 30,
+        "offset": 14127
+      },
+      "inputs": [
+        [
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0
+        ]
+      ],
+      "machineFile": "DataCenterDcx001010Interconnect.json",
+      "machineName": "Data Center DCX-001-010 Interconnect",
+      "outputStream": [
+        {
+          "eventBus": [],
+          "mergeBatch": [
+            {
+              "provenance": [
+                "dcx-001-010-domain-family-monitoring-state"
+              ],
+              "region": {
+                "length": 4,
+                "offset": 14157
+              },
+              "sequenceIds": [
+                "dcx-001-010-domain-family-monitoring"
+              ],
+              "values": [
+                0,
+                0,
+                1,
+                0
+              ]
+            }
+          ],
+          "step": 0
+        }
+      ],
+      "quorum": "3-of-3",
+      "sequenceId": "dcx-001-010-domain-family-stable",
+      "terminalEventId": "dcx-001-010-domain-family-stable-state",
+      "verdict": "agreed"
+    },
+    {
+      "agreedBy": [
+        "cpp-1",
+        "lsp-1",
+        "scala-1"
+      ],
+      "chain": "DigitalLogicDlx021030Interconnect.json::dlx-021-030-domain-family-monitoring::dlx-021-030-domain-family-monitoring-state",
+      "inputRegion": {
+        "length": 20,
+        "offset": 14364
+      },
+      "inputs": [
+        [
+          0,
+          1,
+          0,
+          0,
+          0,
+          0,
+          0,
+          1,
+          0,
+          0,
+          0,
+          0,
+          0,
+          1,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0
+        ]
+      ],
+      "machineFile": "DigitalLogicDlx021030Interconnect.json",
+      "machineName": "Digital Logic DLX-021-030 Interconnect",
+      "outputStream": [
+        {
+          "eventBus": [],
+          "mergeBatch": [
+            {
+              "provenance": [
+                "dlx-021-030-domain-family-monitoring-state",
+                "dlx-021-030-domain-family-optimization-state"
+              ],
+              "region": {
+                "length": 4,
+                "offset": 14384
+              },
+              "sequenceIds": [
+                "dlx-021-030-domain-family-monitoring",
+                "dlx-021-030-domain-family-optimization"
+              ],
+              "values": [
+                0,
+                1,
+                1,
+                0
+              ]
+            }
+          ],
+          "step": 0
+        }
+      ],
+      "quorum": "3-of-3",
+      "sequenceId": "dlx-021-030-domain-family-monitoring",
+      "terminalEventId": "dlx-021-030-domain-family-monitoring-state",
+      "verdict": "agreed"
+    },
+    {
+      "agreedBy": [
+        "cpp-1",
+        "lsp-1",
+        "scala-1"
+      ],
+      "chain": "DigitalLogicDlx021030Interconnect.json::dlx-021-030-domain-family-optimization::dlx-021-030-domain-family-optimization-state",
+      "inputRegion": {
+        "length": 20,
+        "offset": 14364
+      },
+      "inputs": [
+        [
+          0,
+          1,
+          0,
+          0,
+          0,
+          0,
+          0,
+          1,
+          0,
+          0,
+          0,
+          0,
+          0,
+          1,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0
+        ]
+      ],
+      "machineFile": "DigitalLogicDlx021030Interconnect.json",
+      "machineName": "Digital Logic DLX-021-030 Interconnect",
+      "outputStream": [
+        {
+          "eventBus": [],
+          "mergeBatch": [
+            {
+              "provenance": [
+                "dlx-021-030-domain-family-review-state"
+              ],
+              "region": {
+                "length": 4,
+                "offset": 14384
+              },
+              "sequenceIds": [
+                "dlx-021-030-domain-family-review"
+              ],
+              "values": [
+                1,
+                0,
+                0,
+                0
+              ]
+            }
+          ],
+          "step": 0
+        }
+      ],
+      "quorum": "3-of-3",
+      "sequenceId": "dlx-021-030-domain-family-optimization",
+      "terminalEventId": "dlx-021-030-domain-family-optimization-state",
+      "verdict": "agreed"
+    },
+    {
+      "agreedBy": [
+        "cpp-1",
+        "lsp-1",
+        "scala-1"
+      ],
+      "chain": "DigitalLogicDlx021030Interconnect.json::dlx-021-030-domain-family-review::dlx-021-030-domain-family-review-state",
+      "inputRegion": {
+        "length": 20,
+        "offset": 14364
+      },
+      "inputs": [
+        [
+          1,
+          0,
+          0,
+          0,
+          0,
+          0,
+          1,
+          0,
+          0,
+          0,
+          0,
+          0,
+          1,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0
+        ]
+      ],
+      "machineFile": "DigitalLogicDlx021030Interconnect.json",
+      "machineName": "Digital Logic DLX-021-030 Interconnect",
+      "outputStream": [
+        {
+          "eventBus": [],
+          "mergeBatch": [
+            {
+              "provenance": [
+                "dlx-021-030-domain-family-monitoring-state",
+                "dlx-021-030-domain-family-optimization-state"
+              ],
+              "region": {
+                "length": 4,
+                "offset": 14384
+              },
+              "sequenceIds": [
+                "dlx-021-030-domain-family-monitoring",
+                "dlx-021-030-domain-family-optimization"
+              ],
+              "values": [
+                0,
+                1,
+                1,
+                0
+              ]
+            }
+          ],
+          "step": 0
+        }
+      ],
+      "quorum": "3-of-3",
+      "sequenceId": "dlx-021-030-domain-family-review",
+      "terminalEventId": "dlx-021-030-domain-family-review-state",
+      "verdict": "agreed"
+    },
+    {
+      "agreedBy": [
+        "cpp-1",
+        "lsp-1",
+        "scala-1"
+      ],
+      "chain": "DigitalLogicDlx021030Interconnect.json::dlx-021-030-domain-family-stable::dlx-021-030-domain-family-stable-state",
+      "inputRegion": {
+        "length": 20,
+        "offset": 14364
+      },
+      "inputs": [
+        [
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0
+        ]
+      ],
+      "machineFile": "DigitalLogicDlx021030Interconnect.json",
+      "machineName": "Digital Logic DLX-021-030 Interconnect",
+      "outputStream": [
+        {
+          "eventBus": [],
+          "mergeBatch": [
+            {
+              "provenance": [
+                "dlx-021-030-domain-family-monitoring-state",
+                "dlx-021-030-domain-family-optimization-state"
+              ],
+              "region": {
+                "length": 4,
+                "offset": 14384
+              },
+              "sequenceIds": [
+                "dlx-021-030-domain-family-monitoring",
+                "dlx-021-030-domain-family-optimization"
+              ],
+              "values": [
+                0,
+                1,
+                1,
+                0
+              ]
+            }
+          ],
+          "step": 0
+        }
+      ],
+      "quorum": "3-of-3",
+      "sequenceId": "dlx-021-030-domain-family-stable",
+      "terminalEventId": "dlx-021-030-domain-family-stable-state",
+      "verdict": "agreed"
+    },
+    {
+      "agreedBy": [
+        "cpp-1",
+        "lsp-1",
+        "scala-1"
+      ],
+      "chain": "DocumentSigningWorkflowMonitor.json::signing-blocked-escalation::ds-blocked",
+      "inputRegion": {
+        "length": 4,
+        "offset": 928
+      },
+      "inputs": [
+        [
+          0.62,
+          0.6,
+          0.58,
+          0.6
+        ],
+        [
+          0.38,
+          0.3,
+          0.4,
+          0.35
+        ],
+        [
+          0.15,
+          0.1,
+          0.18,
+          0.12
+        ]
+      ],
+      "machineFile": "DocumentSigningWorkflowMonitor.json",
+      "machineName": "Document Signing Workflow Monitor",
+      "outputStream": [
+        {
+          "eventBus": [],
+          "mergeBatch": [
+            {
+              "provenance": [
+                "ds-complete"
+              ],
+              "region": {
+                "length": 4,
+                "offset": 960
+              },
+              "sequenceIds": [
+                "signing-complete"
+              ],
+              "values": [
+                0,
+                0,
+                0,
+                1
+              ]
+            }
+          ],
+          "step": 0
+        },
+        {
+          "eventBus": [],
+          "mergeBatch": [
+            {
+              "provenance": [
+                "ds-complete"
+              ],
+              "region": {
+                "length": 4,
+                "offset": 960
+              },
+              "sequenceIds": [
+                "signing-complete"
+              ],
+              "values": [
+                0,
+                0,
+                0,
+                1
+              ]
+            }
+          ],
+          "step": 1
+        },
+        {
+          "eventBus": [],
+          "mergeBatch": [],
+          "step": 2
+        }
+      ],
+      "quorum": "3-of-3",
+      "sequenceId": "signing-blocked-escalation",
+      "terminalEventId": "ds-blocked",
+      "verdict": "agreed"
+    },
+    {
+      "agreedBy": [
+        "cpp-1",
+        "lsp-1",
+        "scala-1"
+      ],
+      "chain": "DocumentSigningWorkflowMonitor.json::signing-complete::ds-complete",
+      "inputRegion": {
+        "length": 4,
+        "offset": 928
+      },
+      "inputs": [
+        [
+          0.68,
+          0.65,
+          0.62,
+          0.65
+        ]
+      ],
+      "machineFile": "DocumentSigningWorkflowMonitor.json",
+      "machineName": "Document Signing Workflow Monitor",
+      "outputStream": [
+        {
+          "eventBus": [],
+          "mergeBatch": [
+            {
+              "provenance": [
+                "ds-complete"
+              ],
+              "region": {
+                "length": 4,
+                "offset": 960
+              },
+              "sequenceIds": [
+                "signing-complete"
+              ],
+              "values": [
+                0,
+                0,
+                0,
+                1
+              ]
+            }
+          ],
+          "step": 0
+        }
+      ],
+      "quorum": "3-of-3",
+      "sequenceId": "signing-complete",
+      "terminalEventId": "ds-complete",
+      "verdict": "agreed"
+    },
+    {
+      "agreedBy": [
+        "cpp-1",
+        "lsp-1",
+        "scala-1"
+      ],
+      "chain": "DocumentSigningWorkflowMonitor.json::signing-partial::ds-partial",
+      "inputRegion": {
+        "length": 4,
+        "offset": 928
+      },
+      "inputs": [
+        [
+          0.55,
+          0.38,
+          0.52,
+          0.42
+        ]
+      ],
+      "machineFile": "DocumentSigningWorkflowMonitor.json",
+      "machineName": "Document Signing Workflow Monitor",
+      "outputStream": [
+        {
+          "eventBus": [],
+          "mergeBatch": [
+            {
+              "provenance": [
+                "ds-active",
+                "ds-stalled",
+                "ds-blocked"
+              ],
+              "region": {
+                "length": 4,
+                "offset": 960
+              },
+              "sequenceIds": [
+                "signing-blocked-escalation"
+              ],
+              "values": [
+                1,
+                0,
+                0,
+                0
+              ]
+            }
+          ],
+          "step": 0
+        }
+      ],
+      "quorum": "3-of-3",
+      "sequenceId": "signing-partial",
+      "terminalEventId": "ds-partial",
+      "verdict": "agreed"
+    },
+    {
+      "agreedBy": [
+        "cpp-1",
+        "lsp-1",
+        "scala-1"
+      ],
+      "chain": "HomeTransportationBarrierMonitor.json::transport-adequate::tp-adequate",
+      "inputRegion": {
+        "length": 4,
+        "offset": 1983
+      },
+      "inputs": [
+        [
+          0.68,
+          0.65,
+          0.72,
+          0.62
+        ]
+      ],
+      "machineFile": "HomeTransportationBarrierMonitor.json",
+      "machineName": "Home Transportation Barrier Monitor",
+      "outputStream": [
+        {
+          "eventBus": [],
+          "mergeBatch": [
+            {
+              "provenance": [
+                "tp-mobile",
+                "tp-strained",
+                "tp-impaired"
+              ],
+              "region": {
+                "length": 4,
+                "offset": 2015
+              },
+              "sequenceIds": [
+                "transport-critical-failure"
+              ],
+              "values": [
+                1,
+                0,
+                0,
+                0
+              ]
+            }
+          ],
+          "step": 0
+        }
+      ],
+      "quorum": "3-of-3",
+      "sequenceId": "transport-adequate",
+      "terminalEventId": "tp-adequate",
+      "verdict": "agreed"
+    },
+    {
+      "agreedBy": [
+        "cpp-1",
+        "lsp-1",
+        "scala-1"
+      ],
+      "chain": "HomeTransportationBarrierMonitor.json::transport-critical-failure::tp-impaired",
+      "inputRegion": {
+        "length": 4,
+        "offset": 1983
+      },
+      "inputs": [
+        [
+          0.65,
+          0.62,
+          0.68,
+          0.6
+        ],
+        [
+          0.38,
+          0.32,
+          0.55,
+          0.35
+        ],
+        [
+          0.12,
+          0.1,
+          0.2,
+          0.15
+        ]
+      ],
+      "machineFile": "HomeTransportationBarrierMonitor.json",
+      "machineName": "Home Transportation Barrier Monitor",
+      "outputStream": [
+        {
+          "eventBus": [],
+          "mergeBatch": [
+            {
+              "provenance": [
+                "tp-adequate"
+              ],
+              "region": {
+                "length": 4,
+                "offset": 2015
+              },
+              "sequenceIds": [
+                "transport-adequate"
+              ],
+              "values": [
+                0,
+                0,
+                0,
+                1
+              ]
+            }
+          ],
+          "step": 0
+        },
+        {
+          "eventBus": [],
+          "mergeBatch": [
+            {
+              "provenance": [
+                "tp-adequate"
+              ],
+              "region": {
+                "length": 4,
+                "offset": 2015
+              },
+              "sequenceIds": [
+                "transport-adequate"
+              ],
+              "values": [
+                0,
+                0,
+                0,
+                1
+              ]
+            }
+          ],
+          "step": 1
+        },
+        {
+          "eventBus": [],
+          "mergeBatch": [
+            {
+              "provenance": [
+                "tp-transit-dependent"
+              ],
+              "region": {
+                "length": 4,
+                "offset": 2015
+              },
+              "sequenceIds": [
+                "transport-transit-dependent-risk"
+              ],
+              "values": [
+                0,
+                0,
+                1,
+                0
+              ]
+            }
+          ],
+          "step": 2
+        }
+      ],
+      "quorum": "3-of-3",
+      "sequenceId": "transport-critical-failure",
+      "terminalEventId": "tp-impaired",
+      "verdict": "agreed"
+    },
+    {
+      "agreedBy": [
+        "cpp-1",
+        "lsp-1",
+        "scala-1"
+      ],
+      "chain": "HomeTransportationBarrierMonitor.json::transport-transit-dependent-risk::tp-transit-dependent",
+      "inputRegion": {
+        "length": 4,
+        "offset": 1983
+      },
+      "inputs": [
+        [
+          0.42,
+          0.32,
+          0.55,
+          0.3
+        ]
+      ],
+      "machineFile": "HomeTransportationBarrierMonitor.json",
+      "machineName": "Home Transportation Barrier Monitor",
+      "outputStream": [
+        {
+          "eventBus": [],
+          "mergeBatch": [
+            {
+              "provenance": [
+                "tp-mobile",
+                "tp-strained",
+                "tp-impaired"
+              ],
+              "region": {
+                "length": 4,
+                "offset": 2015
+              },
+              "sequenceIds": [
+                "transport-critical-failure"
+              ],
+              "values": [
+                1,
+                0,
+                0,
+                0
+              ]
+            }
+          ],
+          "step": 0
+        }
+      ],
+      "quorum": "3-of-3",
+      "sequenceId": "transport-transit-dependent-risk",
+      "terminalEventId": "tp-transit-dependent",
+      "verdict": "agreed"
+    },
+    {
+      "agreedBy": [
+        "cpp-1",
+        "lsp-1",
+        "scala-1"
+      ],
+      "chain": "OpenClawCompletionE2E.json::openclaw-e2e-completion-accepted::openclaw-e2e-completion-accepted-vector",
+      "inputRegion": {
+        "length": 4,
+        "offset": 4210
+      },
+      "inputs": [
+        [
+          1,
+          0,
+          1,
+          0
+        ]
+      ],
+      "machineFile": "OpenClawCompletionE2E.json",
+      "machineName": "OpenClaw Completion E2E",
+      "outputStream": [
+        {
+          "eventBus": [],
+          "mergeBatch": [
+            {
+              "provenance": [
+                "openclaw-e2e-completion-accepted-vector"
+              ],
+              "region": {
+                "length": 4,
+                "offset": 4214
+              },
+              "sequenceIds": [
+                "openclaw-e2e-completion-accepted"
+              ],
+              "values": [
+                0,
+                0,
+                0,
+                1
+              ]
+            }
+          ],
+          "step": 0
+        }
+      ],
+      "quorum": "3-of-3",
+      "sequenceId": "openclaw-e2e-completion-accepted",
+      "terminalEventId": "openclaw-e2e-completion-accepted-vector",
+      "verdict": "agreed"
+    },
+    {
+      "agreedBy": [
+        "cpp-1",
+        "lsp-1",
+        "scala-1"
+      ],
+      "chain": "OpenClawCompletionE2E.json::openclaw-e2e-dispatch-seed::openclaw-e2e-dispatch-seed-vector",
+      "inputRegion": {
+        "length": 4,
+        "offset": 4210
+      },
+      "inputs": [
+        [
+          0,
+          1,
+          0,
+          1
+        ]
+      ],
+      "machineFile": "OpenClawCompletionE2E.json",
+      "machineName": "OpenClaw Completion E2E",
+      "outputStream": [
+        {
+          "eventBus": [],
+          "mergeBatch": [
+            {
+              "provenance": [
+                "openclaw-e2e-dispatch-seed-vector"
+              ],
+              "region": {
+                "length": 4,
+                "offset": 4214
+              },
+              "sequenceIds": [
+                "openclaw-e2e-dispatch-seed"
+              ],
+              "values": [
+                1,
+                0,
+                0,
+                0
+              ]
+            }
+          ],
+          "step": 0
+        }
+      ],
+      "quorum": "3-of-3",
+      "sequenceId": "openclaw-e2e-dispatch-seed",
+      "terminalEventId": "openclaw-e2e-dispatch-seed-vector",
+      "verdict": "agreed"
+    },
+    {
+      "agreedBy": [
+        "cpp-1",
+        "lsp-1",
+        "scala-1"
+      ],
+      "chain": "QualificationVerificationMonitor.json::qualification-confirmed::qv-verified",
+      "inputRegion": {
+        "length": 4,
+        "offset": 932
+      },
+      "inputs": [
+        [
+          0.68,
+          0.65,
+          0.68,
+          0.72
+        ]
+      ],
+      "machineFile": "QualificationVerificationMonitor.json",
+      "machineName": "Qualification Verification Monitor",
+      "outputStream": [
+        {
+          "eventBus": [],
+          "mergeBatch": [
+            {
+              "provenance": [
+                "qv-verified"
+              ],
+              "region": {
+                "length": 4,
+                "offset": 964
+              },
+              "sequenceIds": [
+                "qualification-confirmed"
+              ],
+              "values": [
+                0,
+                0,
+                0,
+                1
+              ]
+            }
+          ],
+          "step": 0
+        }
+      ],
+      "quorum": "3-of-3",
+      "sequenceId": "qualification-confirmed",
+      "terminalEventId": "qv-verified",
+      "verdict": "agreed"
+    },
+    {
+      "agreedBy": [
+        "cpp-1",
+        "lsp-1",
+        "scala-1"
+      ],
+      "chain": "QualificationVerificationMonitor.json::qualification-failure-escalation::qv-hold",
+      "inputRegion": {
+        "length": 4,
+        "offset": 932
+      },
+      "inputs": [
+        [
+          0.65,
+          0.62,
+          0.65,
+          0.7
+        ],
+        [
+          0.38,
+          0.35,
+          0.42,
+          0.45
+        ],
+        [
+          0.15,
+          0.12,
+          0.2,
+          0.2
+        ]
+      ],
+      "machineFile": "QualificationVerificationMonitor.json",
+      "machineName": "Qualification Verification Monitor",
+      "outputStream": [
+        {
+          "eventBus": [],
+          "mergeBatch": [
+            {
+              "provenance": [
+                "qv-verified"
+              ],
+              "region": {
+                "length": 4,
+                "offset": 964
+              },
+              "sequenceIds": [
+                "qualification-confirmed"
+              ],
+              "values": [
+                0,
+                0,
+                0,
+                1
+              ]
+            }
+          ],
+          "step": 0
+        },
+        {
+          "eventBus": [],
+          "mergeBatch": [
+            {
+              "provenance": [
+                "qv-verified"
+              ],
+              "region": {
+                "length": 4,
+                "offset": 964
+              },
+              "sequenceIds": [
+                "qualification-confirmed"
+              ],
+              "values": [
+                0,
+                0,
+                0,
+                1
+              ]
+            }
+          ],
+          "step": 1
+        },
+        {
+          "eventBus": [],
+          "mergeBatch": [
+            {
+              "provenance": [
+                "qv-lapsing"
+              ],
+              "region": {
+                "length": 4,
+                "offset": 964
+              },
+              "sequenceIds": [
+                "qualification-reverification"
+              ],
+              "values": [
+                0,
+                1,
+                0,
+                0
+              ]
+            }
+          ],
+          "step": 2
+        }
+      ],
+      "quorum": "3-of-3",
+      "sequenceId": "qualification-failure-escalation",
+      "terminalEventId": "qv-hold",
+      "verdict": "agreed"
+    },
+    {
+      "agreedBy": [
+        "cpp-1",
+        "lsp-1",
+        "scala-1"
+      ],
+      "chain": "RSRingLatchStageA.json::rsr-a-reset-sequence::rsr-a-event-01",
+      "inputRegion": {
+        "length": 2,
+        "offset": 16920
+      },
+      "inputs": [
+        [
+          0,
+          1
+        ]
+      ],
+      "machineFile": "RSRingLatchStageA.json",
+      "machineName": "RS Ring Latch Stage A",
+      "outputStream": [
+        {
+          "eventBus": [],
+          "mergeBatch": [
+            {
+              "provenance": [
+                "rsr-a-event-01"
+              ],
+              "region": {
+                "length": 2,
+                "offset": 16922
+              },
+              "sequenceIds": [
+                "rsr-a-reset-sequence"
+              ],
+              "values": [
+                0,
+                1
+              ]
+            }
+          ],
+          "step": 0
+        }
+      ],
+      "quorum": "3-of-3",
+      "sequenceId": "rsr-a-reset-sequence",
+      "terminalEventId": "rsr-a-event-01",
+      "verdict": "agreed"
+    },
+    {
+      "agreedBy": [
+        "cpp-1",
+        "lsp-1",
+        "scala-1"
+      ],
+      "chain": "RSRingLatchStageB.json::rsr-b-set-sequence::rsr-b-event-10",
+      "inputRegion": {
+        "length": 2,
+        "offset": 16922
+      },
+      "inputs": [
+        [
+          1,
+          0
+        ]
+      ],
+      "machineFile": "RSRingLatchStageB.json",
+      "machineName": "RS Ring Latch Stage B",
+      "outputStream": [
+        {
+          "eventBus": [],
+          "mergeBatch": [
+            {
+              "provenance": [
+                "rsr-b-event-10"
+              ],
+              "region": {
+                "length": 2,
+                "offset": 16920
+              },
+              "sequenceIds": [
+                "rsr-b-set-sequence"
+              ],
+              "values": [
+                1,
+                0
+              ]
+            }
+          ],
+          "step": 0
+        }
+      ],
+      "quorum": "3-of-3",
+      "sequenceId": "rsr-b-set-sequence",
+      "terminalEventId": "rsr-b-event-10",
+      "verdict": "agreed"
+    }
+  ],
+  "counts": {
+    "agreed": 31,
+    "disagreement": 10,
+    "noRuntimeEmits": 4,
+    "unmeasurable": 0
+  },
+  "derivedFrom": "3-of-3 agreement across the cpp, lsp and scala runtimes",
+  "disagreements": [
+    {
+      "chain": "rag_corrective_cycle.json::rag-abort-path::rag-abort-check",
+      "clusters": [
+        {
+          "instances": [
+            "cpp-1",
+            "lsp-1"
+          ],
+          "outputStream": [
+            {
+              "eventBus": [],
+              "mergeBatch": [
+                {
+                  "provenance": [
+                    "rag-abort-check"
+                  ],
+                  "region": {
+                    "length": 4,
+                    "offset": 7448
+                  },
+                  "sequenceIds": [
+                    "rag-abort-path"
+                  ],
+                  "values": [
+                    0,
+                    0,
+                    1,
+                    0
+                  ]
+                }
+              ],
+              "step": 0
+            }
+          ]
+        },
+        {
+          "instances": [
+            "scala-1"
+          ],
+          "outputStream": [
+            {
+              "eventBus": [],
+              "mergeBatch": [
+                {
+                  "provenance": [
+                    "rag-abort-check"
+                  ],
+                  "region": {
+                    "length": 4,
+                    "offset": 7448
+                  },
+                  "sequenceIds": [
+                    "rag-abort-path"
+                  ],
+                  "values": [
+                    0,
+                    0,
+                    1,
+                    0
+                  ]
+                },
+                {
+                  "provenance": [
+                    "rag-abort-check"
+                  ],
+                  "region": {
+                    "length": 4,
+                    "offset": 7448
+                  },
+                  "sequenceIds": [
+                    "rag-abort-path"
+                  ],
+                  "values": [
+                    0,
+                    0,
+                    1,
+                    0
+                  ]
+                }
+              ],
+              "step": 0
+            }
+          ]
+        }
+      ],
+      "machineFile": "rag_corrective_cycle.json",
+      "quorum": "3-of-3",
+      "sequenceId": "rag-abort-path",
+      "terminalEventId": "rag-abort-check",
+      "verdict": "disagreement"
+    },
+    {
+      "chain": "rag_corrective_cycle.json::rag-generate-path::rag-gen-check",
+      "clusters": [
+        {
+          "instances": [
+            "cpp-1",
+            "lsp-1"
+          ],
+          "outputStream": [
+            {
+              "eventBus": [],
+              "mergeBatch": [
+                {
+                  "provenance": [
+                    "rag-gen-check"
+                  ],
+                  "region": {
+                    "length": 4,
+                    "offset": 7448
+                  },
+                  "sequenceIds": [
+                    "rag-generate-path"
+                  ],
+                  "values": [
+                    1,
+                    0,
+                    0,
+                    0
+                  ]
+                }
+              ],
+              "step": 0
+            }
+          ]
+        },
+        {
+          "instances": [
+            "scala-1"
+          ],
+          "outputStream": [
+            {
+              "eventBus": [],
+              "mergeBatch": [
+                {
+                  "provenance": [
+                    "rag-gen-check"
+                  ],
+                  "region": {
+                    "length": 4,
+                    "offset": 7448
+                  },
+                  "sequenceIds": [
+                    "rag-generate-path"
+                  ],
+                  "values": [
+                    1,
+                    0,
+                    0,
+                    0
+                  ]
+                },
+                {
+                  "provenance": [
+                    "rag-gen-check"
+                  ],
+                  "region": {
+                    "length": 4,
+                    "offset": 7448
+                  },
+                  "sequenceIds": [
+                    "rag-generate-path"
+                  ],
+                  "values": [
+                    1,
+                    0,
+                    0,
+                    0
+                  ]
+                }
+              ],
+              "step": 0
+            }
+          ]
+        }
+      ],
+      "machineFile": "rag_corrective_cycle.json",
+      "quorum": "3-of-3",
+      "sequenceId": "rag-generate-path",
+      "terminalEventId": "rag-gen-check",
+      "verdict": "disagreement"
+    },
+    {
+      "chain": "rag_corrective_cycle.json::rag-rewrite-path::rag-rewrite-check",
+      "clusters": [
+        {
+          "instances": [
+            "cpp-1",
+            "lsp-1"
+          ],
+          "outputStream": [
+            {
+              "eventBus": [],
+              "mergeBatch": [
+                {
+                  "provenance": [
+                    "rag-rewrite-check"
+                  ],
+                  "region": {
+                    "length": 4,
+                    "offset": 7448
+                  },
+                  "sequenceIds": [
+                    "rag-rewrite-path"
+                  ],
+                  "values": [
+                    0,
+                    1,
+                    0,
+                    0
+                  ]
+                }
+              ],
+              "step": 0
+            }
+          ]
+        },
+        {
+          "instances": [
+            "scala-1"
+          ],
+          "outputStream": [
+            {
+              "eventBus": [],
+              "mergeBatch": [
+                {
+                  "provenance": [
+                    "rag-rewrite-check"
+                  ],
+                  "region": {
+                    "length": 4,
+                    "offset": 7448
+                  },
+                  "sequenceIds": [
+                    "rag-rewrite-path"
+                  ],
+                  "values": [
+                    0,
+                    1,
+                    0,
+                    0
+                  ]
+                },
+                {
+                  "provenance": [
+                    "rag-rewrite-check"
+                  ],
+                  "region": {
+                    "length": 4,
+                    "offset": 7448
+                  },
+                  "sequenceIds": [
+                    "rag-rewrite-path"
+                  ],
+                  "values": [
+                    0,
+                    1,
+                    0,
+                    0
+                  ]
+                }
+              ],
+              "step": 0
+            }
+          ]
+        }
+      ],
+      "machineFile": "rag_corrective_cycle.json",
+      "quorum": "3-of-3",
+      "sequenceId": "rag-rewrite-path",
+      "terminalEventId": "rag-rewrite-check",
+      "verdict": "disagreement"
+    },
+    {
+      "chain": "session_agent_context.json::sess-agent-and-prior-tools::vec-sess-agent-prior-tools",
+      "clusters": [
+        {
+          "instances": [
+            "cpp-1",
+            "lsp-1"
+          ],
+          "outputStream": [
+            {
+              "eventBus": [],
+              "mergeBatch": [
+                {
+                  "provenance": [
+                    "vec-sess-agent-prior-tools",
+                    "vec-sess-tools-after-agent"
+                  ],
+                  "region": {
+                    "length": 4,
+                    "offset": 7504
+                  },
+                  "sequenceIds": [
+                    "sess-agent-and-prior-tools",
+                    "sess-tools-after-agent"
+                  ],
+                  "values": [
+                    1,
+                    1,
+                    0,
+                    0
+                  ]
+                }
+              ],
+              "step": 0
+            }
+          ]
+        },
+        {
+          "instances": [
+            "scala-1"
+          ],
+          "outputStream": [
+            {
+              "eventBus": [],
+              "mergeBatch": [
+                {
+                  "provenance": [
+                    "vec-sess-agent-prior-tools",
+                    "vec-sess-tools-after-agent"
+                  ],
+                  "region": {
+                    "length": 4,
+                    "offset": 7504
+                  },
+                  "sequenceIds": [
+                    "sess-agent-and-prior-tools",
+                    "sess-tools-after-agent"
+                  ],
+                  "values": [
+                    1,
+                    1,
+                    0,
+                    0
+                  ]
+                },
+                {
+                  "provenance": [
+                    "vec-sess-agent-prior-tools",
+                    "vec-sess-tools-after-agent"
+                  ],
+                  "region": {
+                    "length": 4,
+                    "offset": 7504
+                  },
+                  "sequenceIds": [
+                    "sess-agent-and-prior-tools",
+                    "sess-tools-after-agent"
+                  ],
+                  "values": [
+                    1,
+                    1,
+                    0,
+                    0
+                  ]
+                }
+              ],
+              "step": 0
+            }
+          ]
+        }
+      ],
+      "machineFile": "session_agent_context.json",
+      "quorum": "3-of-3",
+      "sequenceId": "sess-agent-and-prior-tools",
+      "terminalEventId": "vec-sess-agent-prior-tools",
+      "verdict": "disagreement"
+    },
+    {
+      "chain": "session_agent_context.json::sess-agent-first::vec-sess-agent-first",
+      "clusters": [
+        {
+          "instances": [
+            "cpp-1",
+            "lsp-1"
+          ],
+          "outputStream": [
+            {
+              "eventBus": [],
+              "mergeBatch": [
+                {
+                  "provenance": [
+                    "vec-sess-agent-first",
+                    "vec-sess-tools-after-agent"
+                  ],
+                  "region": {
+                    "length": 4,
+                    "offset": 7504
+                  },
+                  "sequenceIds": [
+                    "sess-agent-first",
+                    "sess-tools-after-agent"
+                  ],
+                  "values": [
+                    1,
+                    1,
+                    0,
+                    0
+                  ]
+                }
+              ],
+              "step": 0
+            }
+          ]
+        },
+        {
+          "instances": [
+            "scala-1"
+          ],
+          "outputStream": [
+            {
+              "eventBus": [],
+              "mergeBatch": [
+                {
+                  "provenance": [
+                    "vec-sess-agent-first",
+                    "vec-sess-tools-after-agent"
+                  ],
+                  "region": {
+                    "length": 4,
+                    "offset": 7504
+                  },
+                  "sequenceIds": [
+                    "sess-agent-first",
+                    "sess-tools-after-agent"
+                  ],
+                  "values": [
+                    1,
+                    1,
+                    0,
+                    0
+                  ]
+                },
+                {
+                  "provenance": [
+                    "vec-sess-agent-first",
+                    "vec-sess-tools-after-agent"
+                  ],
+                  "region": {
+                    "length": 4,
+                    "offset": 7504
+                  },
+                  "sequenceIds": [
+                    "sess-agent-first",
+                    "sess-tools-after-agent"
+                  ],
+                  "values": [
+                    1,
+                    1,
+                    0,
+                    0
+                  ]
+                }
+              ],
+              "step": 0
+            }
+          ]
+        }
+      ],
+      "machineFile": "session_agent_context.json",
+      "quorum": "3-of-3",
+      "sequenceId": "sess-agent-first",
+      "terminalEventId": "vec-sess-agent-first",
+      "verdict": "disagreement"
+    },
+    {
+      "chain": "session_agent_context.json::sess-tools-after-agent::vec-sess-tools-after-agent",
+      "clusters": [
+        {
+          "instances": [
+            "cpp-1",
+            "lsp-1"
+          ],
+          "outputStream": [
+            {
+              "eventBus": [],
+              "mergeBatch": [
+                {
+                  "provenance": [
+                    "vec-sess-agent-prior-tools",
+                    "vec-sess-tools-after-agent"
+                  ],
+                  "region": {
+                    "length": 4,
+                    "offset": 7504
+                  },
+                  "sequenceIds": [
+                    "sess-agent-and-prior-tools",
+                    "sess-tools-after-agent"
+                  ],
+                  "values": [
+                    1,
+                    1,
+                    0,
+                    0
+                  ]
+                }
+              ],
+              "step": 0
+            }
+          ]
+        },
+        {
+          "instances": [
+            "scala-1"
+          ],
+          "outputStream": [
+            {
+              "eventBus": [],
+              "mergeBatch": [
+                {
+                  "provenance": [
+                    "vec-sess-agent-prior-tools",
+                    "vec-sess-tools-after-agent"
+                  ],
+                  "region": {
+                    "length": 4,
+                    "offset": 7504
+                  },
+                  "sequenceIds": [
+                    "sess-agent-and-prior-tools",
+                    "sess-tools-after-agent"
+                  ],
+                  "values": [
+                    1,
+                    1,
+                    0,
+                    0
+                  ]
+                },
+                {
+                  "provenance": [
+                    "vec-sess-agent-prior-tools",
+                    "vec-sess-tools-after-agent"
+                  ],
+                  "region": {
+                    "length": 4,
+                    "offset": 7504
+                  },
+                  "sequenceIds": [
+                    "sess-agent-and-prior-tools",
+                    "sess-tools-after-agent"
+                  ],
+                  "values": [
+                    1,
+                    1,
+                    0,
+                    0
+                  ]
+                }
+              ],
+              "step": 0
+            }
+          ]
+        }
+      ],
+      "machineFile": "session_agent_context.json",
+      "quorum": "3-of-3",
+      "sequenceId": "sess-tools-after-agent",
+      "terminalEventId": "vec-sess-tools-after-agent",
+      "verdict": "disagreement"
+    },
+    {
+      "chain": "session_agent_context.json::sess-tools-first::vec-sess-tools-first",
+      "clusters": [
+        {
+          "instances": [
+            "cpp-1",
+            "lsp-1"
+          ],
+          "outputStream": [
+            {
+              "eventBus": [],
+              "mergeBatch": [
+                {
+                  "provenance": [
+                    "vec-sess-agent-prior-tools",
+                    "vec-sess-tools-first"
+                  ],
+                  "region": {
+                    "length": 4,
+                    "offset": 7504
+                  },
+                  "sequenceIds": [
+                    "sess-agent-and-prior-tools",
+                    "sess-tools-first"
+                  ],
+                  "values": [
+                    1,
+                    1,
+                    0,
+                    0
+                  ]
+                }
+              ],
+              "step": 0
+            }
+          ]
+        },
+        {
+          "instances": [
+            "scala-1"
+          ],
+          "outputStream": [
+            {
+              "eventBus": [],
+              "mergeBatch": [
+                {
+                  "provenance": [
+                    "vec-sess-agent-prior-tools",
+                    "vec-sess-tools-first"
+                  ],
+                  "region": {
+                    "length": 4,
+                    "offset": 7504
+                  },
+                  "sequenceIds": [
+                    "sess-agent-and-prior-tools",
+                    "sess-tools-first"
+                  ],
+                  "values": [
+                    1,
+                    1,
+                    0,
+                    0
+                  ]
+                },
+                {
+                  "provenance": [
+                    "vec-sess-agent-prior-tools",
+                    "vec-sess-tools-first"
+                  ],
+                  "region": {
+                    "length": 4,
+                    "offset": 7504
+                  },
+                  "sequenceIds": [
+                    "sess-agent-and-prior-tools",
+                    "sess-tools-first"
+                  ],
+                  "values": [
+                    1,
+                    1,
+                    0,
+                    0
+                  ]
+                }
+              ],
+              "step": 0
+            }
+          ]
+        }
+      ],
+      "machineFile": "session_agent_context.json",
+      "quorum": "3-of-3",
+      "sequenceId": "sess-tools-first",
+      "terminalEventId": "vec-sess-tools-first",
+      "verdict": "disagreement"
+    },
+    {
+      "chain": "session_rag_context.json::sess-rag-abort::vec-sess-rag-abort",
+      "clusters": [
+        {
+          "instances": [
+            "cpp-1",
+            "lsp-1"
+          ],
+          "outputStream": [
+            {
+              "eventBus": [],
+              "mergeBatch": [
+                {
+                  "provenance": [
+                    "vec-sess-rag-abort",
+                    "vec-sess-rag-generate",
+                    "vec-sess-rag-rewrite"
+                  ],
+                  "region": {
+                    "length": 4,
+                    "offset": 7500
+                  },
+                  "sequenceIds": [
+                    "sess-rag-abort",
+                    "sess-rag-generate",
+                    "sess-rag-rewrite"
+                  ],
+                  "values": [
+                    1,
+                    1,
+                    1,
+                    0
+                  ]
+                }
+              ],
+              "step": 0
+            }
+          ]
+        },
+        {
+          "instances": [
+            "scala-1"
+          ],
+          "outputStream": [
+            {
+              "eventBus": [],
+              "mergeBatch": [
+                {
+                  "provenance": [
+                    "vec-sess-rag-abort",
+                    "vec-sess-rag-generate",
+                    "vec-sess-rag-rewrite"
+                  ],
+                  "region": {
+                    "length": 4,
+                    "offset": 7500
+                  },
+                  "sequenceIds": [
+                    "sess-rag-abort",
+                    "sess-rag-generate",
+                    "sess-rag-rewrite"
+                  ],
+                  "values": [
+                    1,
+                    1,
+                    1,
+                    0
+                  ]
+                },
+                {
+                  "provenance": [
+                    "vec-sess-rag-abort",
+                    "vec-sess-rag-generate",
+                    "vec-sess-rag-rewrite"
+                  ],
+                  "region": {
+                    "length": 4,
+                    "offset": 7500
+                  },
+                  "sequenceIds": [
+                    "sess-rag-abort",
+                    "sess-rag-generate",
+                    "sess-rag-rewrite"
+                  ],
+                  "values": [
+                    1,
+                    1,
+                    1,
+                    0
+                  ]
+                }
+              ],
+              "step": 0
+            }
+          ]
+        }
+      ],
+      "machineFile": "session_rag_context.json",
+      "quorum": "3-of-3",
+      "sequenceId": "sess-rag-abort",
+      "terminalEventId": "vec-sess-rag-abort",
+      "verdict": "disagreement"
+    },
+    {
+      "chain": "session_rag_context.json::sess-rag-generate::vec-sess-rag-generate",
+      "clusters": [
+        {
+          "instances": [
+            "cpp-1",
+            "lsp-1"
+          ],
+          "outputStream": [
+            {
+              "eventBus": [],
+              "mergeBatch": [
+                {
+                  "provenance": [
+                    "vec-sess-rag-abort",
+                    "vec-sess-rag-generate",
+                    "vec-sess-rag-rewrite"
+                  ],
+                  "region": {
+                    "length": 4,
+                    "offset": 7500
+                  },
+                  "sequenceIds": [
+                    "sess-rag-abort",
+                    "sess-rag-generate",
+                    "sess-rag-rewrite"
+                  ],
+                  "values": [
+                    1,
+                    1,
+                    1,
+                    0
+                  ]
+                }
+              ],
+              "step": 0
+            }
+          ]
+        },
+        {
+          "instances": [
+            "scala-1"
+          ],
+          "outputStream": [
+            {
+              "eventBus": [],
+              "mergeBatch": [
+                {
+                  "provenance": [
+                    "vec-sess-rag-abort",
+                    "vec-sess-rag-generate",
+                    "vec-sess-rag-rewrite"
+                  ],
+                  "region": {
+                    "length": 4,
+                    "offset": 7500
+                  },
+                  "sequenceIds": [
+                    "sess-rag-abort",
+                    "sess-rag-generate",
+                    "sess-rag-rewrite"
+                  ],
+                  "values": [
+                    1,
+                    1,
+                    1,
+                    0
+                  ]
+                },
+                {
+                  "provenance": [
+                    "vec-sess-rag-abort",
+                    "vec-sess-rag-generate",
+                    "vec-sess-rag-rewrite"
+                  ],
+                  "region": {
+                    "length": 4,
+                    "offset": 7500
+                  },
+                  "sequenceIds": [
+                    "sess-rag-abort",
+                    "sess-rag-generate",
+                    "sess-rag-rewrite"
+                  ],
+                  "values": [
+                    1,
+                    1,
+                    1,
+                    0
+                  ]
+                }
+              ],
+              "step": 0
+            }
+          ]
+        }
+      ],
+      "machineFile": "session_rag_context.json",
+      "quorum": "3-of-3",
+      "sequenceId": "sess-rag-generate",
+      "terminalEventId": "vec-sess-rag-generate",
+      "verdict": "disagreement"
+    },
+    {
+      "chain": "session_rag_context.json::sess-rag-rewrite::vec-sess-rag-rewrite",
+      "clusters": [
+        {
+          "instances": [
+            "cpp-1",
+            "lsp-1"
+          ],
+          "outputStream": [
+            {
+              "eventBus": [],
+              "mergeBatch": [
+                {
+                  "provenance": [
+                    "vec-sess-rag-abort",
+                    "vec-sess-rag-generate",
+                    "vec-sess-rag-rewrite"
+                  ],
+                  "region": {
+                    "length": 4,
+                    "offset": 7500
+                  },
+                  "sequenceIds": [
+                    "sess-rag-abort",
+                    "sess-rag-generate",
+                    "sess-rag-rewrite"
+                  ],
+                  "values": [
+                    1,
+                    1,
+                    1,
+                    0
+                  ]
+                }
+              ],
+              "step": 0
+            }
+          ]
+        },
+        {
+          "instances": [
+            "scala-1"
+          ],
+          "outputStream": [
+            {
+              "eventBus": [],
+              "mergeBatch": [
+                {
+                  "provenance": [
+                    "vec-sess-rag-abort",
+                    "vec-sess-rag-generate",
+                    "vec-sess-rag-rewrite"
+                  ],
+                  "region": {
+                    "length": 4,
+                    "offset": 7500
+                  },
+                  "sequenceIds": [
+                    "sess-rag-abort",
+                    "sess-rag-generate",
+                    "sess-rag-rewrite"
+                  ],
+                  "values": [
+                    1,
+                    1,
+                    1,
+                    0
+                  ]
+                },
+                {
+                  "provenance": [
+                    "vec-sess-rag-abort",
+                    "vec-sess-rag-generate",
+                    "vec-sess-rag-rewrite"
+                  ],
+                  "region": {
+                    "length": 4,
+                    "offset": 7500
+                  },
+                  "sequenceIds": [
+                    "sess-rag-abort",
+                    "sess-rag-generate",
+                    "sess-rag-rewrite"
+                  ],
+                  "values": [
+                    1,
+                    1,
+                    1,
+                    0
+                  ]
+                }
+              ],
+              "step": 0
+            }
+          ]
+        }
+      ],
+      "machineFile": "session_rag_context.json",
+      "quorum": "3-of-3",
+      "sequenceId": "sess-rag-rewrite",
+      "terminalEventId": "vec-sess-rag-rewrite",
+      "verdict": "disagreement"
+    }
+  ],
+  "generatedBy": "scripts/regression-ces-contracts.py",
+  "machineCorpus": "regression",
+  "machineCount": 20,
+  "noRuntimeEmits": [
+    {
+      "chain": "DLX017_start-busy-done.json::dlx-017-match::dlx-017-step-4",
+      "machineFile": "DLX017_start-busy-done.json",
+      "sequenceId": "dlx-017-match",
+      "steps": 4,
+      "terminalEventId": "dlx-017-step-4",
+      "verdict": "no-runtime-emits"
+    },
+    {
+      "chain": "QualificationVerificationMonitor.json::qualification-reverification::qv-lapsing",
+      "machineFile": "QualificationVerificationMonitor.json",
+      "sequenceId": "qualification-reverification",
+      "steps": 1,
+      "terminalEventId": "qv-lapsing",
+      "verdict": "no-runtime-emits"
+    },
+    {
+      "chain": "RSRingLatchStageA.json::rsr-a-set-sequence::rsr-a-event-10",
+      "machineFile": "RSRingLatchStageA.json",
+      "sequenceId": "rsr-a-set-sequence",
+      "steps": 1,
+      "terminalEventId": "rsr-a-event-10",
+      "verdict": "no-runtime-emits"
+    },
+    {
+      "chain": "RSRingLatchStageB.json::rsr-b-reset-sequence::rsr-b-event-01",
+      "machineFile": "RSRingLatchStageB.json",
+      "sequenceId": "rsr-b-reset-sequence",
+      "steps": 1,
+      "terminalEventId": "rsr-b-event-01",
+      "verdict": "no-runtime-emits"
+    }
+  ],
+  "quorum": {
+    "formed": true,
+    "missing": [],
+    "present": [
+      "cpp",
+      "lsp",
+      "scala"
+    ],
+    "required": [
+      "cpp",
+      "lsp",
+      "scala"
+    ],
+    "rule": "3-of-3"
+  },
+  "runtimes": [
+    "cpp",
+    "lsp",
+    "scala"
+  ],
+  "unmeasurable": [],
+  "version": "2.0.0"
+}

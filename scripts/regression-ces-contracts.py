@@ -130,9 +130,48 @@ def quorum_composition(instances: list[dict[str, str]]) -> dict[str, Any]:
 
 # ── Chain enumeration (corpus-only; no engine involved) ─────────────────────
 
-def corpus_files(machines_dir: Path) -> dict[str, Path]:
-    """Basename → path. Corpus filenames are globally unique by contract."""
-    return {p.name: p for p in sorted(machines_dir.rglob("*.json"))}
+def corpus_files(roots: list[Path]) -> dict[str, Path]:
+    """Basename → path across every corpus root. Filenames are globally unique.
+
+    More than one root because the regression corpus is not all in one repo.
+    Three of its twenty entries — `rag_corrective_cycle`, `session_rag_context`
+    and `session_agent_context` — live in `localAIStack/data/machines/`, and a
+    walk of `RealityEngine_Machines` alone resolves seventeen of twenty and
+    says nothing about the rest. Those three are the machines the RAG lane was
+    added to cover, so losing them silently loses exactly the coverage the
+    selection exists for.
+    """
+    out: dict[str, Path] = {}
+    for root in roots:
+        if not root.is_dir():
+            continue
+        for f in sorted(root.rglob("*.json")):
+            out.setdefault(f.name, f)
+    return out
+
+
+def corpus_selection(name: str, ci_dir: Path) -> list[str] | None:
+    """Basenames named by a corpus list, or None for the whole corpus.
+
+    The lists are the same `config/*-corpus.txt` files `startUniverse.sh`
+    boots from, read rather than restated — one definition of what a corpus
+    selection means. Entries are repo-relative paths; only the basename
+    matters here, since corpus filenames are globally unique.
+    """
+    if name == "full":
+        return None
+    path = ci_dir / "config" / f"{name}-corpus.txt"
+    if not path.exists():
+        raise SystemExit(
+            f"unknown corpus '{name}': no {path}. "
+            f"Available: full, " + ", ".join(
+                sorted(f.stem[:-7] for f in (ci_dir / "config").glob("*-corpus.txt"))))
+    names = []
+    for line in path.read_text(encoding="utf-8").splitlines():
+        line = line.strip()
+        if line and not line.startswith("#"):
+            names.append(line.split("/")[-1])
+    return names
 
 
 def enumerate_chains(name: str, path: Path) -> list[dict[str, Any]]:
@@ -387,7 +426,8 @@ def classify(chain: dict[str, Any], results: dict[str, Any], order: list[str]) -
 # ── Main ────────────────────────────────────────────────────────────────────
 
 def build_payload(verdicts: list[dict[str, Any]], quorum: dict[str, Any],
-                  instances: list[dict[str, str]], machine_count: int) -> dict[str, Any]:
+                  instances: list[dict[str, str]], machine_count: int,
+                  machine_corpus: str = "regression") -> dict[str, Any]:
     by = lambda v: [x for x in verdicts if x["verdict"] == v]  # noqa: E731
     agreed, disagreed = by("agreed"), by("disagreement")
     silent, unmeasurable = by("no-runtime-emits"), by("unmeasurable")
@@ -397,6 +437,9 @@ def build_payload(verdicts: list[dict[str, Any]], quorum: dict[str, Any],
         "derivedFrom": "3-of-3 agreement across the cpp, lsp and scala runtimes",
         "contract": "docs/QUORUM_CONTRACT.md",
         "quorum": quorum,
+        # Which selection this was recorded from. A contract that does not say
+        # what it covers cannot be told from one that covers everything.
+        "machineCorpus": machine_corpus,
         "runtimes": sorted({i["runtime"] for i in instances}),
         "machineCount": machine_count,
         "counts": {
@@ -418,7 +461,19 @@ def main() -> int:
     p = argparse.ArgumentParser(description=__doc__,
                                 formatter_class=argparse.RawDescriptionHelpFormatter)
     p.add_argument("--registry", type=Path, default=Path("/tmp/re-registry/re-registry.json"))
-    p.add_argument("--machines", type=Path, default=Path("../RealityEngine_Machines/machines"))
+    p.add_argument("--machines", type=Path, action="append", dest="machines",
+                   help="Corpus root. Repeatable. Defaults to the Machines corpus "
+                        "plus localAIStack's, which between them hold the regression selection.")
+    # Defaults to `regression`, not `full`. The contract is an authoritative
+    # git file reviewed as a diff (QUORUM_CONTRACT §4), and the full corpus
+    # yields 4941 chains against the regression selection's 35 — ~8.2h against
+    # ~4min to record, and a diff nobody can read. Divergence is a property of
+    # machine *shape*, and the corpus is largely template-generated families,
+    # so instance count buys repetition rather than coverage. `--machine-corpus
+    # full` remains available for a deliberate sweep.
+    p.add_argument("--machine-corpus", default="regression",
+                   help="Corpus selection: regression (default), standard-deployment, "
+                        "arbiter-fixture, standard-deployment-plus-ring, or full.")
     p.add_argument("--out", type=Path, default=Path("config/ces-contracts.json"),
                    help="Authoritative artifact. A git file by QUORUM_CONTRACT §4.")
     p.add_argument("--machine-names", help="Comma-separated basenames (without .json) to restrict to.")
@@ -438,12 +493,30 @@ def main() -> int:
         print("refusing to derive a contract from an incomplete quorum", file=sys.stderr)
         return 2
 
-    files = corpus_files(args.machines)
+    ci_dir = Path(__file__).resolve().parent.parent
+    roots = args.machines or [ci_dir / ".." / "RealityEngine_Machines" / "machines",
+                              ci_dir / ".." / "localAIStack" / "data" / "machines"]
+    files = corpus_files([Path(r) for r in roots])
+    if not files:
+        print(f"no corpus files under {[str(r) for r in roots]}", file=sys.stderr)
+        return 2
+
+    selection = corpus_selection(args.machine_corpus, ci_dir)
+    if selection is not None:
+        # Unresolved entries are named, never dropped. A selection that
+        # silently covers 17 of its 20 machines is a narrower gate wearing the
+        # name of a wider one.
+        missing = [n for n in selection if n not in files]
+        if missing:
+            print(f"corpus '{args.machine_corpus}' names {len(missing)} file(s) "
+                  f"not found under any root: {', '.join(sorted(missing))}", file=sys.stderr)
+            return 2
+        files = {n: p for n, p in files.items() if n in set(selection)}
     if args.machine_names:
         want = {n.strip() for n in args.machine_names.split(",") if n.strip()}
         files = {n: p for n, p in files.items() if n[:-5] in want}
     if not files:
-        print(f"no corpus files under {args.machines}", file=sys.stderr)
+        print("selection resolved to no machines", file=sys.stderr)
         return 2
 
     order = [i["id"] for i in instances if i["runtime"] in NATIVE_QUORUM]
@@ -469,7 +542,7 @@ def main() -> int:
             results = {k: run_chain(by_id[k], chain, args.run_id) for k in order}
             verdicts.append(classify(chain, results, order))
 
-    payload = build_payload(verdicts, quorum, instances, len(files))
+    payload = build_payload(verdicts, quorum, instances, len(files), args.machine_corpus)
     serialized = json.dumps(payload, indent=2, sort_keys=True) + "\n"
 
     c = payload["counts"]
