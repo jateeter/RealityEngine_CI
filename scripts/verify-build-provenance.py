@@ -62,7 +62,12 @@ TARGETS: dict[str, dict] = {
         "dir": "RealityEngine_CPP",
         "artifacts": ["bin/reality_engine_server", "bin/perception_engine_server"],
         # Repo-wide fallback, kept for any artifact without an entry below.
-        "sources": ["src/**/*.cpp", "src/**/*.hpp", "include/**/*.hpp"],
+        #
+        # `include/reality/*.hpp`, not `include/**/*.hpp`: the recursive form
+        # also matches `include/reality/generated/`, which is 1329 of the 1338
+        # headers in this repo and is linked by nothing the gate tracks. See the
+        # note on the per-artifact lists below (#354).
+        "sources": ["src/**/*.cpp", "src/**/*.hpp", "include/reality/*.hpp"],
         # Per binary, from the Makefile link rules:
         #
         #   bin/reality_engine_server:    $(SRC_OBJ) src/reality_engine_server.o
@@ -72,16 +77,34 @@ TARGETS: dict[str, dict] = {
         # The shared SRC set appears in both lists — correct and intended. What
         # this stops is an edit to src/perception_engine_server.cpp marking the
         # *Reality Engine* binary stale, which it does not link (#195).
+        #
+        # `include/reality/*.hpp` is the second half of that same fix (#354).
+        # The recursive `include/**/*.hpp` also matched
+        # `include/reality/generated/` — 1329 of the 1338 headers in this repo,
+        # emitted by cesgen from the machine corpus. Neither server includes
+        # one; `tests/cesgen_index_compile.cpp` is their only consumer in the
+        # entire repo, and it is not a launched artifact.
+        #
+        # The consequence was a gate its own remedy could not clear: a corpus
+        # regeneration marked both servers stale, `make all` correctly rebuilt
+        # nothing (make follows real dependencies), and the check still failed.
+        # The only exits were `touch`, `make -B`, or RE_SKIP_PROVENANCE=1 — the
+        # override the gate exists to discourage. A gate that trains people to
+        # reach for its override is worse than no gate.
+        #
+        # Staleness of the generated headers themselves is real and is covered
+        # where it belongs, by `cesgen --check` against the corpus (#352). It is
+        # not a launch-provenance question, because nothing launched reads them.
         "artifact_sources": {
             "bin/reality_engine_server": [
                 "src/reality.cpp", "src/arbiter.cpp", "src/http.cpp", "src/sta_checker.cpp",
                 "src/mqtt_client.cpp", "src/mqtt_mapping.cpp", "src/mqtt_bridge.cpp",
-                "src/reality_engine_server.cpp", "include/**/*.hpp",
+                "src/reality_engine_server.cpp", "include/reality/*.hpp",
             ],
             "bin/perception_engine_server": [
                 "src/reality.cpp", "src/arbiter.cpp", "src/http.cpp", "src/sta_checker.cpp",
                 "src/mqtt_client.cpp", "src/mqtt_mapping.cpp", "src/mqtt_bridge.cpp",
-                "src/perception_engine_server.cpp", "include/**/*.hpp",
+                "src/perception_engine_server.cpp", "include/reality/*.hpp",
             ],
         },
     },
