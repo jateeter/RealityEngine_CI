@@ -37,16 +37,22 @@ info() { printf '\033[1;33mℹ\033[0m %s\n' "$*"; }
 ok()   { printf '\033[0;32m✓\033[0m %s\n' "$*"; }
 bad()  { printf '\033[0;31m⚠\033[0m %s\n' "$*"; }
 
-# ── Perceptual space the FULL corpus needs ───────────────────────────────────
-# The engines default to 7680; the full corpus maps to 16944. Starting
-# under-provisioned makes machines fail to map, and the resulting short load
-# count looks exactly like a parity defect. It is not — it is a capacity class,
-# and scripts/claude.md is explicit that the two must never be conflated. So the
-# requirement is computed from the corpus and floored at the engine default,
-# which is what test-corpus-parity-loop.sh does for the same reason.
-VECTOR_DIMENSION="${VECTOR_DIMENSION:-$(python3 "$CI_DIR/scripts/lib/corpus-vector-dimension.py" "$MACHINES_DIR/machines")}"
+# ── Start at the FLOOR, deliberately ─────────────────────────────────────────
+# VECTOR_DIMENSION=7680 is the deployment floor (INTEGRATED_SPECIFICATION.md
+# Phase 2), not the size of the space. Every engine is required to expand its
+# perceptual space during machine ingestion — C++ add_machine -> grow_to, Scala
+# addMachine -> growTo, LSP grow-perceptual-space, and the TS PE grows on demand.
+#
+# So this sweep starts at the floor ON PURPOSE. Pre-sizing the space to the
+# corpus requirement would hand every engine a space large enough that it never
+# has to grow, which makes an engine that silently drops out-of-range regions
+# indistinguishable from one that expands correctly — it would mask exactly the
+# defect this check exists to find. The corpus requires 16944 against a floor of
+# 7680, so a runtime reporting the full count here has provably grown.
+VECTOR_DIMENSION="${VECTOR_DIMENSION:-7680}"
 export VECTOR_DIMENSION
-info "Perceptual space required by the full corpus: $VECTOR_DIMENSION"
+REQUIRED_DIMENSION="$(python3 "$CI_DIR/scripts/lib/corpus-vector-dimension.py" "$MACHINES_DIR/machines")"
+info "Starting every runtime at the floor: $VECTOR_DIMENSION (corpus needs $REQUIRED_DIMENSION)"
 
 # ── The number on disk, which is the claim every runtime is measured against ──
 DISK_COUNT="$(find "$MACHINES_DIR/machines" -name '*.json' -type f | wc -l | tr -d ' ')"
@@ -59,6 +65,7 @@ info "Corpus on disk: $DISK_COUNT machine files"
 # measuring a bespoke launch would answer a question nobody else asks.
 declare -A RE_PORT=( [scala]=5101 [cpp]=5301 [lsp]=5601 )
 declare -A COUNTS=()
+declare -A DIMS=()
 FAILED=0
 
 count_machines() {
@@ -104,7 +111,13 @@ for runtime in scala cpp lsp; do
     scheme=https
     curl -sk --max-time 5 "https://127.0.0.1:$port/api/health" >/dev/null 2>&1 || scheme=http
     COUNTS[$runtime]="$(count_machines "$scheme://127.0.0.1:$port")"
-    info "  $runtime reports ${COUNTS[$runtime]} machines"
+    # What the engine SAYS its space is, after ingesting a corpus that needs
+    # more than the floor. A runtime that grew internally but still reports the
+    # startup value is reporting a space it is not using — recorded, not failed,
+    # because the load count is the contract and this is the observable surface.
+    DIMS[$runtime]="$(curl -sk --max-time 10 "$scheme://127.0.0.1:$port/api/config" 2>/dev/null \
+        | python3 -c "import json,sys; d=json.load(sys.stdin); print(d.get('eventDimension') or d.get('vectorDimension') or '?')" 2>/dev/null || echo '?')"
+    info "  $runtime reports ${COUNTS[$runtime]} machines, eventDimension=${DIMS[$runtime]}"
 done
 
 # ── Compare ──────────────────────────────────────────────────────────────────
@@ -112,7 +125,10 @@ done
     echo "# Full corpus load parity"
     echo
     echo "disk: $DISK_COUNT"
-    for runtime in scala cpp lsp; do echo "$runtime: ${COUNTS[$runtime]:-UNMEASURED}"; done
+    echo "floor: $VECTOR_DIMENSION   corpus requires: $REQUIRED_DIMENSION"
+    for runtime in scala cpp lsp; do
+        echo "$runtime: ${COUNTS[$runtime]:-UNMEASURED} machines, reported dimension ${DIMS[$runtime]:-?}"
+    done
 } > "$REPORT_DIR/load-parity.md"
 
 for runtime in scala cpp lsp; do
@@ -120,7 +136,7 @@ for runtime in scala cpp lsp; do
     if [ "$got" = "$DISK_COUNT" ]; then
         ok "$runtime loaded all $DISK_COUNT machines"
     else
-        bad "$runtime loaded $got, disk has $DISK_COUNT"
+        bad "$runtime loaded $got, disk has $DISK_COUNT — it did not expand past the $VECTOR_DIMENSION floor"
         FAILED=1
     fi
 done
