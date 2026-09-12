@@ -147,7 +147,7 @@ jobs:
       # A scheduled job nobody is watching is a job whose failure nobody sees.
       - name: Open or update an issue on failure
         if: failure() && github.event_name == 'schedule'
-        uses: actions/github-script@v7
+        uses: actions/github-script@v9
         with:
           script: |
             const title = 'Corpus-wide OWL reasoning failed';

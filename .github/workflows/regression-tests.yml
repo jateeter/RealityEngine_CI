@@ -608,7 +608,7 @@ jobs:
 
       - name: Create or update regression failure issue
         if: ${{ failure() && (github.event_name == 'schedule' || github.event.inputs.create_issue_on_failure == 'true') }}
-        uses: actions/github-script@v7
+        uses: actions/github-script@v9
         env:
           REGRESSION_RUN_ID: ${{ steps.regression.outputs.run_id }}
         with:
