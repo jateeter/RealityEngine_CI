@@ -273,10 +273,19 @@ services:
       - AUDIT_LOG_ENABLED=true
       - AUDIT_LOG_LEVEL=2
       - AUDIT_LOG_SERVICE=perception-engine
+      # re:PerceptionEvent carries machineIri, which the PE resolves from the
+      # corpus semantics manifest. Named explicitly rather than left to the
+      # walk-up fallback, which cannot work in an image whose cwd is /app.
+      - SEMANTICS_MANIFEST=/app/semantics/abox-manifest.json
     volumes:
       - perception_sources_data:/app/data
       - ./config:/app/config:ro
       - ./certs:/etc/certs:ro
+      # Same join as the RE side: without the manifest every re:PerceptionEvent
+      # reports machineIri null, which the contract also permits for a region
+      # the PE cannot map — so a missing mount was indistinguishable from a
+      # source that genuinely addresses no machine.
+      - ${MACHINE_CORPUS_DIR:-${MACHINES_DIR:?MACHINES_DIR must be set — run via startUniverse.sh}}/semantics:/app/semantics:ro
     depends_on:
       reality-engine:
         condition: service_healthy
