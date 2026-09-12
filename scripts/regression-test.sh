@@ -80,7 +80,7 @@ LOCAL_AI_URL="${LOCAL_AI_URL:-http://localhost:4000}"
 # Node is managed, not discovered. RealityEngine_Manager pins engines.node, the
 # hosted lane pins the same version with actions/setup-node, and the harness
 # activates it through nvm so every lane builds against one runtime.
-NODE_VERSION="${NODE_VERSION:-25.5}"
+NODE_VERSION="${NODE_VERSION:-26.8}"
 NODE_ACTIVATE='export NVM_DIR="${NVM_DIR:-$HOME/.nvm}"; \
   if [ -s "$NVM_DIR/nvm.sh" ]; then . "$NVM_DIR/nvm.sh" >/dev/null 2>&1; \
     nvm use '"$NODE_VERSION"' >/dev/null 2>&1 || nvm install '"$NODE_VERSION"' >/dev/null 2>&1; fi; '

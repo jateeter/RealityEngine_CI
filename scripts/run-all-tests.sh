@@ -437,7 +437,7 @@ run_openclaw_adapter_tests() {
 }
 
 run_manager_builds_and_tests() {
-    local min_node="25.5.0"
+    local min_node="26.0.0"
     local modules=(
         "visualizer/backend|Manager visualizer backend"
         "visualizer/frontend|Manager visualizer frontend"

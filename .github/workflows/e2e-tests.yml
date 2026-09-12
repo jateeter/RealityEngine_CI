@@ -206,7 +206,7 @@ jobs:
       - name: Setup Node.js
         uses: actions/setup-node@v7
         with:
-          node-version: '25.5'
+          node-version: '26.8'
           cache: 'npm'
           # Manager's lockfiles are in the key because these jobs now install
           # its dependencies (the prebuild below). Without them the restored
@@ -375,11 +375,11 @@ jobs:
 
       # The parity-surface test imports the TypeScript module the e2e spec uses,
       # which needs the type stripping Node enables by default from 23. Pinned to
-      # the same 25.5 the other jobs use rather than trusting the runner default.
+      # the same 26.8 the other jobs use rather than trusting the runner default.
       - name: Set up Node
         uses: actions/setup-node@v7
         with:
-          node-version: '25.5'
+          node-version: '26.8'
 
       - name: Run registry unit tests
         working-directory: RealityEngine_CI
@@ -677,7 +677,7 @@ jobs:
       - name: Setup Node.js
         uses: actions/setup-node@v7
         with:
-          node-version: '25.5'
+          node-version: '26.8'
           cache: 'npm'
           # Manager's lockfiles are in the key because these jobs now install
           # its dependencies (the prebuild below). Without them the restored
