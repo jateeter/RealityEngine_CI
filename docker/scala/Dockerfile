@@ -29,9 +29,19 @@ WORKDIR /app
 
 COPY --from=build /build/target/scala-2.13/reality-engine.jar ./reality-engine.jar
 
+# wget is what docker-compose.yml health-checks this container with, so the
+# image has to carry it rather than inherit it: the jammy JRE images used to
+# ship wget and eclipse-temurin:25-jre-jammy does not. A healthcheck whose
+# binary is missing cannot fail open — it reports unhealthy forever, and the
+# `depends_on: condition: service_healthy` edges then take the whole stack
+# down with it, which is what #334 did.
+#
 # /app/machines is volume-mounted from RealityEngine_Machines at runtime.
 # The MACHINES_DIR env var points the loader at this mount path.
-RUN mkdir -p /app/machines && \
+RUN apt-get update && \
+    apt-get install -y --no-install-recommends wget && \
+    rm -rf /var/lib/apt/lists/* && \
+    mkdir -p /app/machines && \
     groupadd -r -g 1001 appuser && \
     useradd -r -u 1001 -g appuser appuser && \
     chown -R appuser:appuser /app
