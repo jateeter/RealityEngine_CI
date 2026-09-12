@@ -74,7 +74,7 @@ if [ -z "$registry_json" ]; then
 fi
 
 set +e
-REGISTRY_JSON="$registry_json" python3 - "$MACHINE_NAME" "$MACHINES_DIR" <<'PYEOF'
+REGISTRY_JSON="$registry_json" CI_DIR="$CI_DIR" python3 - "$MACHINE_NAME" "$MACHINES_DIR" <<'PYEOF'
 import json
 import os
 import sys
@@ -97,12 +97,18 @@ TICKS = [(0, 0), (1, 0), (2, 0), (3, 0), (3, 1), (3, 2), (3, 3)]
 ESCALATION_ACTIONS = {"emergency-dispatch", "urgent-intervention"}
 
 
+sys.path.insert(0, os.path.join(os.environ.get("CI_DIR", "."), "scripts", "lib"))
+from re_tls import tls_context  # noqa: E402
+
+_TLS = tls_context()
+
+
 def call(url, payload=None, timeout=120):
     data = json.dumps(payload).encode() if payload is not None else None
     headers = {"Content-Type": "application/json"} if data else {}
     req = urllib.request.Request(url, data=data, headers=headers,
                                  method="POST" if data else "GET")
-    with urllib.request.urlopen(req, timeout=timeout) as resp:
+    with urllib.request.urlopen(req, timeout=timeout, context=_TLS) as resp:
         return json.loads(resp.read())
 
 
@@ -117,6 +123,7 @@ if os.path.exists(manifest_path):
             break
 
 failures = []
+unmeasurable = []
 for inst in instances:
     label = inst.get("id") or inst.get("engine") or inst["re_url"]
     re_url = inst["re_url"].rstrip("/")
@@ -133,7 +140,10 @@ for inst in instances:
             })
         audit = call(f"{re_url}/api/audit/semantics?limit=1000")
     except (urllib.error.URLError, OSError, ValueError) as exc:
-        failures.append(f"{label}: audit surface unreachable ({exc})")
+        # Unreachable is not an incomplete chain. The engine produced no
+        # evidence either way, so it is reported separately rather than as a
+        # semantic-audit finding against the runtime.
+        unmeasurable.append(f"{label}: audit surface unreachable ({exc})")
         continue
 
     records = audit.get("records", [])
@@ -186,15 +196,24 @@ for inst in instances:
     print(f"audit-chain: {label}: {len(mine)} observation(s); "
           f"confirmed-fall path {' -> '.join(steps)}{note}")
 
+if unmeasurable:
+    for line in unmeasurable:
+        print(f"audit-chain: UNMEASURABLE — {line}")
+    print("audit-chain: UNMEASURABLE — the chain could not be read on every "
+          "runtime, so no completeness verdict can be formed. This is a harness "
+          "or availability finding, not an incomplete audit chain.")
+    raise SystemExit(1)
+
 if failures:
     for line in failures:
         print(f"audit-chain: {line}")
     raise SystemExit(1)
-print(f"audit-chain: OK ({len(instances)} engine(s) produced a complete, "
+measured = len(instances) - len(unmeasurable)
+print(f"audit-chain: OK ({measured} engine(s) produced a complete, "
       f"corpus-joined evidence chain)")
 PYEOF
 status=$?
 set -e
 if [ $status -ne 0 ]; then
-  fail "audit chain incomplete (see output above)"
+  fail "audit chain not established — see the verdict above (incomplete and UNMEASURABLE are different findings)"
 fi

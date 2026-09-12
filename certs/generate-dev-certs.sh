@@ -20,11 +20,18 @@ echo "Generating Reality Engine dev certificates..."
 # ── Root CA ──────────────────────────────────────────────────────────────────
 openssl genrsa -out "${SCRIPT_DIR}/ca.key" 4096
 
+# keyUsage is not optional. Without it the CA carries only
+# `basicConstraints: CA:TRUE`, and OpenSSL 3 refuses to verify against it —
+# "CA cert does not include key usage extension". curl -k hides that, so the
+# shell half of a stage reaches an engine its Python half cannot, and the
+# failure surfaces as an unreachable runtime rather than a certificate defect.
 openssl req -x509 -new -nodes \
   -key    "${SCRIPT_DIR}/ca.key" \
   -sha256 -days 3650 \
   -out    "${SCRIPT_DIR}/ca.crt" \
-  -subj   "/C=US/ST=Dev/L=Dev/O=RealityEngine/CN=RealityEngine Dev CA"
+  -subj   "/C=US/ST=Dev/L=Dev/O=RealityEngine/CN=RealityEngine Dev CA" \
+  -addext "basicConstraints=critical,CA:TRUE" \
+  -addext "keyUsage=critical,keyCertSign,cRLSign"
 
 # ── Service key + CSR ─────────────────────────────────────────────────────────
 openssl genrsa -out "${SCRIPT_DIR}/server.key" 2048

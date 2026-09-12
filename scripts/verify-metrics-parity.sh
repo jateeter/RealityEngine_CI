@@ -26,6 +26,7 @@
 # =============================================================================
 set -euo pipefail
 
+CI_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 REGISTRY_URL="${RE_REGISTRY_URL:-http://127.0.0.1:5999/re-registry.json}"
 WARN_ONLY=false
 WITH_VALUES=false
@@ -54,9 +55,16 @@ if [ -z "$registry_json" ]; then
 fi
 
 set +e
-REGISTRY_JSON="$registry_json" WITH_VALUES="$WITH_VALUES" python3 <<'PYEOF'
+REGISTRY_JSON="$registry_json" WITH_VALUES="$WITH_VALUES" CI_DIR="$CI_DIR" python3 <<'PYEOF'
 import difflib
 import json
+import os
+import sys
+
+sys.path.insert(0, os.path.join(os.environ.get("CI_DIR", "."), "scripts", "lib"))
+from re_tls import tls_context  # noqa: E402
+
+_TLS = tls_context()
 import os
 import re
 import urllib.error
@@ -90,14 +98,18 @@ def normalize(text):
 
 
 blocks, failures = {}, []
+unmeasurable = []
 for inst in instances:
     label = inst.get("id") or inst.get("runtime") or inst["pe_url"]
     url = inst["pe_url"].rstrip("/") + "/api/metrics"
     try:
-        with urllib.request.urlopen(url, timeout=15) as resp:
+        with urllib.request.urlopen(url, timeout=15, context=_TLS) as resp:
             body = resp.read().decode()
     except (urllib.error.URLError, OSError) as exc:
-        failures.append(f"{label}: /api/metrics unreachable ({exc})")
+        # Unreachable is not drift. A PE that did not answer has exposed no
+        # metrics to compare, so this is recorded apart from the exposition
+        # differences and reported as its own verdict.
+        unmeasurable.append(f"{label}: /api/metrics unreachable ({exc})")
         continue
     missing = [m for m in SEMANTIC_REQUIRED if f"# TYPE {m} " not in body]
     if missing:
@@ -117,6 +129,19 @@ if len(blocks) >= 2:
             for line in diff[:20]:
                 print("   ", line)
 
+if unmeasurable:
+    for line in unmeasurable:
+        print(f"metrics-parity: UNMEASURABLE — {line}")
+    print("metrics-parity: UNMEASURABLE — no exposition verdict can be formed; "
+          "this is a harness or availability finding, not drift.")
+    raise SystemExit(1)
+
+if len(blocks) < 2 and not failures:
+    only = next(iter(blocks), "none")
+    print(f"metrics-parity: NOT-APPLICABLE — only {only} answered; comparing "
+          "exposition needs at least two PEs. Run the multi-engine lane.")
+    raise SystemExit(0)
+
 if failures:
     for line in failures:
         print(f"metrics-parity: {line}")
@@ -130,5 +155,5 @@ PYEOF
 status=$?
 set -e
 if [ $status -ne 0 ]; then
-  fail "metrics exposition drift (see output above)"
+  fail "metrics parity not established — see the verdict above (drift and UNMEASURABLE are different findings)"
 fi
