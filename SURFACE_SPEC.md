@@ -90,6 +90,27 @@ enumerates the `MergeOperation` shape, and §5a of that document records that a
 runtime carrying an additional *internal* field is not violating that
 enumeration.
 
+- **`reset` clears the semantic audit buffer only when asked.** Settled by the
+  owner 2026-09-12. `POST /api/engine/reset` (RE) and `POST /api/reset` (PE)
+  accept an optional boolean `clearAudit`. Absent or false, the
+  `re:SequenceObservation` / `re:PerceptionEvent` ring buffer **survives the
+  reset** — which is today's behaviour on all four runtimes, so the default
+  changes nothing. True clears it.
+
+  Accepted both as a query parameter (`?clearAudit=true`) and as a JSON body
+  field, because the resets are called both ways across the harness and a caller
+  should not have to know which.
+
+  Why opt-in rather than always: the audit trail is evidence, and a rewind of run
+  state is not a reason to discard it — `SEMANTIC_AUDIT_CONTRACT.md` invariant 1
+  is satisfied by a chain that spans resets. Why it must be *possible*: the
+  buffer is cumulative across every drive a process serves, which made
+  `verify-audit-chain.sh` report a process's whole history as one drive's result
+  (fixed in `c5107fc` by snapshotting, but a caller wanting a clean floor should
+  not have to subtract). Dynamic loading and unloading makes that sharper still —
+  a buffer holding observations of machines no longer resident describes a corpus
+  that is no longer there.
+
 - **Source activity is evaluated wherever activity is computed, including at
   registration.** Settled by the owner 2026-09-12, resolving
   RealityEngine_CI#358. The activity rules in the #163 contract — sensor active
