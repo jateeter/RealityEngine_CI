@@ -273,6 +273,37 @@ run_semantic_parity_smoke() {
     rm -f "$log"
 }
 
+run_ces_contract_drift() {
+    local label="CES contract drift (3-of-3 quorum)"
+    if [ ! -x "$CI_DIR/scripts/regression-ces-contracts.py" ]; then
+        skip_suite "$label" "regression-ces-contracts.py missing or not executable"
+        return
+    fi
+    local registry_url="${RE_REGISTRY_URL:-http://127.0.0.1:5999/re-registry.json}"
+    if ! curl -sf --max-time 5 "$registry_url" >/dev/null 2>&1; then
+        skip_suite "$label" "instance registry not reachable at $registry_url"
+        return
+    fi
+    # The gate half of RealityEngine_CI#327. config/ces-contracts.json is
+    # authoritative and lives in git (shaping decision 4), so drift against the
+    # live runtimes has to fail at the point of change. Its predecessor —
+    # contracts.json, replayed through one nominated engine — had a --check mode
+    # that nothing invoked, and a snapshot nobody re-takes silently becomes an
+    # assertion about the past: it sat two months behind the corpus rewrite and
+    # surfaced only in a deployment gate.
+    local log; log="$(mktemp -t re-ces-contracts.XXXXXX)"
+    info "Running: $label"
+    if python3 "$CI_DIR/scripts/regression-ces-contracts.py" --check >"$log" 2>&1; then
+        ok "$label - PASS"
+        record PASS "$label"
+    else
+        warn "$label - FAIL (last 20 lines):"
+        tail -20 "$log" | sed 's/^/    /'
+        record FAIL "$label" "config/ces-contracts.json disagrees with the live runtimes — re-record with --record and review the diff"
+    fi
+    rm -f "$log"
+}
+
 run_metrics_parity_smoke() {
     local label="PE metrics exposition parity"
     if [ ! -x "$CI_DIR/scripts/verify-metrics-parity.sh" ]; then
@@ -415,6 +446,7 @@ run_unit() {
     run_openclaw_adapter_tests
     run_regression_issue_filer_tests
     run_parity_surface_tests
+    run_ces_contract_drift
     run_localai_tests
 }
 
