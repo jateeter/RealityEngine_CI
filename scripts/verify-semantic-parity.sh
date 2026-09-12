@@ -173,7 +173,7 @@ if os.path.exists(manifest_path):
     if expected is None:
         print(f"semantic-parity: '{machine_name}' not in corpus manifest")
         raise SystemExit(1)
-    if expected != next(iter(values)):
+    if expected != next(iter(set(identities.values()))):
         print("semantic-parity: engines disagree with the corpus manifest")
         raise SystemExit(1)
     print("semantic-parity: OK (engines agree with each other and the corpus manifest)")
