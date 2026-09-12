@@ -1,0 +1,256 @@
+name: Full Corpus Cycle
+
+# The whole-corpus sweep the per-PR gates deliberately do not run.
+#
+# `corpus-gates` in e2e-tests.yml validates the corpus on every PR, and the
+# regression lanes boot the 20-machine selection in
+# config/regression-corpus.txt. Neither exercises the other 1,308 machines
+# against a live runtime, so a defect that only a particular machine shape
+# provokes has no scheduled opportunity to surface.
+#
+# Why 5 days rather than weekly: new domains are landing, and a domain arrives
+# with its own generators, its own region allocation and its own ABox. The cost
+# of finding out late scales with how many domains were added since the last
+# sweep. owl-corpus-wide.yml makes the same argument for its Monday run and says
+# to raise the frequency as cross-domain interaction increases — this is that.
+#
+# Cron cannot express "every 5 days" directly. `*/5` on day-of-month fires on
+# the 1st, 6th, 11th, 16th, 21st, 26th and 31st, so the interval is 5 days
+# except across a month boundary, where it is 1-5. That is accepted: the sweep
+# is a safety net whose value is in running regularly and unattended, not in
+# landing on an exact period.
+#
+# NOT here, deliberately: recording the CES contract across the full corpus.
+# scripts/regression-ces-contracts.py documents why — the full corpus yields
+# 4,941 chains against the regression selection's 35, ~8.2h against ~4min, which
+# exceeds a hosted runner's 6h job limit and produces a diff no reviewer can
+# read. Making that a scheduled job requires sharding the record by domain and
+# merging the shards, which is its own piece of work. This workflow answers the
+# question that does not need it: does the full corpus still validate, and does
+# every runtime still load all of it.
+
+on:
+  schedule:
+    # 05:00 UTC, every 5th day of the month. Clear of the 07:00 Monday
+    # owl-corpus-wide run and the 09:17 regression cron so three long jobs do
+    # not contend for runners.
+    - cron: '0 5 */5 * *'
+  workflow_dispatch:
+    inputs:
+      machines_ref:
+        description: 'RealityEngine_Machines ref (branch, tag or SHA). Empty = default branch.'
+        required: false
+        default: ''
+      file_issue:
+        description: 'File/update a GitHub issue when the sweep finds drift'
+        required: false
+        type: boolean
+        default: true
+
+concurrency:
+  group: full-corpus-cycle
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+  issues: write
+
+jobs:
+  # ── Static sweep: every generator, every domain, all 1328 machines ────────
+  # No runtime needed. This is validate-corpus.sh over the whole corpus, which
+  # since RealityEngine_Machines#(inventory) also runs the generator inventory
+  # gate — so a domain that arrives with an unwired generator fails here rather
+  # than going unnoticed until something downstream reads a stale artifact.
+  corpus-static:
+    name: Full corpus — generators, schemas, OWL, inventory
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+    outputs:
+      verdict: ${{ steps.sweep.outcome }}
+    steps:
+      - name: Checkout RealityEngine_CI
+        uses: actions/checkout@v4
+        with:
+          path: RealityEngine_CI
+
+      - name: Checkout RealityEngine_Machines
+        uses: actions/checkout@v4
+        with:
+          repository: jateeter/RealityEngine_Machines
+          ref: ${{ github.event.inputs.machines_ref || '' }}
+          path: RealityEngine_Machines
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v7
+        with:
+          node-version: '26.8'
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      # rdflib and pyshacl are what let extract-qudt-subset.py and
+      # validate-guardrails.sh actually run. Without them validate-corpus.sh
+      # skips both with a notice — which is correct for a developer laptop and
+      # wrong for the sweep whose entire purpose is completeness.
+      - name: Install corpus tooling
+        run: |
+          python3 -m pip install --quiet rdflib pyshacl
+          cd RealityEngine_Machines && npm ci --no-audit --no-fund
+
+      - name: Install ROBOT (OWL reasoner)
+        run: |
+          mkdir -p "$HOME/robot"
+          curl -fsSL -o "$HOME/robot/robot.jar" \
+            https://github.com/ontodev/robot/releases/download/v1.9.6/robot.jar
+          printf '#!/usr/bin/env bash\nexec java -jar "%s/robot.jar" "$@"\n' "$HOME/robot" \
+            > "$HOME/robot/robot"
+          chmod +x "$HOME/robot/robot"
+          echo "$HOME/robot" >> "$GITHUB_PATH"
+
+      - name: Full corpus sweep
+        id: sweep
+        working-directory: RealityEngine_Machines
+        run: |
+          set -o pipefail
+          bash scripts/validate-corpus.sh 2>&1 | tee "$GITHUB_WORKSPACE/full-corpus-sweep.log"
+
+      # The sweep skipping a check is a finding, not a pass. validate-corpus.sh
+      # degrades gracefully when a tool is missing so a laptop run still does
+      # something useful; here a SKIPPED line means the sweep did not cover what
+      # it claims to, which is exactly the "absence reads as success" failure
+      # this cycle exists to catch.
+      - name: Assert nothing was skipped
+        if: always() && steps.sweep.outcome == 'success'
+        run: |
+          if grep -q "SKIPPED" "$GITHUB_WORKSPACE/full-corpus-sweep.log"; then
+            echo "::error::Full corpus sweep skipped checks — it did not cover what it reports:"
+            grep "SKIPPED" "$GITHUB_WORKSPACE/full-corpus-sweep.log"
+            exit 1
+          fi
+          echo "No checks skipped — the sweep covered the whole corpus."
+
+      - name: Upload sweep log
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: full-corpus-sweep-log
+          path: full-corpus-sweep.log
+          retention-days: 30
+
+  # ── Load parity: every runtime loads the whole corpus, and agrees ────────
+  # Nothing raises when an engine silently fails to read part of the corpus, so
+  # agreement on the load count across runtimes is the only check that catches
+  # it (this is the lesson recorded from the Reality Event rename, CI#220, and
+  # the gap #356 names: scala held 1344 to cpp/lsp's 1338 unnoticed).
+  corpus-load-parity:
+    name: Full corpus — per-runtime load count parity
+    runs-on: ubuntu-latest
+    timeout-minutes: 120
+    needs: corpus-static
+    steps:
+      - name: Checkout RealityEngine_CI
+        uses: actions/checkout@v4
+        with:
+          path: RealityEngine_CI
+
+      - name: Checkout RealityEngine_Machines
+        uses: actions/checkout@v4
+        with:
+          repository: jateeter/RealityEngine_Machines
+          ref: ${{ github.event.inputs.machines_ref || '' }}
+          path: RealityEngine_Machines
+
+      - name: Checkout RealityEngine_CPP
+        uses: actions/checkout@v4
+        with: { repository: jateeter/RealityEngine_CPP, path: RealityEngine_CPP }
+
+      - name: Checkout RealityEngine_LSP
+        uses: actions/checkout@v4
+        with: { repository: jateeter/RealityEngine_LSP, path: RealityEngine_LSP }
+
+      - name: Checkout RealityEngine_Scala
+        uses: actions/checkout@v4
+        with: { repository: jateeter/RealityEngine_Scala, path: RealityEngine_Scala }
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v7
+        with:
+          node-version: '26.8'
+
+      - name: Setup Java
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '21'
+
+      - name: Install native toolchains (OpenSSL, Boost, SBCL)
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y --no-install-recommends libssl-dev libboost-dev sbcl
+
+      - name: Setup sbt
+        run: |
+          curl -fsSL https://github.com/sbt/sbt/releases/download/v1.12.8/sbt-1.12.8.tgz -o /tmp/sbt.tgz
+          sudo tar -xzf /tmp/sbt.tgz -C /opt
+          echo "/opt/sbt/bin" >> "$GITHUB_PATH"
+
+      - name: Bootstrap Quicklisp
+        working-directory: RealityEngine_LSP
+        run: bash scripts/bootstrap-quicklisp.sh --home
+
+      # Each engine loads the FULL corpus and reports how many machines it holds.
+      # The counts must agree with each other and with the file count on disk —
+      # a runtime that quietly skips a machine shape is invisible any other way.
+      - name: Load the full corpus in every runtime and compare counts
+        working-directory: RealityEngine_CI
+        run: bash scripts/full-corpus-load-parity.sh
+
+      - name: Upload parity report
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: full-corpus-load-parity
+          path: RealityEngine_CI/.full-corpus/**
+          retention-days: 30
+
+  # ── One issue per failing sweep, deduplicated ────────────────────────────
+  report:
+    name: Report drift
+    runs-on: ubuntu-latest
+    needs: [corpus-static, corpus-load-parity]
+    if: always() && (needs.corpus-static.result == 'failure' || needs.corpus-load-parity.result == 'failure')
+    steps:
+      - name: Open or update the drift issue
+        uses: actions/github-script@v9
+        with:
+          script: |
+            const title = 'Full corpus cycle: sweep found drift';
+            const body = [
+              `The scheduled full-corpus sweep failed on ${new Date().toISOString().slice(0,10)}.`,
+              '',
+              `- static sweep: **${{ needs.corpus-static.result }}**`,
+              `- load parity:  **${{ needs.corpus-load-parity.result }}**`,
+              '',
+              `Run: ${context.serverUrl}/${context.repo.owner}/${context.repo.repo}/actions/runs/${context.runId}`,
+              '',
+              'The per-PR gates gate the 20-machine regression selection; this sweep is',
+              'the only scheduled check over all 1,328. A failure here is a machine shape',
+              'or a domain artifact that nothing else looks at.',
+            ].join('\n');
+            const existing = await github.rest.issues.listForRepo({
+              owner: context.repo.owner, repo: context.repo.repo,
+              state: 'open', labels: 'full-corpus-cycle',
+            });
+            if (existing.data.length) {
+              await github.rest.issues.createComment({
+                owner: context.repo.owner, repo: context.repo.repo,
+                issue_number: existing.data[0].number, body,
+              });
+            } else {
+              await github.rest.issues.create({
+                owner: context.repo.owner, repo: context.repo.repo,
+                title, body, labels: ['full-corpus-cycle'],
+              });
+            }
