@@ -90,6 +90,27 @@ enumerates the `MergeOperation` shape, and §5a of that document records that a
 runtime carrying an additional *internal* field is not violating that
 enumeration.
 
+- **Source activity is evaluated wherever activity is computed, including at
+  registration.** Settled by the owner 2026-09-12, resolving
+  RealityEngine_CI#358. The activity rules in the #163 contract — sensor active
+  iff it holds a value inside its TTL, test active iff its interned sequence is
+  non-empty, simulated always — are *the* rules, not reset-only rules. A `test`
+  source's rule is evaluable the moment the source is declared, because the
+  interned sequence is known then, so it is evaluated then.
+
+  Point 2(a)'s "registration declares the source set immediately, completely,
+  and **inactive**" is scoped to integration sources, matching 2(b)'s "ingress
+  is the only way a source **from an integration** becomes active". It does not
+  override point 3's table for `test` sources.
+
+  Observed before this was settled: at registration cpp-1 and scala-1 declared
+  1336 of 1351 active and lsp-1 declared 0, while all three agreed at 1336 after
+  a reset. Membership was identical throughout. cpp and scala are conformant;
+  LSP evaluates at registration as of `RealityEngine_LSP` (#358).
+
+  A booted universe therefore assembles without waiting for a reset, which is
+  what `PE_SOURCE_ACTIVATE_ON_LOAD` exists to force and no longer needs to.
+
 ---
 
 ## Reality Engine (RE) Surface
