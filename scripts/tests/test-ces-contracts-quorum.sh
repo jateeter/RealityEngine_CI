@@ -137,5 +137,55 @@ assert_eq "$(python3 "$TMP/q.py" "$TOOL" cpp scala ts)" '[false, ["lsp"]]' \
   "ts does not substitute for a missing native runtime"
 
 echo
+echo "== project_step isolation =="
+
+# A live universe holds the whole corpus, and one push advances all of it. The
+# tool this replaces ran each chain in a simulator holding one machine, so its
+# stream was that machine's by construction. Measured on DLX001, step 0 came
+# back with 438 mergeBatch entries — none in that machine's output region.
+# Without isolation the contract is a whole-universe snapshot and every
+# difference in corpus-wide iteration order reads as a disagreement about a
+# machine that never moved.
+cat > "$TMP/proj.py" <<'PYEOF'
+import importlib.util, json, sys
+spec = importlib.util.spec_from_file_location("cc", sys.argv[1])
+cc = importlib.util.module_from_spec(spec); spec.loader.exec_module(cc)
+step = {"mergeBatch": [
+          {"sequenceIds": ["mine"],  "region": {"offset": 7410}, "values": [1],
+           "governance": {"contact": "x@example.org", "description": "long prose"}},
+          {"sequenceIds": ["other"], "region": {"offset": 24},   "values": [9]},
+          {"sequenceIds": ["alien"], "region": {"offset": 32},   "values": [9]}],
+        "eventBus": [
+          {"producerSequenceId": "mine",  "bitOffset": 3, "value": 1},
+          {"producerSequenceId": "other", "bitOffset": 9, "value": 1}]}
+print(json.dumps(cc.project_step(step, ["mine"]), sort_keys=True))
+PYEOF
+PROJ="$(python3 "$TMP/proj.py" "$TOOL")"
+pf() { printf '%s' "$PROJ" | python3 -c "import json,sys;print($1)"; }
+
+assert_eq "$(pf "len(json.load(sys.stdin)['mergeBatch'])")" "1" \
+  "only the machine's own mergeBatch entries survive"
+assert_eq "$(pf "json.load(sys.stdin)['mergeBatch'][0]['values']")" "[1]" \
+  "and it is the right one"
+assert_eq "$(pf "len(json.load(sys.stdin)['eventBus'])")" "1" \
+  "eventBus is attributed by producerSequenceId"
+
+# Dropped for the reason the replaced tool dropped it: derived from machine
+# JSON, not produced by the engine, and already covered by cesgen_governance.
+assert_eq "$(printf '%s' "$PROJ" | grep -c governance || true)" "0" \
+  "governance is not recorded as engine behaviour"
+
+# A machine that owns no sequences must not silently inherit the corpus.
+cat > "$TMP/proj0.py" <<'PYEOF'
+import importlib.util, json, sys
+spec = importlib.util.spec_from_file_location("cc", sys.argv[1])
+cc = importlib.util.module_from_spec(spec); spec.loader.exec_module(cc)
+step = {"mergeBatch": [{"sequenceIds": ["other"], "values": [9]}], "eventBus": []}
+print(len(cc.project_step(step, [])["mergeBatch"]))
+PYEOF
+assert_eq "$(python3 "$TMP/proj0.py" "$TOOL")" "0" \
+  "no own sequences -> nothing attributed, never the whole corpus"
+
+echo
 echo "Totals: $PASS passed, $FAIL failed"
 [ "$FAIL" -eq 0 ]

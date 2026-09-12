@@ -130,9 +130,48 @@ def quorum_composition(instances: list[dict[str, str]]) -> dict[str, Any]:
 
 # ── Chain enumeration (corpus-only; no engine involved) ─────────────────────
 
-def corpus_files(machines_dir: Path) -> dict[str, Path]:
-    """Basename → path. Corpus filenames are globally unique by contract."""
-    return {p.name: p for p in sorted(machines_dir.rglob("*.json"))}
+def corpus_files(roots: list[Path]) -> dict[str, Path]:
+    """Basename → path across every corpus root. Filenames are globally unique.
+
+    More than one root because the regression corpus is not all in one repo.
+    Three of its twenty entries — `rag_corrective_cycle`, `session_rag_context`
+    and `session_agent_context` — live in `localAIStack/data/machines/`, and a
+    walk of `RealityEngine_Machines` alone resolves seventeen of twenty and
+    says nothing about the rest. Those three are the machines the RAG lane was
+    added to cover, so losing them silently loses exactly the coverage the
+    selection exists for.
+    """
+    out: dict[str, Path] = {}
+    for root in roots:
+        if not root.is_dir():
+            continue
+        for f in sorted(root.rglob("*.json")):
+            out.setdefault(f.name, f)
+    return out
+
+
+def corpus_selection(name: str, ci_dir: Path) -> list[str] | None:
+    """Basenames named by a corpus list, or None for the whole corpus.
+
+    The lists are the same `config/*-corpus.txt` files `startUniverse.sh`
+    boots from, read rather than restated — one definition of what a corpus
+    selection means. Entries are repo-relative paths; only the basename
+    matters here, since corpus filenames are globally unique.
+    """
+    if name == "full":
+        return None
+    path = ci_dir / "config" / f"{name}-corpus.txt"
+    if not path.exists():
+        raise SystemExit(
+            f"unknown corpus '{name}': no {path}. "
+            f"Available: full, " + ", ".join(
+                sorted(f.stem[:-7] for f in (ci_dir / "config").glob("*-corpus.txt"))))
+    names = []
+    for line in path.read_text(encoding="utf-8").splitlines():
+        line = line.strip()
+        if line and not line.startswith("#"):
+            names.append(line.split("/")[-1])
+    return names
 
 
 def enumerate_chains(name: str, path: Path) -> list[dict[str, Any]]:
@@ -161,6 +200,19 @@ def enumerate_chains(name: str, path: Path) -> list[dict[str, Any]]:
                     "id": f"{name}::{seq.get('id')}::{tail['id']}",
                     "machineFile": name,
                     "machineName": machine.get("name"),
+                    # Resolved the same way `regression-universal-vectors.py`
+                    # resolves it — the corpus id if the machine declares one,
+                    # else the file stem. Not an engine-minted id: those differ
+                    # per runtime for the same logical machine, so using one
+                    # would make the three registrations non-comparable.
+                    "machineId": machine.get("id") or machine.get("machineId") or name[:-5],
+                    # Every sequence id this machine owns. The push advances the
+                    # whole resident corpus, so the response carries every
+                    # machine that fired; these are what say which entries are
+                    # *this* machine's. See project_step.
+                    "ownSequenceIds": sorted(
+                        {s.get("id") for s in (machine.get("sequences") or []) if s.get("id")}
+                    ),
                     "sequenceId": seq.get("id"),
                     "terminalEventId": tail["id"],
                     "inputRegion": in_region,
@@ -182,20 +234,57 @@ def enumerate_chains(name: str, path: Path) -> list[dict[str, Any]]:
 
 # ── Recording one chain at one runtime ──────────────────────────────────────
 
-def project_step(step: Any) -> dict[str, Any]:
-    """The comparable content of one step.
+def project_step(step: Any, own_sequence_ids: list[str]) -> dict[str, Any]:
+    """The comparable content of one step, restricted to the machine under test.
 
-    `machineId` and the other engine-minted ids are stripped by
-    `strip_engine_identity` rather than by a local list, so this stage and the
-    parity stages cannot disagree about what identity means
-    (`scripts/CLAUDE.md`, "what a comparison may compare"). The contract is
-    keyed by machineFile, so nothing here needs an id to be addressable.
+    Two things happen here, and the second is the one that makes a live-derived
+    contract mean the same thing as the replay-derived one it replaces.
+
+    **Isolation.** The tool this replaces ran each chain in a fresh simulator
+    holding exactly one machine, so its recorded stream was that machine's by
+    construction. A live universe has the whole corpus resident and one push
+    advances all of it: measured on DLX001, step 0 came back with **438**
+    mergeBatch entries, none of them in that machine's declared output region.
+    Recording that would make the "contract" a whole-universe snapshot taken
+    4941 times, and would report every difference in corpus-wide iteration
+    order as a disagreement about a machine that never moved.
+
+    Entries are therefore kept only when they carry one of this machine's own
+    sequence ids. Attribution is by sequence rather than by region because a
+    region can be shared and a sequence id cannot.
+
+    **Governance is dropped**, as it was in the replaced tool: it is derived
+    from the machine's JSON metadata rather than produced by the engine, its
+    parity is already covered by `cesgen_governance`, and it is the bulk of the
+    payload. Keeping it would have this stage re-assert a corpus fact as though
+    it were engine behaviour.
+
+    Engine-minted ids go through `strip_engine_identity` rather than a local
+    list, so this stage and the parity stages cannot disagree about what
+    identity means (`scripts/CLAUDE.md`, "what a comparison may compare").
     """
     if not isinstance(step, dict):
         return {"mergeBatch": [], "eventBus": []}
+    own = set(own_sequence_ids)
+
+    def mine(entry: Any) -> bool:
+        if not isinstance(entry, dict) or not own:
+            return False
+        ids = entry.get("sequenceIds")
+        if isinstance(ids, list):
+            return any(i in own for i in ids)
+        for key in ("sequenceId", "producerSequenceId"):
+            if entry.get(key) in own:
+                return True
+        return False
+
+    def clean(entries: Any) -> Any:
+        kept = [e for e in (entries or []) if mine(e)]
+        return strip_engine_identity(kept, extra_keys=frozenset({"governance"}))
+
     return {
-        "mergeBatch": strip_engine_identity(step.get("mergeBatch") or []),
-        "eventBus": strip_engine_identity(step.get("eventBus") or []),
+        "mergeBatch": clean(step.get("mergeBatch")),
+        "eventBus": clean(step.get("eventBus")),
     }
 
 
@@ -215,6 +304,11 @@ def run_chain(instance: dict[str, str], chain: dict[str, Any], run_id: str) -> d
         "type": "test",
         "name": f"CES contract {chain['id']}",
         "active": True,
+        # Required by the Scala PE, which decodes SourceConfig with machineId
+        # as a mandatory field; cpp and lsp default it and accept its absence.
+        # Omitting it answered 400 on scala alone and every chain classified
+        # `unmeasurable` — correctly, but the harness was the divergent party.
+        "machineId": chain["machineId"],
         "machineName": chain.get("machineName"),
         "sequenceName": chain.get("sequenceId"),
         "region": region,
@@ -231,7 +325,7 @@ def run_chain(instance: dict[str, str], chain: dict[str, Any], run_id: str) -> d
             if not 200 <= status < 300:
                 return {"error": f"push step {idx} HTTP {status}", "detail": payload}
             step = payload.get("step") if isinstance(payload, dict) else None
-            stream.append({"step": idx, **project_step(step)})
+            stream.append({"step": idx, **project_step(step, chain["ownSequenceIds"])})
         return {"stream": stream}
     except Exception as exc:  # noqa: BLE001
         return {"error": f"raised {exc!r}"}
@@ -332,7 +426,8 @@ def classify(chain: dict[str, Any], results: dict[str, Any], order: list[str]) -
 # ── Main ────────────────────────────────────────────────────────────────────
 
 def build_payload(verdicts: list[dict[str, Any]], quorum: dict[str, Any],
-                  instances: list[dict[str, str]], machine_count: int) -> dict[str, Any]:
+                  instances: list[dict[str, str]], machine_count: int,
+                  machine_corpus: str = "regression") -> dict[str, Any]:
     by = lambda v: [x for x in verdicts if x["verdict"] == v]  # noqa: E731
     agreed, disagreed = by("agreed"), by("disagreement")
     silent, unmeasurable = by("no-runtime-emits"), by("unmeasurable")
@@ -342,6 +437,9 @@ def build_payload(verdicts: list[dict[str, Any]], quorum: dict[str, Any],
         "derivedFrom": "3-of-3 agreement across the cpp, lsp and scala runtimes",
         "contract": "docs/QUORUM_CONTRACT.md",
         "quorum": quorum,
+        # Which selection this was recorded from. A contract that does not say
+        # what it covers cannot be told from one that covers everything.
+        "machineCorpus": machine_corpus,
         "runtimes": sorted({i["runtime"] for i in instances}),
         "machineCount": machine_count,
         "counts": {
@@ -363,7 +461,19 @@ def main() -> int:
     p = argparse.ArgumentParser(description=__doc__,
                                 formatter_class=argparse.RawDescriptionHelpFormatter)
     p.add_argument("--registry", type=Path, default=Path("/tmp/re-registry/re-registry.json"))
-    p.add_argument("--machines", type=Path, default=Path("../RealityEngine_Machines/machines"))
+    p.add_argument("--machines", type=Path, action="append", dest="machines",
+                   help="Corpus root. Repeatable. Defaults to the Machines corpus "
+                        "plus localAIStack's, which between them hold the regression selection.")
+    # Defaults to `regression`, not `full`. The contract is an authoritative
+    # git file reviewed as a diff (QUORUM_CONTRACT §4), and the full corpus
+    # yields 4941 chains against the regression selection's 35 — ~8.2h against
+    # ~4min to record, and a diff nobody can read. Divergence is a property of
+    # machine *shape*, and the corpus is largely template-generated families,
+    # so instance count buys repetition rather than coverage. `--machine-corpus
+    # full` remains available for a deliberate sweep.
+    p.add_argument("--machine-corpus", default="regression",
+                   help="Corpus selection: regression (default), standard-deployment, "
+                        "arbiter-fixture, standard-deployment-plus-ring, or full.")
     p.add_argument("--out", type=Path, default=Path("config/ces-contracts.json"),
                    help="Authoritative artifact. A git file by QUORUM_CONTRACT §4.")
     p.add_argument("--machine-names", help="Comma-separated basenames (without .json) to restrict to.")
@@ -383,12 +493,30 @@ def main() -> int:
         print("refusing to derive a contract from an incomplete quorum", file=sys.stderr)
         return 2
 
-    files = corpus_files(args.machines)
+    ci_dir = Path(__file__).resolve().parent.parent
+    roots = args.machines or [ci_dir / ".." / "RealityEngine_Machines" / "machines",
+                              ci_dir / ".." / "localAIStack" / "data" / "machines"]
+    files = corpus_files([Path(r) for r in roots])
+    if not files:
+        print(f"no corpus files under {[str(r) for r in roots]}", file=sys.stderr)
+        return 2
+
+    selection = corpus_selection(args.machine_corpus, ci_dir)
+    if selection is not None:
+        # Unresolved entries are named, never dropped. A selection that
+        # silently covers 17 of its 20 machines is a narrower gate wearing the
+        # name of a wider one.
+        missing = [n for n in selection if n not in files]
+        if missing:
+            print(f"corpus '{args.machine_corpus}' names {len(missing)} file(s) "
+                  f"not found under any root: {', '.join(sorted(missing))}", file=sys.stderr)
+            return 2
+        files = {n: p for n, p in files.items() if n in set(selection)}
     if args.machine_names:
         want = {n.strip() for n in args.machine_names.split(",") if n.strip()}
         files = {n: p for n, p in files.items() if n[:-5] in want}
     if not files:
-        print(f"no corpus files under {args.machines}", file=sys.stderr)
+        print("selection resolved to no machines", file=sys.stderr)
         return 2
 
     order = [i["id"] for i in instances if i["runtime"] in NATIVE_QUORUM]
@@ -414,7 +542,7 @@ def main() -> int:
             results = {k: run_chain(by_id[k], chain, args.run_id) for k in order}
             verdicts.append(classify(chain, results, order))
 
-    payload = build_payload(verdicts, quorum, instances, len(files))
+    payload = build_payload(verdicts, quorum, instances, len(files), args.machine_corpus)
     serialized = json.dumps(payload, indent=2, sort_keys=True) + "\n"
 
     c = payload["counts"]
