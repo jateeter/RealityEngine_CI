@@ -237,7 +237,7 @@ jobs:
       # permit sudo, and which already has these — is untouched.
       - name: Setup Node.js
         if: runner.environment == 'github-hosted'
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@v7
         with:
           node-version: '25.5'
 
