@@ -421,6 +421,14 @@ jobs:
         working-directory: RealityEngine_CI
         run: bash scripts/tests/test-ces-contracts-quorum.sh
 
+      # Which sources each artifact is held against. The gate has been wrong
+      # about this twice (#195, #354) and had no test either time; the second
+      # bug silently undid the first, because the generated headers were newer
+      # than everything and masked the per-artifact distinction entirely.
+      - name: Run build-provenance source-glob unit tests
+        working-directory: RealityEngine_CI
+        run: bash scripts/tests/test-build-provenance-sources.sh
+
       # Gates RealityEngine_CI#220 layer 1c. Fails when any site still reads or
       # writes a legacy Reality Event key. It runs from the CI checkout and
       # scans the sibling repos, so it needs them present — the same checkout
