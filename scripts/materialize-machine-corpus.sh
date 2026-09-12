@@ -49,6 +49,29 @@ esac
 rm -rf "$output_root"
 mkdir -p "$output_machines"
 
+# The semantics manifest travels with the corpus.
+#
+# Every engine resolves re:SequenceObservation / re:PerceptionEvent IRIs by
+# walking up from MACHINES_DIR for semantics/abox-manifest.json
+# (SEMANTIC_AUDIT_CONTRACT.md). A materialized corpus that carries only
+# machines/ therefore silently loses that join: the records still appear and
+# still validate, with machineIri, sequenceIri and stepIri null — which the
+# contract also permits for a machine genuinely absent from the manifest. So a
+# relocated corpus was indistinguishable from an unmapped machine, and every
+# corpus-scoped lane (regression, standard-deployment, arbiter-fixture) ran
+# without the join M5 exists to provide.
+#
+# The whole manifest is copied rather than a filtered subset: lookups are by
+# machine name, it is one JSON file, and a subset would have to be re-filtered
+# every time the selection changes.
+if [ -f "$source_root/semantics/abox-manifest.json" ]; then
+  mkdir -p "$output_root/semantics"
+  cp "$source_root/semantics/abox-manifest.json" "$output_root/semantics/abox-manifest.json"
+else
+  echo "warning: $source_root/semantics/abox-manifest.json not found — the" >&2
+  echo "         materialized corpus will resolve no semantic IRIs" >&2
+fi
+
 count=0
 missing=""
 ambiguous=""

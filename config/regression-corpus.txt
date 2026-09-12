@@ -78,6 +78,23 @@ domains/digital-logic/ArbitrationReader.json
 # proving nothing. It stays in config/arbiter-fixture-corpus.txt, which the
 # arbiter stage boots on the local lane where the provider exists.
 
+# ── The semantic audit invariant's named machine ────────────────────────────
+#
+# SEMANTIC_AUDIT_CONTRACT.md invariant 1 names Fall Detection specifically: the
+# confirmed-fall input sequence must produce a re:SequenceObservation with
+# completed:true, stepIri ending #step-fall-conf-v6, determinationIri ending
+# #out-fall-conf-out and actionCode emergency-dispatch. scripts/verify-audit-chain.sh
+# drives exactly that, and it runs in the deployment gate.
+#
+# It was not in this corpus, so the invariant could not be evaluated on the lane
+# that asserts it: all three runtimes answered "0 records for 'Fall Detection'",
+# which reads as an incomplete audit chain rather than as a machine nobody
+# loaded. An invariant whose subject is absent is not a passing invariant.
+#
+# No dependencies: input [3813:3815], output [1941:1943], no compose
+# subscriptions, so it is driven directly by the dense vector the check sends.
+domains/health-personal/FallDetection.json
+
 # ── The localAI trio: RAG round-trip and session carry ──────────────────────
 #
 # Owned by localAIStack (data/machines), not by the corpus repo, and registered
