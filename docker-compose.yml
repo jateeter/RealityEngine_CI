@@ -121,6 +121,17 @@ services:
       # --machine-corpus came to be honoured by the materializer and discarded
       # here (#328). Falls back to the repo when no corpus was materialized.
       - ${MACHINE_CORPUS_DIR:-${MACHINES_DIR:?MACHINES_DIR must be set — run via startUniverse.sh}}/machines:/app/machines:ro
+      # The semantics manifest, beside the corpus rather than inside it.
+      #
+      # SEMANTIC_AUDIT_CONTRACT.md is built on joining runtime behaviour to the
+      # corpus by IRI "with no name matching". The engine resolves those IRIs by
+      # walking up from MACHINES_DIR looking for semantics/abox-manifest.json —
+      # and only machines/ was mounted, so inside the container there was nothing
+      # to find. Every re:SequenceObservation came out with machineIri,
+      # sequenceIri and stepIri null, which the contract also permits for a
+      # machine genuinely absent from the manifest, so the records looked
+      # well-formed while carrying none of the join the milestone exists for.
+      - ${MACHINE_CORPUS_DIR:-${MACHINES_DIR:?MACHINES_DIR must be set — run via startUniverse.sh}}/semantics:/app/semantics:ro
       - ./certs:/etc/certs:ro
     logging:
       driver: loki
