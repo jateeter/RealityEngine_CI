@@ -4,13 +4,27 @@
 The acceptance stage for RealityEngine_CI#163, with the TTL property from
 RealityEngine_CI#166 folded in.
 
-**This stage fails against today's engines. That is the expected and correct
-result.** It is written against the settled contract, not against the current
-behaviour, so a green run would mean the contract had been implemented — not
-that the stage is working. Every failure it reports today is one of the
-divergences #163 measured, and the stage exists so those stop being read off a
-sweep that has already normalised them away. Do not "fix" it by relaxing an
-assertion; the assertions are the contract.
+**The contract this asserts is now met, and this stage is a wired gate.**
+
+It was written against the settled contract rather than current behaviour, and
+for most of its life it failed by design — which is why it was deliberately not
+wired: "a harness stage that always fails is a harness stage everyone learns to
+ignore". Measured 2026-09-11 on cpp-1 + lsp-1 + scala-1, availability, load
+parity and contract parity all pass, in 21s. It now runs in
+`regression-test.sh`.
+
+Do not "fix" a failure here by relaxing an assertion; the assertions are the
+contract. A failure means a runtime regressed against #163/#166, which is the
+whole point of wiring it.
+
+**Known gap, deliberately not asserted here:** activity *at registration*
+diverges — cpp and scala declare 1336 of 1351 sources active, lsp declares 0 —
+while every runtime agrees at 1336 after the reset. `compare_declared` compares
+membership, and `ingress_violations` only examines `sensor` sources, so nothing
+fails on it. Whether contract point 2a's "declares ... inactive" governs `test`
+sources or only integration sources is genuinely ambiguous in the settled text,
+and three runtimes should not be changed on an ambiguous reading. Tracked in
+RealityEngine_CI#358.
 
 ## The contract being asserted
 
