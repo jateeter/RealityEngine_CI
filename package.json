@@ -34,7 +34,7 @@
     "npm": ">=10.0.0"
   },
   "devDependencies": {
-    "@playwright/test": "^1.45.0",
+    "@playwright/test": "^1.63.0",
     "@types/node": "^26.5.0",
     "typescript": "^7.0.2"
   }
