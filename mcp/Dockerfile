@@ -13,7 +13,7 @@
 # `realityengine://openapi/*` resources are only served when the gateway runs
 # from a full RealityEngine_CI checkout. Tool endpoints work regardless.
 
-FROM node:22-alpine
+FROM node:26-alpine
 
 WORKDIR /app
 
