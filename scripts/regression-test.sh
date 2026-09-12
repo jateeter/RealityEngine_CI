@@ -1466,6 +1466,20 @@ run_arbiter_rule_sweep() {
   return 0
 }
 
+run_reset_contract() {
+  step "Reset/source contract (#163, #166)"
+  local ci
+  ci="$(repo_root RealityEngine_CI)"
+  # --skip-trajectory: run_trajectory_parity above is the trajectory gate, and
+  # this stage reuses the same comparison as a module. Running it twice on the
+  # same boot measures nothing new and doubles the slowest phase.
+  run_cmd "reset-contract" python3 "$ci/scripts/regression-reset-contract.py" \
+    --registry /tmp/re-registry/re-registry.json \
+    --run-id "$RUN_ID" \
+    --skip-trajectory \
+    --out "$RUN_DIR/responses/reset-contract"
+}
+
 run_universal_vectors() {
   step "Universal input event vector parity"
   local ci machines
@@ -1927,6 +1941,20 @@ if [ "$LIVE_TESTS" = true ]; then
   # halves first, so it goes after the stages that want a universe nothing has
   # touched.
   run_stage "engine-process-parity" run_engine_process_parity
+  # The acceptance stage for #163/#166, wired now that the contract it asserts
+  # is met. It was deliberately unwired while it failed by design — "a harness
+  # stage that always fails is a harness stage everyone learns to ignore"
+  # (scripts/CLAUDE.md) — and that note said to wire it in when the contract
+  # landed. Measured 2026-09-11 on cpp-1+lsp-1+scala-1: availability, load
+  # parity and contract parity all pass, in 21s.
+  #
+  # Placed here rather than early: it registers the full source set through
+  # POST /api/sources/bootstrap-from-machines, and trajectory-parity above
+  # needs a universe nothing has registered into. Its own ordering requirement
+  # — that the first /api/sources read follows the reset with nothing in
+  # between, because cpp materialises its set on that read — is internal to the
+  # stage and holds wherever the stage runs.
+  run_stage "reset-contract"    run_reset_contract
   run_stage "localai-machines"  run_localai_machines
   run_stage "local-ai"          run_local_ai
   run_stage "openclaw"          run_openclaw

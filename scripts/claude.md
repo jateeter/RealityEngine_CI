@@ -128,12 +128,19 @@ fold rule would be that, and it is option (3) on #327, not this.
   which in turn carries `regression-trajectory-parity.py` — one definition of
   parity, one definition of how a machine is loaded.
 
-  **It fails against today's engines, by design.** It asserts the settled
+  **The contract landed, and this is now a wired gate.** It asserts the settled
   contract from #163 (registration declares; reset is membership-neutral and
-  *validates* activity rather than assigning it), which no runtime implements
-  yet. It is deliberately not wired into `regression-test.sh`: a harness stage
-  that always fails is a harness stage everyone learns to ignore. Wire it in
-  when the contract lands.
+  *validates* activity rather than assigning it). That used to fail on every
+  runtime, which is why it was kept out of `regression-test.sh` — a harness
+  stage that always fails is a harness stage everyone learns to ignore. It
+  passes as of 2026-09-11 on cpp-1 + lsp-1 + scala-1 in 21s and runs beside the
+  other conformance gates.
+
+  One property it records but does not assert: activity *at registration*
+  splits 2-1 (cpp and scala declare 1336 of 1351 active, lsp declares 0), while
+  all three agree at 1336 after the reset. `compare_declared` compares
+  membership only. Whether point 2a governs `test` sources is ambiguous in the
+  settled text; see #358 rather than guessing.
 
   What it asserts about `active`, since this is the part that moved twice while
   the issue settled and is easy to re-break:
