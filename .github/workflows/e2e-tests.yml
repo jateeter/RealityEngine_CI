@@ -734,9 +734,14 @@ jobs:
           npx playwright install --with-deps chromium
 
       # tree-to-pe-manager-equivalence lives in this repo's canonical suite.
-      - name: Install Playwright deps (CI)
+      # This checkout pins @playwright/test independently of Machines, and each
+      # pin wants its own browser build, so install from here too rather than
+      # relying on the two pins happening to agree.
+      - name: Install Playwright + deps (CI)
         working-directory: RealityEngine_CI
-        run: npm ci
+        run: |
+          npm ci
+          npx playwright install --with-deps chromium
 
       - name: Install Loki Docker logging plugin
         working-directory: RealityEngine_CI
