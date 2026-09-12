@@ -1970,34 +1970,10 @@ except Exception:
         _re_arg="${_first_re_url:-http://localhost:$(( SCALA_PE_BASE + 1 ))}"
         _pe_arg="${_first_pe_url:-http://localhost:${SCALA_PE_BASE}}"
 
+        # Manager's start.sh selects a Node satisfying its declared engines,
+        # using the PATH node when it already qualifies, so a hosted runner
+        # with no nvm tree needs no shim here.
         _manager_nvm_dir="${NVM_DIR:-$HOME/.nvm}"
-        _node_version="$(node --version 2>/dev/null || true)"
-        # GitHub Actions provisions Node with actions/setup-node, not nvm. Even
-        # when a hosted-runner nvm probe succeeds, Manager/start.sh can fail in
-        # its fresh shell if that nvm tree does not contain 25.5.0. Prefer the
-        # already-selected PATH node when it matches the Manager contract.
-        if [ "$_node_version" = "v25.5.0" ]; then
-            _manager_nvm_dir="/tmp/realityengine-manager-nvm-shim"
-            mkdir -p "$_manager_nvm_dir"
-            cat > "$_manager_nvm_dir/nvm.sh" <<'SH'
-nvm() {
-  case "${1:-}" in
-    use)
-      case "${2:-}" in
-        25.5.0|v25.5.0) return 0 ;;
-      esac
-      echo "nvm shim only supports Node 25.5.0; requested ${2:-<empty>}" >&2
-      return 1
-      ;;
-    *)
-      echo "nvm shim only supports 'nvm use'" >&2
-      return 1
-      ;;
-  esac
-}
-SH
-            info "Using Node $_node_version from PATH for Manager nvm compatibility"
-        fi
 
         info "Starting Manager (Visualizer) natively — RE: $_re_arg  registry: http://$HOST_IP:${REGISTRY_PORT}/re-registry.json"
         NVM_DIR="$_manager_nvm_dir" \
