@@ -41,10 +41,18 @@ MACHINES_REPO="${MACHINES_REPO:-${MACHINES_DIR:-$(cd "$CI_DIR/.." && pwd)/Realit
 MACHINES_DIR="$MACHINES_REPO"   # retained: existing references below
 MACHINE_NAME="Fall Detection"
 WARN_ONLY=false
+# Runtimes outside the instance registry, as id=url. The TypeScript PE is the
+# fourth implementation of this surface and is not registered as an engine
+# instance, so it can only be reached by being named. Per the shaping recorded
+# on RealityEngine_CI#327 it CONFORMS to the quorum rather than voting in it:
+# quorum stays cpp + lsp + scala unanimous, and a conformer that disagrees is
+# reported against that result.
+EXTRA_RUNTIMES=""
 
 while [ $# -gt 0 ]; do
   case "$1" in
     --machine) MACHINE_NAME="$2"; shift 2 ;;
+    --extra-runtime) EXTRA_RUNTIMES="$EXTRA_RUNTIMES $2"; shift 2 ;;
     --warn-only) WARN_ONLY=true; shift ;;
     --help) sed -n '2,24p' "$0"; exit 0 ;;
     *) echo "unknown option: $1" >&2; exit 2 ;;
@@ -66,7 +74,7 @@ if [ -z "$registry_json" ]; then
 fi
 
 set +e
-REGISTRY_JSON="$registry_json" CI_DIR="$CI_DIR" python3 - "$MACHINE_NAME" "$MACHINES_DIR" <<'PYEOF'
+REGISTRY_JSON="$registry_json" CI_DIR="$CI_DIR" EXTRA_RUNTIMES="$EXTRA_RUNTIMES" python3 - "$MACHINE_NAME" "$MACHINES_DIR" <<'PYEOF'
 import json
 import os
 import sys
@@ -88,6 +96,7 @@ if not instances:
 
 encoded = urllib.parse.quote(machine_name)
 identities = {}
+conformers = {}
 unmeasurable = {}
 not_implemented = {}
 for inst in instances:
@@ -116,6 +125,21 @@ for inst in instances:
         # about its semantics, and recording the error in the same dict as a
         # real hash is what made "could not reach it" read as "they disagree".
         unmeasurable[label] = str(exc)
+
+# Conformers: named runtimes outside the instance registry. Fetched the same
+# way, kept in a separate dict so they cannot change the quorum verdict.
+for spec in os.environ.get("EXTRA_RUNTIMES", "").split():
+    if "=" not in spec:
+        continue
+    clabel, curl = spec.split("=", 1)
+    try:
+        with urllib.request.urlopen(
+            f"{curl.rstrip('/')}/api/machines/semantics/{encoded}", timeout=5, context=_TLS
+        ) as resp:
+            cdoc = json.loads(resp.read())
+        conformers[clabel] = (cdoc.get("semanticsIri"), cdoc.get("semanticsHash"))
+    except Exception as exc:  # noqa: BLE001
+        conformers[clabel] = ("<unmeasurable>", str(exc))
 
 print(f"semantic-parity: '{machine_name}' — {len(identities)} engine(s) answered, "
       f"{len(unmeasurable)} unmeasurable")
@@ -161,6 +185,27 @@ if len(set(identities.values())) != 1:
     print("semantic-parity: MISMATCH across engines")
     raise SystemExit(1)
 
+def _check_conformers(agreed):
+    """A conformer must match the settled result; it never forms it."""
+    if not conformers:
+        return
+    bad = []
+    for clabel, got in sorted(conformers.items()):
+        if got[0] == "<unmeasurable>":
+            print(f"semantic-parity: conformer {clabel}: UNMEASURABLE — {got[1]}")
+            bad.append(clabel)
+        elif got != agreed:
+            print(f"semantic-parity: conformer {clabel}: DIVERGES — {got[1]}")
+            bad.append(clabel)
+        else:
+            print(f"semantic-parity: conformer {clabel}: conforms ({got[1]})")
+    if bad:
+        print(f"semantic-parity: CONFORMANCE FAILURE — {', '.join(bad)} do not match "
+              "the agreed identity. The quorum verdict above stands; this is a "
+              "separate finding against the conformer.")
+        raise SystemExit(1)
+
+
 manifest_path = os.path.join(machines_dir, "semantics", "abox-manifest.json")
 if os.path.exists(manifest_path):
     with open(manifest_path) as handle:
@@ -177,8 +222,10 @@ if os.path.exists(manifest_path):
         print("semantic-parity: engines disagree with the corpus manifest")
         raise SystemExit(1)
     print("semantic-parity: OK (engines agree with each other and the corpus manifest)")
+    _check_conformers(expected)
 else:
     print("semantic-parity: OK (engines agree; corpus manifest not found for authority check)")
+    _check_conformers(next(iter(set(identities.values()))))
 PYEOF
 status=$?
 set -e
