@@ -717,7 +717,7 @@ jobs:
       # and start.sh exits with "Missing Quicklisp". Cached on the ASDF system
       # definition, since that is what determines the dependency set.
       - name: Cache Quicklisp
-        uses: actions/cache@v4
+        uses: actions/cache@v6
         with:
           path: RealityEngine_LSP/quicklisp
           key: quicklisp-${{ runner.os }}-${{ hashFiles('RealityEngine_LSP/reality-engine-lsp.asd') }}
