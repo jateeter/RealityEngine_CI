@@ -196,12 +196,25 @@ Status legend: ✅ done · 🟡 partial / needs the agent · ⬜ not started
   `${MACHINES_DIR}/machines` volume already reference the sibling repos; replaced
   the TODO with a completion note.
 
-### Phase 5 — Self-driving agent + issue automation ✅🟡
+### Phase 5 — Self-driving agent + issue automation ✅
 - ✅ Local agent cycles Phases 0–4 across both footprints, writes a populated
   roadmap-status table, and files **one deduplicated GitHub issue per failing
   unit** routed to the owning repo (offline-safe draft fallback).
   → `deploy-validate-agent.sh` (delivered).
-- 🟡 Schedule it (see §4) once `gh` is re-authenticated and network is restored.
+- ✅ Scheduled. `scripts/deploy-validate-scheduled.sh` runs every 6h via the
+  launchd agent `org.energyos.realityengine.deploy-validate`, loaded and firing.
+  It skips cleanly when Docker is unreachable — a laptop asleep is a declared
+  non-participation state, not a failure.
+
+  The plist pins an absolute node on `PATH`, which is a standing hazard: it held
+  `v25.5.0` after the Manager workspaces moved to `>=26.0.0`, so the next fire
+  would have failed every Manager build on EBADENGINE while the agent itself
+  looked healthy. Moved to `v26.8.2` on 2026-09-12. Re-check it whenever an
+  engines floor moves.
+
+  Baseline **28 passed / 1 failed**, the 1 being the deployment test gate
+  (`RealityEngine_Machines#126`). Read the diff against the previous run, not the
+  absolute count.
 
 ---
 
