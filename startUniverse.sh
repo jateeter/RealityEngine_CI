@@ -1720,6 +1720,71 @@ echo ""
 [ "$n" -ge 20 ] && die "Redis failed — check:  docker logs localai_redis"
 
 # =============================================================================
+# Instance registry helpers — used by BOTH lanes
+# =============================================================================
+# The instance registry was originally raised only when --engines was given, so
+# the single-engine Docker lane published none. Every consumer that resolves
+# endpoints from it therefore had nothing to read in that footprint, and the
+# three instance-registry-backed suites in the deployment gate could not run —
+# which --deployment scores as a failure, so they failed identically whether the
+# engines were healthy or absent (RealityEngine_CI#363). One instance is still an
+# instance: since #278 the instance registry is the authoritative endpoint source
+# rather than a multi-engine extra, so both lanes raise it.
+
+# Start the instance-registry REST shim and record the allocation template.
+instance_registry_start() {
+    # In free-port mode the instance registry itself must not remain a fixed
+    # collision point. Claim it before the shim is started and publish the
+    # selected port through the same instance registry consumers already use.
+    if [ "$RE_FREE_PORTS" = "true" ]; then
+        _claim_free_port || die "Cannot allocate a free instance-registry port"
+        REGISTRY_PORT="$_RE_ALLOCATED_PORT"
+        export REGISTRY_PORT
+    fi
+    rm -f "$REGISTRY_FILE"
+    registry_start_server
+    # Poll until the REST shim accepts connections (python3 server takes 1-2 s to bind)
+    _reg_n=0
+    while [ "$_reg_n" -lt 10 ]; do
+        curl -sf "http://127.0.0.1:${REGISTRY_PORT}/re-registry.json" > /dev/null 2>&1 && break
+        _reg_n=$((_reg_n+1)); sleep 1
+    done
+    if [ "$_reg_n" -ge 10 ]; then
+        die "Instance-registry REST shim on :${REGISTRY_PORT} did not become ready"
+    fi
+    ok "Instance-registry REST shim ready  http://$HOST_IP:${REGISTRY_PORT}/re-registry.json"
+    printf 'http://%s:%s/re-registry.json\n' "$HOST_IP" "$REGISTRY_PORT" \
+        > "$CI_DIR/.universe-registry-url"
+    # Which allocation template produced the ports. Deterministic today;
+    # --free-ports (#278 step 4) records "free" instead, and the same
+    # instance-registry field is then the only thing distinguishing the two worlds.
+    registry_set_allocation "$([ "$RE_FREE_PORTS" = "true" ] && echo free || echo deterministic)" 100
+}
+
+# Publish the address that actually answers, not the one we assume.
+#
+# The Manager frontend binds loopback only — `[::1]:5173` — so publishing it
+# at $HOST_IP names an address nothing is listening on. That is invisible on
+# a hosted runner, where HOST_IP *is* 127.0.0.1 and the two strings are the
+# same, and breaks every e2e spec on a workstation, where HOST_IP is the LAN
+# address. An instance registry whose entries cannot be dialled is worse than
+# no instance registry, because consumers trust it (#278).
+_publish_service() {
+    local name="$1" port="$2" path="${3:-/}" scheme="${4:-http}"
+    local lan="$scheme://$HOST_IP:$port" loop="$scheme://localhost:$port"
+    if curl -skf --max-time 3 "$lan$path" >/dev/null 2>&1; then
+        registry_set_service "$name" "$lan"
+    elif curl -skf --max-time 3 "$loop$path" >/dev/null 2>&1; then
+        registry_set_service "$name" "$loop"
+        info "  $name published on localhost (binds loopback only)"
+    else
+        # Neither answered — publish the LAN form so the entry exists and a
+        # consumer fails against a stated address rather than a missing key.
+        registry_set_service "$name" "$lan"
+    fi
+}
+
+# =============================================================================
 # 3.5 · Instance Registry  (multi-engine mode only)
 # =============================================================================
 if [ "$MULTI_ENGINE_MODE" = true ]; then
@@ -1745,27 +1810,7 @@ if [ "$MULTI_ENGINE_MODE" = true ]; then
             || die "engine build provenance failed — rebuild the engines, or set RE_SKIP_PROVENANCE=1 to override deliberately"
     fi
 
-    # Initialise the registry file and start the REST shim on :5999
-    # In free-port mode the registry itself must not remain a fixed collision
-    # point. Claim it before the shim is started and publish the selected port
-    # through the same registry that consumers already use for engine ports.
-    if [ "$RE_FREE_PORTS" = "true" ]; then
-        _claim_free_port || die "Cannot allocate a free registry port"
-        REGISTRY_PORT="$_RE_ALLOCATED_PORT"
-        export REGISTRY_PORT
-    fi
-    rm -f "$REGISTRY_FILE"
-    registry_start_server
-    # Poll until the REST shim accepts connections (python3 server takes 1-2 s to bind)
-    _reg_n=0
-    while [ "$_reg_n" -lt 10 ]; do
-        curl -sf "http://127.0.0.1:${REGISTRY_PORT}/re-registry.json" > /dev/null 2>&1 && break
-        _reg_n=$((_reg_n+1)); sleep 1
-    done
-    [ "$_reg_n" -ge 10 ] && die "Registry REST shim on :${REGISTRY_PORT} did not become ready"
-    ok "Registry REST shim ready  http://$HOST_IP:${REGISTRY_PORT}/re-registry.json"
-    printf 'http://%s:%s/re-registry.json\n' "$HOST_IP" "$REGISTRY_PORT" \
-        > "$CI_DIR/.universe-registry-url"
+    instance_registry_start
 
     # Publish the non-instance endpoints (RealityEngine_CI#278 step 1).
     #
@@ -1778,32 +1823,6 @@ if [ "$MULTI_ENGINE_MODE" = true ]; then
     # can be reviewed while provably inert, and each consumer's conversion then
     # changes no behaviour. The values become interesting only when
     # --free-ports lands and they stop being predictable.
-    # Which allocation template produced the ports below. Deterministic today;
-    # --free-ports (#278 step 4) will record "free" instead, and the same
-    # registry field is then the only thing distinguishing the two worlds.
-    registry_set_allocation "$([ "$RE_FREE_PORTS" = "true" ] && echo free || echo deterministic)" 100
-    # Publish the address that actually answers, not the one we assume.
-    #
-    # The Manager frontend binds loopback only — `[::1]:5173` — so publishing it
-    # at $HOST_IP names an address nothing is listening on. That is invisible on
-    # a hosted runner, where HOST_IP *is* 127.0.0.1 and the two strings are the
-    # same, and breaks every e2e spec on a workstation, where HOST_IP is the LAN
-    # address. A registry whose entries cannot be dialled is worse than no
-    # registry, because consumers trust it (#278).
-    _publish_service() {
-        local name="$1" port="$2" path="${3:-/}"
-        local lan="http://$HOST_IP:$port" loop="http://localhost:$port"
-        if curl -sf --max-time 3 "$lan$path" >/dev/null 2>&1; then
-            registry_set_service "$name" "$lan"
-        elif curl -sf --max-time 3 "$loop$path" >/dev/null 2>&1; then
-            registry_set_service "$name" "$loop"
-            info "  $name published on localhost (binds loopback only)"
-        else
-            # Neither answered — publish the LAN form so the entry exists and a
-            # consumer fails against a stated address rather than a missing key.
-            registry_set_service "$name" "$lan"
-        fi
-    }
     _publish_service "registry"         "${REGISTRY_PORT}" "/re-registry.json"
     _publish_service "manager_backend"  3001 "/health"
     _publish_service "manager_frontend" 5173 "/"
@@ -2164,6 +2183,26 @@ RE_MACHINE_COUNT=$(curl -sk https://localhost:5001/api/machines 2>/dev/null \
     2>/dev/null || echo "?")
 set -e
 ok "RE baseline: $RE_MACHINE_COUNT machines, $PE_SRC_COUNT PE sources"
+
+# ── Instance registry, single-engine lane (RealityEngine_CI#363) ──────────
+# The Docker footprint runs exactly one RE/PE pair, and until now published no
+# instance registry at all, so everything that resolves endpoints from it read
+# nothing here. Register the pair by name — never by position, since #274 is the
+# standing example of `instances[0]` passing while addressing something other
+# than what the caller claimed — using the public TLS endpoints the rest of this
+# phase just proved answer.
+if [ "$MULTI_ENGINE_MODE" != true ] && [ "$DRY_RUN" = false ]; then
+    instance_registry_start
+    registry_add "scala-1" "scala" "https://localhost:5001" "https://localhost:3004" "" ""
+    _publish_service "registry"         "${REGISTRY_PORT}" "/re-registry.json"
+    _publish_service "manager_backend"  3001 "/health"  https
+    _publish_service "manager_frontend" 5173 "/"        https
+    [ -n "${MQTT_BROKER_URL:-}" ] && registry_set_service "mqtt" "$MQTT_BROKER_URL"
+    [ -n "${MCP_URL:-}" ]         && registry_set_service "mcp" "$MCP_URL"
+    [ -n "${SWAGGER_URL:-}" ]     && registry_set_service "swagger" "$SWAGGER_URL"
+    export RE_REGISTRY_URL="${RE_REGISTRY_URL:-http://$HOST_IP:${REGISTRY_PORT}/re-registry.json}"
+    ok "Instance registry: scala-1 → https://localhost:5001 (RE) / https://localhost:3004 (PE)"
+fi
 
 # ── Corpus load phase (Docker RE) ─────────────────────────────────────────
 case "$MACHINE_LOAD" in
