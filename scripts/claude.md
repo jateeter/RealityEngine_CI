@@ -61,6 +61,57 @@ This is not an oracle in the strong sense — three runtimes can still be wrong
 the same way. Deriving the expected stream from the corpus plus the declared
 fold rule would be that, and it is option (3) on #327, not this.
 
+### Shards, and why the contract is not one file
+
+One recording for the whole corpus does not survive a corpus that grows. A
+machine added to one domain would mean re-recording all 4941 chains against a
+live quorum, and reviewing a diff nobody can read. Divergence is a property of
+machine *shape* and the corpus arrives a domain at a time, so the shard boundary
+that matches how the corpus mutates is the domain.
+
+`--machine-corpus` therefore takes three selector shapes: `full`, a bare name
+for a `config/<name>-corpus.txt` selection, and `domain:<name>` for one corpus
+domain. `--list-scopes` prints them all and needs no running universe — the
+command that says what is recordable must not itself require a quorum.
+
+`record-ces-contract-shards.sh` drives every scope, cheapest first, skipping
+those already current, so an interrupted sweep resumes rather than restarts.
+
+**A shard says which corpus it describes.** Every artifact carries
+`corpusFingerprint` — per-machine sha256, using the definition in
+`RealityEngine_Machines/scripts/ces_corpus_fingerprint.py`, imported rather than
+restated so the recorder and the registry cannot disagree about what a corpus
+change is. `RealityEngine_Machines/domains/ces-contract-registry.json` compares
+that with the corpus as it stands, and
+`tests/contracts/ces_contract_registry_test.py` fails on any shard the corpus
+has moved out from under, naming the machines. That gate lives in the corpus
+repo because that is where the change is made and where its author can act.
+
+**Failures are marked, not fatal.** A sweep of a dozen domains is long enough
+that something will go wrong partway, so a failed scope is journalled and the
+sweep continues. The journal is a file — `.ces-contracts/journal.json`, written
+after every scope — because marking that dies with the process does not help a
+restart. Restarting is the same command again: recorded-and-current scopes are
+skipped by the registry, failed ones retried, `--skip-failed` steps past them,
+`--retry-failed-only` comes back for just those. A failed scope leaves no shard,
+since the recorder writes once at the end, so it reads as unrecorded rather than
+as a partial contract that looks whole.
+
+Two things deliberately do *not* count as scope failures. Quorum is re-checked
+before every scope, and losing a runtime at hour three halts the sweep instead
+of marking every remaining domain failed — that is one universe-level fault, not
+nine scope-level ones. And `--max-consecutive` (default 3) halts on a run of
+failures, because consecutive failures are evidence of one systemic problem and
+grinding through the rest produces a dozen identical logs and no new
+information.
+
+**Residency is checked before recording, not after.** The recorder drives chains
+through the live PE; a machine the engines never loaded emits nothing, and that
+is correctly classified `no-runtime-emits`. Correct, and a useless shard —
+indistinguishable from a domain that genuinely does nothing. So the driver
+refuses a scope whose machines are not resident rather than recording silence.
+Domain scopes need `--machine-corpus=full` at boot.
+
 ## Parity stages
 
 - `regression-trajectory-parity.py`: ISRE/OSRE trajectory comparison across the
@@ -299,3 +350,51 @@ machine-specific parity result can be trusted.
 `regression-trajectory-parity.py` shares the source-equalisation exposure — it
 seeds one source without checking the others match.
 
+## MUST: every use of the word "registry" carries a qualifier
+
+**The word "registry" MUST NEVER appear unqualified. Every single use of the
+word takes a qualifier naming which registry is meant.**
+
+This is a hard requirement, not a style preference. It applies to every
+occurrence in every context, with no exceptions: prose, end-of-task summaries,
+commit messages, PR bodies, issue titles and bodies, code comments, docstrings,
+variable and function names, log lines, and documentation.
+
+Wrong, in every case — these are all violations:
+
+- "the registry"
+- "a versioned registry"
+- "the registry file" / "update the registry" / "registry-backed"
+- "check the registry first"
+- "registry drift"
+
+Right — a qualifier every time:
+
+- "the **instance** registry"
+- "a versioned **cesgen** registry"
+- "the **arbitration** registry"
+- "**machine** registry drift"
+
+If you type the word "registry" and the word immediately before it is not a
+qualifier, stop and add one. Re-read every summary and every message for the
+bare word before sending it — that is where this rule is actually broken, because
+the surrounding context makes the referent feel obvious in the moment. That
+feeling is exactly the assumption the rule exists to block.
+
+Qualifiers currently in use. **This list is open, not exhaustive** — a registry
+added later gets a qualifier too; nothing is ever promoted to being "the
+registry" by virtue of being the one under discussion:
+
+- **instance** registry — `/tmp/re-registry/re-registry.json`, served at
+  `:5999/re-registry.json`. Running RE/PE instances with `re_url`/`pe_url`/ports,
+  plus `services` and `allocation`. What `RE_REGISTRY_URL` points at.
+- **machine** registry — the machines a runtime holds in memory, reported by
+  `GET /api/machines`. Distinct from `GET /api/machines/json/list`, the on-disk
+  corpus catalog.
+- **cesgen** registry — `RealityEngine_Machines/domains/ces-contract-registry.json`.
+  Which CES output-stream contract shards exist, what corpus each was recorded
+  against, whether each is current.
+- **arbitration** registry — `machines/domains/arbitration-registry.json`.
+- **domain** registry — `machines/domains/domain-registry.json`.
+- **semantic-bus** registry — `machines/domains/semantic-bus-registry.json`.
+- **tag** registry — `RealityEngine_CI/docs/TAG_REGISTRY.md`.

@@ -57,9 +57,21 @@ sys.path.insert(0, str(Path(__file__).resolve().parent / "lib"))
 from parity_identity import strip_engine_identity  # noqa: E402
 from reset_contract import reset_pair  # noqa: E402
 
+# The corpus repo owns what "the corpus changed" means, and this stage records
+# an artifact whose whole validity is "recorded against that corpus". Importing
+# rather than restating is the point: a fingerprint computed two ways is two
+# fingerprints, and the registry that compares them would report drift that is
+# not there. This is the same sibling dependency the corpus roots already are.
+sys.path.insert(0, str(Path(__file__).resolve().parents[2]
+                       / "RealityEngine_Machines" / "scripts"))
+try:
+    import ces_corpus_fingerprint as fingerprints  # noqa: E402
+except ModuleNotFoundError:  # pragma: no cover - sibling repo absent
+    fingerprints = None
+
 MAX_CHAIN_DEPTH = 4  # same cap as cesgen-oracles and the tool this replaces
 NATIVE_QUORUM = ("cpp", "lsp", "scala")
-CONTRACT_VERSION = "2.0.0"
+CONTRACT_VERSION = "2.1.0"
 
 
 # ── HTTP ────────────────────────────────────────────────────────────────────
@@ -150,21 +162,65 @@ def corpus_files(roots: list[Path]) -> dict[str, Path]:
     return out
 
 
-def corpus_selection(name: str, ci_dir: Path) -> list[str] | None:
-    """Basenames named by a corpus list, or None for the whole corpus.
+def available_domains(files: dict[str, Path]) -> list[str]:
+    """Domain directory names present under any corpus root's `machines/domains/`.
 
-    The lists are the same `config/*-corpus.txt` files `startUniverse.sh`
-    boots from, read rather than restated — one definition of what a corpus
-    selection means. Entries are repo-relative paths; only the basename
-    matters here, since corpus filenames are globally unique.
+    Read off the resolved corpus rather than from a list, so a domain added to
+    RealityEngine_Machines is selectable the moment it exists. There is no
+    second place recording which domains there are, and therefore no second
+    place to forget to update.
+    """
+    out = set()
+    for path in files.values():
+        parts = path.resolve().parts
+        for i in range(len(parts) - 2):
+            if parts[i] == "machines" and parts[i + 1] == "domains":
+                out.add(parts[i + 2])
+                break
+    return sorted(out)
+
+
+def corpus_selection(name: str, ci_dir: Path, files: dict[str, Path]) -> list[str] | None:
+    """Basenames named by a selection, or None for the whole corpus.
+
+    Three selector shapes, and the artifact records which one it was recorded
+    from (`machineCorpus`), because a shard that does not say what it covers
+    cannot be told from one that covers everything:
+
+    - `full` — every resolved corpus file.
+    - `domain:<name>` — the machines under `machines/domains/<name>/`. One
+      shard per domain is what makes the contract re-derivable at the
+      granularity the corpus actually mutates at: machines arrive a domain at
+      a time, and a monolithic artifact makes every arrival a whole-corpus
+      re-record and an unreadable diff.
+    - anything else — a `config/<name>-corpus.txt` list, the same files
+      `startUniverse.sh` boots from, read rather than restated.
+
+    Entries in the `.txt` lists are repo-relative paths; only the basename
+    matters here, since corpus filenames are globally unique. Domain selection
+    goes by path, since that is what the grouping means.
     """
     if name == "full":
         return None
+    if name.startswith("domain:"):
+        domain = name[len("domain:"):]
+        if not domain:
+            raise SystemExit("empty domain in --machine-corpus domain:<name>")
+        marker = ("machines", "domains", domain)
+        sel = [n for n, p in files.items()
+               if any(p.resolve().parts[i:i + 3] == marker
+                      for i in range(len(p.resolve().parts) - 2))]
+        if not sel:
+            raise SystemExit(
+                f"unknown domain '{domain}': no machines under machines/domains/{domain}/. "
+                f"Available: " + ", ".join(available_domains(files)))
+        return sel
     path = ci_dir / "config" / f"{name}-corpus.txt"
     if not path.exists():
         raise SystemExit(
             f"unknown corpus '{name}': no {path}. "
-            f"Available: full, " + ", ".join(
+            f"Available: full, domain:<one of {'/'.join(available_domains(files))}>, "
+            + ", ".join(
                 sorted(f.stem[:-7] for f in (ci_dir / "config").glob("*-corpus.txt"))))
     names = []
     for line in path.read_text(encoding="utf-8").splitlines():
@@ -321,7 +377,21 @@ def run_chain(instance: dict[str, str], chain: dict[str, Any], run_id: str) -> d
             return {"error": f"source register HTTP {status}", "detail": payload}
         stream = []
         for idx in range(len(chain["inputs"])):
-            status, payload = post_json(f"{pe_url}/api/push", {"compact": True})
+            # Ask the engine for this machine's entries only (RealityEngine_CI#367).
+            # Before this, every push answered with the whole universe — 1.6 MB at
+            # full corpus — and `project_step` discarded almost all of it after
+            # transfer. That cost two runtimes' heaps mid-sweep and killed them.
+            #
+            # `project_step` still runs, and deliberately: it is the definition of
+            # what belongs to this machine, and keeping it means the server-side
+            # filter is *checked* rather than trusted. If the two ever disagree the
+            # recording is wrong in a way no test would otherwise show.
+            status, payload = post_json(f"{pe_url}/api/push", {
+                "compact": True,
+                "includePerceptualSpace": False,
+                "includeActiveRegions": False,
+                "only": {"sequenceIds": chain["ownSequenceIds"]},
+            })
             if not 200 <= status < 300:
                 return {"error": f"push step {idx} HTTP {status}", "detail": payload}
             step = payload.get("step") if isinstance(payload, dict) else None
@@ -423,14 +493,107 @@ def classify(chain: dict[str, Any], results: dict[str, Any], order: list[str]) -
     }
 
 
+# ── Confirming a disagreement ───────────────────────────────────────────────
+
+def cluster_shape(results: dict[str, Any], order: list[str]) -> str:
+    """A disagreement's shape as a comparable string: `cpp-1 | lsp-1+scala-1`."""
+    return " | ".join("+".join(c) for c in agreement_clusters(results, order))
+
+
+def confirm_disagreement(chain: dict[str, Any], verdict: dict[str, Any],
+                         by_id: dict[str, dict[str, str]], order: list[str],
+                         run_id: str, attempts: int) -> dict[str, Any]:
+    """Re-drive a disagreeing chain and record whether the disagreement holds.
+
+    **Why this stage exists.** Measured on this corpus: after the universe sits
+    idle for about a minute, the first recording emits exactly one cpp
+    disagreement — and it is a *different chain* each time, while two recordings
+    taken back to back are byte-identical and clean. So a chain can be reported
+    as divergent because of when it was driven rather than because the runtimes
+    differ, and a sweep of a dozen domains would scatter those across every
+    shard with nothing to distinguish them from real divergence.
+
+    **This is not a retry.** A retry would re-drive until the runtimes agree and
+    record the agreement, which is the one thing that must never happen here:
+    it would convert a real, intermittent divergence into a contract, and the
+    contract would then be enforced against the runtime that was right. Nothing
+    observed is discarded. Every attempt's cluster shape is carried, and a
+    disagreement that does not reproduce is recorded as its own verdict rather
+    than being resolved either way.
+
+    A `disagreement` therefore now means "they differ, and it held on re-drive".
+    An `intermittent` means "they differed, and the difference did not survive
+    being asked again" — a finding about stability, which is not the same
+    finding as a behavioural difference, and is not agreement either.
+    """
+    first = cluster_shape({k: {"stream": c["outputStream"]}
+                           for c in verdict["clusters"] for k in c["instances"]}, order)
+    observations = [first]
+    for _ in range(attempts):
+        again = {k: run_chain(by_id[k], chain, run_id) for k in order}
+        if any("error" in (again.get(k) or {}) for k in order):
+            # A lane that could not be driven proves nothing about stability,
+            # and must not be read as the disagreement failing to reproduce.
+            observations.append("undriven")
+            continue
+        observations.append(cluster_shape(again, order))
+
+    # Judged only on re-drives that actually ran. An undriven lane is absence of
+    # evidence, and counting it as "the shape changed" would demote a real
+    # divergence on the strength of a 500 — the same collapse of "could not be
+    # driven" into "did not happen" that `unmeasurable` exists to prevent.
+    redrives = [o for o in observations[1:] if o != "undriven"]
+    verdict["attempts"] = len(observations)
+    verdict["observedShapes"] = observations
+    if not redrives:
+        verdict["stability"] = "unconfirmed"
+        verdict["stabilityNote"] = ("no re-drive completed; the disagreement stands as "
+                                    "first observed and was not confirmed either way")
+        return verdict
+    if all(o == first for o in redrives):
+        verdict["stability"] = "reproduced"
+        return verdict
+
+    # Demoted out of `disagreement`, because the artifact's disagreement list is
+    # read as "here is where the runtimes differ" and this is not that.
+    return {
+        "verdict": "intermittent",
+        "chain": verdict["chain"],
+        "machineFile": verdict["machineFile"],
+        "sequenceId": verdict["sequenceId"],
+        "terminalEventId": verdict["terminalEventId"],
+        "quorum": "3-of-3",
+        "stability": "not-reproduced",
+        "attempts": len(observations),
+        "observedShapes": observations,
+        "clusters": verdict["clusters"],
+    }
+
+
 # ── Main ────────────────────────────────────────────────────────────────────
+
+def corpus_fingerprint(files: dict[str, Path]) -> dict[str, Any] | None:
+    """The corpus this recording was made against, as the corpus repo defines it.
+
+    Written into the artifact rather than into a side table, so a shard carries
+    its own answer to "is this still true?". A recording whose corpus
+    description lives somewhere else is one the two can be separated from, and
+    the separated pair reads as current.
+    """
+    if fingerprints is None:
+        return None
+    root = Path(__file__).resolve().parents[2] / "RealityEngine_Machines" / "machines"
+    return fingerprints.fingerprint_paths(files.values(), root)
+
 
 def build_payload(verdicts: list[dict[str, Any]], quorum: dict[str, Any],
                   instances: list[dict[str, str]], machine_count: int,
-                  machine_corpus: str = "regression") -> dict[str, Any]:
+                  machine_corpus: str = "regression",
+                  fingerprint: dict[str, Any] | None = None) -> dict[str, Any]:
     by = lambda v: [x for x in verdicts if x["verdict"] == v]  # noqa: E731
     agreed, disagreed = by("agreed"), by("disagreement")
     silent, unmeasurable = by("no-runtime-emits"), by("unmeasurable")
+    intermittent = by("intermittent")
     return {
         "version": CONTRACT_VERSION,
         "generatedBy": "scripts/regression-ces-contracts.py",
@@ -440,6 +603,10 @@ def build_payload(verdicts: list[dict[str, Any]], quorum: dict[str, Any],
         # Which selection this was recorded from. A contract that does not say
         # what it covers cannot be told from one that covers everything.
         "machineCorpus": machine_corpus,
+        # The corpus state this recording is true of. Consumed by
+        # RealityEngine_Machines/scripts/build-ces-contract-registry.py to tell
+        # a current shard from one the corpus has moved out from under.
+        "corpusFingerprint": fingerprint,
         "runtimes": sorted({i["runtime"] for i in instances}),
         "machineCount": machine_count,
         "counts": {
@@ -447,6 +614,7 @@ def build_payload(verdicts: list[dict[str, Any]], quorum: dict[str, Any],
             "disagreement": len(disagreed),
             "noRuntimeEmits": len(silent),
             "unmeasurable": len(unmeasurable),
+            "intermittent": len(intermittent),
         },
         # Enumerated, never counted. An unimplemented shape and one nothing
         # happened to exercise look identical once they are a number (§3).
@@ -454,6 +622,9 @@ def build_payload(verdicts: list[dict[str, Any]], quorum: dict[str, Any],
         "disagreements": sorted(disagreed, key=lambda c: c["chain"]),
         "noRuntimeEmits": sorted(silent, key=lambda c: c["chain"]),
         "unmeasurable": sorted(unmeasurable, key=lambda c: c["chain"]),
+        # Neither a contract nor a stable divergence. Enumerated separately so
+        # a reader is never asked to guess which of the two it was.
+        "intermittent": sorted(intermittent, key=lambda c: c["chain"]),
     }
 
 
@@ -473,15 +644,40 @@ def main() -> int:
     # full` remains available for a deliberate sweep.
     p.add_argument("--machine-corpus", default="regression",
                    help="Corpus selection: regression (default), standard-deployment, "
-                        "arbiter-fixture, standard-deployment-plus-ring, or full.")
+                        "arbiter-fixture, standard-deployment-plus-ring, full, or "
+                        "domain:<name> for one corpus domain (see --list-scopes).")
     p.add_argument("--out", type=Path, default=Path("config/ces-contracts.json"),
                    help="Authoritative artifact. A git file by QUORUM_CONTRACT §4.")
     p.add_argument("--machine-names", help="Comma-separated basenames (without .json) to restrict to.")
     p.add_argument("--run-id", default=time.strftime("%Y%m%dT%H%M%SZ", time.gmtime()))
+    # Two by default, and only disagreeing chains pay it: on this corpus that is
+    # a handful out of thousands, so the sweep cost is noise. Zero disables
+    # confirmation and restores the 2.0.0 behaviour — available for diagnosing
+    # the confirmation stage itself, not for routine recording.
+    p.add_argument("--confirm-disagreements", type=int, default=2, metavar="N",
+                   help="Re-drive each disagreeing chain N times and record whether "
+                        "the disagreement reproduced (default 2; 0 disables).")
     mode = p.add_mutually_exclusive_group(required=True)
     mode.add_argument("--record", action="store_true", help="Write the artifact.")
     mode.add_argument("--check", action="store_true", help="Exit 1 if the artifact would change.")
+    mode.add_argument("--list-scopes", action="store_true",
+                      help="Print every selectable scope and exit. Needs no running universe.")
     args = p.parse_args()
+
+    ci_dir = Path(__file__).resolve().parent.parent
+    default_roots = [ci_dir / ".." / "RealityEngine_Machines" / "machines",
+                     ci_dir / ".." / "localAIStack" / "data" / "machines"]
+
+    if args.list_scopes:
+        # A corpus question, answered without a universe. The command that says
+        # what is recordable must not itself require a formed quorum.
+        files = corpus_files([Path(r) for r in (args.machines or default_roots)])
+        print("full")
+        for name in sorted(f.stem[:-7] for f in (ci_dir / "config").glob("*-corpus.txt")):
+            print(name)
+        for domain in available_domains(files):
+            print(f"domain:{domain}")
+        return 0
 
     instances = load_instances(args.registry)
     quorum = quorum_composition(instances)
@@ -493,15 +689,13 @@ def main() -> int:
         print("refusing to derive a contract from an incomplete quorum", file=sys.stderr)
         return 2
 
-    ci_dir = Path(__file__).resolve().parent.parent
-    roots = args.machines or [ci_dir / ".." / "RealityEngine_Machines" / "machines",
-                              ci_dir / ".." / "localAIStack" / "data" / "machines"]
+    roots = args.machines or default_roots
     files = corpus_files([Path(r) for r in roots])
     if not files:
         print(f"no corpus files under {[str(r) for r in roots]}", file=sys.stderr)
         return 2
 
-    selection = corpus_selection(args.machine_corpus, ci_dir)
+    selection = corpus_selection(args.machine_corpus, ci_dir, files)
     if selection is not None:
         # Unresolved entries are named, never dropped. A selection that
         # silently covers 17 of its 20 machines is a narrower gate wearing the
@@ -540,13 +734,55 @@ def main() -> int:
     for name, path in files.items():
         for chain in enumerate_chains(name, path):
             results = {k: run_chain(by_id[k], chain, args.run_id) for k in order}
-            verdicts.append(classify(chain, results, order))
+            verdict = classify(chain, results, order)
+            if verdict["verdict"] == "disagreement" and args.confirm_disagreements > 0:
+                verdict = confirm_disagreement(chain, verdict, by_id, order,
+                                               args.run_id, args.confirm_disagreements)
+            verdicts.append(verdict)
 
-    payload = build_payload(verdicts, quorum, instances, len(files), args.machine_corpus)
+    # Quorum again, AFTER driving. Checking only before proves the quorum existed
+    # when the run started, which is not the claim the artifact makes — it claims
+    # every recorded contract was agreed by three runtimes. Measured: lsp and
+    # scala died partway through the energy domain and the artifact was still
+    # written carrying `formed: true, missing: []`, with 224 contracts asserting
+    # agreement by three runtimes and 139 chains that could not be driven at all.
+    # Both halves cannot be true of the same run.
+    closing = quorum_composition(load_instances(args.registry)) \
+        if args.registry.exists() else {"formed": False, "missing": list(NATIVE_QUORUM)}
+    if not closing["formed"]:
+        print(f"quorum collapsed during the run: {'+'.join(closing['missing'])} "
+              f"stopped answering", file=sys.stderr)
+        print("refusing to write a contract whose quorum did not hold throughout",
+              file=sys.stderr)
+        return 2
+
+    # The decisive check, and the only one derived from the drive attempts
+    # themselves. The two before it ask the instance registry whether three
+    # runtimes are *registered*; this asks the run whether three runtimes were
+    # actually *driven*. They are not the same question, and the difference is
+    # what let a second invalid energy shard through: scala stayed listed as
+    # running while 115 chains recorded it as undriven, so both quorum checks
+    # passed and the artifact was written claiming 3-of-3 agreement.
+    #
+    # A runtime that could not be driven for even one chain did not participate
+    # in this recording, and no contract in it is a three-way agreement.
+    undriven = sorted({r for v in verdicts if v["verdict"] == "unmeasurable"
+                       for r in v.get("undrivenRuntimes", [])})
+    if undriven:
+        n = sum(1 for v in verdicts if v["verdict"] == "unmeasurable")
+        print(f"{'+'.join(undriven)} could not be driven for {n} chain(s)",
+              file=sys.stderr)
+        print("refusing to write a contract whose quorum did not hold throughout "
+              "the run (registered is not the same as driven)", file=sys.stderr)
+        return 2
+
+    payload = build_payload(verdicts, quorum, instances, len(files), args.machine_corpus,
+                            corpus_fingerprint(files))
     serialized = json.dumps(payload, indent=2, sort_keys=True) + "\n"
 
     c = payload["counts"]
     summary = (f"{c['agreed']} agreed · {c['disagreement']} disagreement · "
+               f"{c['intermittent']} intermittent · "
                f"{c['noRuntimeEmits']} no-runtime-emits · {c['unmeasurable']} unmeasurable")
 
     if args.check:
@@ -563,7 +799,9 @@ def main() -> int:
     print(f"ces-contracts: {summary} → {args.out}")
     for d in payload["disagreements"]:
         shape = " | ".join("+".join(cl["instances"]) for cl in d["clusters"])
-        print(f"  disagreement: {d['chain']} — {shape}")
+        print(f"  disagreement: {d['chain']} — {shape} (held over {d.get('attempts', 1)} drives)")
+    for d in payload["intermittent"]:
+        print(f"  intermittent: {d['chain']} — {' then '.join(d['observedShapes'])}")
     for s in payload["noRuntimeEmits"]:
         print(f"  no runtime emits output: {s['chain']}")
     return 0
