@@ -364,26 +364,29 @@ Three properties, and the iteration model exists to make them possible:
 Implementations should reach for their language's async primitives rather than a
 serial loop — futures, actor fan-out, task groups.
 
-**No runtime implements all three today**, and the gaps differ:
+**All three runtimes implement all three properties** (RealityEngine_CI#254,
+verified in the hosted lane):
 
-| | iteration | parallelism | atomicity |
-|---|---|---|---|
-| C++ | machines ✓ | serial loop | `unique_lock` over the whole call ✓ |
-| LSP | machines ✓ | serial `maphash` | single-threaded state |
-| Scala | **sequences ✗** | — | — |
+| | iteration | parallelism | atomic collection | atomic join |
+|---|---|---|---|---|
+| C++ | machines | pool + futures | sampled into `jobs` | placement by index |
+| LSP | machines | `lparallel pmap` | `machine-snapshot` | snapshot order |
+| Scala | machines | actor asks | `getAllMachines` | `Future.sequence` |
 
-C++ and LSP are correct on the unit of iteration and are the reference for it.
-Scala walks sequences and returns per-sequence `assertedOutputs` tagged with
-`sequenceId`/`sequenceName`, so its arbiters never run on this route and its
-response carries a different shape.
+The change that matters is not that the gaps closed — it is that **atomicity
+stopped being free**. C++ and LSP had it trivially before, because a serial loop
+cannot interleave. Both now fan out, so both had to earn it: C++ places results
+by index rather than appending on completion, and LSP's `pmap` returns in
+snapshot order over a list sorted by machine id.
 
-Scala already has the intended concurrency shape elsewhere — `MachineActor` per
-machine with `Future.sequence` fan-out on
-`POST /api/machines/process-universal/all`, and its own class documentation
-states *"cross-machine processing is parallel"*. The work is to bring this route
-onto that pattern, not to invent it.
-
-Tracked as RealityEngine_CI#254.
+**What is joined internally is not yet observable.** The runtimes join their own
+futures, but nothing on the surface lets a caller wait for a step to be fully
+realized, so every harness substitutes elapsed time — `--settle-ms` in
+`scripts/regression-trajectory-parity.py`, and nothing at all in
+`scripts/regression-ces-contracts.py`. A wall-clock settle is a guess that is
+silently wrong under load, and a reader that catches a half-written step reports
+it as engine divergence. Tracked as RealityEngine_CI#375, which is a hard
+dependency of any per-step comparison.
 
 ##### The input may be universal or machine-space, and length says which
 
