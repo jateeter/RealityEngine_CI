@@ -70,6 +70,7 @@ except ModuleNotFoundError:  # pragma: no cover - sibling repo absent
     fingerprints = None
 
 MAX_CHAIN_DEPTH = 4  # same cap as cesgen-oracles and the tool this replaces
+TRAJECTORY_ENABLED = True
 NATIVE_QUORUM = ("cpp", "lsp", "scala")
 CONTRACT_VERSION = "2.1.0"
 
@@ -344,6 +345,30 @@ def project_step(step: Any, own_sequence_ids: list[str]) -> dict[str, Any]:
     }
 
 
+def get_json(url: str, timeout: int = 20) -> tuple[int, Any]:
+    return request_json(request.Request(url, headers={"accept": "application/json"}), timeout)
+
+
+def history(instance: dict[str, str], kind: str) -> list[dict[str, Any]] | None:
+    """One trajectory history, or None when it cannot be read.
+
+    Same endpoint and same shape as `regression-trajectory-parity.py`
+    (`GET /api/engine/{isre,osre}-history`, entries of `{stepNumber, length,
+    nonZero}`), deliberately: the two stages must be observing the same thing
+    or their agreement means nothing.
+
+    None rather than [] on a failed read. A history that could not be fetched is
+    not an empty history, and treating it as one manufactures a difference out
+    of a transient error -- the same distinction `unmeasurable` draws for a
+    chain that could not be driven.
+    """
+    status, payload = get_json(f"{instance['re_url']}/api/engine/{kind}-history")
+    if status != 200 or not isinstance(payload, dict):
+        return None
+    h = payload.get("history")
+    return h if isinstance(h, list) else None
+
+
 def run_chain(instance: dict[str, str], chain: dict[str, Any], run_id: str) -> dict[str, Any]:
     """Drive one chain at one runtime, one step at a time.
 
@@ -372,6 +397,32 @@ def run_chain(instance: dict[str, str], chain: dict[str, Any], run_id: str) -> d
         "loop": False,
     }
     try:
+        # Trajectory baselines, read before the drive so the entries attributed
+        # to this chain are exactly the ones this chain produced. Absent when the
+        # RE has no history surface; the chain is still recorded, without them.
+        # Baseline as the HIGHEST stepNumber present, not the entry count.
+        #
+        # The histories are ring buffers capped at 1024 entries on every runtime.
+        # Slicing `after[len(before):]` is correct only while the buffer is still
+        # filling: once it caps, the length stops growing, the delta reads zero,
+        # and old entries are evicted so the slice indices no longer point at
+        # this chain's entries at all. Measured on the energy domain -- 748
+        # chains, ~3000 pushes against a 1024 cap -- where it produced 256
+        # trajectory verdicts for 748 chains, every one of them comparing an
+        # arbitrary window rather than the chain.
+        #
+        # stepNumber is monotonic within a runtime, so "entries numbered above
+        # my baseline" identifies this chain's entries regardless of eviction.
+        # It stays a per-runtime value and is still stripped before comparing.
+        def high_water(entries: list[dict[str, Any]] | None) -> int | None:
+            if entries is None:
+                return None
+            steps = [e.get("stepNumber") for e in entries
+                     if isinstance(e.get("stepNumber"), (int, float))]
+            return max(steps) if steps else -1
+
+        before = ({k: high_water(history(instance, k)) for k in ("isre", "osre")}
+                  if TRAJECTORY_ENABLED else {"isre": None, "osre": None})
         status, payload = post_json(f"{pe_url}/api/sources", source)
         if not 200 <= status < 300:
             return {"error": f"source register HTTP {status}", "detail": payload}
@@ -396,7 +447,54 @@ def run_chain(instance: dict[str, str], chain: dict[str, Any], run_id: str) -> d
                 return {"error": f"push step {idx} HTTP {status}", "detail": payload}
             step = payload.get("step") if isinstance(payload, dict) else None
             stream.append({"step": idx, **project_step(step, chain["ownSequenceIds"])})
-        return {"stream": stream}
+
+        # ISRE/OSRE for this chain: the entries that appeared while it was
+        # driven. Recorded whole rather than projected to the machine's region --
+        # OSRE is the resolved single-valued commit for the step, and narrowing
+        # it to one machine's cells would discard the arbitration result, which
+        # is the part `mergeBatch` cannot show.
+        trajectory: dict[str, Any] = {}
+        exclusivity: list[str] = []
+        for kind in ("isre", "osre"):
+            after = history(instance, kind)
+            base = before.get(kind)
+            if after is None or base is None:
+                trajectory[kind] = None
+                continue
+            mine = [e for e in after
+                    if isinstance(e.get("stepNumber"), (int, float))
+                    and e["stepNumber"] > base]
+            grew = len(mine)
+            # Fewer entries than pushes means the ring buffer evicted some of
+            # this chain's own steps. That is truncation, not divergence, and
+            # comparing what survived would report an artefact of buffer depth
+            # as an engine difference.
+            trajectory[kind] = mine
+            # The count must equal the drive exactly. Both directions are
+            # recorded and neither is silently used.
+            #
+            # FEWER: the 1024-entry ring buffer evicted some of this chain's own
+            # steps. Truncation, not divergence -- comparing what survived would
+            # report buffer depth as an engine difference. Measured on energy:
+            # 748 chains against a 1024 cap yielded 256 verdicts, each comparing
+            # an arbitrary window.
+            #
+            # MORE: someone else drove this runtime, so the trajectory is not
+            # this chain's (RealityEngine_CI#307, docs/OBSERVATION_EXCLUSIVITY.md).
+            # Asserted exactly rather than as an upper bound, because a loose
+            # check let a concurrent pusher hide on any chain shorter than the
+            # interference -- which is most of them, chains being 1-4 steps.
+            if grew < len(chain["inputs"]):
+                exclusivity.append(
+                    f"{kind}-history truncated: {grew} of {len(chain['inputs'])} "
+                    f"step(s) survived the 1024-entry ring buffer")
+            elif grew > len(chain["inputs"]):
+                exclusivity.append(
+                    f"{kind}-history grew by {grew} over {len(chain['inputs'])} push(es)")
+        result: dict[str, Any] = {"stream": stream, "trajectory": trajectory}
+        if exclusivity:
+            result["exclusivityViolations"] = exclusivity
+        return result
     except Exception as exc:  # noqa: BLE001
         return {"error": f"raised {exc!r}"}
     finally:
@@ -416,9 +514,20 @@ def agreement_clusters(streams: dict[str, Any], order: list[str]) -> list[list[s
     not the answer (`docs/QUORUM_CONTRACT.md` §1). Do not add a reference member
     here or in the caller.
     """
+    # Cluster on the STREAM only, never the whole per-runtime result.
+    #
+    # The result dict also carries `trajectory` (ISRE/OSRE) and any exclusivity
+    # notes, and hashing all of it silently folds a second, independent surface
+    # into this verdict. Measured when that happened: ai-services went from 40
+    # agreed to 2, with 39 chains demoted to intermittent -- a corpus and engines
+    # that had not changed, reclassified wholesale by an instrumentation change.
+    # The mergeBatch verdict must answer one question only; the trajectory is
+    # judged separately by trajectory_verdict().
     clusters: dict[str, list[str]] = {}
     for key in order:
-        clusters.setdefault(json.dumps(streams.get(key), sort_keys=True), []).append(key)
+        entry = streams.get(key)
+        stream = entry.get("stream") if isinstance(entry, dict) else entry
+        clusters.setdefault(json.dumps(stream, sort_keys=True), []).append(key)
     return sorted((sorted(m) for m in clusters.values()), key=lambda m: (-len(m), m))
 
 
@@ -431,6 +540,62 @@ def is_silent(result: Any) -> bool:
     if not isinstance(result, dict) or "stream" not in result:
         return False
     return all(not s["mergeBatch"] and not s["eventBus"] for s in result["stream"])
+
+
+def trajectory_verdict(results: dict[str, Any], order: list[str]) -> dict[str, Any]:
+    """Do the runtimes agree on ISRE/OSRE, judged apart from mergeBatch.
+
+    Two surfaces, reported separately on purpose. `mergeBatch` is what machines
+    *propose* -- per-firing entries, ordered, upstream of arbitration. ISRE/OSRE
+    are what the corpus was *presented with* and what it *committed*, each
+    observed at the one point where it exists as a single-valued vector.
+
+    They can disagree, and which one disagrees is the finding. Runtimes differing
+    on mergeBatch while agreeing on OSRE means the difference did not survive
+    arbitration -- intermediate detail, not divergent behaviour. Agreeing on
+    mergeBatch while differing on OSRE is far worse: the same contributions
+    resolved differently.
+
+    A CES is a regular expression, so neither surface has an acceptable
+    difference. Separating them says *where* to look, not which to excuse.
+    """
+    out: dict[str, Any] = {}
+    for kind in ("isre", "osre"):
+        per = {k: (results.get(k) or {}).get("trajectory", {}).get(kind) for k in order}
+        if any(v is None for v in per.values()):
+            out[kind] = {"verdict": "unreadable",
+                         "runtimes": sorted(k for k in order if per[k] is None)}
+            continue
+        # stepNumber is stripped before comparing: it is a per-runtime counter,
+        # not engine behaviour. Measured with the universe idle, cpp sat 30+
+        # steps ahead of lsp and scala, so every entry differed on that field
+        # alone and the comparison reported ~100% divergence that was a counter
+        # offset. Same rule the mergeBatch path applies through
+        # strip_engine_identity; it was never applied here.
+        def comparable(entries: list[dict[str, Any]] | None) -> Any:
+            return [{k: v for k, v in e.items() if k != "stepNumber"}
+                    for e in (entries or [])]
+
+        clusters: dict[str, list[str]] = {}
+        for k in order:
+            clusters.setdefault(json.dumps(comparable(per[k]), sort_keys=True), []).append(k)
+        groups = sorted((sorted(m) for m in clusters.values()), key=lambda m: (-len(m), m))
+        out[kind] = ({"verdict": "agreed", "agreedBy": groups[0],
+                      "entries": len(per[order[0]] or [])}
+                     if len(groups) == 1 else
+                     {"verdict": "disagreement", "clusters": groups})
+    violations = {k: (results.get(k) or {}).get("exclusivityViolations")
+                  for k in order if (results.get(k) or {}).get("exclusivityViolations")}
+    if violations:
+        # Not comparable rather than divergent: another party drove the runtime,
+        # so its trajectory is not this chain's.
+        out["exclusivity"] = violations
+        for kind in ("isre", "osre"):
+            # Voids agreement as well as disagreement. Three runtimes that were
+            # each driven by someone else can agree by coincidence, and recording
+            # that as agreement is the same error in the opposite direction.
+            out[kind]["verdict"] = "not-comparable"
+    return out
 
 
 def classify(chain: dict[str, Any], results: dict[str, Any], order: list[str]) -> dict[str, Any]:
@@ -457,6 +622,7 @@ def classify(chain: dict[str, Any], results: dict[str, Any], order: list[str]) -
             # an empty stream that reads like a recorded behaviour.
             return {
                 "verdict": "no-runtime-emits",
+                "trajectory": trajectory_verdict(results, order),
                 "chain": chain["id"],
                 "machineFile": chain["machineFile"],
                 "sequenceId": chain["sequenceId"],
@@ -465,6 +631,7 @@ def classify(chain: dict[str, Any], results: dict[str, Any], order: list[str]) -
             }
         return {
             "verdict": "agreed",
+            "trajectory": trajectory_verdict(results, order),
             "chain": chain["id"],
             "machineFile": chain["machineFile"],
             "machineName": chain.get("machineName"),
@@ -481,6 +648,7 @@ def classify(chain: dict[str, Any], results: dict[str, Any], order: list[str]) -
     # needs all of them to act — not one measured against another (§5).
     return {
         "verdict": "disagreement",
+        "trajectory": trajectory_verdict(results, order),
         "chain": chain["id"],
         "machineFile": chain["machineFile"],
         "sequenceId": chain["sequenceId"],
@@ -558,6 +726,11 @@ def confirm_disagreement(chain: dict[str, Any], verdict: dict[str, Any],
     # read as "here is where the runtimes differ" and this is not that.
     return {
         "verdict": "intermittent",
+        # Carried across the demotion. An intermittent chain is still one whose
+        # ISRE/OSRE were observed, and dropping them here would make the whole
+        # trajectory comparison invisible on exactly the chains most worth
+        # asking about -- the unstable ones.
+        "trajectory": verdict.get("trajectory"),
         "chain": verdict["chain"],
         "machineFile": verdict["machineFile"],
         "sequenceId": verdict["sequenceId"],
@@ -616,6 +789,15 @@ def build_payload(verdicts: list[dict[str, Any]], quorum: dict[str, Any],
             "unmeasurable": len(unmeasurable),
             "intermittent": len(intermittent),
         },
+        # Both surfaces, side by side. A run where mergeBatch moves and OSRE does
+        # not is a different statement about the system than one where both move.
+        "trajectoryCounts": {
+            kind: {
+                v: sum(1 for c in verdicts
+                       if (c.get("trajectory") or {}).get(kind, {}).get("verdict") == v)
+                for v in ("agreed", "disagreement", "not-comparable", "unreadable")
+            } for kind in ("isre", "osre")
+        },
         # Enumerated, never counted. An unimplemented shape and one nothing
         # happened to exercise look identical once they are a number (§3).
         "contracts": sorted(agreed, key=lambda c: c["chain"]),
@@ -654,6 +836,12 @@ def main() -> int:
     # a handful out of thousands, so the sweep cost is noise. Zero disables
     # confirmation and restores the 2.0.0 behaviour — available for diagnosing
     # the confirmation stage itself, not for routine recording.
+    # Present so the two surfaces can be measured apart. Reading the histories
+    # costs two extra RE calls per chain, and whether that shifts the mergeBatch
+    # verdict is a question the harness has to be able to ask of itself.
+    p.add_argument("--no-trajectory", dest="trajectory", action="store_false", default=True,
+                   help="Do not read ISRE/OSRE. Use to check whether the reads perturb "
+                        "the mergeBatch verdict.")
     p.add_argument("--confirm-disagreements", type=int, default=2, metavar="N",
                    help="Re-drive each disagreeing chain N times and record whether "
                         "the disagreement reproduced (default 2; 0 disables).")
@@ -678,6 +866,9 @@ def main() -> int:
         for domain in available_domains(files):
             print(f"domain:{domain}")
         return 0
+
+    global TRAJECTORY_ENABLED
+    TRAJECTORY_ENABLED = args.trajectory
 
     instances = load_instances(args.registry)
     quorum = quorum_composition(instances)
@@ -781,9 +972,12 @@ def main() -> int:
     serialized = json.dumps(payload, indent=2, sort_keys=True) + "\n"
 
     c = payload["counts"]
+    t = payload["trajectoryCounts"]
     summary = (f"{c['agreed']} agreed · {c['disagreement']} disagreement · "
                f"{c['intermittent']} intermittent · "
-               f"{c['noRuntimeEmits']} no-runtime-emits · {c['unmeasurable']} unmeasurable")
+               f"{c['noRuntimeEmits']} no-runtime-emits · {c['unmeasurable']} unmeasurable"
+               f"  |  ISRE {t['isre']['agreed']}ok/{t['isre']['disagreement']}diff"
+               f"  OSRE {t['osre']['agreed']}ok/{t['osre']['disagreement']}diff")
 
     if args.check:
         existing = args.out.read_text(encoding="utf-8") if args.out.exists() else None
