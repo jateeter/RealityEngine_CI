@@ -1,4 +1,43 @@
 #!/usr/bin/env python3
+# ─────────────────────────────────────────────────────────────────────────────
+#  RETIRED 2026-09-14 — superseded by scripts/record-ces-contracts.py
+#
+#  KEPT DELIBERATELY. This is the last full expression of the sharded,
+#  per-chain approach: chain enumeration from a machine's inputSequences,
+#  per-chain drive, the four-verdict classification, `confirm_disagreement`
+#  and its `intermittent` verdict, the stepNumber high-water read that
+#  survives the 1024-entry ring buffer, and the clustering that judges the
+#  output stream apart from the trajectory. Several of those are correct and
+#  will be wanted again. Do not delete this file to tidy up.
+#
+#  WHY IT WAS RETIRED — the stimulus, not the analysis.
+#
+#  `run_chain` registers a source of its own, `ces-contract-{run}-{runtime}`,
+#  and pushes its own vectors through it. SURFACE_SPEC.md names that pattern
+#  and rules it out:
+#
+#      A probe that registers its own source and pushes values through it is
+#      measuring a synthetic stimulus: it exercises whatever region it chose
+#      rather than the corpus, and three engines can agree on it while
+#      disagreeing on everything the corpus would have driven. Any parity gate
+#      must compose the seed from the interned test sources.
+#
+#  The per-machine test sequences are already sources in the PE, visible in the
+#  Manager Perception tab, each with an `active` flag, and they are the declared
+#  input to the ISRE combination workflow. A recorder that registers one more
+#  source alongside them is not measuring that workflow; it is measuring itself.
+#
+#  Every shard this produced was discarded rather than re-recorded, because the
+#  defect is in the stimulus and a re-run reproduces it faithfully. The
+#  divergences it reported do not exist: driven from the composed seed, the
+#  three runtimes are byte-identical on both trajectory surfaces, including on
+#  the RS ring this recorder split three ways across 3/3 attempts.
+#
+#  THE ANALYSIS HALF IS STILL UNDER TEST.
+#  scripts/tests/test-ces-contracts-quorum.sh imports this module and exercises
+#  `classify` directly, so the quorum rules keep their coverage. That is why the
+#  guard below sits in main() rather than at import.
+# ─────────────────────────────────────────────────────────────────────────────
 """Record the CES output-stream contract from 3-of-3 runtime agreement.
 
 This replaces the replay-engine recording in `scripts/cesgen-contracts.mjs`.
@@ -46,6 +85,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import os
 import sys
 import time
 from pathlib import Path
@@ -291,7 +331,8 @@ def enumerate_chains(name: str, path: Path) -> list[dict[str, Any]]:
 
 # ── Recording one chain at one runtime ──────────────────────────────────────
 
-def project_step(step: Any, own_sequence_ids: list[str]) -> dict[str, Any]:
+def project_step(step: Any, own_sequence_ids: list[str],
+                 machine_id: str | None = None) -> dict[str, Any]:
     """The comparable content of one step, restricted to the machine under test.
 
     Two things happen here, and the second is the one that makes a live-derived
@@ -325,7 +366,31 @@ def project_step(step: Any, own_sequence_ids: list[str]) -> dict[str, Any]:
     own = set(own_sequence_ids)
 
     def mine(entry: Any) -> bool:
-        if not isinstance(entry, dict) or not own:
+        if not isinstance(entry, dict):
+            return False
+        # Machine id first, when the caller could resolve one.
+        #
+        # Attribution by sequence id alone was wrong. Its stated reason -- "a
+        # region can be shared and a sequence id cannot" -- is false in its
+        # second half: CES ids are scoped to the machine and carry no uniqueness
+        # requirement, so `rs-set-sequence` belongs to RSFlipFlop,
+        # RSFlipFlopTrigger AND RSFlipFlopDeprecatedDemo. A chain driven on one
+        # of them collected all three machines' entries, which is what made
+        # mergeBatch ordering visible as a false disagreement.
+        #
+        # (Regions really are shared, and declared: region-allocation.json
+        # carries 68 sharedOutputLanes with named owners. Neither field
+        # attributes an entry on its own.)
+        if machine_id is not None:
+            for key in ("machineId", "producerMachineId"):
+                if entry.get(key) == machine_id:
+                    return True
+            if entry.get("subscriberMachineId") == machine_id:
+                return True
+            return False
+        # No id resolved -- fall back to the sequence filter, which over-collects
+        # across machines sharing an id but never under-collects.
+        if not own:
             return False
         ids = entry.get("sequenceIds")
         if isinstance(ids, list):
@@ -343,6 +408,33 @@ def project_step(step: Any, own_sequence_ids: list[str]) -> dict[str, Any]:
         "mergeBatch": clean(step.get("mergeBatch")),
         "eventBus": clean(step.get("eventBus")),
     }
+
+
+# machine name -> that runtime's id, per instance. Cached: it is one call per
+# runtime per scope, and the mapping cannot change while a scope is recorded.
+_ID_CACHE: dict[str, dict[str, str]] = {}
+
+
+def machine_id_for(instance: dict[str, str], name: str) -> str | None:
+    """This runtime's id for a corpus-declared machine name.
+
+    Needed because attribution cannot be done from a mergeBatch entry alone.
+    The entry carries `machineId`, which is **minted per runtime** for anything
+    loaded after boot -- measured, one logical machine was
+    `machine-1789255613939-420023239` on cpp, `machine-1U4G94T-QS62LSJ9WRV9` on
+    lsp, `machine-1789255613943-dda3166d` on scala. Name is corpus-declared and
+    globally unique, so it is the only key that means the same thing on every
+    runtime (`vector_aggregator.hpp`, cited by RealityEngine_CI#270).
+    """
+    cache = _ID_CACHE.setdefault(instance["id"], {})
+    if not cache:
+        status, payload = get_json(f"{instance['re_url']}/api/machines")
+        if 200 <= status < 300:
+            machines = payload.get("machines", payload) if isinstance(payload, dict) else payload
+            for m in machines if isinstance(machines, list) else []:
+                if isinstance(m, dict) and m.get("name") and m.get("id"):
+                    cache[m["name"]] = m["id"]
+    return cache.get(name)
 
 
 def get_json(url: str, timeout: int = 20) -> tuple[int, Any]:
@@ -446,7 +538,8 @@ def run_chain(instance: dict[str, str], chain: dict[str, Any], run_id: str) -> d
             if not 200 <= status < 300:
                 return {"error": f"push step {idx} HTTP {status}", "detail": payload}
             step = payload.get("step") if isinstance(payload, dict) else None
-            stream.append({"step": idx, **project_step(step, chain["ownSequenceIds"])})
+            stream.append({"step": idx, **project_step(step, chain["ownSequenceIds"],
+                                                       machine_id_for(instance, chain.get("machineName")))})
 
         # ISRE/OSRE for this chain: the entries that appeared while it was
         # driven. Recorded whole rather than projected to the machine's region --
@@ -580,10 +673,40 @@ def trajectory_verdict(results: dict[str, Any], order: list[str]) -> dict[str, A
         for k in order:
             clusters.setdefault(json.dumps(comparable(per[k]), sort_keys=True), []).append(k)
         groups = sorted((sorted(m) for m in clusters.values()), key=lambda m: (-len(m), m))
-        out[kind] = ({"verdict": "agreed", "agreedBy": groups[0],
-                      "entries": len(per[order[0]] or [])}
-                     if len(groups) == 1 else
-                     {"verdict": "disagreement", "clusters": groups})
+        if len(groups) == 1:
+            out[kind] = {"verdict": "agreed", "agreedBy": groups[0],
+                         "entries": len(per[order[0]] or [])}
+            continue
+        # Every cluster carries its entries, and the cells where they differ.
+        #
+        # The first version recorded only which runtimes differed. That says a
+        # runtime diverged and cannot say how, so a reader has to re-drive the
+        # universe to learn anything actionable -- and by then the state is gone.
+        # The mergeBatch path already carries every cluster's stream for exactly
+        # this reason (QUORUM_CONTRACT §5); the rule was written into this
+        # function's docstring and not implemented here.
+        #
+        # `differingCells` is the useful part: ISRE/OSRE are whole-space vectors,
+        # so a single divergent cell makes every chain differ. Naming the indices
+        # is what distinguishes one defect seen N times from N defects.
+        def sparse(entries: list[dict[str, Any]] | None) -> dict[int, float]:
+            cells: dict[int, float] = {}
+            for e in entries or []:
+                for nz in e.get("nonZero") or []:
+                    if isinstance(nz, dict) and "index" in nz:
+                        cells[int(nz["index"])] = nz.get("value")
+            return cells
+
+        maps = {k: sparse(per[k]) for k in order}
+        union = set().union(*(set(m) for m in maps.values())) if maps else set()
+        differing = sorted(c for c in union
+                           if len({json.dumps(maps[k].get(c)) for k in order}) > 1)
+        out[kind] = {
+            "verdict": "disagreement",
+            "clusters": [{"instances": g, "entries": per[g[0]]} for g in groups],
+            "differingCells": differing[:64],
+            "differingCellCount": len(differing),
+        }
     violations = {k: (results.get(k) or {}).get("exclusivityViolations")
                   for k in order if (results.get(k) or {}).get("exclusivityViolations")}
     if violations:
@@ -811,6 +934,19 @@ def build_payload(verdicts: list[dict[str, Any]], quorum: dict[str, Any],
 
 
 def main() -> int:
+    # See the retirement banner at the top of this file. Recording with this
+    # produces shards measuring a synthetic stimulus, which is how the last set
+    # came to be discarded. The override exists for reproducing that historical
+    # behaviour deliberately, never for recording a contract.
+    if os.environ.get("CES_ALLOW_RETIRED_RECORDER") != "1":
+        print("regression-ces-contracts.py is RETIRED — it measures a synthetic "
+              "stimulus (SURFACE_SPEC.md, RealityEngine_CI#375).", file=sys.stderr)
+        print("  record with:  scripts/record-ces-contracts.py --only <domain> --write",
+              file=sys.stderr)
+        print("  to reproduce the retired behaviour on purpose, set "
+              "CES_ALLOW_RETIRED_RECORDER=1", file=sys.stderr)
+        return 2
+
     p = argparse.ArgumentParser(description=__doc__,
                                 formatter_class=argparse.RawDescriptionHelpFormatter)
     p.add_argument("--registry", type=Path, default=Path("/tmp/re-registry/re-registry.json"))

@@ -275,8 +275,8 @@ run_semantic_parity_smoke() {
 
 run_ces_contract_drift() {
     local label="CES contract drift (3-of-3 quorum)"
-    if [ ! -x "$CI_DIR/scripts/regression-ces-contracts.py" ]; then
-        skip_suite "$label" "regression-ces-contracts.py missing or not executable"
+    if [ ! -f "$CI_DIR/scripts/record-ces-contracts.py" ]; then
+        skip_suite "$label" "record-ces-contracts.py missing"
         return
     fi
     local registry_url="${RE_REGISTRY_URL:-http://127.0.0.1:5999/re-registry.json}"
@@ -293,7 +293,7 @@ run_ces_contract_drift() {
     # surfaced only in a deployment gate.
     local log; log="$(mktemp -t re-ces-contracts.XXXXXX)"
     info "Running: $label"
-    if python3 "$CI_DIR/scripts/regression-ces-contracts.py" --check >"$log" 2>&1; then
+    if python3 "$CI_DIR/scripts/record-ces-contracts.py" --check >"$log" 2>&1; then
         ok "$label - PASS"
         record PASS "$label"
     else

@@ -364,13 +364,29 @@ def restore_to_floor(insts: list[dict[str, Any]], floor: set[str]) -> dict[str, 
 # ── Recording one domain ────────────────────────────────────────────────────
 
 def record_domain(domain: str) -> dict[str, Any]:
+    """Record this domain's shard from the corpus's own composed seed.
+
+    Calls scripts/record-ces-contracts.py directly rather than going through
+    record-ces-contract-shards.sh. The shell driver selects *scopes* for the
+    retired per-chain recorder, which drove one chain at a time through a source
+    it registered itself — a synthetic stimulus (SURFACE_SPEC.md). The recorder
+    now arms the interned sources and drives the whole resident corpus once, so
+    there is no per-chain scope to select; the domain is a projection of that
+    run, chosen with --only.
+
+    --only matters under isolation. The floor corpus the universe boots on holds
+    machines from several domains, so an unfiltered write would emit a shard for
+    each of those covering only the few resident, overwriting a complete shard
+    with a partial one that looks just as authoritative.
+    """
     result = subprocess.run(
-        ["bash", str(SHARD_DRIVER), f"--only=domain:{domain}"],
+        ["python3", str(CI_DIR / "scripts" / "record-ces-contracts.py"),
+         "--only", domain, "--write"],
         capture_output=True, text=True, cwd=CI_DIR)
     summary = ""
     for line in (result.stdout or "").splitlines():
-        if "ok —" in line:
-            summary = line.split("ok —", 1)[1].strip()
+        if line.strip().startswith(domain + " ") or f"  {domain:22}" in line:
+            summary = " ".join(line.split())
     return {"ok": result.returncode == 0, "summary": summary,
             "output": (result.stdout or "")[-2000:], "error": (result.stderr or "")[-1000:]}
 

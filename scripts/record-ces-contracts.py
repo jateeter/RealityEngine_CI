@@ -269,6 +269,18 @@ def main() -> int:
                          "completion point no runtime exposes (#375); left at 0 "
                          "so the cost of that gap stays visible")
     ap.add_argument("--write", action="store_true", help="write shards to config/ces-contracts/")
+    ap.add_argument("--check", action="store_true",
+                    help="record, compare against the shards on disk, write nothing. "
+                         "Non-zero on drift. This is the gate half: a recorded "
+                         "contract nobody re-checks silently becomes an assertion "
+                         "about the past.")
+    ap.add_argument("--only", default=None, metavar="DOMAIN",
+                    help="write only this domain's shard. Required when recording "
+                         "under isolation: the floor corpus the universe boots on "
+                         "contains machines from several domains, so an unfiltered "
+                         "--write would emit a shard for each of those covering only "
+                         "the handful resident, overwriting a complete shard with a "
+                         "partial one that looks just as authoritative.")
     args = ap.parse_args()
 
     instances = instances_from_registry(args.registry)
@@ -288,6 +300,18 @@ def main() -> int:
     resident = {str(s.get("machineName"))
                 for s in seed.interned_sources(get_json, instances[0]["pe"])[0]}
     shards = build_shards(report, corpus, resident, order)
+    withheld: list[str] = []
+
+    if args.only:
+        if args.only not in shards:
+            print(f"FAIL --only={args.only} but no machine of that domain is resident; "
+                  f"resident domains are {', '.join(sorted(shards)) or '(none)'}")
+            return 1
+        # Report every domain the drive covered, write only the one asked for.
+        # The others are real observations but partial, and a partial shard on
+        # disk is indistinguishable from a complete one.
+        withheld = sorted(set(shards) - {args.only})
+        shards = {args.only: shards[args.only]}
 
     fingerprint = corpus_fingerprint()
     total = {"agreed": 0, "agreed-silent": 0, "disagreement": 0}
@@ -302,6 +326,30 @@ def main() -> int:
           + ", ".join(f"{v} {k}" for k, v in total.items()))
     print(f"  stimulus: {report['armed']} armed, seed depth {report['seedDepth']}, "
           f"{report['steps']} steps driven")
+    if args.only and withheld:
+        print(f"  withheld (partial under isolation, not written): {', '.join(withheld)}")
+
+    if args.check:
+        drift: list[str] = []
+        for domain, shard in sorted(shards.items()):
+            path = SHARD_DIR / f"domain-{domain}.json"
+            if not path.exists():
+                drift.append(f"{domain}: no shard on disk to check against")
+                continue
+            recorded = json.loads(path.read_text(encoding="utf-8")).get("machines", {})
+            for name, entry in sorted(shard["machines"].items()):
+                was = recorded.get(name)
+                if was is None:
+                    drift.append(f"{domain}/{name}: not in the recorded shard")
+                elif json.dumps(was, sort_keys=True) != json.dumps(entry, sort_keys=True):
+                    drift.append(f"{domain}/{name}: {was.get('verdict')} -> {entry.get('verdict')}")
+        if drift:
+            print(f"\n  DRIFT against the recorded shards ({len(drift)}):")
+            for line in drift[:20]:
+                print(f"    {line}")
+            return 1
+        print("\n  no drift against the recorded shards")
+        return 0
 
     if args.write:
         SHARD_DIR.mkdir(parents=True, exist_ok=True)
@@ -318,6 +366,8 @@ def main() -> int:
                     "seedDepth": report["seedDepth"],
                     "steps": report["steps"],
                     "settleMs": args.settle_ms,
+                    "residentMachines": len(resident),
+                    "isolated": bool(args.only),
                     "completionPoint": "none exposed by any runtime (RealityEngine_CI#375)",
                 },
                 "corpusFingerprint": fingerprint,
