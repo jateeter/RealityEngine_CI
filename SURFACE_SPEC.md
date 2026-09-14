@@ -736,6 +736,31 @@ Implemented in `reality.cpp` (`std::sort` after the machineResults walk),
 (`sort-active-regions`, replacing an `nreverse` that only undid push order and
 carried no meaning).
 
+#### Lane range notation
+
+The wire format carries `{offset, length}` and nothing else. Every range on
+every surface — `perceptualMapping.input`/`.output`, `activeRegions`, reserved
+ranges, arbitration cells — is that pair, and a consumer computes the half-open
+span `[offset, offset + length)` from it. This section constrains only the
+**prose and diagnostic** rendering of those pairs, which is where the two
+conventions were being mixed.
+
+Written as `[a:b]`, a lane range is **closed on both ends**: `a` is the first
+cell and `b` is the last cell the region occupies. A two-cell region at
+`{offset: 16920, length: 2}` is `[16920:16921]`, never `[16920:16922]`.
+
+This matters because the corpus is read by people deciding where the next
+machine's lanes go. Text of the form `[16920:16922]` — half-open values inside
+closed brackets — reads as a three-cell claim on 16922, a cell the region does
+not own. Where that cell belongs to another machine's region, the text asserts
+a contention the arbiter never sees, and a reader routing around the phantom
+overlap builds a feedback edge that has no basis in the data. 5,094 references
+across 1,301 machine files carried the half-open form before this was fixed;
+`RealityEngine_Machines/scripts/fix-lane-notation.py` performs the rewrite and
+corroborates every candidate against a declared region before touching it.
+
+Generators emitting range text render the last cell, not the exclusive bound.
+
 ### Sampler
 
 | Method | Path | CPP | LSP | Scala |
