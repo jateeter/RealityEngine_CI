@@ -144,6 +144,88 @@ def assert_stimulus_parity(populations: dict[str, list[Json]]) -> list[str]:
     return failures
 
 
+def machine_registry(get: Callable[[str], tuple[int, Any]], re_url: str) -> tuple[set[str], str | None]:
+    """Machine names the runtime currently holds, from the machine registry.
+
+    `GET /api/machines` — the machines resident in memory — and deliberately not
+    `GET /api/machines/json/list`, which is the on-disk corpus catalog and
+    answers a completely different question. Reading the catalog and calling it
+    residency reports 21 while the runtime holds 163.
+    """
+    status, payload = get(f"{re_url}/api/machines")
+    if status != 200:
+        return set(), f"GET /api/machines returned {status}"
+    machines = payload.get("machines") if isinstance(payload, dict) else payload
+    if not isinstance(machines, list):
+        return set(), "/api/machines payload has no machines array"
+    return {str(m.get("name")) for m in machines if m.get("name")}, None
+
+
+def reconcile_sources(get: Callable[[str], tuple[int, Any]],
+                      post: Callable[[str, Json], tuple[int, Any]],
+                      delete: Callable[[str], tuple[int, Any]],
+                      re_url: str, pe_url: str) -> tuple[list[Json], list[str]]:
+    """Make the interned source population equal the resident corpus, exactly.
+
+    Neither direction maintains itself, and the drift is silent both ways:
+
+      * **Unloading a machine does not remove its source.** The machine leaves
+        the machine registry and its interned source stays behind, still armed,
+        still writing its region on every push. Measured here: 163 machines
+        resident against 273 sources, 110 of them orphans from a domain that had
+        been unloaded — the whole of `life-balance`, still driving the space it
+        no longer belonged to.
+      * **Bootstrap only ever adds.** It creates a source for any machine that
+        lacks one and prunes nothing, so calling it against a drifted population
+        makes it worse. Worse still, machine ids are minted per-runtime on each
+        import, so a machine unloaded and reloaded gets a *new* id, and
+        `test-<machineId>` keys a second source rather than replacing the first.
+
+    So a recorder that inherits whatever the PE happens to be holding is not
+    driving the corpus it thinks it is. Reconciling costs one bootstrap and a
+    handful of deletes, and it is what lets the seed be stated rather than
+    assumed.
+    """
+    failures: list[str] = []
+
+    resident, err = machine_registry(get, re_url)
+    if err:
+        return [], [err]
+
+    status, _ = post(f"{pe_url}/api/sources/bootstrap-from-machines", {})
+    if status != 200:
+        failures.append(f"POST /api/sources/bootstrap-from-machines returned {status}")
+
+    sources, err = interned_sources(get, pe_url)
+    if err:
+        return [], failures + [err]
+
+    for src in sources:
+        if str(src.get("machineName")) in resident:
+            continue
+        sid = src.get("id")
+        if not sid:
+            continue
+        status, _ = delete(f"{pe_url}/api/sources/{sid}")
+        if status not in (200, 204):
+            failures.append(f"DELETE orphaned source {sid} returned {status}")
+
+    sources, err = interned_sources(get, pe_url)
+    if err:
+        return [], failures + [err]
+
+    names = {str(s.get("machineName")) for s in sources}
+    if names != resident:
+        missing = sorted(resident - names)
+        extra = sorted(names - resident)
+        failures.append(
+            f"source population still does not match the resident corpus: "
+            f"{len(resident)} machines, {len(sources)} sources"
+            + (f"; no source for {len(missing)} machine(s) e.g. {missing[:3]}" if missing else "")
+            + (f"; {len(extra)} orphan(s) remain e.g. {extra[:3]}" if extra else ""))
+    return sources, failures
+
+
 def arm_all(patch: Callable[[str, Json], tuple[int, Any]], pe_url: str,
             sources: Iterable[Json]) -> list[str]:
     """Arm every interned source, explicitly and in both directions.

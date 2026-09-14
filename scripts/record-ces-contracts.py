@@ -98,6 +98,10 @@ def patch_json(url: str, body: Json) -> tuple[int, Any]:
     return _req("PATCH", url, body)
 
 
+def delete_json(url: str) -> tuple[int, Any]:
+    return _req("DELETE", url)
+
+
 # ── the corpus side ─────────────────────────────────────────────────────────
 
 def load_corpus() -> dict[str, Json]:
@@ -161,11 +165,15 @@ def drive_corpus(instances: list[Json], steps: int | None, settle_ms: int) -> Js
                                   "compares residue, not behaviour")
         return report
 
+    # Reconcile before arming. Neither unload nor bootstrap maintains the source
+    # population against the resident corpus, so inheriting whatever the PE is
+    # holding means driving a corpus other than the one loaded.
     populations: dict[str, list[Json]] = {}
     for inst in instances:
-        sources, err = seed.interned_sources(get_json, inst["pe"])
-        if err:
-            report["failures"].append(f"{inst['id']}: {err}")
+        sources, rec_failures = seed.reconcile_sources(
+            get_json, post_json, delete_json, inst["re"], inst["pe"])
+        report["failures"].extend(f"{inst['id']}: {f}" for f in rec_failures)
+        if rec_failures:
             return report
         arm_failures = seed.arm_all(patch_json, inst["pe"], sources)
         report["failures"].extend(f"{inst['id']}: {f}" for f in arm_failures)
@@ -297,8 +305,10 @@ def main() -> int:
         return 1
 
     corpus = load_corpus()
-    resident = {str(s.get("machineName"))
-                for s in seed.interned_sources(get_json, instances[0]["pe"])[0]}
+    resident, res_err = seed.machine_registry(get_json, instances[0]["re"])
+    if res_err:
+        print(f"FAIL could not read the machine registry: {res_err}")
+        return 1
     shards = build_shards(report, corpus, resident, order)
     withheld: list[str] = []
 
