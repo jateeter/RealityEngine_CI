@@ -57,10 +57,10 @@ jobs:
 
     steps:
       - name: Checkout RealityEngine_CI
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
 
       - name: Checkout RealityEngine_Machines
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
         with:
           repository: ${{ github.repository_owner }}/RealityEngine_Machines
           ref: ${{ inputs.machines_ref || '' }}
