@@ -668,11 +668,68 @@ port_holder() {
 # The compose root a port's holder belongs to, empty when it is not a compose
 # container. Used to decide whether the teardown below will reach it.
 port_holder_root() {
-  local name
+  local name pid exe args cwd cand
   name="$(docker ps --filter "publish=$1" --format '{{.Names}}' 2>/dev/null | head -1)"
-  [ -n "$name" ] || return 0
-  docker inspect "$name" --format '{{index .Config.Labels "com.docker.compose.project.working_dir"}}' 2>/dev/null
+  if [ -n "$name" ]; then
+    docker inspect "$name" --format '{{index .Config.Labels "com.docker.compose.project.working_dir"}}' 2>/dev/null
+    return 0
+  fi
+
+  # Native holder. Decide whether stopUniverse.sh reaches it.
+  #
+  # This returned empty for anything outside Docker, so every native process was
+  # a foreign blocker — the engines, Manager, the instance registry server. The
+  # ordinary case, an operator with a universe up, aborted the local lane with
+  # "lane ports held by something this harness does not own", naming processes
+  # stopUniverse.sh sweeps by design. The guard exists to protect what the
+  # teardown cannot reach (#240); a native engine is not that.
+  #
+  # Three signals, because one does not identify all three kinds of holder:
+  #
+  #   exe   C++ and LSP run their own binaries from the workspace.
+  #   argv  Scala runs /usr/bin/java with the jar path in its arguments, and
+  #         the interpreter is a system path that says nothing about ownership.
+  #   cwd   the instance registry server is `python -c` with an inline script:
+  #         no workspace path in either its executable or its arguments, and
+  #         its only identity is the directory it serves.
+  pid="$(lsof -ti ":$1" -sTCP:LISTEN 2>/dev/null | head -1)"
+  [ -n "$pid" ] || return 0
+
+  cand=""
+  exe="$(ps -o comm= -p "$pid" 2>/dev/null)"
+  case "$exe" in "$WS"/*) cand="$exe" ;; esac
+
+  if [ -z "$cand" ]; then
+    args="$(ps -o args= -p "$pid" 2>/dev/null)"
+    for tok in $args; do
+      case "$tok" in "$WS"/*) cand="$tok"; break ;; esac
+    done
+  fi
+
+  if [ -z "$cand" ]; then
+    cwd="$(lsof -a -p "$pid" -d cwd -Fn 2>/dev/null | sed -n 's/^n//p' | head -1)"
+    case "$cwd" in
+      "$WS"/*) cand="$cwd" ;;
+      # The registry directory stopUniverse.sh owns, serving re-registry.json.
+      /tmp/re-registry*|/private/tmp/re-registry*) printf '%s' "$WS/RealityEngine_CI"; return 0 ;;
+    esac
+  fi
+
+  [ -n "$cand" ] || return 0
+
+  # Longest lane-stack prefix wins so a nested path resolves to its stack;
+  # otherwise fall back to the workspace repo the path sits in.
+  local stack best=""
+  while read -r stack; do
+    case "$cand" in "$stack"/*) [ "${#stack}" -gt "${#best}" ] && best="$stack" ;; esac
+  done < <(lane_stacks)
+  if [ -z "$best" ]; then
+    local rel="${cand#"$WS"/}"
+    best="$WS/${rel%%/*}"
+  fi
+  printf '%s' "$best"
 }
+
 
 # Ports held by something this harness will not stop.
 #
@@ -693,6 +750,11 @@ foreign_port_blockers() {
       while read -r stack; do
         [ "$root" = "$stack" ] && { owned=true; break; }
       done < <(lane_stacks)
+      # A native holder under any lane repo is ours too: stopUniverse.sh sweeps
+      # the engines, Manager and the instance registry server by port, and
+      # --stop-docker composes down every stack. Ownership is "the teardown
+      # reaches it", not "it is a compose project".
+      case "$root" in "$WS"/*) owned=true ;; esac
     fi
     [ "$owned" = true ] || blockers+=("$port($(port_holder "$port"))")
   done < <(lane_ports)
