@@ -40,3 +40,20 @@ Current generated corpus:
 - `4109` used perceptual positions
 - `1361` machine-level interconnections
 - `135` cross-domain interconnections
+
+- ## System Depoloyment
+  Clone the following github repos into your local workspace:
+  RealityEngine_CI
+  RealityEngine_Machines
+  RealityEngine_Manager
+  RealityEngine_CPP
+  RealityEngine_LSP
+  RealityEngine_Scala
+  localAIStack
+  localOpenclawStack
+  localHealthkitBridge
+
+  from within the RealityEngine_CI repository, enter:
+  ./startUniverse.sh --engines=cpp:1,lsp:1,scala:1
+
+  
