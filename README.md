@@ -14,9 +14,6 @@ system.
 
 - [Deployable system wiki](https://github.com/jateeter/RealityEngine_CI/wiki/Deployable-System-Documentation.md) is the
   primary authoritative documentation surface for the deployable system.
-- [Deployment contract](https://github.com/jateeter/RealityEngine_CI/docs/DEPLOYMENT_CONTRACT.md) defines service ownership,
-  port ranges, native runtime pairs, required environment names, and deployment
-  rules.
 - [Integrated specification](https://github.com/jateeter/RealityEngine_CI/docs/INTEGRATED_SPECIFICATION.md) is the cross-repo
   documentation index, audit summary, deployment gate list, and roadmap to full
   integrated specifications.
