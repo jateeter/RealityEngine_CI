@@ -377,25 +377,74 @@ def main() -> int:
         print(f"  withheld (partial under isolation, not written): {', '.join(withheld)}")
 
     if args.check:
+        # A shard is only comparable under the stimulus it was recorded with.
+        # Each was recorded under isolation — its domain plus the boot floor —
+        # so its seed is that machine set and its length is that set's longest
+        # interned sequence. Checked against a universe holding anything else,
+        # every machine's committed output legitimately differs and none of it
+        # is drift in the contract.
+        #
+        # Found by running it: domain-health-personal records 62 machines
+        # resident at seed depth 79, and a check against a 23-machine universe
+        # at depth 31 reported two machines as drifted while printing
+        # "agreed -> agreed" — a verdict transition to itself, which is what a
+        # comparison of two different questions looks like. run-all-tests.sh
+        # invokes --check, so left alone this gate would fire on almost every
+        # run, and a gate that always fires is the same as no gate.
         drift: list[str] = []
+        incomparable: list[str] = []
+        checked = 0
+
         for domain, shard in sorted(shards.items()):
             path = SHARD_DIR / f"domain-{domain}.json"
             if not path.exists():
                 drift.append(f"{domain}: no shard on disk to check against")
                 continue
-            recorded = json.loads(path.read_text(encoding="utf-8")).get("machines", {})
+            doc = json.loads(path.read_text(encoding="utf-8"))
+            was_stim = doc.get("stimulus") or {}
+            mismatch = [
+                f"{key} {was_stim.get(key)!r} != {now!r}"
+                for key, now in (("residentMachines", len(resident)),
+                                 ("seedDepth", report["seedDepth"]),
+                                 ("steps", report["steps"]))
+                if was_stim.get(key) != now
+            ]
+            if mismatch:
+                incomparable.append(f"{domain}: recorded under a different stimulus "
+                                    f"({'; '.join(mismatch)})")
+                continue
+
+            recorded = doc.get("machines", {})
             for name, entry in sorted(shard["machines"].items()):
                 was = recorded.get(name)
+                checked += 1
                 if was is None:
                     drift.append(f"{domain}/{name}: not in the recorded shard")
+                elif was.get("verdict") != entry.get("verdict"):
+                    drift.append(f"{domain}/{name}: verdict "
+                                 f"{was.get('verdict')} -> {entry.get('verdict')}")
                 elif json.dumps(was, sort_keys=True) != json.dumps(entry, sort_keys=True):
-                    drift.append(f"{domain}/{name}: {was.get('verdict')} -> {entry.get('verdict')}")
+                    drift.append(f"{domain}/{name}: same verdict "
+                                 f"({entry.get('verdict')}) but the committed output changed")
+
+        if incomparable:
+            print(f"\n  not comparable under this universe ({len(incomparable)}):")
+            for line in incomparable[:12]:
+                print(f"    {line}")
+            print("    a shard is checkable only against the stimulus it was recorded "
+                  "with; load that scope in isolation to check it")
         if drift:
-            print(f"\n  DRIFT against the recorded shards ({len(drift)}):")
+            print(f"\n  DRIFT against the recorded shards ({len(drift)} of {checked} "
+                  f"machines checked):")
             for line in drift[:20]:
                 print(f"    {line}")
             return 1
-        print("\n  no drift against the recorded shards")
+        if not checked:
+            # Nothing was comparable, so nothing was verified. Saying "no drift"
+            # here is the unreachable-verifier failure this gate exists to avoid.
+            print("\n  nothing checked: no shard matched this universe's stimulus")
+            return 0
+        print(f"\n  no drift across {checked} machines checked")
         return 0
 
     if args.write and args.corpus:
