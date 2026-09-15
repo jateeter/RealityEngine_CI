@@ -155,6 +155,31 @@ silent reads as tested.
 A hosted green tells you the change did not break the hosted path. That is worth
 having and is not the question being asked at merge time.
 
+### The PR body is the audit trail — record what you did not chase
+
+The same rule extends past verification. When work surfaces a finding that is
+**not** what the change fixes — something noticed in passing and deliberately
+left alone — it goes in the PR body, in its own section, headed
+"Noted, not fixed here".
+
+An incidental observation lives nowhere else. It is not a commit, because
+nothing was changed for it; not an issue, because it may not warrant one yet;
+and not a code comment, because it is not about any particular line. Dropped
+because it is off-topic, it is gone. In a PR body it is attached, dated, and
+attributable to the change that surfaced it, so whoever meets the same symptom
+later can find when it was first seen and what was already known.
+
+Say what was observed, with the numbers. Say plainly that it was not chased.
+Say why it does not affect the change, if it does not. Do not fold it into the
+change's own narrative — being off-topic is precisely what makes it worth
+recording.
+
+Example, RealityEngine_CI#377: while verifying a `--check` fix,
+`GET /api/machines` returned 93 entries resolving to 80 distinct machine names,
+suggesting a re-import adds a second entry under a new id rather than replacing
+it. Unrelated to that PR, de-duplicated by name so the result was unaffected,
+and recorded rather than investigated.
+
 ## MUST: never commit to main — branch, PR, verify, merge, clean up
 
 **No change reaches `main` in any repo except through a branch and a pull
