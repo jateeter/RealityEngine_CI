@@ -72,6 +72,18 @@ perceptual_sim_reset, perceptual_sim_history, demo_load
 
 Legend: ✅ present · ⚠️ partial/data-only · ❌ missing.
 
+> **Two rows were corrected on 2026-09-15 after being checked against the code
+> rather than re-read.** The MCP tool row claimed none of the `trigger.*` /
+> `dispatch.*` tools existed; all eight recommended tools are registered. The
+> policy-gate row was marked ❌ "All MCP tools are currently unguarded"; the gate
+> is implemented and applied.
+>
+> The second is why this note exists rather than a silent edit. A gap table that
+> reports an unauthenticated mutating surface will be believed — it was repeated
+> as the most consequential open item in the workspace before anyone opened
+> `mcp.ts`. A stale ❌ is not a harmless lag; it is a false statement about the
+> system's security posture, and it costs more than a stale ✅ ever does.
+
 | Architecture element | _AI status | Notes |
 |---|---|---|
 | Provider-neutral commit semantics (sensor-source shape) | ✅ | `/api/sources`, `/api/sensors/:id` already commit to PE state. |
@@ -83,13 +95,13 @@ Legend: ✅ present · ⚠️ partial/data-only · ❌ missing.
 | **`GET /api/integrations/status`** | ✅ | Reports loaded registry and source mappings. |
 | **`GET /api/triggers/status`** | ✅ | Reports dispatcher counters and replay count. |
 | Env flags `TRIGGERS_ENABLED`, `TRIGGER_DISPATCH_MODE`, `TRIGGER_GRAPHQL_URL` | ✅ | Read at PE startup. |
-| **MCP recommended tools** (`re.read_state`, `re.list_machines`, `re.read_machine`, `pe.list_sources`, `pe.push_signal`, `pe.enqueue_push`, `trigger.replay`, `dispatch.read_ledger`) | ⚠️ | TS gateway exposes equivalent capabilities under snake_case names; **none of the `trigger.*` / `dispatch.*` tools exist**, and naming differs from the spec. |
-| Mutating MCP tool policy gate | ❌ | All MCP tools are currently unguarded. |
+| **MCP recommended tools** (`re.read_state`, `re.list_machines`, `re.read_machine`, `pe.list_sources`, `pe.push_signal`, `pe.enqueue_push`, `trigger.replay`, `dispatch.read_ledger`) | ✅ | All eight are registered in `perception-engine/backend/src/mcp.ts` under the spec's own names. Verified 2026-09-15. |
+| Mutating MCP tool policy gate | ✅ | `checkPolicy` / `loadPolicyFromEnv` / `policyErrorResult` gate every mutating tool under a named capability — `trigger.dispatch`, `sources.write`, `engine.control` — and refuse with a policy error rather than executing. Verified 2026-09-15. |
 | Provider adapters: **OpenAI** | ✅ | Responses/chat-compatible adapter and webhook completion path. |
 | Provider adapters: **Ollama** | ✅ | Native and OpenAI-compatible local adapter. |
 | Provider adapters: **ACP / OpenClaw xACP** | ✅ | No-wait handoff adapter plus status/dispatch routes. |
 | Provider adapters: **HealthKit** bridge intake | ✅ | Authorized bridge payloads map through source mappings. |
-| Provider adapters: **localAIStack GraphQL** | ⚠️ | Python reference template only; no in-process dispatcher. |
+| Provider adapters: **localAIStack GraphQL** | ✅ | `LocalAiGraphQLAdapter` posts `updateProcessState` for `kind: "localai"`. Outbound notification only — it deliberately commits no completion, since localAIStack is told a determination happened rather than asked to produce values. Delivered 2026-09-15. |
 | Provider adapters: **MQTT** | ✅ | Already wired. |
 | Provider adapters: **Manual** (CLI/test) | ✅ | Covered by `/api/signals` and `/api/integrations/completions`. |
 
