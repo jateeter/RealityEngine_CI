@@ -12,25 +12,15 @@ system.
 
 ## Authoritative Specifications
 
-- [Deployable system wiki](https://github.com/jateeter/RealityEngine_CI/wiki/Deployable-System-Documentation.md) is the
+- [Deployable system](DEPLOYMENT_CONTRACT.md) is the
   primary authoritative documentation surface for the deployable system.
-- [Integrated specification](https://github.com/jateeter/RealityEngine_CI/docs/INTEGRATED_SPECIFICATION.md) is the cross-repo
+- [Integrated specification](INTEGRATED_SPECIFICATION.md) is the cross-repo
   documentation index, audit summary, deployment gate list, and roadmap to full
   integrated specifications.
 
 The CI repository owns the executable deployment contract and tracks the wiki
 gitlink used for published system documentation. Runtime-local docs must link
 back to these files rather than redefining ports or environment names.
-
-## Deployable System
-
-- [Deployable System Documentation](Deployable-System-Documentation) defines
-  the documentation authority model, runtime contract, deployment endpoints,
-  environment names, and deployment gates.
-- `RealityEngine_CI/DEPLOYMENT_CONTRACT.md` remains the executable service and
-  port contract owned by CI.
-- `RealityEngine_CI/INTEGRATED_SPECIFICATION.md` records the cross-repo audit,
-  validation snapshot, and roadmap.
 
 ## Example Machine Corpus
 
