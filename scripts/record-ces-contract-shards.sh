@@ -1,4 +1,21 @@
 #!/usr/bin/env bash
+# ─────────────────────────────────────────────────────────────────────────────
+#  RETIRED 2026-09-14, with scripts/regression-ces-contracts.py, which it drives.
+#
+#  KEPT for the same reason: it is the record of how the sharded sweep was
+#  sequenced — scopes cheapest first, resume by consulting the versioned cesgen
+#  registry, journalled failures, residency refused before recording rather than
+#  after. That sequencing logic is sound and independent of the defect.
+#
+#  It selects *scopes* for a recorder that drove one chain at a time through a
+#  source it registered itself. The replacement arms the corpus's own interned
+#  sources and drives the whole resident corpus once, so there is no per-chain
+#  scope to select — a domain is a projection of that single run:
+#
+#      scripts/record-ces-contracts.py --only <domain> --write
+#
+#  scripts/bring-up-corpus-incrementally.py now calls that directly.
+# ─────────────────────────────────────────────────────────────────────────────
 # Record the CES output-stream contract shards — one per corpus domain, one per
 # configured test-environment corpus.
 #
@@ -34,6 +51,12 @@
 #
 #   For the domain scopes that means --machine-corpus=full.
 set -uo pipefail
+
+if [ "${CES_ALLOW_RETIRED_RECORDER:-}" != "1" ]; then
+  echo "record-ces-contract-shards.sh is RETIRED (see the banner above)." >&2
+  echo "  record with:  scripts/record-ces-contracts.py --only <domain> --write" >&2
+  exit 2
+fi
 
 CI_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 MACHINES_DIR="$CI_DIR/../RealityEngine_Machines"

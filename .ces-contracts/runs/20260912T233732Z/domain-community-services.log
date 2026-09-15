@@ -1,0 +1,14 @@
+ces-contracts: 425 agreed · 0 disagreement · 12 intermittent · 1 no-runtime-emits · 0 unmeasurable → /Users/johnt/workspace/GitHub/RealityEngine_CI/config/ces-contracts/domain-community-services.json
+  intermittent: CSX017_benefits-and-eligibility-document-readiness-monitor.json::csx-017-urgent-response::csx-017-urgent — lsp-1+scala-1 | cpp-1 then cpp-1+lsp-1+scala-1 then cpp-1+lsp-1+scala-1
+  intermittent: CSX022_behavioral-health-and-crisis-mobile-crisis-co-response.json::csx-022-urgent-response::csx-022-urgent — lsp-1+scala-1 | cpp-1 then cpp-1+lsp-1+scala-1 then cpp-1+lsp-1+scala-1
+  intermittent: CSX035_law-enforcement-and-public-safety-missing-vulnerable-person-coordination.json::csx-035-urgent-response::csx-035-urgent — lsp-1+scala-1 | cpp-1 then cpp-1+lsp-1+scala-1 then cpp-1+lsp-1+scala-1
+  intermittent: CSX036_law-enforcement-and-public-safety-traffic-safety-enforcement.json::csx-036-urgent-response::csx-036-urgent — lsp-1+scala-1 | cpp-1 then cpp-1+lsp-1+scala-1 then cpp-1+lsp-1+scala-1
+  intermittent: CSX040_law-enforcement-and-public-safety-public-safety-executive.json::csx-040-urgent-response::csx-040-urgent — lsp-1+scala-1 | cpp-1 then cpp-1+lsp-1+scala-1 then cpp-1+lsp-1+scala-1
+  intermittent: CSX043_courts-diversion-and-victim-services-community-service-placement.json::csx-043-urgent-response::csx-043-urgent — lsp-1+scala-1 | cpp-1 then cpp-1+lsp-1+scala-1 then cpp-1+lsp-1+scala-1
+  intermittent: CSX046_courts-diversion-and-victim-services-protection-order-support.json::csx-046-urgent-response::csx-046-urgent — lsp-1+scala-1 | cpp-1 then cpp-1+lsp-1+scala-1 then cpp-1+lsp-1+scala-1
+  intermittent: CSX067_shelter-housing-and-supportive-services-shelter-health-isolation.json::csx-067-urgent-response::csx-067-urgent — lsp-1+scala-1 | cpp-1 then cpp-1+lsp-1+scala-1 then cpp-1+lsp-1+scala-1
+  intermittent: CSX077_city-service-operations-library-social-service-hub.json::csx-077-urgent-response::csx-077-urgent — lsp-1+scala-1 | cpp-1 then cpp-1+lsp-1+scala-1 then cpp-1+lsp-1+scala-1
+  intermittent: ReferralNetworkMonitor.json::referral-breakdown-escalation::rn-failing — lsp-1+scala-1 | cpp-1 then cpp-1+lsp-1+scala-1 then cpp-1+lsp-1+scala-1
+  intermittent: ServiceDeliveryComplianceMonitor.json::compliance-violation-escalation::dc-monitoring — lsp-1+scala-1 | cpp-1 then cpp-1+lsp-1+scala-1 then cpp-1+lsp-1+scala-1
+  intermittent: ServiceDeliveryIntegrityMonitor.json::integrity-failure-escalation::si-at-risk — lsp-1+scala-1 | cpp-1 then cpp-1+lsp-1+scala-1 then cpp-1+lsp-1+scala-1
+  no runtime emits output: DocumentSigningWorkflowMonitor.json::signing-complete::ds-complete

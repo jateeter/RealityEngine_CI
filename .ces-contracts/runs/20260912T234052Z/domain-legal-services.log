@@ -1,0 +1,12 @@
+ces-contracts: 429 agreed · 0 disagreement · 11 intermittent · 0 no-runtime-emits · 0 unmeasurable → /Users/johnt/workspace/GitHub/RealityEngine_CI/config/ces-contracts/domain-legal-services.json
+  intermittent: LSX002_provisional-patent-filing-inventor-contribution-review.json::lsx-002-attorney-review::lsx-002-review-needed — lsp-1+scala-1 | cpp-1 then cpp-1+lsp-1+scala-1 then cpp-1+lsp-1+scala-1
+  intermittent: LSX012_trademark-workflow-distinctiveness-screening.json::lsx-012-attorney-review::lsx-012-review-needed — lsp-1+scala-1 | cpp-1 then cpp-1+lsp-1+scala-1 then cpp-1+lsp-1+scala-1
+  intermittent: LSX022_copyright-workflow-authorship-and-work-made-for-hire.json::lsx-022-attorney-review::lsx-022-review-needed — lsp-1+scala-1 | cpp-1 then cpp-1+lsp-1+scala-1 then cpp-1+lsp-1+scala-1
+  intermittent: LSX028_copyright-workflow-eco-application-assembly.json::lsx-028-attorney-review::lsx-028-review-needed — lsp-1+scala-1 | cpp-1 then cpp-1+lsp-1+scala-1 then cpp-1+lsp-1+scala-1
+  intermittent: LSX051_ai-assisted-legal-operations-disclosure-completeness-scorer.json::lsx-051-attorney-review::lsx-051-review-needed — lsp-1+scala-1 | cpp-1 then cpp-1+lsp-1+scala-1 then cpp-1+lsp-1+scala-1
+  intermittent: LSX053_ai-assisted-legal-operations-drafting-checklist-agent.json::lsx-053-attorney-review::lsx-053-review-needed — lsp-1+scala-1 | cpp-1 then cpp-1+lsp-1+scala-1 then cpp-1+lsp-1+scala-1
+  intermittent: LSX065_individual-creator-services-independent-contractor-cleanup.json::lsx-065-attorney-review::lsx-065-review-needed — lsp-1+scala-1 | cpp-1 then cpp-1+lsp-1+scala-1 then cpp-1+lsp-1+scala-1
+  intermittent: LSX066_individual-creator-services-prototype-disclosure-guard.json::lsx-066-attorney-review::lsx-066-review-needed — lsp-1+scala-1 | cpp-1 then cpp-1+lsp-1+scala-1 then cpp-1+lsp-1+scala-1
+  intermittent: LSX069_individual-creator-services-creator-licensing-intake.json::lsx-069-attorney-review::lsx-069-review-needed — lsp-1+scala-1 | cpp-1 then cpp-1+lsp-1+scala-1 then cpp-1+lsp-1+scala-1
+  intermittent: LSX078_corporate-legal-services-standards-open-innovation-review.json::lsx-078-attorney-review::lsx-078-review-needed — lsp-1+scala-1 | cpp-1 then cpp-1+lsp-1+scala-1 then cpp-1+lsp-1+scala-1
+  intermittent: LSX079_corporate-legal-services-global-brand-governance.json::lsx-079-attorney-review::lsx-079-review-needed — lsp-1+scala-1 | cpp-1 then cpp-1+lsp-1+scala-1 then cpp-1+lsp-1+scala-1

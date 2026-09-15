@@ -1,0 +1,16 @@
+ces-contracts: 425 agreed · 0 disagreement · 11 intermittent · 4 no-runtime-emits · 0 unmeasurable → /Users/johnt/workspace/GitHub/RealityEngine_CI/config/ces-contracts/domain-life-balance.json
+  intermittent: LBL049_stress-resilience-and-psychotherapy-stress-recovery-rhythm.json::lbl-049-care-team-review::lbl-049-review — lsp-1+scala-1 | cpp-1 then cpp-1+lsp-1+scala-1 then cpp-1+lsp-1+scala-1
+  intermittent: LBL061_adolescent-family-and-school-school-function-monitor.json::lbl-061-care-team-review::lbl-061-review — lsp-1+scala-1 | cpp-1 then cpp-1+lsp-1+scala-1 then cpp-1+lsp-1+scala-1
+  intermittent: LBL062_adolescent-family-and-school-family-routine-alignment.json::lbl-062-care-team-review::lbl-062-review — lsp-1+scala-1 | cpp-1 then cpp-1+lsp-1+scala-1 then cpp-1+lsp-1+scala-1
+  intermittent: LBL063_adolescent-family-and-school-device-use-boundary.json::lbl-063-care-team-review::lbl-063-review — lsp-1+scala-1 | cpp-1 then cpp-1+lsp-1+scala-1 then cpp-1+lsp-1+scala-1
+  intermittent: LBL071_testing-personalization-and-monitoring-cgm-data-intake.json::lbl-071-care-team-review::lbl-071-review — lsp-1+scala-1 | cpp-1 then cpp-1+lsp-1+scala-1 then cpp-1+lsp-1+scala-1
+  intermittent: LBL073_testing-personalization-and-monitoring-genetics-result-intake.json::lbl-073-care-team-review::lbl-073-review — lsp-1+scala-1 | cpp-1 then cpp-1+lsp-1+scala-1 then cpp-1+lsp-1+scala-1
+  intermittent: LBL075_testing-personalization-and-monitoring-lab-follow-up-queue.json::lbl-075-care-team-review::lbl-075-review — lsp-1+scala-1 | cpp-1 then cpp-1+lsp-1+scala-1 then cpp-1+lsp-1+scala-1
+  intermittent: LBL083_social-connection-and-harm-reduction-substance-exposure-screen.json::lbl-083-care-team-review::lbl-083-review — lsp-1+scala-1 | cpp-1 then cpp-1+lsp-1+scala-1 then cpp-1+lsp-1+scala-1
+  intermittent: LBL087_social-connection-and-harm-reduction-care-team-communication.json::lbl-087-care-team-review::lbl-087-review — lsp-1+scala-1 | cpp-1 then cpp-1+lsp-1+scala-1 then cpp-1+lsp-1+scala-1
+  intermittent: LBL095_projection-automation-and-outcomes-habit-automation-scheduler.json::lbl-095-care-team-review::lbl-095-review — lsp-1+scala-1 | cpp-1 then cpp-1+lsp-1+scala-1 then cpp-1+lsp-1+scala-1
+  intermittent: LBL096_projection-automation-and-outcomes-metabolic-mood-scenario-e2e.json::lbl-096-care-team-review::lbl-096-review — lsp-1+scala-1 | cpp-1 then cpp-1+lsp-1+scala-1 then cpp-1+lsp-1+scala-1
+  no runtime emits output: LBL056_medication-and-psychiatric-care-mood-stabilization-monitor.json::lbl-056-care-team-review::lbl-056-review
+  no runtime emits output: LBL056_medication-and-psychiatric-care-mood-stabilization-monitor.json::lbl-056-monitoring-task::lbl-056-data-gap
+  no runtime emits output: LBL056_medication-and-psychiatric-care-mood-stabilization-monitor.json::lbl-056-plan-adjust::lbl-056-barrier
+  no runtime emits output: LBL056_medication-and-psychiatric-care-mood-stabilization-monitor.json::lbl-056-stable-balance::lbl-056-stable

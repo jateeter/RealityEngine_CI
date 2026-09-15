@@ -1,0 +1,22 @@
+ces-contracts: 83 agreed · 6 disagreement · 13 intermittent · 2 no-runtime-emits · 0 unmeasurable → /Users/johnt/workspace/GitHub/RealityEngine_CI/config/ces-contracts/domain-digital-logic.json
+  disagreement: DLX031_jtag-select-capture-shift-update.json::dlx-031-match::dlx-031-step-4 — lsp-1+scala-1 | cpp-1 (held over 3 drives)
+  disagreement: KleeneStar.json::kleene-seq2::kleene-seq2-001-final — lsp-1+scala-1 | cpp-1 (held over 3 drives)
+  disagreement: RSFlipFlopDeprecatedDemo.json::rs-reset-sequence::rs-event-01 — cpp-1 | lsp-1 | scala-1 (held over 3 drives)
+  disagreement: RSFlipFlopDeprecatedDemo.json::rs-set-sequence::rs-event-10 — cpp-1 | lsp-1 | scala-1 (held over 3 drives)
+  disagreement: RSFlipFlopTrigger.json::rs-reset-sequence::rs-trigger-reset — cpp-1 | lsp-1 | scala-1 (held over 3 drives)
+  disagreement: RSFlipFlopTrigger.json::rs-set-sequence::rs-trigger-set — cpp-1 | lsp-1 | scala-1 (held over 3 drives)
+  intermittent: DLX004_pulse-stretch-start.json::dlx-004-match::dlx-004-step-3 — lsp-1+scala-1 | cpp-1 then cpp-1+lsp-1+scala-1 then cpp-1+lsp-1+scala-1
+  intermittent: DLX006_glitch-reject-two-high.json::dlx-006-match::dlx-006-step-3 — lsp-1+scala-1 | cpp-1 then cpp-1+lsp-1+scala-1 then cpp-1+lsp-1+scala-1
+  intermittent: DLX019_reset-assert-release.json::dlx-019-match::dlx-019-step-3 — lsp-1+scala-1 | cpp-1 then cpp-1+lsp-1+scala-1 then cpp-1+lsp-1+scala-1
+  intermittent: DLX021_enable-qualified-valid.json::dlx-021-match::dlx-021-step-2 — lsp-1+scala-1 | cpp-1 then cpp-1+lsp-1+scala-1 then lsp-1+scala-1 | cpp-1
+  intermittent: DLX028_retention-save-restore.json::dlx-028-match::dlx-028-step-2 — lsp-1+scala-1 | cpp-1 then cpp-1+lsp-1+scala-1 then cpp-1+lsp-1+scala-1
+  intermittent: DLX033_error-sticky-clear.json::dlx-033-match::dlx-033-step-3 — lsp-1+scala-1 | cpp-1 then cpp-1+lsp-1+scala-1 then cpp-1+lsp-1+scala-1
+  intermittent: DLX038_fifo-almost-full-full.json::dlx-038-match::dlx-038-step-2 — lsp-1+scala-1 | cpp-1 then cpp-1+lsp-1+scala-1 then cpp-1+lsp-1+scala-1
+  intermittent: KleeneStar.json::kleene-seq1::kleene-seq1-010 — lsp-1+scala-1 | cpp-1 then lsp-1+scala-1 | cpp-1 then cpp-1+lsp-1+scala-1
+  intermittent: KleeneStar.json::kleene-seq2::kleene-seq2-001-final — lsp-1+scala-1 | cpp-1 then lsp-1+scala-1 | cpp-1 then cpp-1+lsp-1+scala-1
+  intermittent: KleeneStar.json::kleene-seq2::kleene-seq2-001-final — lsp-1+scala-1 | cpp-1 then cpp-1+lsp-1+scala-1 then lsp-1+scala-1 | cpp-1
+  intermittent: KleeneStar.json::kleene-seq2::kleene-seq2-001-final — lsp-1+scala-1 | cpp-1 then cpp-1+lsp-1+scala-1 then lsp-1+scala-1 | cpp-1
+  intermittent: KleeneStar.json::kleene-seq2::kleene-seq2-001-final — lsp-1+scala-1 | cpp-1 then lsp-1+scala-1 | cpp-1 then cpp-1+lsp-1+scala-1
+  intermittent: MultiStep.json::multi-step-seq2::ms-seq2-111 — lsp-1+scala-1 | cpp-1 then cpp-1+lsp-1+scala-1 then cpp-1+lsp-1+scala-1
+  no runtime emits output: DLX017_start-busy-done.json::dlx-017-match::dlx-017-step-4
+  no runtime emits output: RSRingLatchStageA.json::rsr-a-reset-sequence::rsr-a-event-01

@@ -1,0 +1,5 @@
+ces-contracts: 27 agreed · 0 disagreement · 4 no-runtime-emits · 0 unmeasurable → /Users/johnt/workspace/GitHub/RealityEngine_CI/config/ces-contracts/corpus-standard-deployment-plus-ring.json
+  no runtime emits output: DLX041_one-hot-grant.json::dlx-041-match::dlx-041-step-2
+  no runtime emits output: QualificationVerificationMonitor.json::qualification-reverification::qv-lapsing
+  no runtime emits output: RSRingLatchStageA.json::rsr-a-reset-sequence::rsr-a-event-01
+  no runtime emits output: RSRingLatchStageB.json::rsr-b-set-sequence::rsr-b-event-10

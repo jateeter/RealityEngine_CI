@@ -1,0 +1,438 @@
+{
+  "domains": {
+    "agriculture": {
+      "attempts": 1,
+      "detail": {
+        "load": {
+          "after": {
+            "cpp-1": 92,
+            "lsp-1": 92,
+            "scala-1": 92
+          },
+          "before": {
+            "cpp-1": 21,
+            "lsp-1": 21,
+            "scala-1": 21
+          },
+          "countsAgree": true,
+          "countsMatchExpected": true,
+          "expected": {
+            "cpp-1": 92,
+            "lsp-1": 92,
+            "scala-1": 92
+          },
+          "failures": {},
+          "files": 71,
+          "imported": {
+            "cpp-1": 71,
+            "lsp-1": 71,
+            "scala-1": 71
+          },
+          "ok": true,
+          "stage": "load"
+        },
+        "summary": "agriculture agreed=71 agreed-silent=0 disagreement=0"
+      },
+      "lastAttemptAt": "2026-09-15T00:08:13Z",
+      "outcome": "recorded"
+    },
+    "ai-services": {
+      "attempts": 1,
+      "detail": {
+        "load": {
+          "after": {
+            "cpp-1": 30,
+            "lsp-1": 30,
+            "scala-1": 30
+          },
+          "before": {
+            "cpp-1": 21,
+            "lsp-1": 21,
+            "scala-1": 21
+          },
+          "countsAgree": true,
+          "countsMatchExpected": true,
+          "expected": {
+            "cpp-1": 30,
+            "lsp-1": 30,
+            "scala-1": 30
+          },
+          "failures": {},
+          "files": 9,
+          "imported": {
+            "cpp-1": 9,
+            "lsp-1": 9,
+            "scala-1": 9
+          },
+          "ok": true,
+          "stage": "load"
+        },
+        "summary": "ai-services agreed=9 agreed-silent=0 disagreement=0"
+      },
+      "lastAttemptAt": "2026-09-15T00:07:53Z",
+      "outcome": "recorded"
+    },
+    "built-space": {
+      "attempts": 1,
+      "detail": {
+        "load": {
+          "after": {
+            "cpp-1": 186,
+            "lsp-1": 186,
+            "scala-1": 186
+          },
+          "before": {
+            "cpp-1": 21,
+            "lsp-1": 21,
+            "scala-1": 21
+          },
+          "countsAgree": true,
+          "countsMatchExpected": true,
+          "expected": {
+            "cpp-1": 186,
+            "lsp-1": 186,
+            "scala-1": 186
+          },
+          "failures": {},
+          "files": 165,
+          "imported": {
+            "cpp-1": 165,
+            "lsp-1": 165,
+            "scala-1": 165
+          },
+          "ok": true,
+          "stage": "load"
+        },
+        "summary": "built-space agreed=165 agreed-silent=0 disagreement=0"
+      },
+      "lastAttemptAt": "2026-09-15T00:04:27Z",
+      "outcome": "recorded"
+    },
+    "community-services": {
+      "attempts": 2,
+      "detail": {
+        "load": {
+          "after": {
+            "cpp-1": 132,
+            "lsp-1": 132,
+            "scala-1": 132
+          },
+          "before": {
+            "cpp-1": 21,
+            "lsp-1": 21,
+            "scala-1": 21
+          },
+          "countsAgree": true,
+          "countsMatchExpected": true,
+          "expected": {
+            "cpp-1": 132,
+            "lsp-1": 132,
+            "scala-1": 132
+          },
+          "failures": {},
+          "files": 113,
+          "imported": {
+            "cpp-1": 111,
+            "lsp-1": 111,
+            "scala-1": 111
+          },
+          "ok": true,
+          "stage": "load"
+        },
+        "summary": "community-services agreed=113 agreed-silent=0 disagreement=0"
+      },
+      "lastAttemptAt": "2026-09-15T00:00:40Z",
+      "outcome": "recorded"
+    },
+    "data-center": {
+      "attempts": 2,
+      "detail": {
+        "load": {
+          "after": {
+            "cpp-1": 83,
+            "lsp-1": 83,
+            "scala-1": 83
+          },
+          "before": {
+            "cpp-1": 21,
+            "lsp-1": 21,
+            "scala-1": 21
+          },
+          "countsAgree": true,
+          "countsMatchExpected": true,
+          "expected": {
+            "cpp-1": 83,
+            "lsp-1": 83,
+            "scala-1": 83
+          },
+          "failures": {},
+          "files": 65,
+          "imported": {
+            "cpp-1": 62,
+            "lsp-1": 62,
+            "scala-1": 62
+          },
+          "ok": true,
+          "stage": "load"
+        },
+        "summary": "data-center agreed=62 agreed-silent=3 disagreement=0"
+      },
+      "lastAttemptAt": "2026-09-15T00:00:14Z",
+      "outcome": "recorded"
+    },
+    "digital-logic": {
+      "attempts": 4,
+      "detail": {
+        "load": {
+          "after": {
+            "cpp-1": 80,
+            "lsp-1": 80,
+            "scala-1": 80
+          },
+          "before": {
+            "cpp-1": 21,
+            "lsp-1": 21,
+            "scala-1": 21
+          },
+          "countsAgree": true,
+          "countsMatchExpected": true,
+          "expected": {
+            "cpp-1": 80,
+            "lsp-1": 80,
+            "scala-1": 80
+          },
+          "failures": {},
+          "files": 70,
+          "imported": {
+            "cpp-1": 59,
+            "lsp-1": 59,
+            "scala-1": 59
+          },
+          "ok": true,
+          "stage": "load"
+        },
+        "summary": "digital-logic agreed=68 agreed-silent=2 disagreement=0"
+      },
+      "lastAttemptAt": "2026-09-14T23:59:20Z",
+      "outcome": "recorded"
+    },
+    "energy": {
+      "attempts": 1,
+      "detail": {
+        "load": {
+          "after": {
+            "cpp-1": 208,
+            "lsp-1": 208,
+            "scala-1": 208
+          },
+          "before": {
+            "cpp-1": 21,
+            "lsp-1": 21,
+            "scala-1": 21
+          },
+          "countsAgree": true,
+          "countsMatchExpected": true,
+          "expected": {
+            "cpp-1": 208,
+            "lsp-1": 208,
+            "scala-1": 208
+          },
+          "failures": {},
+          "files": 187,
+          "imported": {
+            "cpp-1": 187,
+            "lsp-1": 187,
+            "scala-1": 187
+          },
+          "ok": true,
+          "stage": "load"
+        },
+        "summary": "energy agreed=187 agreed-silent=0 disagreement=0"
+      },
+      "lastAttemptAt": "2026-09-15T00:03:41Z",
+      "outcome": "recorded"
+    },
+    "health-personal": {
+      "attempts": 3,
+      "detail": {
+        "load": {
+          "after": {
+            "cpp-1": 62,
+            "lsp-1": 62,
+            "scala-1": 62
+          },
+          "before": {
+            "cpp-1": 21,
+            "lsp-1": 21,
+            "scala-1": 21
+          },
+          "countsAgree": true,
+          "countsMatchExpected": true,
+          "expected": {
+            "cpp-1": 62,
+            "lsp-1": 62,
+            "scala-1": 62
+          },
+          "failures": {},
+          "files": 43,
+          "imported": {
+            "cpp-1": 41,
+            "lsp-1": 41,
+            "scala-1": 41
+          },
+          "ok": true,
+          "stage": "load"
+        },
+        "summary": "health-personal agreed=41 agreed-silent=2 disagreement=0"
+      },
+      "lastAttemptAt": "2026-09-14T23:59:57Z",
+      "outcome": "recorded"
+    },
+    "health-services": {
+      "attempts": 1,
+      "detail": {
+        "load": {
+          "after": {
+            "cpp-1": 241,
+            "lsp-1": 241,
+            "scala-1": 241
+          },
+          "before": {
+            "cpp-1": 21,
+            "lsp-1": 21,
+            "scala-1": 21
+          },
+          "countsAgree": true,
+          "countsMatchExpected": true,
+          "expected": {
+            "cpp-1": 241,
+            "lsp-1": 241,
+            "scala-1": 241
+          },
+          "failures": {},
+          "files": 220,
+          "imported": {
+            "cpp-1": 220,
+            "lsp-1": 220,
+            "scala-1": 220
+          },
+          "ok": true,
+          "stage": "load"
+        },
+        "summary": "health-services agreed=220 agreed-silent=0 disagreement=0"
+      },
+      "lastAttemptAt": "2026-09-15T00:02:53Z",
+      "outcome": "recorded"
+    },
+    "legal-services": {
+      "attempts": 2,
+      "detail": {
+        "load": {
+          "after": {
+            "cpp-1": 131,
+            "lsp-1": 131,
+            "scala-1": 131
+          },
+          "before": {
+            "cpp-1": 21,
+            "lsp-1": 21,
+            "scala-1": 21
+          },
+          "countsAgree": true,
+          "countsMatchExpected": true,
+          "expected": {
+            "cpp-1": 131,
+            "lsp-1": 131,
+            "scala-1": 131
+          },
+          "failures": {},
+          "files": 110,
+          "imported": {
+            "cpp-1": 110,
+            "lsp-1": 110,
+            "scala-1": 110
+          },
+          "ok": true,
+          "stage": "load"
+        },
+        "summary": "legal-services agreed=110 agreed-silent=0 disagreement=0"
+      },
+      "lastAttemptAt": "2026-09-15T00:01:07Z",
+      "outcome": "recorded"
+    },
+    "life-balance": {
+      "attempts": 1,
+      "detail": {
+        "load": {
+          "after": {
+            "cpp-1": 131,
+            "lsp-1": 131,
+            "scala-1": 131
+          },
+          "before": {
+            "cpp-1": 21,
+            "lsp-1": 21,
+            "scala-1": 21
+          },
+          "countsAgree": true,
+          "countsMatchExpected": true,
+          "expected": {
+            "cpp-1": 131,
+            "lsp-1": 131,
+            "scala-1": 131
+          },
+          "failures": {},
+          "files": 110,
+          "imported": {
+            "cpp-1": 110,
+            "lsp-1": 110,
+            "scala-1": 110
+          },
+          "ok": true,
+          "stage": "load"
+        },
+        "summary": "life-balance agreed=110 agreed-silent=0 disagreement=0"
+      },
+      "lastAttemptAt": "2026-09-15T00:01:34Z",
+      "outcome": "recorded"
+    },
+    "transportation": {
+      "attempts": 1,
+      "detail": {
+        "load": {
+          "after": {
+            "cpp-1": 186,
+            "lsp-1": 186,
+            "scala-1": 186
+          },
+          "before": {
+            "cpp-1": 21,
+            "lsp-1": 21,
+            "scala-1": 21
+          },
+          "countsAgree": true,
+          "countsMatchExpected": true,
+          "expected": {
+            "cpp-1": 186,
+            "lsp-1": 186,
+            "scala-1": 186
+          },
+          "failures": {},
+          "files": 165,
+          "imported": {
+            "cpp-1": 165,
+            "lsp-1": 165,
+            "scala-1": 165
+          },
+          "ok": true,
+          "stage": "load"
+        },
+        "summary": "transportation agreed=165 agreed-silent=0 disagreement=0"
+      },
+      "lastAttemptAt": "2026-09-15T00:02:09Z",
+      "outcome": "recorded"
+    }
+  },
+  "updatedAt": "2026-09-15T00:08:13Z",
+  "version": "1.0.0"
+}

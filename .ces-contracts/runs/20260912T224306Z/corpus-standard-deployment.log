@@ -1,0 +1,5 @@
+ces-contracts: 23 agreed · 2 disagreement · 2 no-runtime-emits · 0 unmeasurable → /Users/johnt/workspace/GitHub/RealityEngine_CI/config/ces-contracts/corpus-standard-deployment.json
+  disagreement: DocumentSigningWorkflowMonitor.json::signing-partial::ds-partial — lsp-1+scala-1 | cpp-1
+  disagreement: HomeTransportationBarrierMonitor.json::transport-critical-failure::tp-impaired — lsp-1+scala-1 | cpp-1
+  no runtime emits output: DLX041_one-hot-grant.json::dlx-041-match::dlx-041-step-2
+  no runtime emits output: QualificationVerificationMonitor.json::qualification-reverification::qv-lapsing

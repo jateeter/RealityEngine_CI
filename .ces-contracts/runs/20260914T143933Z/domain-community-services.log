@@ -1,0 +1,6 @@
+ces-contracts: 433 agreed · 4 disagreement · 1 intermittent · 0 no-runtime-emits · 0 unmeasurable  |  ISRE 0ok/438diff  OSRE 0ok/438diff → /Users/johnt/workspace/GitHub/RealityEngine_CI/config/ces-contracts/domain-community-services.json
+  disagreement: DocumentSigningWorkflowMonitor.json::signing-blocked-escalation::ds-blocked — cpp-1+scala-1 | lsp-1 (held over 3 drives)
+  disagreement: DocumentSigningWorkflowMonitor.json::signing-partial::ds-partial — cpp-1+scala-1 | lsp-1 (held over 3 drives)
+  disagreement: QualificationVerificationMonitor.json::qualification-failure-escalation::qv-hold — cpp-1+scala-1 | lsp-1 (held over 3 drives)
+  disagreement: QualificationVerificationMonitor.json::qualification-reverification::qv-lapsing — cpp-1+scala-1 | lsp-1 (held over 3 drives)
+  intermittent: QualificationVerificationMonitor.json::qualification-confirmed::qv-verified — cpp-1+scala-1 | lsp-1 then cpp-1+scala-1 | lsp-1 then cpp-1+lsp-1+scala-1

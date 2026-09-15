@@ -1,0 +1,12 @@
+ces-contracts: 93 agreed · 3 disagreement · 8 intermittent · 0 no-runtime-emits · 0 unmeasurable  |  ISRE 0ok/104diff  OSRE 0ok/104diff → /Users/johnt/workspace/GitHub/RealityEngine_CI/config/ces-contracts/domain-digital-logic.json
+  disagreement: DigitalLogicDlx021030Interconnect.json::dlx-021-030-domain-family-stable::dlx-021-030-domain-family-stable-state — cpp-1+scala-1 | lsp-1 (held over 3 drives)
+  disagreement: RSRingLatchStageA.json::rsr-a-reset-sequence::rsr-a-event-01 — cpp-1+scala-1 | lsp-1 (held over 3 drives)
+  disagreement: RSRingLatchStageB.json::rsr-b-reset-sequence::rsr-b-event-01 — cpp-1+scala-1 | lsp-1 (held over 3 drives)
+  intermittent: DLX017_start-busy-done.json::dlx-017-match::dlx-017-step-4 — cpp-1+scala-1 | lsp-1 then cpp-1+scala-1 | lsp-1 then cpp-1+lsp-1+scala-1
+  intermittent: DLX034_watchdog-kick-window.json::dlx-034-match::dlx-034-step-2 — cpp-1+scala-1 | lsp-1 then cpp-1+scala-1 | lsp-1 then cpp-1+lsp-1+scala-1
+  intermittent: DLX041_one-hot-grant.json::dlx-041-match::dlx-041-step-2 — cpp-1+scala-1 | lsp-1 then cpp-1+scala-1 | lsp-1 then cpp-1+lsp-1+scala-1
+  intermittent: DigitalLogicDlx021030Interconnect.json::dlx-021-030-domain-family-review::dlx-021-030-domain-family-review-state — cpp-1+scala-1 | lsp-1 then cpp-1+scala-1 | lsp-1 then cpp-1+lsp-1+scala-1
+  intermittent: OpenClawCompletionE2E.json::openclaw-e2e-completion-accepted::openclaw-e2e-completion-accepted-vector — cpp-1+scala-1 | lsp-1 then cpp-1+lsp-1+scala-1 then cpp-1+scala-1 | lsp-1
+  intermittent: OpenClawCompletionE2E.json::openclaw-e2e-dispatch-seed::openclaw-e2e-dispatch-seed-vector — cpp-1+scala-1 | lsp-1 then cpp-1+lsp-1+scala-1 then cpp-1+scala-1 | lsp-1
+  intermittent: RSRingLatchStageA.json::rsr-a-set-sequence::rsr-a-event-10 — cpp-1+scala-1 | lsp-1 then cpp-1+lsp-1+scala-1 then cpp-1+scala-1 | lsp-1
+  intermittent: RSRingLatchStageB.json::rsr-b-set-sequence::rsr-b-event-10 — cpp-1+scala-1 | lsp-1 then cpp-1+lsp-1+scala-1 then cpp-1+scala-1 | lsp-1

@@ -1,0 +1,8 @@
+ces-contracts: 431 agreed · 0 disagreement · 7 intermittent · 0 no-runtime-emits · 0 unmeasurable → /Users/johnt/workspace/GitHub/RealityEngine_CI/config/ces-contracts/domain-community-services.json
+  intermittent: BenefitsEligibilityScreener.json::benefits-eligibility-denial::be-ineligible — lsp-1+scala-1 | cpp-1 then cpp-1+lsp-1+scala-1 then cpp-1+lsp-1+scala-1
+  intermittent: CSX022_behavioral-health-and-crisis-mobile-crisis-co-response.json::csx-022-urgent-response::csx-022-urgent — lsp-1+scala-1 | cpp-1 then cpp-1+lsp-1+scala-1 then cpp-1+lsp-1+scala-1
+  intermittent: CSX046_courts-diversion-and-victim-services-protection-order-support.json::csx-046-urgent-response::csx-046-urgent — lsp-1+scala-1 | cpp-1 then cpp-1+lsp-1+scala-1 then cpp-1+lsp-1+scala-1
+  intermittent: CSX047_courts-diversion-and-victim-services-reentry-services-coordinator.json::csx-047-urgent-response::csx-047-urgent — lsp-1+scala-1 | cpp-1 then cpp-1+lsp-1+scala-1 then cpp-1+lsp-1+scala-1
+  intermittent: CSX053_homelessness-outreach-unsheltered-health-referral.json::csx-053-urgent-response::csx-053-urgent — lsp-1+scala-1 | cpp-1 then cpp-1+lsp-1+scala-1 then cpp-1+lsp-1+scala-1
+  intermittent: CSX054_homelessness-outreach-cold-weather-outreach.json::csx-054-urgent-response::csx-054-urgent — lsp-1+scala-1 | cpp-1 then cpp-1+lsp-1+scala-1 then cpp-1+lsp-1+scala-1
+  intermittent: CSX081_community-executive-optimization-community-need-forecast.json::csx-081-urgent-response::csx-081-urgent — lsp-1+scala-1 | cpp-1 then cpp-1+lsp-1+scala-1 then cpp-1+lsp-1+scala-1

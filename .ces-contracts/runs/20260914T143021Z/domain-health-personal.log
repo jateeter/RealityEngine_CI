@@ -1,0 +1,10 @@
+ces-contracts: 152 agreed · 6 disagreement · 1 intermittent · 2 no-runtime-emits · 0 unmeasurable  |  ISRE 0ok/161diff  OSRE 0ok/161diff → /Users/johnt/workspace/GitHub/RealityEngine_CI/config/ces-contracts/domain-health-personal.json
+  disagreement: FallDetection.json::fall-impact-recovered::fall-imprec-v4 — cpp-1+scala-1 | lsp-1 (held over 3 drives)
+  disagreement: FallDetection.json::fall-nominal::fall-nominal-v — cpp-1+scala-1 | lsp-1 (held over 3 drives)
+  disagreement: FallDetection.json::fall-stumble-recovered::fall-stumble-v2 — cpp-1+scala-1 | lsp-1 (held over 3 drives)
+  disagreement: HomeTransportationBarrierMonitor.json::transport-adequate::tp-adequate — cpp-1+scala-1 | lsp-1 (held over 3 drives)
+  disagreement: HomeTransportationBarrierMonitor.json::transport-critical-failure::tp-impaired — cpp-1+scala-1 | lsp-1 (held over 3 drives)
+  disagreement: HomeTransportationBarrierMonitor.json::transport-transit-dependent-risk::tp-transit-dependent — cpp-1+scala-1 | lsp-1 (held over 3 drives)
+  intermittent: FallDetection.json::fall-intentional-lying::fall-intent-v — cpp-1+scala-1 | lsp-1 then cpp-1+lsp-1+scala-1 then cpp-1+lsp-1+scala-1
+  no runtime emits output: FallDetection.json::fall-slow-collapse::fall-slow-v3
+  no runtime emits output: FallDetection.json::fall-sustained-instability::fall-sust-v3

@@ -1,0 +1,9 @@
+ces-contracts: 283 agreed · 6 disagreement · 2 intermittent · 0 no-runtime-emits · 0 unmeasurable  |  ISRE 0ok/291diff  OSRE 0ok/291diff → /Users/johnt/workspace/GitHub/RealityEngine_CI/config/ces-contracts/domain-data-center.json
+  disagreement: DCX003_generator-readiness-controller.json::dcx-003-24h-projection::dcx-003-projection-18-24h — cpp-1+scala-1 | lsp-1 (held over 3 drives)
+  disagreement: DCX003_generator-readiness-controller.json::dcx-003-maintenance::dcx-003-service-due — cpp-1+scala-1 | lsp-1 (held over 3 drives)
+  disagreement: DCX003_generator-readiness-controller.json::dcx-003-nominal::dcx-003-healthy — cpp-1+scala-1 | lsp-1 (held over 3 drives)
+  disagreement: DCX003_generator-readiness-controller.json::dcx-003-upgrade::dcx-003-upgrade-needed — cpp-1+scala-1 | lsp-1 (held over 3 drives)
+  disagreement: DCX003_generator-readiness-controller.json::dcx-003-urgent::dcx-003-critical — cpp-1+scala-1 | lsp-1 (held over 3 drives)
+  disagreement: DataCenterDcx001010Interconnect.json::dcx-001-010-domain-family-stable::dcx-001-010-domain-family-stable-state — cpp-1+scala-1 | lsp-1 (held over 3 drives)
+  intermittent: DataCenterDcx001010Interconnect.json::dcx-001-010-domain-family-optimization::dcx-001-010-domain-family-optimization-state — cpp-1+scala-1 | lsp-1 then cpp-1+scala-1 | lsp-1 then cpp-1+lsp-1+scala-1
+  intermittent: DataCenterDcx001010Interconnect.json::dcx-001-010-domain-family-review::dcx-001-010-domain-family-review-state — cpp-1+scala-1 | lsp-1 then cpp-1+lsp-1+scala-1 then cpp-1+scala-1 | lsp-1

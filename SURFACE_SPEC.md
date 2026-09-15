@@ -364,26 +364,29 @@ Three properties, and the iteration model exists to make them possible:
 Implementations should reach for their language's async primitives rather than a
 serial loop — futures, actor fan-out, task groups.
 
-**No runtime implements all three today**, and the gaps differ:
+**All three runtimes implement all three properties** (RealityEngine_CI#254,
+verified in the hosted lane):
 
-| | iteration | parallelism | atomicity |
-|---|---|---|---|
-| C++ | machines ✓ | serial loop | `unique_lock` over the whole call ✓ |
-| LSP | machines ✓ | serial `maphash` | single-threaded state |
-| Scala | **sequences ✗** | — | — |
+| | iteration | parallelism | atomic collection | atomic join |
+|---|---|---|---|---|
+| C++ | machines | pool + futures | sampled into `jobs` | placement by index |
+| LSP | machines | `lparallel pmap` | `machine-snapshot` | snapshot order |
+| Scala | machines | actor asks | `getAllMachines` | `Future.sequence` |
 
-C++ and LSP are correct on the unit of iteration and are the reference for it.
-Scala walks sequences and returns per-sequence `assertedOutputs` tagged with
-`sequenceId`/`sequenceName`, so its arbiters never run on this route and its
-response carries a different shape.
+The change that matters is not that the gaps closed — it is that **atomicity
+stopped being free**. C++ and LSP had it trivially before, because a serial loop
+cannot interleave. Both now fan out, so both had to earn it: C++ places results
+by index rather than appending on completion, and LSP's `pmap` returns in
+snapshot order over a list sorted by machine id.
 
-Scala already has the intended concurrency shape elsewhere — `MachineActor` per
-machine with `Future.sequence` fan-out on
-`POST /api/machines/process-universal/all`, and its own class documentation
-states *"cross-machine processing is parallel"*. The work is to bring this route
-onto that pattern, not to invent it.
-
-Tracked as RealityEngine_CI#254.
+**What is joined internally is not yet observable.** The runtimes join their own
+futures, but nothing on the surface lets a caller wait for a step to be fully
+realized, so every harness substitutes elapsed time — `--settle-ms` in
+`scripts/regression-trajectory-parity.py`, and nothing at all in
+`scripts/regression-ces-contracts.py`. A wall-clock settle is a guess that is
+silently wrong under load, and a reader that catches a half-written step reports
+it as engine divergence. Tracked as RealityEngine_CI#375, which is a hard
+dependency of any per-step comparison.
 
 ##### The input may be universal or machine-space, and length says which
 
@@ -735,6 +738,31 @@ Implemented in `reality.cpp` (`std::sort` after the machineResults walk),
 `PerceptualSpaceRuntime.scala` (`sortBy`), and `reality-service.lisp`
 (`sort-active-regions`, replacing an `nreverse` that only undid push order and
 carried no meaning).
+
+#### Lane range notation
+
+The wire format carries `{offset, length}` and nothing else. Every range on
+every surface — `perceptualMapping.input`/`.output`, `activeRegions`, reserved
+ranges, arbitration cells — is that pair, and a consumer computes the half-open
+span `[offset, offset + length)` from it. This section constrains only the
+**prose and diagnostic** rendering of those pairs, which is where the two
+conventions were being mixed.
+
+Written as `[a:b]`, a lane range is **closed on both ends**: `a` is the first
+cell and `b` is the last cell the region occupies. A two-cell region at
+`{offset: 16920, length: 2}` is `[16920:16921]`, never `[16920:16922]`.
+
+This matters because the corpus is read by people deciding where the next
+machine's lanes go. Text of the form `[16920:16922]` — half-open values inside
+closed brackets — reads as a three-cell claim on 16922, a cell the region does
+not own. Where that cell belongs to another machine's region, the text asserts
+a contention the arbiter never sees, and a reader routing around the phantom
+overlap builds a feedback edge that has no basis in the data. 5,094 references
+across 1,301 machine files carried the half-open form before this was fixed;
+`RealityEngine_Machines/scripts/fix-lane-notation.py` performs the rewrite and
+corroborates every candidate against a declared region before touching it.
+
+Generators emitting range text render the last cell, not the exclusive bound.
 
 ### Sampler
 

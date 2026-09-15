@@ -1,0 +1,13 @@
+ces-contracts: 149 agreed · 2 disagreement · 6 intermittent · 4 no-runtime-emits · 0 unmeasurable → /Users/johnt/workspace/GitHub/RealityEngine_CI/config/ces-contracts/domain-health-personal.json
+  disagreement: DailyPatientCare.json::daily-evening-routine::er-settle — lsp-1+scala-1 | cpp-1 (held over 3 drives)
+  disagreement: WellnessAnalytics.json::wa-sustained-alert-community::sac-alert-repeat — lsp-1+scala-1 | cpp-1 (held over 3 drives)
+  intermittent: DailyPatientCare.json::daily-fall-unresponsive::fu-post-fall-still — lsp-1+scala-1 | cpp-1 then cpp-1+lsp-1+scala-1 then cpp-1+lsp-1+scala-1
+  intermittent: DailyPatientCare.json::daily-medication-miss::mm-med-missed — lsp-1+scala-1 | cpp-1 then cpp-1+lsp-1+scala-1 then cpp-1+lsp-1+scala-1
+  intermittent: FacilitiesMaintenance.json::maint-hygiene-concern::hc-hygiene-concern — lsp-1+scala-1 | cpp-1 then cpp-1+lsp-1+scala-1 then cpp-1+lsp-1+scala-1
+  intermittent: HomeFoodSecurityMonitor.json::home-food-crisis-escalation::hf-crisis — lsp-1+scala-1 | cpp-1 then cpp-1+lsp-1+scala-1 then cpp-1+lsp-1+scala-1
+  intermittent: HomeTransportationBarrierMonitor.json::transport-transit-dependent-risk::tp-transit-dependent — lsp-1+scala-1 | cpp-1 then lsp-1+scala-1 | cpp-1 then cpp-1+lsp-1+scala-1
+  intermittent: NewPatientInflow.json::npi-financial-rejection::fr-barrier — lsp-1+scala-1 | cpp-1 then cpp-1+lsp-1+scala-1 then cpp-1+lsp-1+scala-1
+  no runtime emits output: FallDetection.json::fall-intentional-lying::fall-intent-v
+  no runtime emits output: FallDetection.json::fall-nominal::fall-nominal-v
+  no runtime emits output: FallDetection.json::fall-slow-collapse::fall-slow-v3
+  no runtime emits output: FallDetection.json::fall-stumble-recovered::fall-stumble-v2
