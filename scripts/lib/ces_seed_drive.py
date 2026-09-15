@@ -127,7 +127,11 @@ def assert_stimulus_parity(populations: dict[str, list[Json]]) -> list[str]:
 
     counts = {rid: len(srcs) for rid, srcs in populations.items()}
     armed = {rid: sum(1 for s in srcs if s.get("active")) for rid, srcs in populations.items()}
-    ids = {rid: {str(s.get("id")) for s in srcs} for rid, srcs in populations.items()}
+    # Report by machineName, which is what the fingerprint compares. Reporting
+    # source ids instead named every source on every runtime as unique-to-it,
+    # because ids derive from per-runtime machine ids — a wall of noise that
+    # hid the one machine actually missing.
+    ids = {rid: {str(s.get("machineName")) for s in srcs} for rid, srcs in populations.items()}
     shared = set.intersection(*ids.values()) if ids else set()
 
     failures = [
@@ -142,6 +146,23 @@ def assert_stimulus_parity(populations: dict[str, list[Json]]) -> list[str]:
             failures.append(f"    only on {rid}: {', '.join(extra[:6])}"
                             + (f" (+{len(extra) - 6} more)" if len(extra) > 6 else ""))
     return failures
+
+
+def machine_registry_ids(get: Callable[[str], tuple[int, Any]], re_url: str) -> tuple[set[str], str | None]:
+    """Machine *ids* the runtime currently holds.
+
+    Ids are per-runtime and are re-minted on every import, which is exactly why
+    they are the right key for spotting a stale source: a source whose machineId
+    is absent from the registry describes an incarnation of the machine that no
+    longer exists, even when a live source for the same machine sits beside it.
+    """
+    status, payload = get(f"{re_url}/api/machines")
+    if status != 200:
+        return set(), f"GET /api/machines returned {status}"
+    machines = payload.get("machines") if isinstance(payload, dict) else payload
+    if not isinstance(machines, list):
+        return set(), "/api/machines payload has no machines array"
+    return {str(m.get("id")) for m in machines if m.get("id")}, None
 
 
 def machine_registry(get: Callable[[str], tuple[int, Any]], re_url: str) -> tuple[set[str], str | None]:
@@ -190,40 +211,90 @@ def reconcile_sources(get: Callable[[str], tuple[int, Any]],
 
     resident, err = machine_registry(get, re_url)
     if err:
-        return [], [err]
+        return [], [err], []
 
     status, _ = post(f"{pe_url}/api/sources/bootstrap-from-machines", {})
     if status != 200:
         failures.append(f"POST /api/sources/bootstrap-from-machines returned {status}")
 
-    sources, err = interned_sources(get, pe_url)
-    if err:
-        return [], failures + [err]
+    # Wait for interning to settle before reading the population back.
+    #
+    # Bootstrap is not synchronous on every runtime. LSP interns "fire-and-forget
+    # through the actor" by its own description, so the POST can return while the
+    # actor is still creating sources. Reading immediately caught it mid-flight
+    # and reported 247 sources against 248 on cpp and scala — a one-source
+    # stimulus difference that refused three domains, and that was gone by the
+    # time anyone looked.
+    #
+    # Settle on two consecutive equal counts rather than a fixed sleep: a sleep
+    # long enough for the slowest corpus is wasted on every other call, and one
+    # tuned to the common case is the race again.
+    sources: list[Json] = []
+    previous = -1
+    for _ in range(40):
+        sources, err = interned_sources(get, pe_url)
+        if err:
+            return [], failures + [err], []
+        if len(sources) == previous:
+            break
+        previous = len(sources)
+        time.sleep(0.25)
 
+    # Delete by machine *id*, not by name.
+    #
+    # Keying on name removed sources for machines no longer resident, and kept
+    # every stale duplicate for machines that are. A reload re-mints the machine
+    # id, interning creates a second `test-<machineId>` source, and the first
+    # stays — armed, writing the same region on every push. Measured after a few
+    # load/unload cycles: 744 sources for 522 machines, 111 of them carrying up
+    # to three apiece, so those machines were driven three times per step while
+    # the name-based check reported the population clean.
+    live_ids, err = machine_registry_ids(get, re_url)
+    if err:
+        return [], failures + [err], []
     for src in sources:
-        if str(src.get("machineName")) in resident:
+        mid = str(src.get("machineId"))
+        if mid in live_ids:
             continue
         sid = src.get("id")
         if not sid:
             continue
         status, _ = delete(f"{pe_url}/api/sources/{sid}")
         if status not in (200, 204):
-            failures.append(f"DELETE orphaned source {sid} returned {status}")
+            failures.append(f"DELETE stale source {sid} returned {status}")
 
     sources, err = interned_sources(get, pe_url)
     if err:
-        return [], failures + [err]
+        return [], failures + [err], []
 
     names = {str(s.get("machineName")) for s in sources}
-    if names != resident:
-        missing = sorted(resident - names)
-        extra = sorted(names - resident)
+
+    # Orphans are fatal; machines without a source are not.
+    #
+    # An orphan is a source still armed for a machine that is no longer resident
+    # — it keeps writing its region on every push and drives a corpus other than
+    # the one loaded. That is the condition worth failing on, and the one that
+    # was silently true for 110 sources before this function existed.
+    #
+    # The other direction is legitimate. Interning derives a test source from a
+    # machine's `inputSequences`, so a machine that authors none gets no source
+    # and contributes nothing to the seed. The localAIStack-owned machines are
+    # exactly this — `localai/agent_topology` and `localai/rag_topology` are
+    # resident and sourceless by construction, and they are the same machines
+    # that carry no entry in the corpus manifest.
+    #
+    # Requiring exact equality was symmetry rather than a property anyone
+    # needed, and it refused three domains outright rather than recording a true
+    # and harmless condition.
+    extra = sorted(names - resident)
+    if extra:
         failures.append(
-            f"source population still does not match the resident corpus: "
-            f"{len(resident)} machines, {len(sources)} sources"
-            + (f"; no source for {len(missing)} machine(s) e.g. {missing[:3]}" if missing else "")
-            + (f"; {len(extra)} orphan(s) remain e.g. {extra[:3]}" if extra else ""))
-    return sources, failures
+            f"{len(extra)} interned source(s) survive for machines that are no longer "
+            f"resident, and would drive a corpus other than the one loaded: "
+            f"{extra[:4]}")
+
+    sourceless = sorted(resident - names)
+    return sources, failures, sourceless
 
 
 def arm_all(patch: Callable[[str, Json], tuple[int, Any]], pe_url: str,

@@ -1,7 +1,7 @@
 {
   "corpusFingerprint": {
     "algorithm": "sha256/relfile-sorted-v1",
-    "digest": "sha256:a4a6491e8cfa997a6b567efe44b6d0f4dd6f01bf42dbd3b29c0439a5e5e37c74",
+    "digest": "sha256:749b046056d8ce2f79fc87ca4b53e31fcb7993d7cfa11be8d2c769eb17c5b815",
     "machineCount": 220,
     "members": {
       "domains/health-services/HSPH001_evaluability-readiness-signal-monitor.json": "4133eeb8c403ce9d2c46bf8b13dcf7dcf9959488a2ce72c233784c76cb3e8b54",
@@ -184,16 +184,16 @@
       "domains/health-services/HSPH178_environmental-health-response-governance-escalator.json": "6dcaaac35e62e06cfd4ec4b4883a867835e4250b366ad1a8758f1e87648e0f16",
       "domains/health-services/HSPH179_environmental-health-response-learning-loop.json": "99a1da67d4fb5cec9b38db51b69079364b8d91456cc5090bff257ecc4e938c6c",
       "domains/health-services/HSPH180_environmental-health-response-outcome-stabilizer.json": "120e292964574f3a8f9a621a02ffbf8e0cf35a773ddc1ba092b4164ecfb1c2af",
-      "domains/health-services/HSPH181_emergency-preparedness-signal-monitor.json": "94745e66112d5da2afbe77beb0f133537224733cd6956ce1a4837a68d370c52a",
-      "domains/health-services/HSPH182_emergency-preparedness-resource-router.json": "4ac034ff8f294cdc6d7c8dab5412caa63c5a329dc21e863adba6220e4e0264e6",
-      "domains/health-services/HSPH183_emergency-preparedness-equity-guardrail.json": "60bc1dd78567939d3ae5a5abbcf2b320d036f749baa4096557301c9deba3d057",
-      "domains/health-services/HSPH184_emergency-preparedness-capacity-balancer.json": "90f85ee546929b0db7f03c84dea3c09401444866ed266b9427a4b2b999567ecf",
-      "domains/health-services/HSPH185_emergency-preparedness-referral-optimizer.json": "2e410e757fb3606542a24101a3166974df0a3b93aef1b6ab781544e85236e0ea",
-      "domains/health-services/HSPH186_emergency-preparedness-measure-tracker.json": "1d784dff8ea8171e5e048e4a4dc8c83add567bab5a6cdc0f18727497b8642be3",
-      "domains/health-services/HSPH187_emergency-preparedness-agent-dispatcher.json": "812c284b18404979025d30cf619e549c255127b43223f50d7b59c0a4c7b1c4b2",
-      "domains/health-services/HSPH188_emergency-preparedness-governance-escalator.json": "a4ad84aeff78ab9e83eaa20d89704530af6e0edcfce0ce8dd26a9abafa8e822f",
-      "domains/health-services/HSPH189_emergency-preparedness-learning-loop.json": "3cb9360f38d6168133b30f779a9fefb8e459851e0a71b32a4cd9af65f6ee3ef8",
-      "domains/health-services/HSPH190_emergency-preparedness-outcome-stabilizer.json": "d2f7f316916105dc2602f3faa0058cd3a37330c5b819e97cc071c42fd2690345",
+      "domains/health-services/HSPH181_emergency-preparedness-signal-monitor.json": "d5722484c786fe948bcf836a804ca868742e7f026b1e623dfb61fbca6e4a9633",
+      "domains/health-services/HSPH182_emergency-preparedness-resource-router.json": "30c6e85f2a35b134a9075e1b8c7970c9a31fb76f953c9320b2141718426b95a0",
+      "domains/health-services/HSPH183_emergency-preparedness-equity-guardrail.json": "f41ef6a26b80fd3dfe58edbefb67b786dca39d9c72e8490554c5b61ffe007481",
+      "domains/health-services/HSPH184_emergency-preparedness-capacity-balancer.json": "a0f873a37fc8b48467967c8f8e5b684bff6f2654862857167faa9b1bae05788d",
+      "domains/health-services/HSPH185_emergency-preparedness-referral-optimizer.json": "bc3d70bce9bf88e203835478fb4e85bb8f561efededea20a5d4c8046f7610f9a",
+      "domains/health-services/HSPH186_emergency-preparedness-measure-tracker.json": "01d822315f6bc3e12c5de81dee55696e65824ad98ea1dd85ad3e010f505f6610",
+      "domains/health-services/HSPH187_emergency-preparedness-agent-dispatcher.json": "9af173097c4edf5633a5703047f5b04a055ccbe79f6bfcf40a5f2da4217aa3d1",
+      "domains/health-services/HSPH188_emergency-preparedness-governance-escalator.json": "a495093dba3b2ed59d6ccde3b5ed6db6a416b34ae0bd8fc494d3f1e03e10e93c",
+      "domains/health-services/HSPH189_emergency-preparedness-learning-loop.json": "da0a1a870c5f6b0057de0fb083ef4a07ac40d00dbc034d3db42b87963337dd64",
+      "domains/health-services/HSPH190_emergency-preparedness-outcome-stabilizer.json": "7841a8e2ab0189ce88bd45acd0f7e5a2cfcebc1a2218bb5a556aae79f83b27dd",
       "domains/health-services/HSPH191_learning-health-system-signal-monitor.json": "80e28c8799bfa5d21f325a8d76911fb9d4a2833c08d0ef7f45b3ba3f1fc46b95",
       "domains/health-services/HSPH192_learning-health-system-resource-router.json": "6ef29e1158031346984f4004fa5465fc68523d0e55705dc30f7785ce75d2ffe2",
       "domains/health-services/HSPH193_learning-health-system-equity-guardrail.json": "aff5f2c4c0c7c3642fa9c5efc3a51025acab8d883666b5b7c8593d0b13b6218a",
@@ -42262,21 +42262,25 @@
   "scope": "domain:health-services",
   "stimulus": {
     "armed": {
-      "cpp-1": 241,
-      "lsp-1": 241,
-      "scala-1": 241
+      "cpp-1": 246,
+      "lsp-1": 246,
+      "scala-1": 246
     },
     "completionPoint": "none exposed by any runtime (RealityEngine_CI#375)",
     "internedSources": {
-      "cpp-1": 241,
-      "lsp-1": 241,
-      "scala-1": 241
+      "cpp-1": 246,
+      "lsp-1": 246,
+      "scala-1": 246
     },
     "isolated": true,
     "model": "corpus-interned test sources (composed ISRESeed)",
-    "residentMachines": 241,
+    "residentMachines": 248,
     "seedDepth": 31,
     "settleMs": 0,
+    "sourcelessMachines": [
+      "localai/agent_topology",
+      "localai/rag_topology"
+    ],
     "steps": 31
   }
 }

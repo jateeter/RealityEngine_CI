@@ -1,7 +1,7 @@
 {
   "corpusFingerprint": {
     "algorithm": "sha256/relfile-sorted-v1",
-    "digest": "sha256:2c291d7e09aefa1c9ab62898819b00dd812a165e6171ec28557e6476652b23f9",
+    "digest": "sha256:d03b3b8942de05847d59b28bac28ef02e29c04752592ac187c0e6d609bba5c46",
     "machineCount": 165,
     "members": {
       "domains/transportation/TFX001_rider-experience-stop-crowding-monitor.json": "8832c91dc65d710bd1638198a3c50df50b6a141d7b65730254679d057d581fe9",
@@ -50,7 +50,7 @@
       "domains/transportation/TFX044_security-and-safety-stop-security-lighting.json": "5f5c8142639567dabdb19dbec3683a4b1996372643d5565458b80e2e578ad4bc",
       "domains/transportation/TFX045_security-and-safety-operator-assault-risk.json": "db8abf8288d38d52f9fbb2bfc7230a7dfe4d1cbb11e40712c2d7c63c261b4b12",
       "domains/transportation/TFX046_security-and-safety-suspicious-package-workflow.json": "18d579e85f43e56774fcb519fc6edcc55296976c56653ab1393c62394d027e52",
-      "domains/transportation/TFX047_security-and-safety-emergency-detour-safety.json": "bfb6dc1d5f3e79c0b52eb94098fc87a1520934f6583c7a680bd6e3d48f43ca92",
+      "domains/transportation/TFX047_security-and-safety-emergency-detour-safety.json": "3bceb20b7ea30b976d310ae25ab072e5442d404bc6662cf0103e4a30f5b0824d",
       "domains/transportation/TFX048_security-and-safety-school-trip-safety-monitor.json": "08049aacb89ba23eec58be8f920ac0220538eea17f70bd437a9403a111b0ec95",
       "domains/transportation/TFX049_security-and-safety-weather-hazard-safety.json": "db0568df7d5a97e36d6dd12c2840d0c20fb9fc430fa7e65c1884422bcff93265",
       "domains/transportation/TFX050_security-and-safety-incident-evidence-archive.json": "1acc749df9d70999913aaf41b0c30321f5d7ac94969c62c900584ed791228cec",
@@ -111,7 +111,7 @@
       "domains/transportation/TFX105_customer-communications-lost-service-recovery-messaging.json": "932c7c1e9510771107775fe7fb373965111d799fa991fb039eaa92735b021d5c",
       "domains/transportation/TFX106_customer-communications-accessibility-communication.json": "d486690358215de68b1ae872e65b80248d54508a168c4e550ca06a34a5b7667e",
       "domains/transportation/TFX107_customer-communications-event-service-messaging.json": "eadf1328302feb3bfcbf3e5a8f90e02615dcec17a2063e9aff05fd5149bbd71e",
-      "domains/transportation/TFX108_customer-communications-emergency-communication.json": "fc2dbaada5e6ca75006e20846b5baa208b2ccebe065c3c34955b4a671da860bc",
+      "domains/transportation/TFX108_customer-communications-emergency-communication.json": "dd6459c6aae152b06e6c52e9bff665d74c4b7bc99f1f23f645ec53f93f830c27",
       "domains/transportation/TFX109_customer-communications-feedback-loop-analyzer.json": "99edf9867a476f0f86b9295203b33b1bfd478483ebcfef702280968083cf3b61",
       "domains/transportation/TFX110_customer-communications-communications-executive-pulse.json": "44c89754b827b2133b2866676bdafa71906ba86d89ac0ec8cdfe923495f7e128",
       "domains/transportation/TFX111_network-planning-stop-demand-forecast.json": "bd9ff5d3400aaedf71e589f3e689c1e5c747074ae7c2fb4a1b068b3b45fc3989",
@@ -31702,21 +31702,25 @@
   "scope": "domain:transportation",
   "stimulus": {
     "armed": {
-      "cpp-1": 186,
-      "lsp-1": 186,
-      "scala-1": 186
+      "cpp-1": 191,
+      "lsp-1": 191,
+      "scala-1": 191
     },
     "completionPoint": "none exposed by any runtime (RealityEngine_CI#375)",
     "internedSources": {
-      "cpp-1": 186,
-      "lsp-1": 186,
-      "scala-1": 186
+      "cpp-1": 191,
+      "lsp-1": 191,
+      "scala-1": 191
     },
     "isolated": true,
     "model": "corpus-interned test sources (composed ISRESeed)",
-    "residentMachines": 186,
+    "residentMachines": 193,
     "seedDepth": 31,
     "settleMs": 0,
+    "sourcelessMachines": [
+      "localai/agent_topology",
+      "localai/rag_topology"
+    ],
     "steps": 31
   }
 }

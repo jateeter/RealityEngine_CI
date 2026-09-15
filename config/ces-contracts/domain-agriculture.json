@@ -1,7 +1,7 @@
 {
   "corpusFingerprint": {
     "algorithm": "sha256/relfile-sorted-v1",
-    "digest": "sha256:c45e6ff21205609af3a7e03b5cd8c241a84217715ee428d5a9704700d4cd8119",
+    "digest": "sha256:8b361d3599cfcdbdcb8925fe18009d1e3261646978d75262c65233302f35a2e9",
     "machineCount": 71,
     "members": {
       "domains/agriculture/AGX001_aquaculture-water-quality-stability.json": "baabb67b8672e1a78732d2c392f910fd56d7e53ddb6c050f1950e3826223f606",
@@ -62,8 +62,8 @@
       "domains/agriculture/AgAtmosphericController.json": "cfe6dec27f2fde58632c39fd7933a24656c981ff65de27ee7532addd4559e039",
       "domains/agriculture/AgHarvestReadinessAssessor.json": "b0c21c72feaf5bf36b3910d18fe6cd248e1df285ed5c923dae1c979d43a9639a",
       "domains/agriculture/AgIPMPestAlertMonitor.json": "78fba8929c567cd6d178936918c8f0b027b56fb40bf2041527cfd1d4c2259120",
-      "domains/agriculture/AgIrrigationFlowController.json": "6a2be31bec4820c8c11f97254af66f74a3a0f0c9d2614fb876e3c05acb82da7d",
-      "domains/agriculture/AgNutrientCycleOptimizer.json": "f4308e9822d985b82c48320d0206739f40887996dfa3e168237e0ea5db9cc1fa",
+      "domains/agriculture/AgIrrigationFlowController.json": "6a99100c86b3c49c10687ba9cb56a0754f13c20b4ea82fc52fba97a624c2eed0",
+      "domains/agriculture/AgNutrientCycleOptimizer.json": "fc94607942cd8a8e816984ba3693b1c4a6cdf236d0ffa248712f04c2c51f61e7",
       "domains/agriculture/AgNutrientSolutionMonitor.json": "12c307d72be9cfd8b2873222dcdeb76243e9f6a76c7426929d1fafb1ee51e5b4",
       "domains/agriculture/AgPhotoPeriodLightingController.json": "26ce1e7038101f6d7b95e18005b7d22ec172475ed79b3353f62d5c5c8e4733b5",
       "domains/agriculture/AgPlantGrowthCycleMonitor.json": "7fccad5d458c0b66153a981218c086abdc89db417565a1dc2ce29a6f51b732df",
@@ -13914,7 +13914,7 @@
     },
     "isolated": true,
     "model": "corpus-interned test sources (composed ISRESeed)",
-    "residentMachines": 92,
+    "residentMachines": 99,
     "seedDepth": 31,
     "settleMs": 0,
     "steps": 31
