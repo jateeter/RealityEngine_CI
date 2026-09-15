@@ -44,19 +44,19 @@ jobs:
 
     steps:
       - name: Checkout RealityEngine_CI
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
         with:
           path: RealityEngine_CI
 
       - name: Checkout RealityEngine_CPP
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
         with:
           repository: ${{ github.repository_owner }}/RealityEngine_CPP
           path: RealityEngine_CPP
           token: ${{ secrets.REPO_ACCESS_TOKEN || github.token }}
 
       - name: Checkout RealityEngine_LSP
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
         with:
           repository: ${{ github.repository_owner }}/RealityEngine_LSP
           path: RealityEngine_LSP
@@ -77,7 +77,7 @@ jobs:
 
     steps:
       - name: Checkout RealityEngine_CI
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
         with:
           path: RealityEngine_CI
 
@@ -126,33 +126,33 @@ jobs:
 
     steps:
       - name: Checkout RealityEngine_CI
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
         with:
           path: RealityEngine_CI
 
       - name: Checkout RealityEngine_CPP
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
         with:
           repository: ${{ github.repository_owner }}/RealityEngine_CPP
           path: RealityEngine_CPP
           token: ${{ secrets.REPO_ACCESS_TOKEN || github.token }}
 
       - name: Checkout RealityEngine_Scala
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
         with:
           repository: ${{ github.repository_owner }}/RealityEngine_Scala
           path: RealityEngine_Scala
           token: ${{ secrets.REPO_ACCESS_TOKEN || github.token }}
 
       - name: Checkout RealityEngine_LSP
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
         with:
           repository: ${{ github.repository_owner }}/RealityEngine_LSP
           path: RealityEngine_LSP
           token: ${{ secrets.REPO_ACCESS_TOKEN || github.token }}
 
       - name: Checkout RealityEngine_Manager
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
         with:
           repository: ${{ github.repository_owner }}/RealityEngine_Manager
           path: RealityEngine_Manager
@@ -162,7 +162,7 @@ jobs:
       # to RealityEngine_CI/docs. Without this checkout the check reports them
       # "missing pointer" rather than verifying them.
       - name: Checkout RealityEngine_Machines
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
         with:
           repository: ${{ github.repository_owner }}/RealityEngine_Machines
           path: RealityEngine_Machines
@@ -194,10 +194,10 @@ jobs:
       # This job runs scripts from this repo (check-corpus-exit-criteria.py), so
       # it needs its own checkout as well as the corpus.
       - name: Checkout RealityEngine_CI
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
 
       - name: Checkout RealityEngine_Machines
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
         with:
           repository: ${{ github.repository_owner }}/RealityEngine_Machines
           path: RealityEngine_Machines
@@ -293,7 +293,7 @@ jobs:
       # the corpus<->agent boundary had no gate on either side of it. Checked out
       # here rather than at the top of the job so it sits next to its only use.
       - name: Checkout localOpenClawStack
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
         with:
           repository: ${{ github.repository_owner }}/localOpenClawStack
           path: localOpenClawStack
@@ -369,7 +369,7 @@ jobs:
 
     steps:
       - name: Checkout RealityEngine_CI
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
         with:
           path: RealityEngine_CI
 
@@ -497,33 +497,33 @@ jobs:
 
     steps:
       - name: Checkout RealityEngine_CI
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
         with:
           path: RealityEngine_CI
 
       - name: Checkout RealityEngine_Scala
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
         with:
           repository: ${{ github.repository_owner }}/RealityEngine_Scala
           path: RealityEngine_Scala
           token: ${{ secrets.REPO_ACCESS_TOKEN || github.token }}
 
       - name: Checkout RealityEngine_Manager
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
         with:
           repository: ${{ github.repository_owner }}/RealityEngine_Manager
           path: RealityEngine_Manager
           token: ${{ secrets.REPO_ACCESS_TOKEN || github.token }}
 
       - name: Checkout RealityEngine_Machines
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
         with:
           repository: ${{ github.repository_owner }}/RealityEngine_Machines
           path: RealityEngine_Machines
           token: ${{ secrets.REPO_ACCESS_TOKEN || github.token }}
 
       - name: Checkout localAIStack
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
         with:
           repository: ${{ github.repository_owner }}/localAIStack
           path: localAIStack
@@ -621,54 +621,54 @@ jobs:
 
     steps:
       - name: Checkout RealityEngine_CI
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
         with:
           path: RealityEngine_CI
 
       - name: Checkout RealityEngine_Scala
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
         with:
           repository: ${{ github.repository_owner }}/RealityEngine_Scala
           path: RealityEngine_Scala
           token: ${{ secrets.REPO_ACCESS_TOKEN || github.token }}
 
       - name: Checkout RealityEngine_CPP
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
         with:
           repository: ${{ github.repository_owner }}/RealityEngine_CPP
           path: RealityEngine_CPP
           token: ${{ secrets.REPO_ACCESS_TOKEN || github.token }}
 
       - name: Checkout RealityEngine_LSP
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
         with:
           repository: ${{ github.repository_owner }}/RealityEngine_LSP
           path: RealityEngine_LSP
           token: ${{ secrets.REPO_ACCESS_TOKEN || github.token }}
 
       - name: Checkout RealityEngine_Manager
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
         with:
           repository: ${{ github.repository_owner }}/RealityEngine_Manager
           path: RealityEngine_Manager
           token: ${{ secrets.REPO_ACCESS_TOKEN || github.token }}
 
       - name: Checkout RealityEngine_Machines
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
         with:
           repository: ${{ github.repository_owner }}/RealityEngine_Machines
           path: RealityEngine_Machines
           token: ${{ secrets.REPO_ACCESS_TOKEN || github.token }}
 
       - name: Checkout localAIStack
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
         with:
           repository: ${{ github.repository_owner }}/localAIStack
           path: localAIStack
           token: ${{ secrets.REPO_ACCESS_TOKEN || github.token }}
 
       - name: Checkout localOpenClawStack
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
         with:
           repository: ${{ github.repository_owner }}/localOpenClawStack
           path: localOpenClawStack

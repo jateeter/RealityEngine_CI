@@ -69,12 +69,12 @@ jobs:
       verdict: ${{ steps.sweep.outcome }}
     steps:
       - name: Checkout RealityEngine_CI
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
         with:
           path: RealityEngine_CI
 
       - name: Checkout RealityEngine_Machines
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
         with:
           repository: jateeter/RealityEngine_Machines
           ref: ${{ github.event.inputs.machines_ref || '' }}
@@ -151,27 +151,27 @@ jobs:
     needs: corpus-static
     steps:
       - name: Checkout RealityEngine_CI
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
         with:
           path: RealityEngine_CI
 
       - name: Checkout RealityEngine_Machines
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
         with:
           repository: jateeter/RealityEngine_Machines
           ref: ${{ github.event.inputs.machines_ref || '' }}
           path: RealityEngine_Machines
 
       - name: Checkout RealityEngine_CPP
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
         with: { repository: jateeter/RealityEngine_CPP, path: RealityEngine_CPP }
 
       - name: Checkout RealityEngine_LSP
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
         with: { repository: jateeter/RealityEngine_LSP, path: RealityEngine_LSP }
 
       - name: Checkout RealityEngine_Scala
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
         with: { repository: jateeter/RealityEngine_Scala, path: RealityEngine_Scala }
 
       - name: Setup Node.js
