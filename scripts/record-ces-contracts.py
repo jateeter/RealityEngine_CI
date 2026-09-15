@@ -51,7 +51,7 @@ import argparse
 import json
 import sys
 from pathlib import Path
-from typing import Any
+from typing import Any, Iterable
 from urllib import error, request
 
 SCRIPT_DIR = Path(__file__).resolve().parent
@@ -133,12 +133,25 @@ def load_corpus() -> dict[str, Json]:
     return corpus
 
 
-def corpus_fingerprint() -> Json:
+def corpus_fingerprint(rel_files: Iterable[str] | None = None) -> Json:
+    """Fingerprint over the scope's own machines, not the whole corpus.
+
+    A shard describes a scope, so its fingerprint must cover exactly that
+    scope's machines — which is what
+    `RealityEngine_Machines/scripts/build-ces-contract-registry.py` compares
+    against (`fp.fingerprint_paths(paths, MACHINES)` over the scope selection).
+    Writing a corpus-wide digest instead makes every shard read `stale` the
+    moment any machine anywhere changes, including machines the shard says
+    nothing about — all 15 reported stale with empty drift, digests matching,
+    because the two sides were fingerprinting different sets.
+    """
     sys.path.insert(0, str(MACHINES_ROOT / "scripts"))
     import ces_corpus_fingerprint as fp  # noqa: E402
 
     root = MACHINES_ROOT / "machines"
-    return fp.fingerprint_paths(sorted(root.rglob("*.json")), root)
+    paths = ([root / rel for rel in sorted(rel_files)] if rel_files is not None
+             else sorted(root.rglob("*.json")))
+    return fp.fingerprint_paths(paths, root)
 
 
 # ── the run ─────────────────────────────────────────────────────────────────
@@ -282,6 +295,12 @@ def main() -> int:
                          "Non-zero on drift. This is the gate half: a recorded "
                          "contract nobody re-checks silently becomes an assertion "
                          "about the past.")
+    ap.add_argument("--corpus", default=None, metavar="NAME",
+                    help="record a test-environment corpus scope instead of a domain: "
+                         "the machine set named by config/<NAME>-corpus.txt, written "
+                         "as corpus-<NAME>.json. The scope is a manifest rather than a "
+                         "directory, so it may span domains and need not be a subset of "
+                         "the floor — arbiter-fixture is neither.")
     ap.add_argument("--only", default=None, metavar="DOMAIN",
                     help="write only this domain's shard. Required when recording "
                          "under isolation: the floor corpus the universe boots on "
@@ -309,6 +328,24 @@ def main() -> int:
     if res_err:
         print(f"FAIL could not read the machine registry: {res_err}")
         return 1
+    if args.corpus:
+        manifest = REPO_ROOT / "config" / f"{args.corpus}-corpus.txt"
+        if not manifest.exists():
+            print(f"FAIL no corpus manifest at {manifest.relative_to(REPO_ROOT)}")
+            return 1
+        wanted = {line.strip() for line in manifest.read_text(encoding="utf-8").splitlines()
+                  if line.strip() and not line.strip().startswith("#")}
+        by_rel = {facts["relFile"]: name for name, facts in corpus.items()}
+        scoped = {by_rel[rel] for rel in wanted if rel in by_rel}
+        absent = sorted(n for n in scoped if n not in resident)
+        if absent:
+            # Recording silence for a machine the engines never loaded is
+            # indistinguishable from a machine that genuinely does nothing.
+            print(f"FAIL --corpus={args.corpus} names {len(absent)} machine(s) not resident: "
+                  f"{', '.join(absent[:4])}")
+            return 1
+        resident = resident & scoped
+
     shards = build_shards(report, corpus, resident, order)
     withheld: list[str] = []
 
@@ -323,7 +360,7 @@ def main() -> int:
         withheld = sorted(set(shards) - {args.only})
         shards = {args.only: shards[args.only]}
 
-    fingerprint = corpus_fingerprint()
+    scope_files = {name: facts["relFile"] for name, facts in corpus.items()}
     total = {"agreed": 0, "agreed-silent": 0, "disagreement": 0}
     for domain in sorted(shards):
         counts = shards[domain]["counts"]
@@ -361,6 +398,35 @@ def main() -> int:
         print("\n  no drift against the recorded shards")
         return 0
 
+    if args.write and args.corpus:
+        SHARD_DIR.mkdir(parents=True, exist_ok=True)
+        machines: Json = {}
+        counts: dict[str, int] = {}
+        for shard in shards.values():
+            machines.update(shard["machines"])
+            for verdict, n in shard["counts"].items():
+                counts[verdict] = counts.get(verdict, 0) + n
+        doc = {
+            "schemaVersion": "2.0.0", "scope": f"corpus:{args.corpus}", "quorum": "3-of-3",
+            "generatedBy": "scripts/record-ces-contracts.py",
+            "stimulus": {
+                "model": "corpus-interned test sources (composed ISRESeed)",
+                "internedSources": report["internedSources"], "armed": report["armed"],
+                "seedDepth": report["seedDepth"], "steps": report["steps"],
+                "settleMs": args.settle_ms, "residentMachines": len(resident),
+                "isolated": True,
+                "completionPoint": "none exposed by any runtime (RealityEngine_CI#375)",
+            },
+            "corpusFingerprint": corpus_fingerprint(
+                [scope_files[n] for n in machines if n in scope_files]),
+            "instances": order,
+            "counts": counts, "machines": machines,
+        }
+        (SHARD_DIR / f"corpus-{args.corpus}.json").write_text(
+            json.dumps(doc, indent=2, sort_keys=True) + "\n", encoding="utf-8")
+        print(f"  wrote corpus-{args.corpus}.json ({len(machines)} machines)")
+        return 1 if counts.get("disagreement") else 0
+
     if args.write:
         SHARD_DIR.mkdir(parents=True, exist_ok=True)
         for domain, shard in shards.items():
@@ -380,7 +446,8 @@ def main() -> int:
                     "isolated": bool(args.only),
                     "completionPoint": "none exposed by any runtime (RealityEngine_CI#375)",
                 },
-                "corpusFingerprint": fingerprint,
+                "corpusFingerprint": corpus_fingerprint(
+                    [scope_files[n] for n in shard["machines"] if n in scope_files]),
                 "instances": order,
                 "counts": shard["counts"],
                 "machines": shard["machines"],

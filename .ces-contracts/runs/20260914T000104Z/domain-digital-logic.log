@@ -1,0 +1,19 @@
+ces-contracts: 86 agreed · 10 disagreement · 3 intermittent · 5 no-runtime-emits · 0 unmeasurable  |  ISRE 1ok/84diff  OSRE 1ok/84diff → /Users/johnt/workspace/GitHub/RealityEngine_CI/config/ces-contracts/domain-digital-logic.json
+  disagreement: KleeneStar.json::kleene-seq1::kleene-seq1-010 — lsp-1+scala-1 | cpp-1 (held over 3 drives)
+  disagreement: KleeneStar.json::kleene-seq2::kleene-seq2-001-final — lsp-1+scala-1 | cpp-1 (held over 3 drives)
+  disagreement: KleeneStar.json::kleene-seq2::kleene-seq2-001-final — lsp-1+scala-1 | cpp-1 (held over 3 drives)
+  disagreement: KleeneStar.json::kleene-seq2::kleene-seq2-001-final — lsp-1+scala-1 | cpp-1 (held over 3 drives)
+  disagreement: KleeneStar.json::kleene-seq2::kleene-seq2-001-final — lsp-1+scala-1 | cpp-1 (held over 3 drives)
+  disagreement: KleeneStar.json::kleene-seq2::kleene-seq2-001-final — lsp-1+scala-1 | cpp-1 (held over 3 drives)
+  disagreement: RSFlipFlopDeprecatedDemo.json::rs-reset-sequence::rs-event-01 — cpp-1 | lsp-1 | scala-1 (held over 3 drives)
+  disagreement: RSFlipFlopDeprecatedDemo.json::rs-set-sequence::rs-event-10 — cpp-1 | lsp-1 | scala-1 (held over 3 drives)
+  disagreement: RSFlipFlopTrigger.json::rs-reset-sequence::rs-trigger-reset — cpp-1 | lsp-1 | scala-1 (held over 3 drives)
+  disagreement: RSFlipFlopTrigger.json::rs-set-sequence::rs-trigger-set — cpp-1 | lsp-1 | scala-1 (held over 3 drives)
+  intermittent: DLX012_req-hold-ack.json::dlx-012-match::dlx-012-step-3 — lsp-1+scala-1 | cpp-1 then cpp-1+lsp-1+scala-1 then cpp-1+lsp-1+scala-1
+  intermittent: DLX016_ready-before-valid.json::dlx-016-match::dlx-016-step-3 — lsp-1+scala-1 | cpp-1 then lsp-1+scala-1 | cpp-1 then cpp-1+lsp-1+scala-1
+  intermittent: DLX029_scan-shift-capture.json::dlx-029-match::dlx-029-step-3 — lsp-1+scala-1 | cpp-1 then lsp-1+scala-1 | cpp-1 then cpp-1+lsp-1+scala-1
+  no runtime emits output: DLX017_start-busy-done.json::dlx-017-match::dlx-017-step-4
+  no runtime emits output: DLX041_one-hot-grant.json::dlx-041-match::dlx-041-step-2
+  no runtime emits output: RSRingLatchStageA.json::rsr-a-reset-sequence::rsr-a-event-01
+  no runtime emits output: RSRingLatchStageA.json::rsr-a-set-sequence::rsr-a-event-10
+  no runtime emits output: RSRingLatchStageB.json::rsr-b-reset-sequence::rsr-b-event-01

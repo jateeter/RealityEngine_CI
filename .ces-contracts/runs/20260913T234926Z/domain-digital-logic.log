@@ -1,0 +1,103 @@
+ces-contracts: 2 agreed · 4 disagreement · 98 intermittent · 0 no-runtime-emits · 0 unmeasurable  |  ISRE 2ok/78diff  OSRE 2ok/78diff → /Users/johnt/workspace/GitHub/RealityEngine_CI/config/ces-contracts/domain-digital-logic.json
+  disagreement: RSFlipFlopDeprecatedDemo.json::rs-reset-sequence::rs-event-01 — cpp-1 | lsp-1 | scala-1 (held over 3 drives)
+  disagreement: RSFlipFlopDeprecatedDemo.json::rs-set-sequence::rs-event-10 — cpp-1 | lsp-1 | scala-1 (held over 3 drives)
+  disagreement: RSFlipFlopTrigger.json::rs-reset-sequence::rs-trigger-reset — cpp-1 | lsp-1 | scala-1 (held over 3 drives)
+  disagreement: RSFlipFlopTrigger.json::rs-set-sequence::rs-trigger-set — cpp-1 | lsp-1 | scala-1 (held over 3 drives)
+  intermittent: ArbitrationProviderTarget.json::arb-e-observe-zero::arb-e-event-zero — cpp-1+lsp-1+scala-1 then lsp-1+scala-1 | cpp-1 then lsp-1+scala-1 | cpp-1
+  intermittent: ArbitrationReader.json::arb-c-observe-zero::arb-c-event-zero — cpp-1+lsp-1+scala-1 then lsp-1+scala-1 | cpp-1 then lsp-1+scala-1 | cpp-1
+  intermittent: ArbitrationReader.json::arb-c-observe::arb-c-event — cpp-1+lsp-1+scala-1 then lsp-1+scala-1 | cpp-1 then lsp-1+scala-1 | cpp-1
+  intermittent: ArbitrationWriterA.json::arb-a-assert::arb-a-event — cpp-1+lsp-1+scala-1 then lsp-1+scala-1 | cpp-1 then lsp-1+scala-1 | cpp-1
+  intermittent: ArbitrationWriterB.json::arb-b-assert::arb-b-event — cpp-1+lsp-1+scala-1 then lsp-1+scala-1 | cpp-1 then lsp-1+scala-1 | cpp-1
+  intermittent: DLX001_rising-edge-detector.json::dlx-001-match::dlx-001-step-2 — cpp-1+lsp-1+scala-1 then lsp-1+scala-1 | cpp-1 then lsp-1+scala-1 | cpp-1
+  intermittent: DLX002_falling-edge-detector.json::dlx-002-match::dlx-002-step-2 — cpp-1+lsp-1+scala-1 then lsp-1+scala-1 | cpp-1 then lsp-1+scala-1 | cpp-1
+  intermittent: DLX003_single-cycle-pulse.json::dlx-003-match::dlx-003-step-3 — cpp-1+lsp-1+scala-1 then lsp-1+scala-1 | cpp-1 then lsp-1+scala-1 | cpp-1
+  intermittent: DLX004_pulse-stretch-start.json::dlx-004-match::dlx-004-step-3 — cpp-1+lsp-1+scala-1 then lsp-1+scala-1 | cpp-1 then lsp-1+scala-1 | cpp-1
+  intermittent: DLX005_pulse-stretch-end.json::dlx-005-match::dlx-005-step-3 — cpp-1+lsp-1+scala-1 then lsp-1+scala-1 | cpp-1 then lsp-1+scala-1 | cpp-1
+  intermittent: DLX006_glitch-reject-two-high.json::dlx-006-match::dlx-006-step-3 — cpp-1+lsp-1+scala-1 then lsp-1+scala-1 | cpp-1 then lsp-1+scala-1 | cpp-1
+  intermittent: DLX007_glitch-detect-one-high.json::dlx-007-match::dlx-007-step-3 — cpp-1+lsp-1+scala-1 then lsp-1+scala-1 | cpp-1 then lsp-1+scala-1 | cpp-1
+  intermittent: DLX008_stable-high-window.json::dlx-008-match::dlx-008-step-3 — cpp-1+lsp-1+scala-1 then lsp-1+scala-1 | cpp-1 then lsp-1+scala-1 | cpp-1
+  intermittent: DLX009_stable-low-window.json::dlx-009-match::dlx-009-step-3 — cpp-1+lsp-1+scala-1 then lsp-1+scala-1 | cpp-1 then lsp-1+scala-1 | cpp-1
+  intermittent: DLX010_alternating-toggle.json::dlx-010-match::dlx-010-step-4 — cpp-1+lsp-1+scala-1 then lsp-1+scala-1 | cpp-1 then lsp-1+scala-1 | cpp-1
+  intermittent: DLX011_req-ack-handshake.json::dlx-011-match::dlx-011-step-2 — cpp-1+lsp-1+scala-1 then lsp-1+scala-1 | cpp-1 then lsp-1+scala-1 | cpp-1
+  intermittent: DLX012_req-hold-ack.json::dlx-012-match::dlx-012-step-3 — cpp-1+lsp-1+scala-1 then lsp-1+scala-1 | cpp-1 then lsp-1+scala-1 | cpp-1
+  intermittent: DLX013_req-ack-done.json::dlx-013-match::dlx-013-step-3 — cpp-1+lsp-1+scala-1 then lsp-1+scala-1 | cpp-1 then lsp-1+scala-1 | cpp-1
+  intermittent: DLX014_valid-ready-transfer.json::dlx-014-match::dlx-014-step-2 — cpp-1+lsp-1+scala-1 then lsp-1+scala-1 | cpp-1 then lsp-1+scala-1 | cpp-1
+  intermittent: DLX015_valid-before-ready.json::dlx-015-match::dlx-015-step-3 — cpp-1+lsp-1+scala-1 then lsp-1+scala-1 | cpp-1 then lsp-1+scala-1 | cpp-1
+  intermittent: DLX016_ready-before-valid.json::dlx-016-match::dlx-016-step-3 — cpp-1+lsp-1+scala-1 then lsp-1+scala-1 | cpp-1 then lsp-1+scala-1 | cpp-1
+  intermittent: DLX017_start-busy-done.json::dlx-017-match::dlx-017-step-4 — cpp-1+lsp-1+scala-1 then lsp-1+scala-1 | cpp-1 then lsp-1+scala-1 | cpp-1
+  intermittent: DLX018_start-done-no-busy.json::dlx-018-match::dlx-018-step-2 — cpp-1+lsp-1+scala-1 then lsp-1+scala-1 | cpp-1 then lsp-1+scala-1 | cpp-1
+  intermittent: DLX019_reset-assert-release.json::dlx-019-match::dlx-019-step-3 — cpp-1+lsp-1+scala-1 then lsp-1+scala-1 | cpp-1 then lsp-1+scala-1 | cpp-1
+  intermittent: DLX020_reset-sync-two-stage.json::dlx-020-match::dlx-020-step-3 — cpp-1+lsp-1+scala-1 then lsp-1+scala-1 | cpp-1 then lsp-1+scala-1 | cpp-1
+  intermittent: DLX021_enable-qualified-valid.json::dlx-021-match::dlx-021-step-2 — cpp-1+lsp-1+scala-1 then lsp-1+scala-1 | cpp-1 then lsp-1+scala-1 | cpp-1
+  intermittent: DLX022_enable-disable-cycle.json::dlx-022-match::dlx-022-step-3 — cpp-1+lsp-1+scala-1 then lsp-1+scala-1 | cpp-1 then lsp-1+scala-1 | cpp-1
+  intermittent: DLX023_clock-gate-request-grant.json::dlx-023-match::dlx-023-step-2 — cpp-1+lsp-1+scala-1 then lsp-1+scala-1 | cpp-1 then lsp-1+scala-1 | cpp-1
+  intermittent: DLX024_clock-gate-open-close.json::dlx-024-match::dlx-024-step-3 — cpp-1+lsp-1+scala-1 then lsp-1+scala-1 | cpp-1 then lsp-1+scala-1 | cpp-1
+  intermittent: DLX025_power-up-sequence.json::dlx-025-match::dlx-025-step-4 — cpp-1+lsp-1+scala-1 then lsp-1+scala-1 | cpp-1 then lsp-1+scala-1 | cpp-1
+  intermittent: DLX026_power-down-sequence.json::dlx-026-match::dlx-026-step-4 — cpp-1+lsp-1+scala-1 then lsp-1+scala-1 | cpp-1 then lsp-1+scala-1 | cpp-1
+  intermittent: DLX027_isolation-enable-before-powerdown.json::dlx-027-match::dlx-027-step-2 — cpp-1+lsp-1+scala-1 then lsp-1+scala-1 | cpp-1 then lsp-1+scala-1 | cpp-1
+  intermittent: DLX028_retention-save-restore.json::dlx-028-match::dlx-028-step-2 — cpp-1+lsp-1+scala-1 then lsp-1+scala-1 | cpp-1 then lsp-1+scala-1 | cpp-1
+  intermittent: DLX029_scan-shift-capture.json::dlx-029-match::dlx-029-step-3 — cpp-1+lsp-1+scala-1 then lsp-1+scala-1 | cpp-1 then lsp-1+scala-1 | cpp-1
+  intermittent: DLX030_scan-enable-deassert.json::dlx-030-match::dlx-030-step-3 — cpp-1+lsp-1+scala-1 then lsp-1+scala-1 | cpp-1 then lsp-1+scala-1 | cpp-1
+  intermittent: DLX031_jtag-select-capture-shift-update.json::dlx-031-match::dlx-031-step-4 — cpp-1+lsp-1+scala-1 then lsp-1+scala-1 | cpp-1 then lsp-1+scala-1 | cpp-1
+  intermittent: DLX032_interrupt-assert-clear.json::dlx-032-match::dlx-032-step-3 — cpp-1+lsp-1+scala-1 then lsp-1+scala-1 | cpp-1 then lsp-1+scala-1 | cpp-1
+  intermittent: DLX033_error-sticky-clear.json::dlx-033-match::dlx-033-step-3 — cpp-1+lsp-1+scala-1 then lsp-1+scala-1 | cpp-1 then lsp-1+scala-1 | cpp-1
+  intermittent: DLX034_watchdog-kick-window.json::dlx-034-match::dlx-034-step-2 — cpp-1+lsp-1+scala-1 then lsp-1+scala-1 | cpp-1 then lsp-1+scala-1 | cpp-1
+  intermittent: DLX035_watchdog-timeout.json::dlx-035-match::dlx-035-step-3 — cpp-1+lsp-1+scala-1 then lsp-1+scala-1 | cpp-1 then lsp-1+scala-1 | cpp-1
+  intermittent: DLX036_timeout-retry-success.json::dlx-036-match::dlx-036-step-3 — cpp-1+lsp-1+scala-1 then lsp-1+scala-1 | cpp-1 then lsp-1+scala-1 | cpp-1
+  intermittent: DLX037_fifo-empty-to-not-empty.json::dlx-037-match::dlx-037-step-2 — cpp-1+lsp-1+scala-1 then lsp-1+scala-1 | cpp-1 then lsp-1+scala-1 | cpp-1
+  intermittent: DLX038_fifo-almost-full-full.json::dlx-038-match::dlx-038-step-2 — cpp-1+lsp-1+scala-1 then lsp-1+scala-1 | cpp-1 then lsp-1+scala-1 | cpp-1
+  intermittent: DLX039_fifo-full-to-not-full.json::dlx-039-match::dlx-039-step-2 — cpp-1+lsp-1+scala-1 then lsp-1+scala-1 | cpp-1 then lsp-1+scala-1 | cpp-1
+  intermittent: DLX040_credit-decrement-increment.json::dlx-040-match::dlx-040-step-3 — cpp-1+lsp-1+scala-1 then lsp-1+scala-1 | cpp-1 then lsp-1+scala-1 | cpp-1
+  intermittent: DLX041_one-hot-grant.json::dlx-041-match::dlx-041-step-2 — cpp-1+lsp-1+scala-1 then lsp-1+scala-1 | cpp-1 then lsp-1+scala-1 | cpp-1
+  intermittent: DLX042_mutex-lock-unlock.json::dlx-042-match::dlx-042-step-3 — cpp-1+lsp-1+scala-1 then cpp-1 | lsp-1 | scala-1 then cpp-1 | lsp-1 | scala-1
+  intermittent: DLX043_arbiter-request-grant-release.json::dlx-043-match::dlx-043-step-3 — cpp-1+lsp-1 | scala-1 then cpp-1 | lsp-1 | scala-1 then cpp-1 | lsp-1 | scala-1
+  intermittent: DLX044_bus-address-data-valid.json::dlx-044-match::dlx-044-step-3 — cpp-1+lsp-1 | scala-1 then cpp-1 | lsp-1 | scala-1 then cpp-1 | lsp-1 | scala-1
+  intermittent: DLX045_bus-burst-last.json::dlx-045-match::dlx-045-step-3 — cpp-1+lsp-1 | scala-1 then cpp-1 | lsp-1 | scala-1 then cpp-1 | lsp-1 | scala-1
+  intermittent: DLX046_write-response.json::dlx-046-match::dlx-046-step-2 — cpp-1+lsp-1+scala-1 then cpp-1 | lsp-1 | scala-1 then cpp-1 | lsp-1 | scala-1
+  intermittent: DLX047_read-response.json::dlx-047-match::dlx-047-step-2 — cpp-1+lsp-1+scala-1 then cpp-1 | lsp-1 | scala-1 then cpp-1 | lsp-1 | scala-1
+  intermittent: DLX048_cdc-stable-two-sample.json::dlx-048-match::dlx-048-step-2 — cpp-1+lsp-1+scala-1 then cpp-1 | lsp-1 | scala-1 then cpp-1 | lsp-1 | scala-1
+  intermittent: DLX049_cdc-toggle-ack.json::dlx-049-match::dlx-049-step-2 — cpp-1+lsp-1+scala-1 then cpp-1 | lsp-1 | scala-1 then cpp-1 | lsp-1 | scala-1
+  intermittent: DLX050_metastability-settled.json::dlx-050-match::dlx-050-step-3 — cpp-1+lsp-1+scala-1 then cpp-1 | lsp-1 | scala-1 then cpp-1 | lsp-1 | scala-1
+  intermittent: DigitalLogicCoreInterconnect.json::digital-logic-core-domain-family-monitoring::digital-logic-core-domain-family-monitoring-state — cpp-1+lsp-1+scala-1 then cpp-1 | lsp-1 | scala-1 then cpp-1 | lsp-1 | scala-1
+  intermittent: DigitalLogicCoreInterconnect.json::digital-logic-core-domain-family-optimization::digital-logic-core-domain-family-optimization-state — cpp-1+lsp-1+scala-1 then cpp-1 | lsp-1 | scala-1 then cpp-1 | lsp-1 | scala-1
+  intermittent: DigitalLogicCoreInterconnect.json::digital-logic-core-domain-family-review::digital-logic-core-domain-family-review-state — cpp-1+lsp-1+scala-1 then cpp-1 | lsp-1 | scala-1 then cpp-1 | lsp-1 | scala-1
+  intermittent: DigitalLogicCoreInterconnect.json::digital-logic-core-domain-family-stable::digital-logic-core-domain-family-stable-state — cpp-1+lsp-1+scala-1 then cpp-1 | lsp-1 | scala-1 then cpp-1 | lsp-1 | scala-1
+  intermittent: DigitalLogicDlx001010Interconnect.json::dlx-001-010-domain-family-monitoring::dlx-001-010-domain-family-monitoring-state — cpp-1+lsp-1+scala-1 then cpp-1 | lsp-1 | scala-1 then cpp-1 | lsp-1 | scala-1
+  intermittent: DigitalLogicDlx001010Interconnect.json::dlx-001-010-domain-family-optimization::dlx-001-010-domain-family-optimization-state — cpp-1+lsp-1+scala-1 then cpp-1 | lsp-1 | scala-1 then cpp-1 | lsp-1 | scala-1
+  intermittent: DigitalLogicDlx001010Interconnect.json::dlx-001-010-domain-family-review::dlx-001-010-domain-family-review-state — cpp-1+lsp-1+scala-1 then cpp-1 | lsp-1 | scala-1 then cpp-1 | lsp-1 | scala-1
+  intermittent: DigitalLogicDlx001010Interconnect.json::dlx-001-010-domain-family-stable::dlx-001-010-domain-family-stable-state — cpp-1+lsp-1+scala-1 then cpp-1 | lsp-1 | scala-1 then cpp-1 | lsp-1 | scala-1
+  intermittent: DigitalLogicDlx011020Interconnect.json::dlx-011-020-domain-family-monitoring::dlx-011-020-domain-family-monitoring-state — cpp-1+lsp-1+scala-1 then cpp-1 | lsp-1 | scala-1 then cpp-1 | lsp-1 | scala-1
+  intermittent: DigitalLogicDlx011020Interconnect.json::dlx-011-020-domain-family-optimization::dlx-011-020-domain-family-optimization-state — cpp-1+lsp-1+scala-1 then cpp-1 | lsp-1 | scala-1 then cpp-1 | lsp-1 | scala-1
+  intermittent: DigitalLogicDlx011020Interconnect.json::dlx-011-020-domain-family-review::dlx-011-020-domain-family-review-state — cpp-1+lsp-1+scala-1 then cpp-1 | lsp-1 | scala-1 then cpp-1 | lsp-1 | scala-1
+  intermittent: DigitalLogicDlx011020Interconnect.json::dlx-011-020-domain-family-stable::dlx-011-020-domain-family-stable-state — cpp-1+lsp-1+scala-1 then cpp-1 | lsp-1 | scala-1 then cpp-1 | lsp-1 | scala-1
+  intermittent: DigitalLogicDlx021030Interconnect.json::dlx-021-030-domain-family-monitoring::dlx-021-030-domain-family-monitoring-state — cpp-1+scala-1 | lsp-1 then cpp-1 | lsp-1 | scala-1 then cpp-1 | lsp-1 | scala-1
+  intermittent: DigitalLogicDlx021030Interconnect.json::dlx-021-030-domain-family-optimization::dlx-021-030-domain-family-optimization-state — cpp-1+scala-1 | lsp-1 then cpp-1 | lsp-1 | scala-1 then cpp-1 | lsp-1 | scala-1
+  intermittent: DigitalLogicDlx021030Interconnect.json::dlx-021-030-domain-family-review::dlx-021-030-domain-family-review-state — cpp-1+scala-1 | lsp-1 then cpp-1 | lsp-1 | scala-1 then cpp-1 | lsp-1 | scala-1
+  intermittent: DigitalLogicDlx021030Interconnect.json::dlx-021-030-domain-family-stable::dlx-021-030-domain-family-stable-state — cpp-1+scala-1 | lsp-1 then cpp-1 | lsp-1 | scala-1 then cpp-1 | lsp-1 | scala-1
+  intermittent: DigitalLogicDlx031040Interconnect.json::dlx-031-040-domain-family-monitoring::dlx-031-040-domain-family-monitoring-state — cpp-1+lsp-1+scala-1 then cpp-1 | lsp-1 | scala-1 then cpp-1 | lsp-1 | scala-1
+  intermittent: DigitalLogicDlx031040Interconnect.json::dlx-031-040-domain-family-optimization::dlx-031-040-domain-family-optimization-state — cpp-1+lsp-1+scala-1 then cpp-1 | lsp-1 | scala-1 then cpp-1 | lsp-1 | scala-1
+  intermittent: DigitalLogicDlx031040Interconnect.json::dlx-031-040-domain-family-review::dlx-031-040-domain-family-review-state — cpp-1+lsp-1+scala-1 then cpp-1 | lsp-1 | scala-1 then cpp-1 | lsp-1 | scala-1
+  intermittent: DigitalLogicDlx031040Interconnect.json::dlx-031-040-domain-family-stable::dlx-031-040-domain-family-stable-state — cpp-1+lsp-1+scala-1 then cpp-1 | lsp-1 | scala-1 then cpp-1 | lsp-1 | scala-1
+  intermittent: DigitalLogicDlx041050Interconnect.json::dlx-041-050-domain-family-monitoring::dlx-041-050-domain-family-monitoring-state — cpp-1+lsp-1+scala-1 then cpp-1 | lsp-1 | scala-1 then cpp-1 | lsp-1 | scala-1
+  intermittent: DigitalLogicDlx041050Interconnect.json::dlx-041-050-domain-family-optimization::dlx-041-050-domain-family-optimization-state — cpp-1+lsp-1+scala-1 then cpp-1 | lsp-1 | scala-1 then cpp-1 | lsp-1 | scala-1
+  intermittent: DigitalLogicDlx041050Interconnect.json::dlx-041-050-domain-family-review::dlx-041-050-domain-family-review-state — cpp-1+lsp-1+scala-1 then cpp-1 | lsp-1 | scala-1 then cpp-1 | lsp-1 | scala-1
+  intermittent: DigitalLogicDlx041050Interconnect.json::dlx-041-050-domain-family-stable::dlx-041-050-domain-family-stable-state — cpp-1+lsp-1+scala-1 then cpp-1 | lsp-1 | scala-1 then cpp-1 | lsp-1 | scala-1
+  intermittent: KleeneStar.json::kleene-seq1::kleene-seq1-010 — cpp-1+lsp-1+scala-1 then cpp-1 | lsp-1 | scala-1 then cpp-1 | lsp-1 | scala-1
+  intermittent: KleeneStar.json::kleene-seq1::kleene-seq1-010 — lsp-1+scala-1 | cpp-1 then cpp-1 | lsp-1 | scala-1 then cpp-1 | lsp-1 | scala-1
+  intermittent: KleeneStar.json::kleene-seq2::kleene-seq2-001-final — lsp-1+scala-1 | cpp-1 then cpp-1 | lsp-1 | scala-1 then cpp-1 | lsp-1 | scala-1
+  intermittent: KleeneStar.json::kleene-seq2::kleene-seq2-001-final — lsp-1+scala-1 | cpp-1 then cpp-1 | lsp-1 | scala-1 then cpp-1 | lsp-1 | scala-1
+  intermittent: KleeneStar.json::kleene-seq2::kleene-seq2-001-final — lsp-1+scala-1 | cpp-1 then cpp-1 | lsp-1 | scala-1 then cpp-1 | lsp-1 | scala-1
+  intermittent: KleeneStar.json::kleene-seq2::kleene-seq2-001-final — lsp-1+scala-1 | cpp-1 then cpp-1 | lsp-1 | scala-1 then cpp-1 | lsp-1 | scala-1
+  intermittent: KleeneStar.json::kleene-seq2::kleene-seq2-001-final — lsp-1+scala-1 | cpp-1 then cpp-1 | lsp-1 | scala-1 then cpp-1 | lsp-1 | scala-1
+  intermittent: MultiStep.json::multi-step-seq1::ms-seq1-011 — cpp-1+lsp-1+scala-1 then cpp-1 | lsp-1 | scala-1 then cpp-1 | lsp-1 | scala-1
+  intermittent: MultiStep.json::multi-step-seq2::ms-seq2-111 — cpp-1+lsp-1+scala-1 then cpp-1 | lsp-1 | scala-1 then cpp-1 | lsp-1 | scala-1
+  intermittent: OpenClawCompletionE2E.json::openclaw-e2e-completion-accepted::openclaw-e2e-completion-accepted-vector — cpp-1+lsp-1 | scala-1 then cpp-1 | lsp-1 | scala-1 then cpp-1 | lsp-1 | scala-1
+  intermittent: OpenClawCompletionE2E.json::openclaw-e2e-dispatch-seed::openclaw-e2e-dispatch-seed-vector — cpp-1+lsp-1 | scala-1 then cpp-1 | lsp-1 | scala-1 then cpp-1 | lsp-1 | scala-1
+  intermittent: RS2.json::rs2-reset-sequence::rs2-reset-01 — cpp-1+lsp-1+scala-1 then cpp-1 | lsp-1 | scala-1 then cpp-1 | lsp-1 | scala-1
+  intermittent: RS2.json::rs2-set-sequence::rs2-set-10 — cpp-1+lsp-1+scala-1 then cpp-1 | lsp-1 | scala-1 then cpp-1 | lsp-1 | scala-1
+  intermittent: RSFlipFlop.json::rs-reset-sequence::rs-event-01 — cpp-1+scala-1 | lsp-1 then cpp-1 | lsp-1 | scala-1 then cpp-1 | lsp-1 | scala-1
+  intermittent: RSFlipFlop.json::rs-set-sequence::rs-event-10 — cpp-1+scala-1 | lsp-1 then cpp-1 | lsp-1 | scala-1 then cpp-1 | lsp-1 | scala-1
+  intermittent: RSRingLatchStageA.json::rsr-a-reset-sequence::rsr-a-event-01 — cpp-1+scala-1 | lsp-1 then cpp-1 | lsp-1 | scala-1 then cpp-1 | lsp-1 | scala-1
+  intermittent: RSRingLatchStageA.json::rsr-a-set-sequence::rsr-a-event-10 — cpp-1+scala-1 | lsp-1 then cpp-1 | lsp-1 | scala-1 then cpp-1 | lsp-1 | scala-1
+  intermittent: RSRingLatchStageB.json::rsr-b-reset-sequence::rsr-b-event-01 — cpp-1+scala-1 | lsp-1 then cpp-1 | lsp-1 | scala-1 then cpp-1 | lsp-1 | scala-1
+  intermittent: RSRingLatchStageB.json::rsr-b-set-sequence::rsr-b-event-10 — cpp-1+scala-1 | lsp-1 then cpp-1 | lsp-1 | scala-1 then cpp-1 | lsp-1 | scala-1

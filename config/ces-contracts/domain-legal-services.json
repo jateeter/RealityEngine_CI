@@ -1,119 +1,119 @@
 {
   "corpusFingerprint": {
     "algorithm": "sha256/relfile-sorted-v1",
-    "digest": "sha256:0db09a41bcda9e447410eccb14ed1988364cdb953d27c497f32e6cf91a4a5a2d",
+    "digest": "sha256:03115cb3bd8a0585e541d01c615b593ad5b624ecd7b2004999b51f808c446073",
     "machineCount": 110,
     "members": {
-      "domains/life-balance/LBL001_whole-person-intake-and-goals-psychiatric-history-intake.json": "1525ec9a0243767c9e7aac95f0037b4832eb9a4f3e46e5bc2f6afa1c2d71f426",
-      "domains/life-balance/LBL002_whole-person-intake-and-goals-lifestyle-baseline-interview.json": "9f00fff3987a5a2d307ca92e117566d7383245e88eb48da46aa37769ea9a4e5e",
-      "domains/life-balance/LBL003_whole-person-intake-and-goals-readiness-motivation-assessment.json": "4c6a0a0364302a39156bf607ac68b4cdba0bece07677533de3a3390d88314b3f",
-      "domains/life-balance/LBL004_whole-person-intake-and-goals-care-preference-alignment.json": "7f3639b34ea39b59da9f5965e5fac55fe43d1ec646148927236968d602ecafa8",
-      "domains/life-balance/LBL005_whole-person-intake-and-goals-risk-safety-review.json": "6976f7dff9575f0fb32aa313352647f7a8bd0c864fb84bf7d0c7256bed3d951f",
-      "domains/life-balance/LBL006_whole-person-intake-and-goals-adolescent-guardian-alignment.json": "1d5c87eef0cfc36f020d53c8a332610c197e01c89f1a324338e46c2ca43412e0",
-      "domains/life-balance/LBL007_whole-person-intake-and-goals-functional-impairment-map.json": "694a6be65bb22103722751122b40049cfb423a0a1426b5d38f72fcb44c8d5066",
-      "domains/life-balance/LBL008_whole-person-intake-and-goals-medication-lifestyle-interaction-intake.json": "8dcee03c8c57e534140d4c71c4bb7d979359ead88cd17bed01e2648d681b9fbd",
-      "domains/life-balance/LBL009_whole-person-intake-and-goals-initial-goal-contract.json": "0954938b8979b37dec9d48e8886b33b39abe819be1f8445a269ed9c993f1a721",
-      "domains/life-balance/LBL010_whole-person-intake-and-goals-intake-executive-summary.json": "86f6aeee34110084b4f5c543b6ff7eadb43dbb6033acf3538b9e487f4d3aa511",
-      "domains/life-balance/LBL011_nutrition-and-metabolic-health-meal-pattern-stability.json": "bcf89201923340b0b73dddb51fb638eb725a161d8a56e9fad6b79b2153c53c78",
-      "domains/life-balance/LBL012_nutrition-and-metabolic-health-carbohydrate-tolerance-watch.json": "b48b3543f5c5a0bb9ae3f11a4a42fb7911e39729b88b70616624b7c157fd9db6",
-      "domains/life-balance/LBL013_nutrition-and-metabolic-health-protein-sufficiency-monitor.json": "07a1109caf8966b0614b83afb32de16005177e9074c48f2a3b4e10759b57a116",
-      "domains/life-balance/LBL014_nutrition-and-metabolic-health-food-mood-journal-review.json": "e15b5b997c758cfb58cb6cad25c8cbcaef4e21d58e61b7f0a622d612cd380b46",
-      "domains/life-balance/LBL015_nutrition-and-metabolic-health-hydration-electrolyte-monitor.json": "b9cfb2a4867b59b0d5269afd01503525d1454e7778fe5b1773b77e8024fdb18e",
-      "domains/life-balance/LBL016_nutrition-and-metabolic-health-weight-metabolic-trend.json": "5e7f2f1b0be5947efb4da3f4efd169f9c168c61c7c430f330fdf1c363b4c23d1",
-      "domains/life-balance/LBL017_nutrition-and-metabolic-health-micronutrient-risk-screen.json": "7b99bc99bfcd66779bf5532216d34fece6735ba9058d8f9221ca28fcfa35c0f5",
-      "domains/life-balance/LBL018_nutrition-and-metabolic-health-family-food-environment.json": "f9d413b47f4f35a8726fc3a09442341cc2ae1c5a6b2b8f43a743166a932b8b8a",
-      "domains/life-balance/LBL019_nutrition-and-metabolic-health-nutrition-plan-adherence.json": "0d7b36e0c157a2ae6bd3a52b72c127fd7198d49182ade7a43202bc29f4d148e4",
-      "domains/life-balance/LBL020_nutrition-and-metabolic-health-metabolic-nutrition-executive.json": "a0ac1a56192b8b65cd74c4de848b8883afe98900f69491fcfeb4d4c5add4437f",
-      "domains/life-balance/LBL021_sleep-and-circadian-rhythm-sleep-schedule-regularity.json": "4004891521d64a266e58b3e6d69b8b2ddad709351d01106d344ca28b5aed3c18",
-      "domains/life-balance/LBL022_sleep-and-circadian-rhythm-insomnia-trigger-review.json": "4de61f378827d5ca7224c9da0b38b28f76724e24da5720134f69924a90ecf53e",
-      "domains/life-balance/LBL023_sleep-and-circadian-rhythm-restorative-sleep-quality.json": "731ab3453a1559ef4c5a078bcc8e04572893d44bc655b5cda82ec348fe34a71b",
-      "domains/life-balance/LBL024_sleep-and-circadian-rhythm-sleep-apnea-risk-screen.json": "e7919dd7f13821f86c06ba8f105e6ccf6466cdf5645f05f349050c52959ee5a0",
-      "domains/life-balance/LBL025_sleep-and-circadian-rhythm-light-exposure-timing.json": "6eddb8dca8dbd8a7aac20880161dadce6f5a6ccdf5b428644f534b182516c420",
-      "domains/life-balance/LBL026_sleep-and-circadian-rhythm-caffeine-stimulant-timing.json": "1d9faa3f048078e2b9e402b01d3120778af05d1973b5a6313943bc3e11ae663a",
-      "domains/life-balance/LBL027_sleep-and-circadian-rhythm-adolescent-sleep-school-fit.json": "ef00fdc6133a2db6efe013cf46d0a76788fa5640af0eaae95ff0e6535bc8e463",
-      "domains/life-balance/LBL028_sleep-and-circadian-rhythm-shift-work-sleep-protection.json": "f96534acf02608d3426ae571f41b118b5ff5151682effc6e91b8b89a40ea5a8e",
-      "domains/life-balance/LBL029_sleep-and-circadian-rhythm-sleep-plan-adherence.json": "57dd5f9c8b545d8109b3d8e018a8cd896b22e39df92db1064a9a454ee4505d90",
-      "domains/life-balance/LBL030_sleep-and-circadian-rhythm-sleep-executive-stabilizer.json": "465ab47511cfbad3e0186073f0621bf0bcc706297aa1013015eee25b96e20104",
-      "domains/life-balance/LBL031_movement-and-physical-health-movement-baseline.json": "354abe7165e8c61751e3203dce3c6f3689cbab4d3261601ecfd6b8be74673a1b",
-      "domains/life-balance/LBL032_movement-and-physical-health-strength-training-routine.json": "f859325fc456dd18f9ce68983900a1d18785038fa46677c93edf125d888220f3",
-      "domains/life-balance/LBL033_movement-and-physical-health-zone-two-activity-plan.json": "283b1b9f2fbb5ab52671a228846ba006e2b5ceb72e0cd317fa0bc72583e5abc2",
-      "domains/life-balance/LBL034_movement-and-physical-health-outdoor-activity-exposure.json": "b98bca05ab03cfa66ab68eef71920847b10b1d7ec9f44a6ec275530b11b83e06",
-      "domains/life-balance/LBL035_movement-and-physical-health-mobility-pain-constraint.json": "3a28f944b759ccb65f6fa9f5a5b476fcbc704fba077cdac464e06eea79fb7844",
-      "domains/life-balance/LBL036_movement-and-physical-health-adolescent-sports-balance.json": "05506ce3538e3db76017a23f9e6da4d4f3dd3a5fa56456127a3639b938c95589",
-      "domains/life-balance/LBL037_movement-and-physical-health-medication-movement-effects.json": "f8b9a130209d63938e0c16f8297095a7b4dc51d74e1784cfc2d53b9331a34d1d",
-      "domains/life-balance/LBL038_movement-and-physical-health-exercise-anxiety-depression-response.json": "34869038c4fc22f472c7516de82e1586da19a2443e15be8a74ed0b4e8ce05fd1",
-      "domains/life-balance/LBL039_movement-and-physical-health-movement-habit-adherence.json": "8b904b5e90d1a6a4b4dc28caa3c6094115e8c9f229caa80fabe0f70c394b5dd7",
-      "domains/life-balance/LBL040_movement-and-physical-health-movement-executive-optimizer.json": "5e591b7ef40c20e5d90417ee892589b21a709b81f4aedbbd4f4eb6d82d7aef6e",
-      "domains/life-balance/LBL041_stress-resilience-and-psychotherapy-stress-load-inventory.json": "df97be02015532204a7d30e17f878c806ff6ff4e6c1feb06e213a6ce81825fa9",
-      "domains/life-balance/LBL042_stress-resilience-and-psychotherapy-breathing-regulation-practice.json": "534f4577c02c5b94e9ce9c284246faab7a10a7377f6d82765a142374ab47a4db",
-      "domains/life-balance/LBL043_stress-resilience-and-psychotherapy-cognitive-pattern-review.json": "6af02ca7b663fbcb58ecf56acc3e3076b3a3d24d361b8a53cf9c190cf43dd39d",
-      "domains/life-balance/LBL044_stress-resilience-and-psychotherapy-emotion-regulation-skills.json": "c5494c45bd8c2ee9b3d2d93c4d30c2a118b0a83a5e6550319dc12150443217fb",
-      "domains/life-balance/LBL045_stress-resilience-and-psychotherapy-mindfulness-attention-practice.json": "544c43d579bd0601b1ef949c9b1b7d9448ed3a81d2be3b2860c7bbf0ee8598e6",
-      "domains/life-balance/LBL046_stress-resilience-and-psychotherapy-therapy-homework-completion.json": "9819aa806bab270dfd761c1dc5985d570eb9352e347dff5401cc209266e752f0",
-      "domains/life-balance/LBL047_stress-resilience-and-psychotherapy-resilience-protective-factors.json": "ed1b245f245f83412f93c0f5027db3ce1d59e98cea1ad41bb38c2a6a4ec27b16",
-      "domains/life-balance/LBL048_stress-resilience-and-psychotherapy-trauma-sensitive-pacing.json": "2648dd152c4b3d207ae22302e256d8f7e103b13603b0cd49d04d1c52f01faafb",
-      "domains/life-balance/LBL049_stress-resilience-and-psychotherapy-stress-recovery-rhythm.json": "d8b9a88d8a7abaf56ad53f88e62cc98baf33de50246d4ab70dc5b36b96b2d5a8",
-      "domains/life-balance/LBL050_stress-resilience-and-psychotherapy-resilience-executive-summary.json": "5a1b564b62c102ed93522e88b316d8f394b49376af0e60f64c3bc5f58041cc37",
-      "domains/life-balance/LBL051_medication-and-psychiatric-care-medication-response-tracker.json": "c3cee821694a71491d01e1b98582b1dd2db0b6ee040ad2e9fa572bee882a415a",
-      "domains/life-balance/LBL052_medication-and-psychiatric-care-adverse-effect-watch.json": "14a115dd151133a898a3eff59d297ff554cc59eccc7964bab0ae19a6fd7e210d",
-      "domains/life-balance/LBL053_medication-and-psychiatric-care-medication-nutrition-interaction.json": "87733a329937963b374df8d900cd3b8ebcd469339b8ae07cddebc48190c39db8",
-      "domains/life-balance/LBL054_medication-and-psychiatric-care-medication-sleep-interaction.json": "90d4cfeaf47f587285d6fb0bc89cfe72f7ab077a48050432af0eaefa7be497c6",
-      "domains/life-balance/LBL055_medication-and-psychiatric-care-stimulant-appetite-sleep-balance.json": "1342e7c2083ef12c17d80dbf54a5d1168ead82bf11c57af164539edd10169c86",
-      "domains/life-balance/LBL056_medication-and-psychiatric-care-mood-stabilization-monitor.json": "1d51076e1ce8009c132bb0b97d07a9c8e38fd6b978a0dd637a52d63f9107e10d",
-      "domains/life-balance/LBL057_medication-and-psychiatric-care-anxiety-treatment-response.json": "5460a066effc019a368a0d7ce211824eb926395693bfd6ba37ee55d90ed4af50",
-      "domains/life-balance/LBL058_medication-and-psychiatric-care-depression-recovery-response.json": "6786dfd9367740c07085658b39aa5d44af95b369fc7cf2474ad4bf0eb2b9e408",
-      "domains/life-balance/LBL059_medication-and-psychiatric-care-care-visit-preparation.json": "30bdf39a209ab90de90bfb6601e9db1f513f532bf865818a54379671ed3b93ae",
-      "domains/life-balance/LBL060_medication-and-psychiatric-care-psychiatric-care-executive.json": "b33ea20607eb5e2428e5ea7259651f9439dbaa8489606f906cce1457905cc8f5",
-      "domains/life-balance/LBL061_adolescent-family-and-school-school-function-monitor.json": "33dd982ff87def6e9c52005c4106a9d8a97f1bad682f8e509d199200ed3a4ae3",
-      "domains/life-balance/LBL062_adolescent-family-and-school-family-routine-alignment.json": "f96a195a822b05ef686287588b1488fcbcb7f0620a4c1115f332034a19ee7cf1",
-      "domains/life-balance/LBL063_adolescent-family-and-school-device-use-boundary.json": "e5078a844daaf50106dbc77bf8ec2084881ed92cf1dc765af5e9251f17ef8c6b",
-      "domains/life-balance/LBL064_adolescent-family-and-school-peer-connection-monitor.json": "41fb7b5f0b98383421da36b16a68e1e9000be00f296aae4cdfcd7d32fbd1b65a",
-      "domains/life-balance/LBL065_adolescent-family-and-school-growth-development-watch.json": "05f326db95d0fab9615bdc13aea78f09d32e9e03cfdc149c358866318a7f3ec9",
-      "domains/life-balance/LBL066_adolescent-family-and-school-parent-coaching-plan.json": "f5986f0013e91e08372460cf28d30d3b155b7fbfc2e75d1e2b0a7e47238ebee2",
-      "domains/life-balance/LBL067_adolescent-family-and-school-school-accommodation-tracker.json": "f1732c477d4899e1aa840e095ebf296e2c11c4559eacc84b7c2d7176195474ee",
-      "domains/life-balance/LBL068_adolescent-family-and-school-sports-performance-balance.json": "301cf2b446f4e204c9dae10a1383874f2f527fcf5ccf0063c0a285a9a73bdfeb",
-      "domains/life-balance/LBL069_adolescent-family-and-school-adolescent-safety-signal.json": "f46e861f4db5b603c72cee07f76e5722a00baaf1e0bb5f6f92e10a4e96a4a977",
-      "domains/life-balance/LBL070_adolescent-family-and-school-youth-family-executive.json": "599ea2dc4d6178af9ac4b8fd97c5cbcdcb0b2d99c79e1caf860114cc494c7133",
-      "domains/life-balance/LBL071_testing-personalization-and-monitoring-cgm-data-intake.json": "8e41b3bc4c76736c840cc61ab7d5e172db7afbc78763acb8cefb9fbdad4bbc04",
-      "domains/life-balance/LBL072_testing-personalization-and-monitoring-cgm-mood-correlation.json": "6888e07ddebfce3ac6d66b3a5774147bb639095d34e02039dae11597c6936e95",
-      "domains/life-balance/LBL073_testing-personalization-and-monitoring-genetics-result-intake.json": "3297dd128352cfd74c623d6d697a2cbd143c63a8ef71eeb16b06dd5358e2a075",
-      "domains/life-balance/LBL074_testing-personalization-and-monitoring-temperament-profile-review.json": "08cd59e2ad85567545b0240cfdd9222b6dd073e4d2947fa6e43fe2b984e30bfd",
-      "domains/life-balance/LBL075_testing-personalization-and-monitoring-lab-follow-up-queue.json": "d0711fc4c13258deddfcc8533510615661f0f08464781bcf469c156f169760d5",
-      "domains/life-balance/LBL076_testing-personalization-and-monitoring-wearable-sleep-activity-intake.json": "8a1467e2dd6588b2ab456d65ad5dcca5c23d833cfddcc5e057e34c856366aa56",
-      "domains/life-balance/LBL077_testing-personalization-and-monitoring-patient-reported-outcome-scores.json": "7d7196130a09efad25c5fe7727dcba9d4a06042fd7b0f81e5b922d3ce1c5a930",
-      "domains/life-balance/LBL078_testing-personalization-and-monitoring-data-consent-privacy-check.json": "93534f4608292742f3e9d5d40b6bdbcce01251f8e64e3a4f678781d3a9c9ffc3",
-      "domains/life-balance/LBL079_testing-personalization-and-monitoring-monitoring-data-quality.json": "b8fb9a3cbfa1c80b4aa94764f1260d0cfe1a4e36d3d4fdc7cae97a53a81fdd41",
-      "domains/life-balance/LBL080_testing-personalization-and-monitoring-personalization-executive.json": "0cd3095b7361dbca2fda9cd1ac195cdde6f159826e3c7c8cafc4562a1083d40f",
-      "domains/life-balance/LBL081_social-connection-and-harm-reduction-connection-baseline.json": "f4036a1b9f24540668a44106fdee8e53053c28c9bab94d15807bd7969bf1f4ed",
-      "domains/life-balance/LBL082_social-connection-and-harm-reduction-relationship-stress-monitor.json": "a85ba479dff70675fc48bd90bb4b249fb648930398184e82f8878e553d9de759",
-      "domains/life-balance/LBL083_social-connection-and-harm-reduction-substance-exposure-screen.json": "5312dd6ccaa9de447ffd02abf544499a8a6d254987346b510b06c89c5841ce5b",
-      "domains/life-balance/LBL084_social-connection-and-harm-reduction-harm-reduction-plan.json": "1ef97b55b7c7f6ed8eac3ae94c95901877d7b568609724a7367d8ac88d5d5d9b",
-      "domains/life-balance/LBL085_social-connection-and-harm-reduction-community-activity-engagement.json": "3d1216766200fc55167df2ac7a091f4c77826c5b93c37464cef8337cc211744e",
-      "domains/life-balance/LBL086_social-connection-and-harm-reduction-digital-social-load.json": "f06b2aeb7ed2996abbe921dd22408f548ca33ebee84bf360de0d7453bf74d651",
-      "domains/life-balance/LBL087_social-connection-and-harm-reduction-care-team-communication.json": "a2105910dba2597de1298e15f2c58fcf8fdac3fe43316cb83e640bf0a973805f",
-      "domains/life-balance/LBL088_social-connection-and-harm-reduction-social-rhythm-stabilizer.json": "02e5eaed295b598bdaa059cf04eb3b3ba6e609b3306b0edf98cd6c4d8db70aa4",
-      "domains/life-balance/LBL089_social-connection-and-harm-reduction-relapse-prevention-support.json": "2d8b76cb7c5b2c0dea3dd60c19b602b193af8cacdfe24cb0153310041af632bb",
-      "domains/life-balance/LBL090_social-connection-and-harm-reduction-connection-executive.json": "b254249ebd371d67e54cac184425dc31be4bcbd355f94d30cb0108923bfd83ae",
-      "domains/life-balance/LBL091_projection-automation-and-outcomes-weekly-balance-projection.json": "d281a3b250bec5c26661ae945dbac9c82c15cf45606cb5f099d091b29ef40662",
-      "domains/life-balance/LBL092_projection-automation-and-outcomes-risk-drift-forecaster.json": "135799a413719105e567b5cb4cd21b073d60ec04103ef13b7b59484e99d21bb0",
-      "domains/life-balance/LBL093_projection-automation-and-outcomes-plan-adjustment-dispatcher.json": "704b4541460390a7af214e333a85af14ba6907565468c654e0d018a9d92f90f8",
-      "domains/life-balance/LBL094_projection-automation-and-outcomes-care-team-escalation-router.json": "4947c61bdb8ee68eb46689789dea02ecf9c8d26a8cdd14988828f3758a52fe35",
-      "domains/life-balance/LBL095_projection-automation-and-outcomes-habit-automation-scheduler.json": "7381ded6c77c082dd57c17c3eec9f576cd63f2cb406c53da2a2d663ac62f0f1c",
-      "domains/life-balance/LBL096_projection-automation-and-outcomes-metabolic-mood-scenario-e2e.json": "44b044a39d3069df27cb1bd1f810c9c48e69716fc39c0ab623cf2d999ccdd254",
-      "domains/life-balance/LBL097_projection-automation-and-outcomes-adolescent-sleep-school-e2e.json": "def25b3a1f6c0a0a8e66654a743ac57ce380eb72972dd29f724ee7a7938dcbd7",
-      "domains/life-balance/LBL098_projection-automation-and-outcomes-medication-lifestyle-e2e.json": "69d533e7d3bb50086b31b790238aff3d9fdb88b4396da8967a43f75ab343df44",
-      "domains/life-balance/LBL099_projection-automation-and-outcomes-stress-connection-e2e.json": "e771527421feb73789ace8fc92fc316da0f2065c288bf5080f8d72f7583a7e0e",
-      "domains/life-balance/LBL100_projection-automation-and-outcomes-life-balance-command-center.json": "86734ef5c744ffb2813a61d895577eaec43216688390d1fed0eee367ee1518cb",
-      "domains/life-balance/LifeBalanceAdolescentFamilySchoolInterconnect.json": "56e367aeb7839af33eeb53f233cb27bd6b43f2613a6f2f6c6230c5e5c7a5c65d",
-      "domains/life-balance/LifeBalanceMedicationPsychiatricCareInterconnect.json": "597626e343a652465882b9c119f6f359347cd829853406ad5260b68be38f18e7",
-      "domains/life-balance/LifeBalanceMovementPhysicalHealthInterconnect.json": "aa28186fa1cfb656ade7ea1ea60e109b49a15438f1fe22838de99925ed1b7d43",
-      "domains/life-balance/LifeBalanceNutritionMetabolicHealthInterconnect.json": "b6184bc7638d3a4b4d66b1a09312c2f54a7ccb51b3f192ccaa580f91b1a5ec6c",
-      "domains/life-balance/LifeBalanceProjectionAutomationOutcomesInterconnect.json": "5f573e2a812463508a5de700abfdea63fa21e0554cb57315093c8adbf35b8aa9",
-      "domains/life-balance/LifeBalanceSleepCircadianRhythmInterconnect.json": "b4a89d7e263863e41db47e41b44780352e436acc2c92ba2b815cb9a9c7cc5a82",
-      "domains/life-balance/LifeBalanceSocialConnectionHarmReductionInterconnect.json": "f878d505f567eda7590143c9e99963b855f187bb869329f04b63e29ed45e31b0",
-      "domains/life-balance/LifeBalanceStressResiliencePsychotherapyInterconnect.json": "e7cbec5d5a30893ef9b216fd1eb7b3394971e7e153ecac736d0b6ee266ce74f3",
-      "domains/life-balance/LifeBalanceTestingPersonalizationMonitoringInterconnect.json": "eace23408900f572d86964baa3da956e8e64dc4288ad42beaf5fd2aa46745a8a",
-      "domains/life-balance/LifeBalanceWholePersonIntakeGoalsInterconnect.json": "ea8ce457cf3ad71039d767b4d72bbdcd8edc65f395b538c3120f798e0e996536"
+      "domains/legal-services/LSX001_provisional-patent-filing-invention-intake.json": "7c3792c912a0cfff77729f9ed786729016a4c1b128bf1a6233b6c9db2026e20f",
+      "domains/legal-services/LSX002_provisional-patent-filing-inventor-contribution-review.json": "3295c574f0d351f0ef2f2e8a631d07c4e513f288c00475e54e3b1f7a6e9b532b",
+      "domains/legal-services/LSX003_provisional-patent-filing-ownership-and-assignment-readiness.json": "a6806dd2e803e9d6e9d09781fc7c6a73e1aed98f0f8f9930183999ccde8578ef",
+      "domains/legal-services/LSX004_provisional-patent-filing-public-disclosure-bar-check.json": "a12996002e34f609b1871f698c45572f5dc02f40d8faab52080721074309692a",
+      "domains/legal-services/LSX005_provisional-patent-filing-prior-art-search-triage.json": "209367b6e58cec81ad7244297535cb4dbbc02a6d6bf82527722a78299958ad32",
+      "domains/legal-services/LSX006_provisional-patent-filing-specification-support-builder.json": "fbafde1ff079f943a72e5d9b1381c125ae6909051290da70b49fd1e7254bcbbc",
+      "domains/legal-services/LSX007_provisional-patent-filing-drawing-and-figure-readiness.json": "33bf1840dcf2304f124aa3a0c19e5629c9c7fdf6807fd96ff5ef8a8a2ba763f3",
+      "domains/legal-services/LSX008_provisional-patent-filing-claim-strategy-placeholder.json": "5fe6ce40e781a84e051e33f67d2486333324fb19db28f5b89ce753e3a4ec6835",
+      "domains/legal-services/LSX009_provisional-patent-filing-filing-package-assembly.json": "6e96814b6b37b686a3cfb545b613ca5615bfd854493eb0d46227c45a9936dcd4",
+      "domains/legal-services/LSX010_provisional-patent-filing-twelve-month-conversion-docket.json": "0d403124fd51e97dec95545dd5691855e6f5f2f7e7e3bcbf87a35f54c4ccabbd",
+      "domains/legal-services/LSX011_trademark-workflow-brand-clearance-intake.json": "e5b6b07fe5e90c628bba0611846c675ff2f69e99998593722483f73c4b8277ee",
+      "domains/legal-services/LSX012_trademark-workflow-distinctiveness-screening.json": "92099c4c39b81cb220b2cb09f7fddca0f41239a5a49dc09e21f377df85606904",
+      "domains/legal-services/LSX013_trademark-workflow-knockout-search-review.json": "e56445cf6bf4d1bb9db8602d375dee79871aa68a5a4712024b72f9b9d823a5c2",
+      "domains/legal-services/LSX014_trademark-workflow-goods-services-classification.json": "410be25d1ef89a76723e257ab8f5e45f228fb5842a0503021fe1bb4061474fd8",
+      "domains/legal-services/LSX015_trademark-workflow-specimen-evidence-readiness.json": "2ac5c273c5cbe4c0e6a69b8b7cdbf35a5c640a042e4fca1a64867394c64ee1ab",
+      "domains/legal-services/LSX016_trademark-workflow-filing-basis-selection.json": "d579eee8463d2a1f3934e59050ddf62c2181e25a05396534287cd8568dc3af33",
+      "domains/legal-services/LSX017_trademark-workflow-owner-identity-verification.json": "a85862738c9bd5d4b82ad912c074bf9eb4cc3527ae72d87f7b598803c07f7bb1",
+      "domains/legal-services/LSX018_trademark-workflow-trademark-center-filing-packet.json": "cec96c25278ae995d4d22162965241ce8e9e08eb5f026d9c58295f6597059580",
+      "domains/legal-services/LSX019_trademark-workflow-office-action-response-docket.json": "170f6c483d18166143c236ba699fdd140d29277e0f14b651ab8ce8125c23317f",
+      "domains/legal-services/LSX020_trademark-workflow-post-registration-maintenance.json": "34681f53dce7b974accff28956a1c397d0d5264a58ef58b348255a38264116f8",
+      "domains/legal-services/LSX021_copyright-workflow-work-type-classification.json": "b9cf22309ebac40e353cb7d2e6904e19952aa2858a348e049bfe29ae8d80d7a8",
+      "domains/legal-services/LSX022_copyright-workflow-authorship-and-work-made-for-hire.json": "8d27786a23fdf47de233dc6e8b8e4e55e855f2d340f874934ccda5996284b91c",
+      "domains/legal-services/LSX023_copyright-workflow-publication-status-review.json": "320f858831d22a21baafac6c4747bd2304c18c7f3fd4116f4df3a03742cd1101",
+      "domains/legal-services/LSX024_copyright-workflow-deposit-material-preparation.json": "5b90694a45ef9d1412a577645bc35ebf60c4240ec3cdf666535d124be2c84b19",
+      "domains/legal-services/LSX025_copyright-workflow-software-source-code-deposit.json": "2a3147fa978645b04da26b3668f7cbbc92af49aefe694bf34009f4c14e9809cc",
+      "domains/legal-services/LSX026_copyright-workflow-group-registration-eligibility.json": "d9cc75377f1cc312c2862712710c41f42661126c2b2631822e2010ba18b89d2a",
+      "domains/legal-services/LSX027_copyright-workflow-preregistration-eligibility.json": "5386106cd5244c5b34d431a1188f11d9a801805a2d7b78e3db4650b42c4a319c",
+      "domains/legal-services/LSX028_copyright-workflow-eco-application-assembly.json": "28840e21eb0ba974b3eb18204aa4e83d25d71356826f488ef986e9922a465680",
+      "domains/legal-services/LSX029_copyright-workflow-certificate-and-record-docket.json": "c9ae7bca04a039c6787a08b79225b5a0c4f58eb1af62d52f35761890dda6a375",
+      "domains/legal-services/LSX030_copyright-workflow-recordation-and-transfer.json": "61926246c7e0b1e68d81debde543b7cb2c5dcf5c73737509a21b23114cb2c126",
+      "domains/legal-services/LSX031_productization-ip-governance-product-ip-map.json": "1553936447f8f9bde574184b933220dcd9d0fdde347cda7c4d5c8a70b72eae42",
+      "domains/legal-services/LSX032_productization-ip-governance-launch-clearance-gate.json": "a514449728c590c0b4ac2967ee35e1f2fae59807ec74b860befc6394ff3da7ea",
+      "domains/legal-services/LSX033_productization-ip-governance-contractor-contributor-controls.json": "87d93f0b5f3caeb1152dee4a3b26a74046a456ff4b5e7a172975454e3341401a",
+      "domains/legal-services/LSX034_productization-ip-governance-open-source-compliance.json": "755a10547344ecfe5137e35b39bb2d3d183b534c83ea0552875e69207c56200f",
+      "domains/legal-services/LSX035_productization-ip-governance-trade-secret-boundary.json": "387c5a9abb20de551b9c9f9425b259669d90fb147febf312ff7559bbdc78f62c",
+      "domains/legal-services/LSX036_productization-ip-governance-patent-marking-readiness.json": "c74acb295015d7fc68417a6cd55e755146a7011fdce339534bffc81f55fdb299",
+      "domains/legal-services/LSX037_productization-ip-governance-brand-usage-governance.json": "eac4bba82e5a6559f66d73f20c9e8cab74d1fc4c804f94a65b5f84490fe12e98",
+      "domains/legal-services/LSX038_productization-ip-governance-marketing-claims-review.json": "84047fb5eef121fd36c7ea6831727c1422f157a0df40a2153b86de99f13eef4b",
+      "domains/legal-services/LSX039_productization-ip-governance-licensing-monetization-intake.json": "198e78f821176d33da55b23fa897ce81f8c6abee226b4faaa0c75f7a340f7fb2",
+      "domains/legal-services/LSX040_productization-ip-governance-enforcement-watchlist.json": "203ad553e27cb656ac561fbabbfc523ec1139f1a71c36f8968c911cd7c64f725",
+      "domains/legal-services/LSX041_portfolio-operations-matter-intake-triage.json": "4638581ecd0b339ce883f03311a399fac0df0dc533b9514748a46b7bef41dcd3",
+      "domains/legal-services/LSX042_portfolio-operations-conflict-check-gate.json": "7eaa5a003d570ceccf84c3c80c368bf85f2b380cdfcbef9bfa2ba9455d335598",
+      "domains/legal-services/LSX043_portfolio-operations-engagement-scope-control.json": "5854b0537ae18f0054a7c6e32b21343189b0bda9547d0f5997782f4d350d84de",
+      "domains/legal-services/LSX044_portfolio-operations-docket-integrity-monitor.json": "fe67f65863149e7d9b252633616734243146cd8b4ff6899be29f80cb83587af8",
+      "domains/legal-services/LSX045_portfolio-operations-document-version-control.json": "165f3fbfcf175060b36cbbab3325b32406e431fbb099b16d120479ba01da331f",
+      "domains/legal-services/LSX046_portfolio-operations-client-decision-packet.json": "40011ab8a6d71938e23f4df3a6a323b6c4f7e67117f57bee6256fefe38791d62",
+      "domains/legal-services/LSX047_portfolio-operations-fee-budget-forecast.json": "ad650a118c8fde814c7c16ea1cb25b12ea174a75cfc8038450ee30737c158d9d",
+      "domains/legal-services/LSX048_portfolio-operations-foreign-rights-coordination.json": "f8b3476a238b3268b4dc689d15ba7995fceb4a5ccad2c2b6dd21c3695f25d0c0",
+      "domains/legal-services/LSX049_portfolio-operations-evidence-preservation-vault.json": "c4571803aba767017f629bbd91189d1b5b8900c5e9eaf4c8d680ee27c51b13dd",
+      "domains/legal-services/LSX050_portfolio-operations-portfolio-executive-summary.json": "fd5aedc11e1a2b1ebb8698edf06e8492d2b0fbf6a034a37a28b99e4ecc1683b4",
+      "domains/legal-services/LSX051_ai-assisted-legal-operations-disclosure-completeness-scorer.json": "dac7ccee633c551975143aee9cc9edadc2b02746dff7063757dab9193dc6b463",
+      "domains/legal-services/LSX052_ai-assisted-legal-operations-prior-art-search-agent-dispatcher.json": "bc6d28c9f4e3b0ac5d658b4ddb27630f97cba3950ce52cbff8bd35f49ec54ec6",
+      "domains/legal-services/LSX053_ai-assisted-legal-operations-drafting-checklist-agent.json": "33a71efb2f939c603d86f45218ee2451616955884ec526c07e9b2950212c1fc3",
+      "domains/legal-services/LSX054_ai-assisted-legal-operations-risk-memo-synthesizer.json": "c8026a3f5cbf83af0d96d5ead500153cf6f877cbb805f39f45f56f300b536553",
+      "domains/legal-services/LSX055_ai-assisted-legal-operations-deadline-projection-agent.json": "23bef808d04f8218902c95fdae155374c986f06d2edf9deef0742a998725ebd1",
+      "domains/legal-services/LSX056_ai-assisted-legal-operations-client-intake-chat-guardrail.json": "fe888e8246b98d368fa0ae73d58e457a55102a504fd038ac360ab377b266a233",
+      "domains/legal-services/LSX057_ai-assisted-legal-operations-artifact-classification-agent.json": "256087a722f197b7b9cd43106fb7e9ef410808a0701ef238066632fa3ac012d5",
+      "domains/legal-services/LSX058_ai-assisted-legal-operations-filing-portal-readiness-agent.json": "4fc0322cd3af9deeffeb495dd5c1b920b86b6a7d0ba33ae4d71b053ce6f8e74d",
+      "domains/legal-services/LSX059_ai-assisted-legal-operations-office-action-triage-agent.json": "7be2d61e7ad3e9c401131042d3c435f8449931ee59b8b2013d3a5f1ede7e3bfe",
+      "domains/legal-services/LSX060_ai-assisted-legal-operations-portfolio-learning-loop.json": "b7565e7221e50efc9b71eb69fe350e34a3f89f058f7837f4f1398462d7a43804",
+      "domains/legal-services/LSX061_individual-creator-services-solo-inventor-intake.json": "219a8b8ac08236e8f5904dd46bf9e394192cad0b231b3be6ef2d19677e57ed10",
+      "domains/legal-services/LSX062_individual-creator-services-startup-founder-ip-split.json": "24a58074935bea36933a6ef48a113332edef31804ca23765631a3b5d6fb4b0f7",
+      "domains/legal-services/LSX063_individual-creator-services-creator-copyright-bundle.json": "451cd8dd97b0a0ebbab0b2a77ce51e19416da1192b65046fab6caea82dcbcc39",
+      "domains/legal-services/LSX064_individual-creator-services-small-business-brand-launch.json": "28c406ff75ca67b13e1faa4dff0709adb7995dcbff30b8c4ed91c0f7b0d301e5",
+      "domains/legal-services/LSX065_individual-creator-services-independent-contractor-cleanup.json": "ac4de511f18ebf2fe726bb02221cd59134fb49c1fee7a74846045d3cdb0f17af",
+      "domains/legal-services/LSX066_individual-creator-services-prototype-disclosure-guard.json": "fbec7b30148e8804def785e2cc97216d46553214d244b85984841bf8481aa627",
+      "domains/legal-services/LSX067_individual-creator-services-low-budget-filing-plan.json": "2d7881a7b02b69d857d77f3b83c3d3d8a53e980563ef18db983d470b42fcdcd8",
+      "domains/legal-services/LSX068_individual-creator-services-founder-evidence-timeline.json": "ef6d989f5c54a86c6ee87f06c965249b4501e67bcea7dd0fd6c2eade2944a624",
+      "domains/legal-services/LSX069_individual-creator-services-creator-licensing-intake.json": "a76f1e10cac45f13c218d8cfbad29020d33dfadc7c3fc0f4c6dda0d1b0ed74ad",
+      "domains/legal-services/LSX070_individual-creator-services-individual-portfolio-dashboard.json": "e5bd5f53f6954251abcadc62a32acd6cd702ed44ce008f10049dcee9c5a70c9a",
+      "domains/legal-services/LSX071_corporate-legal-services-corporate-ip-intake-board.json": "c008b3eef955b229bb100f494e5a99e65ba4a978be377a6429b573b9c07fa134",
+      "domains/legal-services/LSX072_corporate-legal-services-r-and-d-harvesting-cadence.json": "8aa2dbcd42b0d73011be2029bcfc146117b9a99739c8ead05ecb970aca04167b",
+      "domains/legal-services/LSX073_corporate-legal-services-m-and-a-ip-diligence.json": "bd2742f74255e2435dc0de94e13061986e26fa1636e00ecfa5c574385e076796",
+      "domains/legal-services/LSX074_corporate-legal-services-vendor-ip-risk-review.json": "82c382cdf5f97f61bff12052e93c829b5443ed9e38adec0e6df59b5a7a383f8d",
+      "domains/legal-services/LSX075_corporate-legal-services-employee-innovation-program.json": "a57d7f694aeef252bfaab188e68577fa633d70410434abe6b6c3d497f91a2c6f",
+      "domains/legal-services/LSX076_corporate-legal-services-product-counsel-launch-review.json": "2892efb74d0ca347b9e44ebcfd029f64ef27994209e61c1ca7cbb3da5fb9c419",
+      "domains/legal-services/LSX077_corporate-legal-services-portfolio-cost-optimization.json": "9e93f9880421023f96b980989010942b5917363b775a84b0c57bf6eac5aa3a91",
+      "domains/legal-services/LSX078_corporate-legal-services-standards-open-innovation-review.json": "fbaa8d50a4ebfcc98aec6aa692d0cd733fa855fd64a99981a4b001d17cdf83c5",
+      "domains/legal-services/LSX079_corporate-legal-services-global-brand-governance.json": "1b9f8880efec6df1da0818f387121b4d342f6376b5278a1f823b34770a1a15c0",
+      "domains/legal-services/LSX080_corporate-legal-services-board-level-ip-report.json": "23fb086a14908ea3a96a1d6d532115f13a8b3b985a0495d54cf4207b71ba08eb",
+      "domains/legal-services/LSX081_filing-and-portal-operations-uspto-patent-center-readiness.json": "4062d3451b1560040078607258f139507b22c065d76620efb36f6a0603310179",
+      "domains/legal-services/LSX082_filing-and-portal-operations-provisional-cover-sheet-gate.json": "ecee3dfeed2486283881822f093772bd00ceaa03e3442f2f541b06e508c7b11d",
+      "domains/legal-services/LSX083_filing-and-portal-operations-fee-payment-verification.json": "9e316422527f4725690de2a02db83c390adfdbfd2376be98bd4845528ebb4ca4",
+      "domains/legal-services/LSX084_filing-and-portal-operations-filing-receipt-audit.json": "12dadf70cc8ba3b8491dd7f33f902eb85f2950ccae7372d1699c97dc347f1f8f",
+      "domains/legal-services/LSX085_filing-and-portal-operations-trademark-account-identity-gate.json": "1a4d3d43a1d8a03ee0fe22e6f4c524bb6b49ad8c1d9d815b05abb520ec186324",
+      "domains/legal-services/LSX086_filing-and-portal-operations-trademark-drawing-asset-gate.json": "8ca7cb22d3441c7217ff7dec09dd7a285cfeb1dc886407e41859facc69169c26",
+      "domains/legal-services/LSX087_filing-and-portal-operations-copyright-eco-account-gate.json": "13c869bbda512d04049d2d7140df3174ac0d0c3223f95d50173b91234df6d864",
+      "domains/legal-services/LSX088_filing-and-portal-operations-copyright-deposit-file-gate.json": "4e879d262c82ece33b87c940911a1bfed3840bc2c6e4e3c963939cf33da5fb6b",
+      "domains/legal-services/LSX089_filing-and-portal-operations-portal-outage-contingency.json": "86ec7b86914e068709b97b0dcc488d15da50c42dd6985132d13f25475cc5f1fc",
+      "domains/legal-services/LSX090_filing-and-portal-operations-receipt-and-certificate-archive.json": "14de5b74ada311d9077f87b9acc05f3b43737ac7c639d12d19668aaea36524b8",
+      "domains/legal-services/LSX091_commercialization-and-enforcement-freedom-to-operate-intake.json": "3b6ba3b32bf16aeb654359da682cf836979c6973f86808d49a059a53632dd495",
+      "domains/legal-services/LSX092_commercialization-and-enforcement-competitive-watch-search.json": "aee6091a9910c557b262223bd6fe576412078937fb54920a7f7da80c75b3f872",
+      "domains/legal-services/LSX093_commercialization-and-enforcement-notice-letter-evidence-gate.json": "8ded991110d5e121ca8b8ef8310150de678d5c0742cc3c86910f3f4faba2a80c",
+      "domains/legal-services/LSX094_commercialization-and-enforcement-dmca-takedown-workflow.json": "17a7c853faa293d5cdcb38d0d638afa4cf09a90f3c383b8b39d275e9c1b0a7cf",
+      "domains/legal-services/LSX095_commercialization-and-enforcement-trademark-marketplace-takedown.json": "035891a6090b4fd6e2b8c689e5014438bcb35a8ed8b0e9c4c27abb74447a130c",
+      "domains/legal-services/LSX096_commercialization-and-enforcement-patent-licensing-outreach.json": "d313f98585c77f51c73861a52ab85459abf1d2103fd518e8970772eb1ee8b11a",
+      "domains/legal-services/LSX097_commercialization-and-enforcement-joint-development-ip-gate.json": "b42998d0eeee135bb9a4498e033d232ba70778756ce0b7acb5e4937f055244b5",
+      "domains/legal-services/LSX098_commercialization-and-enforcement-product-release-ip-checklist.json": "d96e09754c065a862cfe42264a4fe9f65fd34d9c782ebcc89d7f9ba6043baa64",
+      "domains/legal-services/LSX099_commercialization-and-enforcement-post-launch-ip-review.json": "f2aa07fbc95a09a73c775812aa7714c5025ea8a39368efe52ac0141b22b53751",
+      "domains/legal-services/LSX100_commercialization-and-enforcement-ip-metrics-optimization.json": "8725e11b57f56ad2a06d79d1b57205db90ce7f62752c794d41440b5c3bdcad01",
+      "domains/legal-services/LegalServicesLsx001010Interconnect.json": "2712ec7cda5dbb79b147f9e2f5e6c908a2e538be45c35f10b3a4ac7a5cd499f4",
+      "domains/legal-services/LegalServicesLsx011020Interconnect.json": "e17c79c28ad2c6bb01613cead2518589456e856dce8e9498327aefa89fa9680c",
+      "domains/legal-services/LegalServicesLsx021030Interconnect.json": "bccbe8d63dcdf1ac35243e2bd1eae286b1fc74a627b50ac5b6c93d295ca54074",
+      "domains/legal-services/LegalServicesLsx031040Interconnect.json": "c66165c5ddec201d0cd11aa9168a80ea72075c4a6a57177057510f1d2e199fd0",
+      "domains/legal-services/LegalServicesLsx041050Interconnect.json": "5a2f3220f07c7d82f64a2faec499e9fc7bed96e52d17d7c3c39d77ada6d7b41e",
+      "domains/legal-services/LegalServicesLsx051060Interconnect.json": "13dbedab1208374d7bb4247cebb290d81674e3eeec06548f1d46dfbf340bee02",
+      "domains/legal-services/LegalServicesLsx061070Interconnect.json": "33114f9c863c38d55162c361fa1154c1e918ef44d82cc21c1643d7582375844e",
+      "domains/legal-services/LegalServicesLsx071080Interconnect.json": "46474f0c053ef4d5f5fac9bda9f40dbf4c68c2e7c4e14c3033f88ee909a9fad2",
+      "domains/legal-services/LegalServicesLsx081090Interconnect.json": "3f90591db414312ca54cc1ea95011f794c449a3bf46b73b24bb6d58a7cb446c6",
+      "domains/legal-services/LegalServicesLsx091100Interconnect.json": "971d9fb0e9e50413175f3dbe04292236cdc74e99d2312b3e7fcaaba65af48a9d"
     }
   },
   "counts": {
@@ -126,7 +126,7 @@
     "scala-1"
   ],
   "machines": {
-    "Life Balance Adolescent Family And School Adolescent Safety Signal": {
+    "Legal Services AI Assisted Legal Operations Artifact Classification Agent": {
       "committed": [
         [
           0.0,
@@ -317,7 +317,7 @@
       ],
       "verdict": "agreed"
     },
-    "Life Balance Adolescent Family And School Device Use Boundary": {
+    "Legal Services AI Assisted Legal Operations Client Intake Chat Guardrail": {
       "committed": [
         [
           0.0,
@@ -508,7 +508,7 @@
       ],
       "verdict": "agreed"
     },
-    "Life Balance Adolescent Family And School Family Routine Alignment": {
+    "Legal Services AI Assisted Legal Operations Deadline Projection Agent": {
       "committed": [
         [
           0.0,
@@ -699,7 +699,7 @@
       ],
       "verdict": "agreed"
     },
-    "Life Balance Adolescent Family And School Growth Development Watch": {
+    "Legal Services AI Assisted Legal Operations Disclosure Completeness Scorer": {
       "committed": [
         [
           0.0,
@@ -890,7 +890,7 @@
       ],
       "verdict": "agreed"
     },
-    "Life Balance Adolescent Family And School Parent Coaching Plan": {
+    "Legal Services AI Assisted Legal Operations Drafting Checklist Agent": {
       "committed": [
         [
           0.0,
@@ -1081,7 +1081,7 @@
       ],
       "verdict": "agreed"
     },
-    "Life Balance Adolescent Family And School Peer Connection Monitor": {
+    "Legal Services AI Assisted Legal Operations Filing Portal Readiness Agent": {
       "committed": [
         [
           0.0,
@@ -1272,7 +1272,7 @@
       ],
       "verdict": "agreed"
     },
-    "Life Balance Adolescent Family And School School Accommodation Tracker": {
+    "Legal Services AI Assisted Legal Operations Office Action Triage Agent": {
       "committed": [
         [
           0.0,
@@ -1463,7 +1463,7 @@
       ],
       "verdict": "agreed"
     },
-    "Life Balance Adolescent Family And School School Function Monitor": {
+    "Legal Services AI Assisted Legal Operations Portfolio Learning Loop": {
       "committed": [
         [
           0.0,
@@ -1654,7 +1654,7 @@
       ],
       "verdict": "agreed"
     },
-    "Life Balance Adolescent Family And School Sports Performance Balance": {
+    "Legal Services AI Assisted Legal Operations Prior Art Search Agent Dispatcher": {
       "committed": [
         [
           0.0,
@@ -1845,7 +1845,7 @@
       ],
       "verdict": "agreed"
     },
-    "Life Balance Adolescent Family And School Youth Family Executive": {
+    "Legal Services AI Assisted Legal Operations Risk Memo Synthesizer": {
       "committed": [
         [
           0.0,
@@ -2036,9 +2036,15 @@
       ],
       "verdict": "agreed"
     },
-    "Life Balance Adolescent Family School Interconnect": {
+    "Legal Services Commercialization And Enforcement Competitive Watch Search": {
       "committed": [
         [
+          0.0,
+          0.0,
+          0.0,
+          0.0
+        ],
+        [
           1,
           0.0,
           0.0,
@@ -2057,21 +2063,21 @@
           0.0
         ],
         [
-          1,
           0.0,
           0.0,
-          0.0
+          0.0,
+          1
         ],
         [
           0.0,
-          1,
+          0.0,
           0.0,
           0.0
         ],
         [
           0.0,
           0.0,
-          1,
+          0.0,
           0.0
         ],
         [
@@ -2093,21 +2099,21 @@
           0.0
         ],
         [
-          1,
           0.0,
           0.0,
-          0.0
+          0.0,
+          1
         ],
         [
           0.0,
-          1,
+          0.0,
           0.0,
           0.0
         ],
         [
           0.0,
           0.0,
-          1,
+          0.0,
           0.0
         ],
         [
@@ -2129,21 +2135,21 @@
           0.0
         ],
         [
-          1,
           0.0,
           0.0,
-          0.0
+          0.0,
+          1
         ],
         [
           0.0,
-          1,
+          0.0,
           0.0,
           0.0
         ],
         [
           0.0,
           0.0,
-          1,
+          0.0,
           0.0
         ],
         [
@@ -2165,21 +2171,21 @@
           0.0
         ],
         [
-          1,
           0.0,
           0.0,
-          0.0
+          0.0,
+          1
         ],
         [
           0.0,
-          1,
+          0.0,
           0.0,
           0.0
         ],
         [
           0.0,
           0.0,
-          1,
+          0.0,
           0.0
         ],
         [
@@ -2201,25 +2207,19 @@
           0.0
         ],
         [
-          1,
-          0.0,
           0.0,
-          0.0
-        ],
-        [
           0.0,
-          1,
           0.0,
-          0.0
+          1
         ],
         [
           0.0,
           0.0,
-          1,
+          0.0,
           0.0
         ],
         [
-          1,
+          0.0,
           0.0,
           0.0,
           0.0
@@ -2227,7 +2227,7 @@
       ],
       "verdict": "agreed"
     },
-    "Life Balance Medication And Psychiatric Care Adverse Effect Watch": {
+    "Legal Services Commercialization And Enforcement DMCA Takedown Workflow": {
       "committed": [
         [
           0.0,
@@ -2418,7 +2418,7 @@
       ],
       "verdict": "agreed"
     },
-    "Life Balance Medication And Psychiatric Care Anxiety Treatment Response": {
+    "Legal Services Commercialization And Enforcement Freedom To Operate Intake": {
       "committed": [
         [
           0.0,
@@ -2609,7 +2609,7 @@
       ],
       "verdict": "agreed"
     },
-    "Life Balance Medication And Psychiatric Care Care Visit Preparation": {
+    "Legal Services Commercialization And Enforcement IP Metrics Optimization": {
       "committed": [
         [
           0.0,
@@ -2800,7 +2800,7 @@
       ],
       "verdict": "agreed"
     },
-    "Life Balance Medication And Psychiatric Care Depression Recovery Response": {
+    "Legal Services Commercialization And Enforcement Joint Development IP Gate": {
       "committed": [
         [
           0.0,
@@ -2991,7 +2991,7 @@
       ],
       "verdict": "agreed"
     },
-    "Life Balance Medication And Psychiatric Care Medication Nutrition Interaction": {
+    "Legal Services Commercialization And Enforcement Notice Letter Evidence Gate": {
       "committed": [
         [
           0.0,
@@ -3182,7 +3182,7 @@
       ],
       "verdict": "agreed"
     },
-    "Life Balance Medication And Psychiatric Care Medication Response Tracker": {
+    "Legal Services Commercialization And Enforcement Patent Licensing Outreach": {
       "committed": [
         [
           0.0,
@@ -3373,7 +3373,7 @@
       ],
       "verdict": "agreed"
     },
-    "Life Balance Medication And Psychiatric Care Medication Sleep Interaction": {
+    "Legal Services Commercialization And Enforcement Post Launch IP Review": {
       "committed": [
         [
           0.0,
@@ -3564,7 +3564,7 @@
       ],
       "verdict": "agreed"
     },
-    "Life Balance Medication And Psychiatric Care Mood Stabilization Monitor": {
+    "Legal Services Commercialization And Enforcement Product Release IP Checklist": {
       "committed": [
         [
           0.0,
@@ -3755,7 +3755,7 @@
       ],
       "verdict": "agreed"
     },
-    "Life Balance Medication And Psychiatric Care Psychiatric Care Executive": {
+    "Legal Services Commercialization And Enforcement Trademark Marketplace Takedown": {
       "committed": [
         [
           0.0,
@@ -3946,7 +3946,7 @@
       ],
       "verdict": "agreed"
     },
-    "Life Balance Medication And Psychiatric Care Stimulant Appetite Sleep Balance": {
+    "Legal Services Copyright Workflow Authorship And Work Made For Hire": {
       "committed": [
         [
           0.0,
@@ -4137,8 +4137,14 @@
       ],
       "verdict": "agreed"
     },
-    "Life Balance Medication Psychiatric Care Interconnect": {
+    "Legal Services Copyright Workflow Certificate And Record Docket": {
       "committed": [
+        [
+          0.0,
+          0.0,
+          0.0,
+          0.0
+        ],
         [
           1,
           0.0,
@@ -4158,21 +4164,21 @@
           0.0
         ],
         [
-          1,
           0.0,
           0.0,
-          0.0
+          0.0,
+          1
         ],
         [
           0.0,
-          1,
+          0.0,
           0.0,
           0.0
         ],
         [
           0.0,
           0.0,
-          1,
+          0.0,
           0.0
         ],
         [
@@ -4194,21 +4200,21 @@
           0.0
         ],
         [
-          1,
           0.0,
           0.0,
-          0.0
+          0.0,
+          1
         ],
         [
           0.0,
-          1,
+          0.0,
           0.0,
           0.0
         ],
         [
           0.0,
           0.0,
-          1,
+          0.0,
           0.0
         ],
         [
@@ -4230,21 +4236,21 @@
           0.0
         ],
         [
-          1,
           0.0,
           0.0,
-          0.0
+          0.0,
+          1
         ],
         [
           0.0,
-          1,
+          0.0,
           0.0,
           0.0
         ],
         [
           0.0,
           0.0,
-          1,
+          0.0,
           0.0
         ],
         [
@@ -4266,21 +4272,21 @@
           0.0
         ],
         [
-          1,
           0.0,
           0.0,
-          0.0
+          0.0,
+          1
         ],
         [
           0.0,
-          1,
+          0.0,
           0.0,
           0.0
         ],
         [
           0.0,
           0.0,
-          1,
+          0.0,
           0.0
         ],
         [
@@ -4302,25 +4308,19 @@
           0.0
         ],
         [
-          1,
-          0.0,
           0.0,
-          0.0
-        ],
-        [
           0.0,
-          1,
           0.0,
-          0.0
+          1
         ],
         [
           0.0,
           0.0,
-          1,
+          0.0,
           0.0
         ],
         [
-          1,
+          0.0,
           0.0,
           0.0,
           0.0
@@ -4328,7 +4328,7 @@
       ],
       "verdict": "agreed"
     },
-    "Life Balance Movement And Physical Health Adolescent Sports Balance": {
+    "Legal Services Copyright Workflow Deposit Material Preparation": {
       "committed": [
         [
           0.0,
@@ -4519,7 +4519,7 @@
       ],
       "verdict": "agreed"
     },
-    "Life Balance Movement And Physical Health Exercise Anxiety Depression Response": {
+    "Legal Services Copyright Workflow Group Registration Eligibility": {
       "committed": [
         [
           0.0,
@@ -4710,7 +4710,7 @@
       ],
       "verdict": "agreed"
     },
-    "Life Balance Movement And Physical Health Medication Movement Effects": {
+    "Legal Services Copyright Workflow Preregistration Eligibility": {
       "committed": [
         [
           0.0,
@@ -4901,7 +4901,7 @@
       ],
       "verdict": "agreed"
     },
-    "Life Balance Movement And Physical Health Mobility Pain Constraint": {
+    "Legal Services Copyright Workflow Publication Status Review": {
       "committed": [
         [
           0.0,
@@ -5092,7 +5092,7 @@
       ],
       "verdict": "agreed"
     },
-    "Life Balance Movement And Physical Health Movement Baseline": {
+    "Legal Services Copyright Workflow Recordation And Transfer": {
       "committed": [
         [
           0.0,
@@ -5283,7 +5283,7 @@
       ],
       "verdict": "agreed"
     },
-    "Life Balance Movement And Physical Health Movement Executive Optimizer": {
+    "Legal Services Copyright Workflow Software Source Code Deposit": {
       "committed": [
         [
           0.0,
@@ -5474,7 +5474,7 @@
       ],
       "verdict": "agreed"
     },
-    "Life Balance Movement And Physical Health Movement Habit Adherence": {
+    "Legal Services Copyright Workflow Work Type Classification": {
       "committed": [
         [
           0.0,
@@ -5665,7 +5665,7 @@
       ],
       "verdict": "agreed"
     },
-    "Life Balance Movement And Physical Health Outdoor Activity Exposure": {
+    "Legal Services Copyright Workflow eCO Application Assembly": {
       "committed": [
         [
           0.0,
@@ -5856,7 +5856,7 @@
       ],
       "verdict": "agreed"
     },
-    "Life Balance Movement And Physical Health Strength Training Routine": {
+    "Legal Services Corporate Legal Services Board Level IP Report": {
       "committed": [
         [
           0.0,
@@ -6047,7 +6047,7 @@
       ],
       "verdict": "agreed"
     },
-    "Life Balance Movement And Physical Health Zone Two Activity Plan": {
+    "Legal Services Corporate Legal Services Corporate IP Intake Board": {
       "committed": [
         [
           0.0,
@@ -6238,8 +6238,14 @@
       ],
       "verdict": "agreed"
     },
-    "Life Balance Movement Physical Health Interconnect": {
+    "Legal Services Corporate Legal Services Employee Innovation Program": {
       "committed": [
+        [
+          0.0,
+          0.0,
+          0.0,
+          0.0
+        ],
         [
           1,
           0.0,
@@ -6259,21 +6265,21 @@
           0.0
         ],
         [
-          1,
           0.0,
           0.0,
-          0.0
+          0.0,
+          1
         ],
         [
           0.0,
-          1,
+          0.0,
           0.0,
           0.0
         ],
         [
           0.0,
           0.0,
-          1,
+          0.0,
           0.0
         ],
         [
@@ -6295,21 +6301,21 @@
           0.0
         ],
         [
-          1,
           0.0,
           0.0,
-          0.0
+          0.0,
+          1
         ],
         [
           0.0,
-          1,
+          0.0,
           0.0,
           0.0
         ],
         [
           0.0,
           0.0,
-          1,
+          0.0,
           0.0
         ],
         [
@@ -6331,21 +6337,21 @@
           0.0
         ],
         [
-          1,
           0.0,
           0.0,
-          0.0
+          0.0,
+          1
         ],
         [
           0.0,
-          1,
+          0.0,
           0.0,
           0.0
         ],
         [
           0.0,
           0.0,
-          1,
+          0.0,
           0.0
         ],
         [
@@ -6367,21 +6373,21 @@
           0.0
         ],
         [
-          1,
           0.0,
           0.0,
-          0.0
+          0.0,
+          1
         ],
         [
           0.0,
-          1,
+          0.0,
           0.0,
           0.0
         ],
         [
           0.0,
           0.0,
-          1,
+          0.0,
           0.0
         ],
         [
@@ -6403,25 +6409,19 @@
           0.0
         ],
         [
-          1,
-          0.0,
           0.0,
-          0.0
-        ],
-        [
           0.0,
-          1,
           0.0,
-          0.0
+          1
         ],
         [
           0.0,
           0.0,
-          1,
+          0.0,
           0.0
         ],
         [
-          1,
+          0.0,
           0.0,
           0.0,
           0.0
@@ -6429,7 +6429,7 @@
       ],
       "verdict": "agreed"
     },
-    "Life Balance Nutrition And Metabolic Health Carbohydrate Tolerance Watch": {
+    "Legal Services Corporate Legal Services Global Brand Governance": {
       "committed": [
         [
           0.0,
@@ -6620,7 +6620,7 @@
       ],
       "verdict": "agreed"
     },
-    "Life Balance Nutrition And Metabolic Health Family Food Environment": {
+    "Legal Services Corporate Legal Services M And A IP Diligence": {
       "committed": [
         [
           0.0,
@@ -6811,7 +6811,7 @@
       ],
       "verdict": "agreed"
     },
-    "Life Balance Nutrition And Metabolic Health Food Mood Journal Review": {
+    "Legal Services Corporate Legal Services Portfolio Cost Optimization": {
       "committed": [
         [
           0.0,
@@ -7002,7 +7002,7 @@
       ],
       "verdict": "agreed"
     },
-    "Life Balance Nutrition And Metabolic Health Hydration Electrolyte Monitor": {
+    "Legal Services Corporate Legal Services Product Counsel Launch Review": {
       "committed": [
         [
           0.0,
@@ -7193,7 +7193,7 @@
       ],
       "verdict": "agreed"
     },
-    "Life Balance Nutrition And Metabolic Health Meal Pattern Stability": {
+    "Legal Services Corporate Legal Services R And D Harvesting Cadence": {
       "committed": [
         [
           0.0,
@@ -7384,7 +7384,7 @@
       ],
       "verdict": "agreed"
     },
-    "Life Balance Nutrition And Metabolic Health Metabolic Nutrition Executive": {
+    "Legal Services Corporate Legal Services Standards Open Innovation Review": {
       "committed": [
         [
           0.0,
@@ -7575,7 +7575,7 @@
       ],
       "verdict": "agreed"
     },
-    "Life Balance Nutrition And Metabolic Health Micronutrient Risk Screen": {
+    "Legal Services Corporate Legal Services Vendor IP Risk Review": {
       "committed": [
         [
           0.0,
@@ -7766,7 +7766,7 @@
       ],
       "verdict": "agreed"
     },
-    "Life Balance Nutrition And Metabolic Health Nutrition Plan Adherence": {
+    "Legal Services Filing And Portal Operations Copyright Deposit File Gate": {
       "committed": [
         [
           0.0,
@@ -7957,7 +7957,7 @@
       ],
       "verdict": "agreed"
     },
-    "Life Balance Nutrition And Metabolic Health Protein Sufficiency Monitor": {
+    "Legal Services Filing And Portal Operations Copyright eCO Account Gate": {
       "committed": [
         [
           0.0,
@@ -8148,7 +8148,7 @@
       ],
       "verdict": "agreed"
     },
-    "Life Balance Nutrition And Metabolic Health Weight Metabolic Trend": {
+    "Legal Services Filing And Portal Operations Fee Payment Verification": {
       "committed": [
         [
           0.0,
@@ -8339,8 +8339,14 @@
       ],
       "verdict": "agreed"
     },
-    "Life Balance Nutrition Metabolic Health Interconnect": {
+    "Legal Services Filing And Portal Operations Filing Receipt Audit": {
       "committed": [
+        [
+          0.0,
+          0.0,
+          0.0,
+          0.0
+        ],
         [
           1,
           0.0,
@@ -8360,21 +8366,21 @@
           0.0
         ],
         [
-          1,
           0.0,
           0.0,
-          0.0
+          0.0,
+          1
         ],
         [
           0.0,
-          1,
+          0.0,
           0.0,
           0.0
         ],
         [
           0.0,
           0.0,
-          1,
+          0.0,
           0.0
         ],
         [
@@ -8396,21 +8402,21 @@
           0.0
         ],
         [
-          1,
           0.0,
           0.0,
-          0.0
+          0.0,
+          1
         ],
         [
           0.0,
-          1,
+          0.0,
           0.0,
           0.0
         ],
         [
           0.0,
           0.0,
-          1,
+          0.0,
           0.0
         ],
         [
@@ -8432,21 +8438,21 @@
           0.0
         ],
         [
-          1,
           0.0,
           0.0,
-          0.0
+          0.0,
+          1
         ],
         [
           0.0,
-          1,
+          0.0,
           0.0,
           0.0
         ],
         [
           0.0,
           0.0,
-          1,
+          0.0,
           0.0
         ],
         [
@@ -8468,21 +8474,21 @@
           0.0
         ],
         [
-          1,
           0.0,
           0.0,
-          0.0
+          0.0,
+          1
         ],
         [
           0.0,
-          1,
+          0.0,
           0.0,
           0.0
         ],
         [
           0.0,
           0.0,
-          1,
+          0.0,
           0.0
         ],
         [
@@ -8504,25 +8510,19 @@
           0.0
         ],
         [
-          1,
-          0.0,
           0.0,
-          0.0
-        ],
-        [
           0.0,
-          1,
           0.0,
-          0.0
+          1
         ],
         [
           0.0,
           0.0,
-          1,
+          0.0,
           0.0
         ],
         [
-          1,
+          0.0,
           0.0,
           0.0,
           0.0
@@ -8530,7 +8530,7 @@
       ],
       "verdict": "agreed"
     },
-    "Life Balance Projection Automation And Outcomes Adolescent Sleep School E2E": {
+    "Legal Services Filing And Portal Operations Portal Outage Contingency": {
       "committed": [
         [
           0.0,
@@ -8575,50 +8575,50 @@
           0.0
         ],
         [
+          1,
           0.0,
           0.0,
-          1,
           0.0
         ],
         [
           0.0,
-          0.0,
+          1,
           0.0,
           0.0
         ],
         [
-          1,
           0.0,
           0.0,
+          1,
           0.0
         ],
         [
           0.0,
-          1,
           0.0,
-          0.0
+          0.0,
+          1
         ],
         [
           0.0,
           0.0,
-          1,
+          0.0,
           0.0
         ],
         [
           0.0,
           0.0,
           0.0,
-          1
+          0.0
         ],
         [
-          0.0,
+          1,
           0.0,
           0.0,
           0.0
         ],
         [
           0.0,
-          0.0,
+          1,
           0.0,
           0.0
         ],
@@ -8632,48 +8632,48 @@
           0.0,
           0.0,
           0.0,
-          0.0
+          1
         ],
         [
-          1,
+          0.0,
           0.0,
           0.0,
           0.0
         ],
         [
           0.0,
-          1,
+          0.0,
           0.0,
           0.0
         ],
         [
+          1,
           0.0,
           0.0,
-          1,
           0.0
         ],
         [
           0.0,
-          0.0,
+          1,
           0.0,
-          1
+          0.0
         ],
         [
           0.0,
           0.0,
-          0.0,
+          1,
           0.0
         ],
         [
           0.0,
           0.0,
           0.0,
-          0.0
+          1
         ],
         [
           0.0,
           0.0,
-          1,
+          0.0,
           0.0
         ],
         [
@@ -8721,7 +8721,7 @@
       ],
       "verdict": "agreed"
     },
-    "Life Balance Projection Automation And Outcomes Care Team Escalation Router": {
+    "Legal Services Filing And Portal Operations Provisional Cover Sheet Gate": {
       "committed": [
         [
           0.0,
@@ -8912,7 +8912,7 @@
       ],
       "verdict": "agreed"
     },
-    "Life Balance Projection Automation And Outcomes Habit Automation Scheduler": {
+    "Legal Services Filing And Portal Operations Receipt And Certificate Archive": {
       "committed": [
         [
           0.0,
@@ -9103,7 +9103,7 @@
       ],
       "verdict": "agreed"
     },
-    "Life Balance Projection Automation And Outcomes Life Balance Command Center": {
+    "Legal Services Filing And Portal Operations Trademark Account Identity Gate": {
       "committed": [
         [
           0.0,
@@ -9134,24 +9134,12 @@
           0.0,
           0.0,
           1
-        ],
-        [
-          0.0,
-          0.0,
-          0.0,
-          0.0
         ],
         [
           0.0,
           0.0,
           0.0,
           0.0
-        ],
-        [
-          0.0,
-          0.0,
-          0.0,
-          1
         ],
         [
           0.0,
@@ -9196,51 +9184,57 @@
           0.0
         ],
         [
-          0.0,
+          1,
           0.0,
           0.0,
-          1
+          0.0
         ],
         [
           0.0,
-          0.0,
+          1,
           0.0,
           0.0
         ],
         [
-          1,
           0.0,
           0.0,
+          1,
           0.0
         ],
         [
           0.0,
-          1,
           0.0,
-          0.0
+          0.0,
+          1
         ],
         [
           0.0,
           0.0,
-          1,
+          0.0,
           0.0
         ],
         [
           0.0,
           0.0,
           0.0,
-          1
+          0.0
         ],
         [
-          0.0,
+          1,
           0.0,
           0.0,
           0.0
         ],
         [
+          0.0,
+          1,
           0.0,
+          0.0
+        ],
+        [
           0.0,
           0.0,
+          1,
           0.0
         ],
         [
@@ -9248,6 +9242,12 @@
           0.0,
           0.0,
           1
+        ],
+        [
+          0.0,
+          0.0,
+          0.0,
+          0.0
         ],
         [
           0.0,
@@ -9294,7 +9294,7 @@
       ],
       "verdict": "agreed"
     },
-    "Life Balance Projection Automation And Outcomes Medication Lifestyle E2E": {
+    "Legal Services Filing And Portal Operations Trademark Drawing Asset Gate": {
       "committed": [
         [
           0.0,
@@ -9345,99 +9345,99 @@
           0.0
         ],
         [
-          0.0,
           0.0,
+          1,
           0.0,
           0.0
         ],
         [
-          1,
           0.0,
           0.0,
+          1,
           0.0
         ],
         [
           0.0,
-          1,
           0.0,
-          0.0
+          0.0,
+          1
         ],
         [
           0.0,
           0.0,
-          1,
+          0.0,
           0.0
         ],
         [
           0.0,
           0.0,
           0.0,
-          1
+          0.0
         ],
         [
-          0.0,
+          1,
           0.0,
           0.0,
           0.0
         ],
         [
-          0.0,
           0.0,
+          1,
           0.0,
           0.0
         ],
         [
-          1,
           0.0,
           0.0,
+          1,
           0.0
         ],
         [
           0.0,
           0.0,
           0.0,
-          0.0
+          1
         ],
         [
-          1,
           0.0,
           0.0,
+          0.0,
           0.0
         ],
         [
           0.0,
-          1,
           0.0,
+          0.0,
           0.0
         ],
         [
+          1,
           0.0,
           0.0,
-          1,
           0.0
         ],
         [
-          0.0,
           0.0,
+          1,
           0.0,
-          1
+          0.0
         ],
         [
-          0.0,
           0.0,
           0.0,
+          1,
           0.0
         ],
         [
           0.0,
           0.0,
           0.0,
-          0.0
+          1
         ],
         [
-          1,
           0.0,
           0.0,
+          0.0,
           0.0
         ],
         [
@@ -9485,7 +9485,7 @@
       ],
       "verdict": "agreed"
     },
-    "Life Balance Projection Automation And Outcomes Metabolic Mood Scenario E2E": {
+    "Legal Services Filing And Portal Operations USPTO Patent Center Readiness": {
       "committed": [
         [
           0.0,
@@ -9530,105 +9530,105 @@
           0.0
         ],
         [
-          0.0,
           1,
           0.0,
+          0.0,
           0.0
         ],
         [
-          0.0,
           0.0,
+          1,
           0.0,
           0.0
         ],
         [
-          1,
           0.0,
           0.0,
+          1,
           0.0
         ],
         [
           0.0,
-          1,
           0.0,
-          0.0
+          0.0,
+          1
         ],
         [
           0.0,
           0.0,
-          1,
+          0.0,
           0.0
         ],
         [
           0.0,
           0.0,
           0.0,
-          1
+          0.0
         ],
         [
-          0.0,
+          1,
           0.0,
           0.0,
           0.0
         ],
         [
-          0.0,
           0.0,
+          1,
           0.0,
           0.0
         ],
         [
           0.0,
-          1,
           0.0,
+          1,
           0.0
         ],
         [
           0.0,
           0.0,
           0.0,
-          0.0
+          1
         ],
         [
-          1,
           0.0,
           0.0,
+          0.0,
           0.0
         ],
         [
           0.0,
-          1,
           0.0,
+          0.0,
           0.0
         ],
         [
+          1,
           0.0,
           0.0,
-          1,
           0.0
         ],
         [
-          0.0,
           0.0,
+          1,
           0.0,
-          1
+          0.0
         ],
         [
-          0.0,
           0.0,
           0.0,
+          1,
           0.0
         ],
         [
           0.0,
           0.0,
           0.0,
-          0.0
+          1
         ],
         [
           0.0,
-          1,
           0.0,
+          0.0,
           0.0
         ],
         [
@@ -9676,7 +9676,7 @@
       ],
       "verdict": "agreed"
     },
-    "Life Balance Projection Automation And Outcomes Plan Adjustment Dispatcher": {
+    "Legal Services Individual Creator Services Creator Copyright Bundle": {
       "committed": [
         [
           0.0,
@@ -9867,7 +9867,7 @@
       ],
       "verdict": "agreed"
     },
-    "Life Balance Projection Automation And Outcomes Risk Drift Forecaster": {
+    "Legal Services Individual Creator Services Creator Licensing Intake": {
       "committed": [
         [
           0.0,
@@ -10058,7 +10058,7 @@
       ],
       "verdict": "agreed"
     },
-    "Life Balance Projection Automation And Outcomes Stress Connection E2E": {
+    "Legal Services Individual Creator Services Founder Evidence Timeline": {
       "committed": [
         [
           0.0,
@@ -10103,105 +10103,105 @@
           0.0
         ],
         [
-          0.0,
           1,
           0.0,
+          0.0,
           0.0
         ],
         [
-          0.0,
           0.0,
+          1,
           0.0,
           0.0
         ],
         [
-          1,
           0.0,
           0.0,
+          1,
           0.0
         ],
         [
           0.0,
-          1,
           0.0,
-          0.0
+          0.0,
+          1
         ],
         [
           0.0,
           0.0,
-          1,
+          0.0,
           0.0
         ],
         [
           0.0,
           0.0,
           0.0,
-          1
+          0.0
         ],
         [
-          0.0,
+          1,
           0.0,
           0.0,
           0.0
         ],
         [
-          0.0,
           0.0,
+          1,
           0.0,
           0.0
         ],
         [
           0.0,
-          1,
           0.0,
+          1,
           0.0
         ],
         [
           0.0,
           0.0,
           0.0,
-          0.0
+          1
         ],
         [
-          1,
           0.0,
           0.0,
+          0.0,
           0.0
         ],
         [
           0.0,
-          1,
           0.0,
+          0.0,
           0.0
         ],
         [
+          1,
           0.0,
           0.0,
-          1,
           0.0
         ],
         [
-          0.0,
           0.0,
+          1,
           0.0,
-          1
+          0.0
         ],
         [
-          0.0,
           0.0,
           0.0,
+          1,
           0.0
         ],
         [
           0.0,
           0.0,
           0.0,
-          0.0
+          1
         ],
         [
           0.0,
-          1,
           0.0,
+          0.0,
           0.0
         ],
         [
@@ -10249,7 +10249,7 @@
       ],
       "verdict": "agreed"
     },
-    "Life Balance Projection Automation And Outcomes Weekly Balance Projection": {
+    "Legal Services Individual Creator Services Independent Contractor Cleanup": {
       "committed": [
         [
           0.0,
@@ -10440,8 +10440,14 @@
       ],
       "verdict": "agreed"
     },
-    "Life Balance Projection Automation Outcomes Interconnect": {
+    "Legal Services Individual Creator Services Individual Portfolio Dashboard": {
       "committed": [
+        [
+          0.0,
+          0.0,
+          0.0,
+          0.0
+        ],
         [
           1,
           0.0,
@@ -10461,21 +10467,21 @@
           0.0
         ],
         [
-          1,
           0.0,
           0.0,
-          0.0
+          0.0,
+          1
         ],
         [
           0.0,
-          1,
           0.0,
+          0.0,
           0.0
         ],
         [
           0.0,
           0.0,
-          1,
+          0.0,
           0.0
         ],
         [
@@ -10497,21 +10503,21 @@
           0.0
         ],
         [
-          1,
           0.0,
           0.0,
-          0.0
+          0.0,
+          1
         ],
         [
           0.0,
-          1,
           0.0,
+          0.0,
           0.0
         ],
         [
           0.0,
           0.0,
-          1,
+          0.0,
           0.0
         ],
         [
@@ -10533,21 +10539,21 @@
           0.0
         ],
         [
-          1,
           0.0,
           0.0,
-          0.0
+          0.0,
+          1
         ],
         [
           0.0,
-          1,
           0.0,
+          0.0,
           0.0
         ],
         [
           0.0,
           0.0,
-          1,
+          0.0,
           0.0
         ],
         [
@@ -10569,21 +10575,21 @@
           0.0
         ],
         [
-          1,
           0.0,
           0.0,
-          0.0
+          0.0,
+          1
         ],
         [
           0.0,
-          1,
           0.0,
+          0.0,
           0.0
         ],
         [
           0.0,
           0.0,
-          1,
+          0.0,
           0.0
         ],
         [
@@ -10605,33 +10611,27 @@
           0.0
         ],
         [
-          1,
           0.0,
-          0.0,
-          0.0
-        ],
-        [
           0.0,
-          1,
           0.0,
-          0.0
+          1
         ],
         [
           0.0,
           0.0,
-          1,
+          0.0,
           0.0
         ],
         [
-          1,
           0.0,
           0.0,
+          0.0,
           0.0
         ]
       ],
       "verdict": "agreed"
     },
-    "Life Balance Sleep And Circadian Rhythm Adolescent Sleep School Fit": {
+    "Legal Services Individual Creator Services Low Budget Filing Plan": {
       "committed": [
         [
           0.0,
@@ -10822,7 +10822,7 @@
       ],
       "verdict": "agreed"
     },
-    "Life Balance Sleep And Circadian Rhythm Caffeine Stimulant Timing": {
+    "Legal Services Individual Creator Services Prototype Disclosure Guard": {
       "committed": [
         [
           0.0,
@@ -11013,7 +11013,7 @@
       ],
       "verdict": "agreed"
     },
-    "Life Balance Sleep And Circadian Rhythm Insomnia Trigger Review": {
+    "Legal Services Individual Creator Services Small Business Brand Launch": {
       "committed": [
         [
           0.0,
@@ -11204,7 +11204,7 @@
       ],
       "verdict": "agreed"
     },
-    "Life Balance Sleep And Circadian Rhythm Light Exposure Timing": {
+    "Legal Services Individual Creator Services Solo Inventor Intake": {
       "committed": [
         [
           0.0,
@@ -11395,7 +11395,7 @@
       ],
       "verdict": "agreed"
     },
-    "Life Balance Sleep And Circadian Rhythm Restorative Sleep Quality": {
+    "Legal Services Individual Creator Services Startup Founder IP Split": {
       "committed": [
         [
           0.0,
@@ -11586,14 +11586,8 @@
       ],
       "verdict": "agreed"
     },
-    "Life Balance Sleep And Circadian Rhythm Shift Work Sleep Protection": {
+    "Legal Services LSX-001-010 Interconnect": {
       "committed": [
-        [
-          0.0,
-          0.0,
-          0.0,
-          0.0
-        ],
         [
           1,
           0.0,
@@ -11613,21 +11607,21 @@
           0.0
         ],
         [
-          0.0,
+          1,
           0.0,
           0.0,
-          1
+          0.0
         ],
         [
-          0.0,
           0.0,
+          1,
           0.0,
           0.0
         ],
         [
-          0.0,
           0.0,
           0.0,
+          1,
           0.0
         ],
         [
@@ -11649,21 +11643,21 @@
           0.0
         ],
         [
-          0.0,
+          1,
           0.0,
           0.0,
-          1
+          0.0
         ],
         [
-          0.0,
           0.0,
+          1,
           0.0,
           0.0
         ],
         [
-          0.0,
           0.0,
           0.0,
+          1,
           0.0
         ],
         [
@@ -11685,21 +11679,21 @@
           0.0
         ],
         [
-          0.0,
+          1,
           0.0,
           0.0,
-          1
+          0.0
         ],
         [
-          0.0,
           0.0,
+          1,
           0.0,
           0.0
         ],
         [
-          0.0,
           0.0,
           0.0,
+          1,
           0.0
         ],
         [
@@ -11721,21 +11715,21 @@
           0.0
         ],
         [
-          0.0,
+          1,
           0.0,
           0.0,
-          1
+          0.0
         ],
         [
-          0.0,
           0.0,
+          1,
           0.0,
           0.0
         ],
         [
-          0.0,
           0.0,
           0.0,
+          1,
           0.0
         ],
         [
@@ -11757,19 +11751,25 @@
           0.0
         ],
         [
-          0.0,
+          1,
           0.0,
           0.0,
-          1
+          0.0
         ],
         [
-          0.0,
           0.0,
+          1,
           0.0,
           0.0
         ],
         [
+          0.0,
           0.0,
+          1,
+          0.0
+        ],
+        [
+          1,
           0.0,
           0.0,
           0.0
@@ -11777,14 +11777,8 @@
       ],
       "verdict": "agreed"
     },
-    "Life Balance Sleep And Circadian Rhythm Sleep Apnea Risk Screen": {
+    "Legal Services LSX-011-020 Interconnect": {
       "committed": [
-        [
-          0.0,
-          0.0,
-          0.0,
-          0.0
-        ],
         [
           1,
           0.0,
@@ -11804,21 +11798,21 @@
           0.0
         ],
         [
-          0.0,
+          1,
           0.0,
           0.0,
-          1
+          0.0
         ],
         [
-          0.0,
           0.0,
+          1,
           0.0,
           0.0
         ],
         [
-          0.0,
           0.0,
           0.0,
+          1,
           0.0
         ],
         [
@@ -11840,21 +11834,21 @@
           0.0
         ],
         [
-          0.0,
+          1,
           0.0,
           0.0,
-          1
+          0.0
         ],
         [
-          0.0,
           0.0,
+          1,
           0.0,
           0.0
         ],
         [
-          0.0,
           0.0,
           0.0,
+          1,
           0.0
         ],
         [
@@ -11876,21 +11870,21 @@
           0.0
         ],
         [
-          0.0,
+          1,
           0.0,
           0.0,
-          1
+          0.0
         ],
         [
           0.0,
-          0.0,
+          1,
           0.0,
           0.0
         ],
         [
           0.0,
           0.0,
-          0.0,
+          1,
           0.0
         ],
         [
@@ -11912,21 +11906,21 @@
           0.0
         ],
         [
-          0.0,
+          1,
           0.0,
           0.0,
-          1
+          0.0
         ],
         [
-          0.0,
           0.0,
+          1,
           0.0,
           0.0
         ],
         [
           0.0,
           0.0,
-          0.0,
+          1,
           0.0
         ],
         [
@@ -11948,19 +11942,25 @@
           0.0
         ],
         [
-          0.0,
+          1,
           0.0,
           0.0,
-          1
+          0.0
         ],
         [
-          0.0,
           0.0,
+          1,
           0.0,
           0.0
         ],
         [
+          0.0,
           0.0,
+          1,
+          0.0
+        ],
+        [
+          1,
           0.0,
           0.0,
           0.0
@@ -11968,14 +11968,8 @@
       ],
       "verdict": "agreed"
     },
-    "Life Balance Sleep And Circadian Rhythm Sleep Executive Stabilizer": {
+    "Legal Services LSX-021-030 Interconnect": {
       "committed": [
-        [
-          0.0,
-          0.0,
-          0.0,
-          0.0
-        ],
         [
           1,
           0.0,
@@ -11995,21 +11989,21 @@
           0.0
         ],
         [
-          0.0,
+          1,
           0.0,
           0.0,
-          1
+          0.0
         ],
         [
           0.0,
-          0.0,
+          1,
           0.0,
           0.0
         ],
         [
-          0.0,
           0.0,
           0.0,
+          1,
           0.0
         ],
         [
@@ -12031,21 +12025,21 @@
           0.0
         ],
         [
-          0.0,
+          1,
           0.0,
           0.0,
-          1
+          0.0
         ],
         [
           0.0,
-          0.0,
+          1,
           0.0,
           0.0
         ],
         [
           0.0,
           0.0,
-          0.0,
+          1,
           0.0
         ],
         [
@@ -12067,21 +12061,21 @@
           0.0
         ],
         [
-          0.0,
+          1,
           0.0,
           0.0,
-          1
+          0.0
         ],
         [
           0.0,
-          0.0,
+          1,
           0.0,
           0.0
         ],
         [
           0.0,
           0.0,
-          0.0,
+          1,
           0.0
         ],
         [
@@ -12103,21 +12097,21 @@
           0.0
         ],
         [
-          0.0,
+          1,
           0.0,
           0.0,
-          1
+          0.0
         ],
         [
-          0.0,
           0.0,
+          1,
           0.0,
           0.0
         ],
         [
           0.0,
           0.0,
-          0.0,
+          1,
           0.0
         ],
         [
@@ -12139,19 +12133,25 @@
           0.0
         ],
         [
-          0.0,
+          1,
           0.0,
           0.0,
-          1
+          0.0
         ],
         [
-          0.0,
           0.0,
+          1,
           0.0,
           0.0
         ],
         [
+          0.0,
           0.0,
+          1,
+          0.0
+        ],
+        [
+          1,
           0.0,
           0.0,
           0.0
@@ -12159,14 +12159,8 @@
       ],
       "verdict": "agreed"
     },
-    "Life Balance Sleep And Circadian Rhythm Sleep Plan Adherence": {
+    "Legal Services LSX-031-040 Interconnect": {
       "committed": [
-        [
-          0.0,
-          0.0,
-          0.0,
-          0.0
-        ],
         [
           1,
           0.0,
@@ -12186,21 +12180,21 @@
           0.0
         ],
         [
-          0.0,
+          1,
           0.0,
           0.0,
-          1
+          0.0
         ],
         [
           0.0,
-          0.0,
+          1,
           0.0,
           0.0
         ],
         [
-          0.0,
           0.0,
           0.0,
+          1,
           0.0
         ],
         [
@@ -12222,21 +12216,21 @@
           0.0
         ],
         [
-          0.0,
+          1,
           0.0,
           0.0,
-          1
+          0.0
         ],
         [
           0.0,
-          0.0,
+          1,
           0.0,
           0.0
         ],
         [
           0.0,
           0.0,
-          0.0,
+          1,
           0.0
         ],
         [
@@ -12258,21 +12252,21 @@
           0.0
         ],
         [
-          0.0,
+          1,
           0.0,
           0.0,
-          1
+          0.0
         ],
         [
           0.0,
-          0.0,
+          1,
           0.0,
           0.0
         ],
         [
           0.0,
           0.0,
-          0.0,
+          1,
           0.0
         ],
         [
@@ -12294,21 +12288,21 @@
           0.0
         ],
         [
-          0.0,
+          1,
           0.0,
           0.0,
-          1
+          0.0
         ],
         [
-          0.0,
           0.0,
+          1,
           0.0,
           0.0
         ],
         [
           0.0,
           0.0,
-          0.0,
+          1,
           0.0
         ],
         [
@@ -12330,19 +12324,25 @@
           0.0
         ],
         [
-          0.0,
+          1,
           0.0,
           0.0,
-          1
+          0.0
         ],
         [
-          0.0,
           0.0,
+          1,
           0.0,
           0.0
         ],
         [
+          0.0,
           0.0,
+          1,
+          0.0
+        ],
+        [
+          1,
           0.0,
           0.0,
           0.0
@@ -12350,14 +12350,8 @@
       ],
       "verdict": "agreed"
     },
-    "Life Balance Sleep And Circadian Rhythm Sleep Schedule Regularity": {
+    "Legal Services LSX-041-050 Interconnect": {
       "committed": [
-        [
-          0.0,
-          0.0,
-          0.0,
-          0.0
-        ],
         [
           1,
           0.0,
@@ -12377,21 +12371,21 @@
           0.0
         ],
         [
-          0.0,
+          1,
           0.0,
           0.0,
-          1
+          0.0
         ],
         [
           0.0,
-          0.0,
+          1,
           0.0,
           0.0
         ],
         [
-          0.0,
           0.0,
           0.0,
+          1,
           0.0
         ],
         [
@@ -12413,21 +12407,21 @@
           0.0
         ],
         [
-          0.0,
+          1,
           0.0,
           0.0,
-          1
+          0.0
         ],
         [
           0.0,
-          0.0,
+          1,
           0.0,
           0.0
         ],
         [
           0.0,
           0.0,
-          0.0,
+          1,
           0.0
         ],
         [
@@ -12449,21 +12443,21 @@
           0.0
         ],
         [
-          0.0,
+          1,
           0.0,
           0.0,
-          1
+          0.0
         ],
         [
           0.0,
-          0.0,
+          1,
           0.0,
           0.0
         ],
         [
           0.0,
           0.0,
-          0.0,
+          1,
           0.0
         ],
         [
@@ -12485,21 +12479,21 @@
           0.0
         ],
         [
-          0.0,
+          1,
           0.0,
           0.0,
-          1
+          0.0
         ],
         [
-          0.0,
           0.0,
+          1,
           0.0,
           0.0
         ],
         [
           0.0,
           0.0,
-          0.0,
+          1,
           0.0
         ],
         [
@@ -12521,19 +12515,25 @@
           0.0
         ],
         [
-          0.0,
+          1,
           0.0,
           0.0,
-          1
+          0.0
         ],
         [
-          0.0,
           0.0,
+          1,
           0.0,
           0.0
         ],
         [
+          0.0,
           0.0,
+          1,
+          0.0
+        ],
+        [
+          1,
           0.0,
           0.0,
           0.0
@@ -12541,7 +12541,7 @@
       ],
       "verdict": "agreed"
     },
-    "Life Balance Sleep Circadian Rhythm Interconnect": {
+    "Legal Services LSX-051-060 Interconnect": {
       "committed": [
         [
           1,
@@ -12732,14 +12732,8 @@
       ],
       "verdict": "agreed"
     },
-    "Life Balance Social Connection And Harm Reduction Care Team Communication": {
+    "Legal Services LSX-061-070 Interconnect": {
       "committed": [
-        [
-          0.0,
-          0.0,
-          0.0,
-          0.0
-        ],
         [
           1,
           0.0,
@@ -12759,21 +12753,21 @@
           0.0
         ],
         [
-          0.0,
+          1,
           0.0,
           0.0,
-          1
+          0.0
         ],
         [
           0.0,
-          0.0,
+          1,
           0.0,
           0.0
         ],
         [
-          0.0,
           0.0,
           0.0,
+          1,
           0.0
         ],
         [
@@ -12795,21 +12789,21 @@
           0.0
         ],
         [
-          0.0,
+          1,
           0.0,
           0.0,
-          1
+          0.0
         ],
         [
           0.0,
-          0.0,
+          1,
           0.0,
           0.0
         ],
         [
           0.0,
           0.0,
-          0.0,
+          1,
           0.0
         ],
         [
@@ -12831,21 +12825,21 @@
           0.0
         ],
         [
-          0.0,
+          1,
           0.0,
           0.0,
-          1
+          0.0
         ],
         [
           0.0,
-          0.0,
+          1,
           0.0,
           0.0
         ],
         [
           0.0,
           0.0,
-          0.0,
+          1,
           0.0
         ],
         [
@@ -12867,21 +12861,21 @@
           0.0
         ],
         [
-          0.0,
+          1,
           0.0,
           0.0,
-          1
+          0.0
         ],
         [
-          0.0,
           0.0,
+          1,
           0.0,
           0.0
         ],
         [
           0.0,
           0.0,
-          0.0,
+          1,
           0.0
         ],
         [
@@ -12903,19 +12897,25 @@
           0.0
         ],
         [
-          0.0,
+          1,
           0.0,
           0.0,
-          1
+          0.0
         ],
         [
-          0.0,
           0.0,
+          1,
           0.0,
           0.0
         ],
         [
+          0.0,
           0.0,
+          1,
+          0.0
+        ],
+        [
+          1,
           0.0,
           0.0,
           0.0
@@ -12923,14 +12923,8 @@
       ],
       "verdict": "agreed"
     },
-    "Life Balance Social Connection And Harm Reduction Community Activity Engagement": {
+    "Legal Services LSX-071-080 Interconnect": {
       "committed": [
-        [
-          0.0,
-          0.0,
-          0.0,
-          0.0
-        ],
         [
           1,
           0.0,
@@ -12950,21 +12944,21 @@
           0.0
         ],
         [
-          0.0,
+          1,
           0.0,
           0.0,
-          1
+          0.0
         ],
         [
           0.0,
-          0.0,
+          1,
           0.0,
           0.0
         ],
         [
-          0.0,
           0.0,
           0.0,
+          1,
           0.0
         ],
         [
@@ -12986,21 +12980,21 @@
           0.0
         ],
         [
-          0.0,
+          1,
           0.0,
           0.0,
-          1
+          0.0
         ],
         [
           0.0,
-          0.0,
+          1,
           0.0,
           0.0
         ],
         [
           0.0,
           0.0,
-          0.0,
+          1,
           0.0
         ],
         [
@@ -13022,21 +13016,21 @@
           0.0
         ],
         [
-          0.0,
+          1,
           0.0,
           0.0,
-          1
+          0.0
         ],
         [
           0.0,
-          0.0,
+          1,
           0.0,
           0.0
         ],
         [
           0.0,
           0.0,
-          0.0,
+          1,
           0.0
         ],
         [
@@ -13058,21 +13052,21 @@
           0.0
         ],
         [
-          0.0,
+          1,
           0.0,
           0.0,
-          1
+          0.0
         ],
         [
-          0.0,
           0.0,
+          1,
           0.0,
           0.0
         ],
         [
           0.0,
           0.0,
-          0.0,
+          1,
           0.0
         ],
         [
@@ -13094,19 +13088,25 @@
           0.0
         ],
         [
-          0.0,
+          1,
           0.0,
           0.0,
-          1
+          0.0
         ],
         [
-          0.0,
           0.0,
+          1,
           0.0,
           0.0
         ],
         [
+          0.0,
           0.0,
+          1,
+          0.0
+        ],
+        [
+          1,
           0.0,
           0.0,
           0.0
@@ -13114,14 +13114,8 @@
       ],
       "verdict": "agreed"
     },
-    "Life Balance Social Connection And Harm Reduction Connection Baseline": {
+    "Legal Services LSX-081-090 Interconnect": {
       "committed": [
-        [
-          0.0,
-          0.0,
-          0.0,
-          0.0
-        ],
         [
           1,
           0.0,
@@ -13141,21 +13135,21 @@
           0.0
         ],
         [
-          0.0,
+          1,
           0.0,
           0.0,
-          1
+          0.0
         ],
         [
           0.0,
-          0.0,
+          1,
           0.0,
           0.0
         ],
         [
-          0.0,
           0.0,
           0.0,
+          1,
           0.0
         ],
         [
@@ -13177,21 +13171,21 @@
           0.0
         ],
         [
-          0.0,
+          1,
           0.0,
           0.0,
-          1
+          0.0
         ],
         [
           0.0,
-          0.0,
+          1,
           0.0,
           0.0
         ],
         [
           0.0,
           0.0,
-          0.0,
+          1,
           0.0
         ],
         [
@@ -13213,21 +13207,21 @@
           0.0
         ],
         [
-          0.0,
+          1,
           0.0,
           0.0,
-          1
+          0.0
         ],
         [
           0.0,
-          0.0,
+          1,
           0.0,
           0.0
         ],
         [
           0.0,
           0.0,
-          0.0,
+          1,
           0.0
         ],
         [
@@ -13249,21 +13243,21 @@
           0.0
         ],
         [
-          0.0,
+          1,
           0.0,
           0.0,
-          1
+          0.0
         ],
         [
-          0.0,
           0.0,
+          1,
           0.0,
           0.0
         ],
         [
           0.0,
           0.0,
-          0.0,
+          1,
           0.0
         ],
         [
@@ -13285,19 +13279,25 @@
           0.0
         ],
         [
+          1,
+          0.0,
           0.0,
+          0.0
+        ],
+        [
           0.0,
+          1,
           0.0,
-          1
+          0.0
         ],
         [
-          0.0,
           0.0,
           0.0,
+          1,
           0.0
         ],
         [
-          0.0,
+          1,
           0.0,
           0.0,
           0.0
@@ -13305,14 +13305,8 @@
       ],
       "verdict": "agreed"
     },
-    "Life Balance Social Connection And Harm Reduction Connection Executive": {
+    "Legal Services LSX-091-100 Interconnect": {
       "committed": [
-        [
-          0.0,
-          0.0,
-          0.0,
-          0.0
-        ],
         [
           1,
           0.0,
@@ -13332,21 +13326,21 @@
           0.0
         ],
         [
-          0.0,
+          1,
           0.0,
           0.0,
-          1
+          0.0
         ],
         [
-          0.0,
           0.0,
+          1,
           0.0,
           0.0
         ],
         [
-          0.0,
           0.0,
           0.0,
+          1,
           0.0
         ],
         [
@@ -13368,21 +13362,21 @@
           0.0
         ],
         [
-          0.0,
+          1,
           0.0,
           0.0,
-          1
+          0.0
         ],
         [
-          0.0,
           0.0,
+          1,
           0.0,
           0.0
         ],
         [
-          0.0,
           0.0,
           0.0,
+          1,
           0.0
         ],
         [
@@ -13404,21 +13398,21 @@
           0.0
         ],
         [
-          0.0,
+          1,
           0.0,
           0.0,
-          1
+          0.0
         ],
         [
-          0.0,
           0.0,
+          1,
           0.0,
           0.0
         ],
         [
-          0.0,
           0.0,
           0.0,
+          1,
           0.0
         ],
         [
@@ -13440,21 +13434,21 @@
           0.0
         ],
         [
-          0.0,
+          1,
           0.0,
           0.0,
-          1
+          0.0
         ],
         [
-          0.0,
           0.0,
+          1,
           0.0,
           0.0
         ],
         [
-          0.0,
           0.0,
           0.0,
+          1,
           0.0
         ],
         [
@@ -13476,19 +13470,25 @@
           0.0
         ],
         [
-          0.0,
+          1,
           0.0,
           0.0,
-          1
+          0.0
         ],
         [
-          0.0,
           0.0,
+          1,
           0.0,
           0.0
         ],
         [
+          0.0,
           0.0,
+          1,
+          0.0
+        ],
+        [
+          1,
           0.0,
           0.0,
           0.0
@@ -13496,7 +13496,7 @@
       ],
       "verdict": "agreed"
     },
-    "Life Balance Social Connection And Harm Reduction Digital Social Load": {
+    "Legal Services Portfolio Operations Client Decision Packet": {
       "committed": [
         [
           0.0,
@@ -13687,7 +13687,7 @@
       ],
       "verdict": "agreed"
     },
-    "Life Balance Social Connection And Harm Reduction Harm Reduction Plan": {
+    "Legal Services Portfolio Operations Conflict Check Gate": {
       "committed": [
         [
           0.0,
@@ -13878,7 +13878,7 @@
       ],
       "verdict": "agreed"
     },
-    "Life Balance Social Connection And Harm Reduction Relapse Prevention Support": {
+    "Legal Services Portfolio Operations Docket Integrity Monitor": {
       "committed": [
         [
           0.0,
@@ -14069,7 +14069,7 @@
       ],
       "verdict": "agreed"
     },
-    "Life Balance Social Connection And Harm Reduction Relationship Stress Monitor": {
+    "Legal Services Portfolio Operations Document Version Control": {
       "committed": [
         [
           0.0,
@@ -14260,7 +14260,7 @@
       ],
       "verdict": "agreed"
     },
-    "Life Balance Social Connection And Harm Reduction Social Rhythm Stabilizer": {
+    "Legal Services Portfolio Operations Engagement Scope Control": {
       "committed": [
         [
           0.0,
@@ -14451,7 +14451,7 @@
       ],
       "verdict": "agreed"
     },
-    "Life Balance Social Connection And Harm Reduction Substance Exposure Screen": {
+    "Legal Services Portfolio Operations Evidence Preservation Vault": {
       "committed": [
         [
           0.0,
@@ -14642,8 +14642,14 @@
       ],
       "verdict": "agreed"
     },
-    "Life Balance Social Connection Harm Reduction Interconnect": {
+    "Legal Services Portfolio Operations Fee Budget Forecast": {
       "committed": [
+        [
+          0.0,
+          0.0,
+          0.0,
+          0.0
+        ],
         [
           1,
           0.0,
@@ -14663,21 +14669,21 @@
           0.0
         ],
         [
-          1,
           0.0,
           0.0,
-          0.0
+          0.0,
+          1
         ],
         [
           0.0,
-          1,
           0.0,
+          0.0,
           0.0
         ],
         [
           0.0,
           0.0,
-          1,
+          0.0,
           0.0
         ],
         [
@@ -14699,21 +14705,21 @@
           0.0
         ],
         [
-          1,
           0.0,
           0.0,
-          0.0
+          0.0,
+          1
         ],
         [
           0.0,
-          1,
           0.0,
+          0.0,
           0.0
         ],
         [
           0.0,
           0.0,
-          1,
+          0.0,
           0.0
         ],
         [
@@ -14735,21 +14741,21 @@
           0.0
         ],
         [
-          1,
           0.0,
           0.0,
-          0.0
+          0.0,
+          1
         ],
         [
           0.0,
-          1,
           0.0,
+          0.0,
           0.0
         ],
         [
           0.0,
           0.0,
-          1,
+          0.0,
           0.0
         ],
         [
@@ -14771,21 +14777,21 @@
           0.0
         ],
         [
-          1,
           0.0,
           0.0,
-          0.0
+          0.0,
+          1
         ],
         [
           0.0,
-          1,
           0.0,
+          0.0,
           0.0
         ],
         [
           0.0,
           0.0,
-          1,
+          0.0,
           0.0
         ],
         [
@@ -14807,33 +14813,27 @@
           0.0
         ],
         [
-          1,
           0.0,
           0.0,
-          0.0
-        ],
-        [
-          0.0,
-          1,
           0.0,
-          0.0
+          1
         ],
         [
           0.0,
           0.0,
-          1,
+          0.0,
           0.0
         ],
         [
-          1,
           0.0,
           0.0,
+          0.0,
           0.0
         ]
       ],
       "verdict": "agreed"
     },
-    "Life Balance Stress Resilience And Psychotherapy Breathing Regulation Practice": {
+    "Legal Services Portfolio Operations Foreign Rights Coordination": {
       "committed": [
         [
           0.0,
@@ -15024,7 +15024,7 @@
       ],
       "verdict": "agreed"
     },
-    "Life Balance Stress Resilience And Psychotherapy Cognitive Pattern Review": {
+    "Legal Services Portfolio Operations Matter Intake Triage": {
       "committed": [
         [
           0.0,
@@ -15215,7 +15215,7 @@
       ],
       "verdict": "agreed"
     },
-    "Life Balance Stress Resilience And Psychotherapy Emotion Regulation Skills": {
+    "Legal Services Portfolio Operations Portfolio Executive Summary": {
       "committed": [
         [
           0.0,
@@ -15406,7 +15406,7 @@
       ],
       "verdict": "agreed"
     },
-    "Life Balance Stress Resilience And Psychotherapy Mindfulness Attention Practice": {
+    "Legal Services Productization IP Governance Brand Usage Governance": {
       "committed": [
         [
           0.0,
@@ -15597,7 +15597,7 @@
       ],
       "verdict": "agreed"
     },
-    "Life Balance Stress Resilience And Psychotherapy Resilience Executive Summary": {
+    "Legal Services Productization IP Governance Contractor Contributor Controls": {
       "committed": [
         [
           0.0,
@@ -15788,7 +15788,7 @@
       ],
       "verdict": "agreed"
     },
-    "Life Balance Stress Resilience And Psychotherapy Resilience Protective Factors": {
+    "Legal Services Productization IP Governance Enforcement Watchlist": {
       "committed": [
         [
           0.0,
@@ -15979,7 +15979,7 @@
       ],
       "verdict": "agreed"
     },
-    "Life Balance Stress Resilience And Psychotherapy Stress Load Inventory": {
+    "Legal Services Productization IP Governance Launch Clearance Gate": {
       "committed": [
         [
           0.0,
@@ -16170,7 +16170,7 @@
       ],
       "verdict": "agreed"
     },
-    "Life Balance Stress Resilience And Psychotherapy Stress Recovery Rhythm": {
+    "Legal Services Productization IP Governance Licensing Monetization Intake": {
       "committed": [
         [
           0.0,
@@ -16361,7 +16361,7 @@
       ],
       "verdict": "agreed"
     },
-    "Life Balance Stress Resilience And Psychotherapy Therapy Homework Completion": {
+    "Legal Services Productization IP Governance Marketing Claims Review": {
       "committed": [
         [
           0.0,
@@ -16552,7 +16552,7 @@
       ],
       "verdict": "agreed"
     },
-    "Life Balance Stress Resilience And Psychotherapy Trauma Sensitive Pacing": {
+    "Legal Services Productization IP Governance Open Source Compliance": {
       "committed": [
         [
           0.0,
@@ -16743,8 +16743,14 @@
       ],
       "verdict": "agreed"
     },
-    "Life Balance Stress Resilience Psychotherapy Interconnect": {
+    "Legal Services Productization IP Governance Patent Marking Readiness": {
       "committed": [
+        [
+          0.0,
+          0.0,
+          0.0,
+          0.0
+        ],
         [
           1,
           0.0,
@@ -16764,21 +16770,21 @@
           0.0
         ],
         [
-          1,
           0.0,
           0.0,
-          0.0
+          0.0,
+          1
         ],
         [
           0.0,
-          1,
           0.0,
+          0.0,
           0.0
         ],
         [
           0.0,
           0.0,
-          1,
+          0.0,
           0.0
         ],
         [
@@ -16800,21 +16806,21 @@
           0.0
         ],
         [
-          1,
           0.0,
           0.0,
-          0.0
+          0.0,
+          1
         ],
         [
           0.0,
-          1,
           0.0,
+          0.0,
           0.0
         ],
         [
           0.0,
           0.0,
-          1,
+          0.0,
           0.0
         ],
         [
@@ -16836,21 +16842,21 @@
           0.0
         ],
         [
-          1,
           0.0,
           0.0,
-          0.0
+          0.0,
+          1
         ],
         [
           0.0,
-          1,
           0.0,
+          0.0,
           0.0
         ],
         [
           0.0,
           0.0,
-          1,
+          0.0,
           0.0
         ],
         [
@@ -16872,21 +16878,21 @@
           0.0
         ],
         [
-          1,
           0.0,
           0.0,
-          0.0
+          0.0,
+          1
         ],
         [
           0.0,
-          1,
           0.0,
+          0.0,
           0.0
         ],
         [
           0.0,
           0.0,
-          1,
+          0.0,
           0.0
         ],
         [
@@ -16908,33 +16914,27 @@
           0.0
         ],
         [
-          1,
           0.0,
-          0.0,
-          0.0
-        ],
-        [
           0.0,
-          1,
           0.0,
-          0.0
+          1
         ],
         [
           0.0,
           0.0,
-          1,
+          0.0,
           0.0
         ],
         [
-          1,
           0.0,
           0.0,
+          0.0,
           0.0
         ]
       ],
       "verdict": "agreed"
     },
-    "Life Balance Testing Personalization And Monitoring CGM Data Intake": {
+    "Legal Services Productization IP Governance Product IP Map": {
       "committed": [
         [
           0.0,
@@ -17125,7 +17125,7 @@
       ],
       "verdict": "agreed"
     },
-    "Life Balance Testing Personalization And Monitoring CGM Mood Correlation": {
+    "Legal Services Productization IP Governance Trade Secret Boundary": {
       "committed": [
         [
           0.0,
@@ -17316,7 +17316,7 @@
       ],
       "verdict": "agreed"
     },
-    "Life Balance Testing Personalization And Monitoring Data Consent Privacy Check": {
+    "Legal Services Provisional Patent Filing Claim Strategy Placeholder": {
       "committed": [
         [
           0.0,
@@ -17507,7 +17507,7 @@
       ],
       "verdict": "agreed"
     },
-    "Life Balance Testing Personalization And Monitoring Genetics Result Intake": {
+    "Legal Services Provisional Patent Filing Drawing And Figure Readiness": {
       "committed": [
         [
           0.0,
@@ -17698,7 +17698,7 @@
       ],
       "verdict": "agreed"
     },
-    "Life Balance Testing Personalization And Monitoring Lab Follow Up Queue": {
+    "Legal Services Provisional Patent Filing Filing Package Assembly": {
       "committed": [
         [
           0.0,
@@ -17889,7 +17889,7 @@
       ],
       "verdict": "agreed"
     },
-    "Life Balance Testing Personalization And Monitoring Monitoring Data Quality": {
+    "Legal Services Provisional Patent Filing Invention Intake": {
       "committed": [
         [
           0.0,
@@ -18080,7 +18080,7 @@
       ],
       "verdict": "agreed"
     },
-    "Life Balance Testing Personalization And Monitoring Patient Reported Outcome Scores": {
+    "Legal Services Provisional Patent Filing Inventor Contribution Review": {
       "committed": [
         [
           0.0,
@@ -18271,7 +18271,7 @@
       ],
       "verdict": "agreed"
     },
-    "Life Balance Testing Personalization And Monitoring Personalization Executive": {
+    "Legal Services Provisional Patent Filing Ownership And Assignment Readiness": {
       "committed": [
         [
           0.0,
@@ -18462,7 +18462,7 @@
       ],
       "verdict": "agreed"
     },
-    "Life Balance Testing Personalization And Monitoring Temperament Profile Review": {
+    "Legal Services Provisional Patent Filing Prior Art Search Triage": {
       "committed": [
         [
           0.0,
@@ -18653,7 +18653,7 @@
       ],
       "verdict": "agreed"
     },
-    "Life Balance Testing Personalization And Monitoring Wearable Sleep Activity Intake": {
+    "Legal Services Provisional Patent Filing Public Disclosure Bar Check": {
       "committed": [
         [
           0.0,
@@ -18844,8 +18844,14 @@
       ],
       "verdict": "agreed"
     },
-    "Life Balance Testing Personalization Monitoring Interconnect": {
+    "Legal Services Provisional Patent Filing Specification Support Builder": {
       "committed": [
+        [
+          0.0,
+          0.0,
+          0.0,
+          0.0
+        ],
         [
           1,
           0.0,
@@ -18865,21 +18871,21 @@
           0.0
         ],
         [
-          1,
           0.0,
           0.0,
-          0.0
+          0.0,
+          1
         ],
         [
           0.0,
-          1,
           0.0,
+          0.0,
           0.0
         ],
         [
           0.0,
           0.0,
-          1,
+          0.0,
           0.0
         ],
         [
@@ -18901,21 +18907,21 @@
           0.0
         ],
         [
-          1,
           0.0,
           0.0,
-          0.0
+          0.0,
+          1
         ],
         [
           0.0,
-          1,
           0.0,
+          0.0,
           0.0
         ],
         [
           0.0,
           0.0,
-          1,
+          0.0,
           0.0
         ],
         [
@@ -18937,21 +18943,21 @@
           0.0
         ],
         [
-          1,
           0.0,
           0.0,
-          0.0
+          0.0,
+          1
         ],
         [
           0.0,
-          1,
           0.0,
+          0.0,
           0.0
         ],
         [
           0.0,
           0.0,
-          1,
+          0.0,
           0.0
         ],
         [
@@ -18973,21 +18979,21 @@
           0.0
         ],
         [
-          1,
           0.0,
           0.0,
-          0.0
+          0.0,
+          1
         ],
         [
           0.0,
-          1,
           0.0,
+          0.0,
           0.0
         ],
         [
           0.0,
           0.0,
-          1,
+          0.0,
           0.0
         ],
         [
@@ -19009,33 +19015,27 @@
           0.0
         ],
         [
-          1,
           0.0,
-          0.0,
-          0.0
-        ],
-        [
           0.0,
-          1,
           0.0,
-          0.0
+          1
         ],
         [
           0.0,
           0.0,
-          1,
+          0.0,
           0.0
         ],
         [
-          1,
           0.0,
           0.0,
+          0.0,
           0.0
         ]
       ],
       "verdict": "agreed"
     },
-    "Life Balance Whole Person Intake And Goals Adolescent Guardian Alignment": {
+    "Legal Services Provisional Patent Filing Twelve Month Conversion Docket": {
       "committed": [
         [
           0.0,
@@ -19226,7 +19226,7 @@
       ],
       "verdict": "agreed"
     },
-    "Life Balance Whole Person Intake And Goals Care Preference Alignment": {
+    "Legal Services Trademark Workflow Brand Clearance Intake": {
       "committed": [
         [
           0.0,
@@ -19417,7 +19417,7 @@
       ],
       "verdict": "agreed"
     },
-    "Life Balance Whole Person Intake And Goals Functional Impairment Map": {
+    "Legal Services Trademark Workflow Distinctiveness Screening": {
       "committed": [
         [
           0.0,
@@ -19608,7 +19608,7 @@
       ],
       "verdict": "agreed"
     },
-    "Life Balance Whole Person Intake And Goals Initial Goal Contract": {
+    "Legal Services Trademark Workflow Filing Basis Selection": {
       "committed": [
         [
           0.0,
@@ -19799,7 +19799,7 @@
       ],
       "verdict": "agreed"
     },
-    "Life Balance Whole Person Intake And Goals Intake Executive Summary": {
+    "Legal Services Trademark Workflow Goods Services Classification": {
       "committed": [
         [
           0.0,
@@ -19990,7 +19990,7 @@
       ],
       "verdict": "agreed"
     },
-    "Life Balance Whole Person Intake And Goals Lifestyle Baseline Interview": {
+    "Legal Services Trademark Workflow Knockout Search Review": {
       "committed": [
         [
           0.0,
@@ -20181,7 +20181,7 @@
       ],
       "verdict": "agreed"
     },
-    "Life Balance Whole Person Intake And Goals Medication Lifestyle Interaction Intake": {
+    "Legal Services Trademark Workflow Office Action Response Docket": {
       "committed": [
         [
           0.0,
@@ -20372,7 +20372,7 @@
       ],
       "verdict": "agreed"
     },
-    "Life Balance Whole Person Intake And Goals Psychiatric History Intake": {
+    "Legal Services Trademark Workflow Owner Identity Verification": {
       "committed": [
         [
           0.0,
@@ -20563,7 +20563,7 @@
       ],
       "verdict": "agreed"
     },
-    "Life Balance Whole Person Intake And Goals Readiness Motivation Assessment": {
+    "Legal Services Trademark Workflow Post Registration Maintenance": {
       "committed": [
         [
           0.0,
@@ -20754,7 +20754,7 @@
       ],
       "verdict": "agreed"
     },
-    "Life Balance Whole Person Intake And Goals Risk Safety Review": {
+    "Legal Services Trademark Workflow Specimen Evidence Readiness": {
       "committed": [
         [
           0.0,
@@ -20945,8 +20945,14 @@
       ],
       "verdict": "agreed"
     },
-    "Life Balance Whole Person Intake Goals Interconnect": {
+    "Legal Services Trademark Workflow Trademark Center Filing Packet": {
       "committed": [
+        [
+          0.0,
+          0.0,
+          0.0,
+          0.0
+        ],
         [
           1,
           0.0,
@@ -20966,21 +20972,21 @@
           0.0
         ],
         [
-          1,
           0.0,
           0.0,
-          0.0
+          0.0,
+          1
         ],
         [
           0.0,
-          1,
           0.0,
+          0.0,
           0.0
         ],
         [
           0.0,
           0.0,
-          1,
+          0.0,
           0.0
         ],
         [
@@ -21002,21 +21008,21 @@
           0.0
         ],
         [
-          1,
           0.0,
           0.0,
-          0.0
+          0.0,
+          1
         ],
         [
           0.0,
-          1,
           0.0,
+          0.0,
           0.0
         ],
         [
           0.0,
           0.0,
-          1,
+          0.0,
           0.0
         ],
         [
@@ -21038,21 +21044,21 @@
           0.0
         ],
         [
-          1,
           0.0,
           0.0,
-          0.0
+          0.0,
+          1
         ],
         [
           0.0,
-          1,
           0.0,
+          0.0,
           0.0
         ],
         [
           0.0,
           0.0,
-          1,
+          0.0,
           0.0
         ],
         [
@@ -21074,21 +21080,21 @@
           0.0
         ],
         [
-          1,
           0.0,
           0.0,
-          0.0
+          0.0,
+          1
         ],
         [
           0.0,
-          1,
           0.0,
+          0.0,
           0.0
         ],
         [
           0.0,
           0.0,
-          1,
+          0.0,
           0.0
         ],
         [
@@ -21110,25 +21116,19 @@
           0.0
         ],
         [
-          1,
           0.0,
-          0.0,
-          0.0
-        ],
-        [
           0.0,
-          1,
           0.0,
-          0.0
+          1
         ],
         [
           0.0,
           0.0,
-          1,
+          0.0,
           0.0
         ],
         [
-          1,
+          0.0,
           0.0,
           0.0,
           0.0
@@ -21139,7 +21139,7 @@
   },
   "quorum": "3-of-3",
   "schemaVersion": "2.0.0",
-  "scope": "domain:life-balance",
+  "scope": "domain:legal-services",
   "stimulus": {
     "armed": {
       "cpp-1": 131,

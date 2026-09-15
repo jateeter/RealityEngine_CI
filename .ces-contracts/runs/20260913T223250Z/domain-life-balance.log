@@ -1,0 +1,8 @@
+ces-contracts: 433 agreed · 0 disagreement · 5 intermittent · 2 no-runtime-emits · 0 unmeasurable → /Users/johnt/workspace/GitHub/RealityEngine_CI/config/ces-contracts/domain-life-balance.json
+  intermittent: LBL065_adolescent-family-and-school-growth-development-watch.json::lbl-065-care-team-review::lbl-065-review — lsp-1+scala-1 | cpp-1 then cpp-1+lsp-1+scala-1 then cpp-1+lsp-1+scala-1
+  intermittent: LBL068_adolescent-family-and-school-sports-performance-balance.json::lbl-068-care-team-review::lbl-068-review — lsp-1+scala-1 | cpp-1 then cpp-1+lsp-1+scala-1 then cpp-1+lsp-1+scala-1
+  intermittent: LBL070_adolescent-family-and-school-youth-family-executive.json::lbl-070-care-team-review::lbl-070-review — lsp-1+scala-1 | cpp-1 then cpp-1+lsp-1+scala-1 then cpp-1+lsp-1+scala-1
+  intermittent: LBL093_projection-automation-and-outcomes-plan-adjustment-dispatcher.json::lbl-093-care-team-review::lbl-093-review — lsp-1+scala-1 | cpp-1 then cpp-1+lsp-1+scala-1 then cpp-1+lsp-1+scala-1
+  intermittent: LBL097_projection-automation-and-outcomes-adolescent-sleep-school-e2e.json::lbl-097-care-team-review::lbl-097-review — lsp-1+scala-1 | cpp-1 then cpp-1+lsp-1+scala-1 then cpp-1+lsp-1+scala-1
+  no runtime emits output: LBL056_medication-and-psychiatric-care-mood-stabilization-monitor.json::lbl-056-care-team-review::lbl-056-review
+  no runtime emits output: LBL056_medication-and-psychiatric-care-mood-stabilization-monitor.json::lbl-056-plan-adjust::lbl-056-barrier

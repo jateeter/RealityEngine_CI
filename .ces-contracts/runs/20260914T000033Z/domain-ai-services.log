@@ -1,0 +1,2 @@
+ces-contracts: 41 agreed · 0 disagreement · 1 intermittent · 0 no-runtime-emits · 0 unmeasurable  |  ISRE 1ok/38diff  OSRE 1ok/38diff → /Users/johnt/workspace/GitHub/RealityEngine_CI/config/ces-contracts/domain-ai-services.json
+  intermittent: AIModelWellness.json::aimw-model-degradation::aimw-degraded — lsp-1+scala-1 | cpp-1 then cpp-1+lsp-1+scala-1 then cpp-1+lsp-1+scala-1

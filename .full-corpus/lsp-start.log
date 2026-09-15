@@ -1,0 +1,10 @@
+Reality Engine LSP     : http://localhost:5601
+Perception Engine LSP  : http://localhost:5600
+Launch path            : binary (/Users/johnt/workspace/GitHub/RealityEngine_LSP/bin/reality-engine-lsp)
+Machines               : /Users/johnt/workspace/GitHub/RealityEngine_CI/../RealityEngine_Machines/machines
+Vector dimension       : 7680
+SBCL dynamic space     : 4096 MB
+Qdrant                 : http://localhost:4333
+Integrations config    : ../localAIStack/config/integrations.json
+OpenClaw ACP          : enabled=true gateway=ws://127.0.0.1:18789
+OpenClaw mapping      : acp-openclaw-completion

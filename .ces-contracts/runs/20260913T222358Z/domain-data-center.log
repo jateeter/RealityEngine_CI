@@ -1,0 +1,16 @@
+ces-contracts: 276 agreed · 3 disagreement · 7 intermittent · 5 no-runtime-emits · 0 unmeasurable → /Users/johnt/workspace/GitHub/RealityEngine_CI/config/ces-contracts/domain-data-center.json
+  disagreement: DCX023_backup-completion-assurance.json::dcx-023-24h-projection::dcx-023-projection-18-24h — lsp-1+scala-1 | cpp-1 (held over 3 drives)
+  disagreement: DCX037_configuration-drift-detector.json::dcx-037-24h-projection::dcx-037-projection-18-24h — lsp-1+scala-1 | cpp-1 (held over 3 drives)
+  disagreement: DCX046_firmware-rollback-readiness.json::dcx-046-24h-projection::dcx-046-projection-18-24h — lsp-1+scala-1 | cpp-1 (held over 3 drives)
+  intermittent: DCX004_pdu-load-balance-monitor.json::dcx-004-urgent::dcx-004-critical — lsp-1+scala-1 | cpp-1 then cpp-1+lsp-1+scala-1 then cpp-1+lsp-1+scala-1
+  intermittent: DCX009_fire-suppression-readiness.json::dcx-009-24h-projection::dcx-009-projection-18-24h — lsp-1+scala-1 | cpp-1 then cpp-1+lsp-1+scala-1 then cpp-1+lsp-1+scala-1
+  intermittent: DCX018_patch-window-orchestrator.json::dcx-018-24h-projection::dcx-018-projection-18-24h — lsp-1+scala-1 | cpp-1 then cpp-1+lsp-1+scala-1 then cpp-1+lsp-1+scala-1
+  intermittent: DCX035_secrets-certificate-rotation.json::dcx-035-24h-projection::dcx-035-projection-18-24h — lsp-1+scala-1 | cpp-1 then lsp-1+scala-1 | cpp-1 then cpp-1+lsp-1+scala-1
+  intermittent: DCX038_cmdb-accuracy-monitor.json::dcx-038-urgent::dcx-038-critical — lsp-1+scala-1 | cpp-1 then cpp-1+lsp-1+scala-1 then cpp-1+lsp-1+scala-1
+  intermittent: DCX039_environmental-sensor-calibration.json::dcx-039-urgent::dcx-039-critical — lsp-1+scala-1 | cpp-1 then cpp-1+lsp-1+scala-1 then cpp-1+lsp-1+scala-1
+  intermittent: DCX050_24x7-operations-executive-summary.json::dcx-050-24h-projection::dcx-050-projection-18-24h — lsp-1+scala-1 | cpp-1 then lsp-1+scala-1 | cpp-1 then cpp-1+lsp-1+scala-1
+  no runtime emits output: DCX003_generator-readiness-controller.json::dcx-003-24h-projection::dcx-003-projection-18-24h
+  no runtime emits output: DCX003_generator-readiness-controller.json::dcx-003-maintenance::dcx-003-service-due
+  no runtime emits output: DCX003_generator-readiness-controller.json::dcx-003-nominal::dcx-003-healthy
+  no runtime emits output: DCX003_generator-readiness-controller.json::dcx-003-upgrade::dcx-003-upgrade-needed
+  no runtime emits output: DCX003_generator-readiness-controller.json::dcx-003-urgent::dcx-003-critical

@@ -1,0 +1,14 @@
+ces-contracts: 264 agreed · 4 disagreement · 9 intermittent · 0 no-runtime-emits · 0 unmeasurable → /Users/johnt/workspace/GitHub/RealityEngine_CI/config/ces-contracts/domain-agriculture.json
+  disagreement: AGX012_aquaculture-hatchery-nursery-transition.json::agx-012-urgent-stabilize::agx-012-critical — lsp-1+scala-1 | cpp-1 (held over 3 drives)
+  disagreement: AGX013_aquaculture-algae-culture-balance.json::agx-013-urgent-stabilize::agx-013-critical — lsp-1+scala-1 | cpp-1 (held over 3 drives)
+  disagreement: AGX020_aquaculture-animal-welfare-response.json::agx-020-urgent-stabilize::agx-020-critical — lsp-1+scala-1 | cpp-1 (held over 3 drives)
+  disagreement: AgIrrigationFlowController.json::ag-irrig-waterlog::ag-irr-waterlogged — lsp-1+scala-1 | cpp-1 (held over 3 drives)
+  intermittent: AGX038_indoor-grow-house-hvac-preventive-maintenance.json::agx-038-urgent-stabilize::agx-038-critical — lsp-1+scala-1 | cpp-1 then cpp-1+lsp-1+scala-1 then cpp-1+lsp-1+scala-1
+  intermittent: AGX048_indoor-grow-house-beneficial-insect-release.json::agx-048-urgent-stabilize::agx-048-critical — lsp-1+scala-1 | cpp-1 then lsp-1+scala-1 | cpp-1 then cpp-1+lsp-1+scala-1
+  intermittent: AgAtmosphericController.json::ag-atmos-co2-depletion::ag-atm-co2-depleted — lsp-1+scala-1 | cpp-1 then cpp-1+lsp-1+scala-1 then cpp-1+lsp-1+scala-1
+  intermittent: AgAtmosphericController.json::ag-atmos-humidity-escalation::ag-atm-condensation-risk — lsp-1+scala-1 | cpp-1 then cpp-1+lsp-1+scala-1 then lsp-1+scala-1 | cpp-1
+  intermittent: AgHarvestReadinessAssessor.json::ag-harvest-ready-sequence::ag-hr-approaching — lsp-1+scala-1 | cpp-1 then cpp-1+lsp-1+scala-1 then cpp-1+lsp-1+scala-1
+  intermittent: AgNutrientSolutionMonitor.json::ag-nutrient-deficiency::ag-nut-deficient — lsp-1+scala-1 | cpp-1 then cpp-1+lsp-1+scala-1 then cpp-1+lsp-1+scala-1
+  intermittent: AgNutrientSolutionMonitor.json::ag-nutrient-ec-escalation::ag-nut-ec-toxic — lsp-1+scala-1 | cpp-1 then cpp-1+lsp-1+scala-1 then lsp-1+scala-1 | cpp-1
+  intermittent: AgNutrientSolutionMonitor.json::ag-nutrient-ph-drift::ag-nut-ph-critical — lsp-1+scala-1 | cpp-1 then cpp-1+lsp-1+scala-1 then cpp-1+lsp-1+scala-1
+  intermittent: AgZoneTemperatureController.json::ag-zone-temp-undertemp::ag-zt-frost — lsp-1+scala-1 | cpp-1 then cpp-1+lsp-1+scala-1 then cpp-1+lsp-1+scala-1

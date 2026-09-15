@@ -1,0 +1,5 @@
+ces-contracts: 436 agreed · 3 disagreement · 1 intermittent · 0 no-runtime-emits · 0 unmeasurable  |  ISRE 0ok/440diff  OSRE 0ok/440diff → /Users/johnt/workspace/GitHub/RealityEngine_CI/config/ces-contracts/domain-life-balance.json
+  disagreement: LBL056_medication-and-psychiatric-care-mood-stabilization-monitor.json::lbl-056-care-team-review::lbl-056-review — cpp-1+scala-1 | lsp-1 (held over 3 drives)
+  disagreement: LBL056_medication-and-psychiatric-care-mood-stabilization-monitor.json::lbl-056-monitoring-task::lbl-056-data-gap — cpp-1+scala-1 | lsp-1 (held over 3 drives)
+  disagreement: LBL056_medication-and-psychiatric-care-mood-stabilization-monitor.json::lbl-056-stable-balance::lbl-056-stable — cpp-1+scala-1 | lsp-1 (held over 3 drives)
+  intermittent: LBL056_medication-and-psychiatric-care-mood-stabilization-monitor.json::lbl-056-plan-adjust::lbl-056-barrier — cpp-1+scala-1 | lsp-1 then cpp-1+scala-1 | lsp-1 then cpp-1+lsp-1+scala-1

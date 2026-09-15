@@ -1,0 +1,6 @@
+ces-contracts: 435 agreed · 0 disagreement · 5 intermittent · 0 no-runtime-emits · 0 unmeasurable → /Users/johnt/workspace/GitHub/RealityEngine_CI/config/ces-contracts/domain-legal-services.json
+  intermittent: LSX038_productization-ip-governance-marketing-claims-review.json::lsx-038-attorney-review::lsx-038-review-needed — lsp-1+scala-1 | cpp-1 then cpp-1+lsp-1+scala-1 then cpp-1+lsp-1+scala-1
+  intermittent: LSX042_portfolio-operations-conflict-check-gate.json::lsx-042-attorney-review::lsx-042-review-needed — lsp-1+scala-1 | cpp-1 then cpp-1+lsp-1+scala-1 then cpp-1+lsp-1+scala-1
+  intermittent: LSX055_ai-assisted-legal-operations-deadline-projection-agent.json::lsx-055-attorney-review::lsx-055-review-needed — lsp-1+scala-1 | cpp-1 then cpp-1+lsp-1+scala-1 then cpp-1+lsp-1+scala-1
+  intermittent: LSX086_filing-and-portal-operations-trademark-drawing-asset-gate.json::lsx-086-attorney-review::lsx-086-review-needed — lsp-1+scala-1 | cpp-1 then cpp-1+lsp-1+scala-1 then cpp-1+lsp-1+scala-1
+  intermittent: LSX092_commercialization-and-enforcement-competitive-watch-search.json::lsx-092-attorney-review::lsx-092-review-needed — lsp-1+scala-1 | cpp-1 then cpp-1+lsp-1+scala-1 then cpp-1+lsp-1+scala-1

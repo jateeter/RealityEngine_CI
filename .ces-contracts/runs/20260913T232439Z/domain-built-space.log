@@ -1,0 +1,79 @@
+ces-contracts: 732 agreed · 0 disagreement · 78 intermittent · 0 no-runtime-emits · 0 unmeasurable → /Users/johnt/workspace/GitHub/RealityEngine_CI/config/ces-contracts/domain-built-space.json
+  intermittent: BSX004_integrative-planning-occupant-needs-register.json::bsx-004-predictive-24h::bsx-004-18-24h — lsp-1+scala-1 | cpp-1 then cpp-1+lsp-1+scala-1 then lsp-1+scala-1 | cpp-1
+  intermittent: BSX005_integrative-planning-well-concept-coverage-gate.json::bsx-005-predictive-24h::bsx-005-18-24h — lsp-1+scala-1 | cpp-1 then cpp-1+lsp-1+scala-1 then lsp-1+scala-1 | cpp-1
+  intermittent: BSX007_integrative-planning-facility-manager-onboarding.json::bsx-007-predictive-24h::bsx-007-18-24h — lsp-1+scala-1 | cpp-1 then cpp-1+lsp-1+scala-1 then cpp-1+lsp-1+scala-1
+  intermittent: BSX008_integrative-planning-design-operations-alignment.json::bsx-008-verify::bsx-008-evidence-gap — lsp-1+scala-1 | cpp-1 then cpp-1+lsp-1+scala-1 then cpp-1+lsp-1+scala-1
+  intermittent: BSX010_integrative-planning-integrative-executive-readiness.json::bsx-010-predictive-24h::bsx-010-18-24h — lsp-1+scala-1 | cpp-1 then cpp-1+lsp-1+scala-1 then lsp-1+scala-1 | cpp-1
+  intermittent: BSX013_design-and-biophilia-educational-space-allocation.json::bsx-013-predictive-24h::bsx-013-18-24h — lsp-1+scala-1 | cpp-1 then cpp-1+lsp-1+scala-1 then lsp-1+scala-1 | cpp-1
+  intermittent: BSX015_design-and-biophilia-restorative-space-operations.json::bsx-015-verify::bsx-015-evidence-gap — lsp-1+scala-1 | cpp-1 then cpp-1+lsp-1+scala-1 then cpp-1+lsp-1+scala-1
+  intermittent: BSX016_design-and-biophilia-art-culture-integration.json::bsx-016-verify::bsx-016-evidence-gap — lsp-1+scala-1 | cpp-1 then cpp-1+lsp-1+scala-1 then cpp-1+lsp-1+scala-1
+  intermittent: BSX018_design-and-biophilia-outdoor-access-readiness.json::bsx-018-verify::bsx-018-evidence-gap — lsp-1+scala-1 | cpp-1 then cpp-1+lsp-1+scala-1 then cpp-1+lsp-1+scala-1
+  intermittent: BSX019_design-and-biophilia-design-feature-evidence.json::bsx-019-predictive-24h::bsx-019-18-24h — lsp-1+scala-1 | cpp-1 then lsp-1+scala-1 | cpp-1 then cpp-1+lsp-1+scala-1
+  intermittent: BSX020_design-and-biophilia-design-biophilia-executive.json::bsx-020-predictive-24h::bsx-020-18-24h — lsp-1+scala-1 | cpp-1 then cpp-1+lsp-1+scala-1 then cpp-1+lsp-1+scala-1
+  intermittent: BSX021_air-quality-ventilation-performance.json::bsx-021-predictive-24h::bsx-021-18-24h — lsp-1+scala-1 | cpp-1 then lsp-1+scala-1 | cpp-1 then cpp-1+lsp-1+scala-1
+  intermittent: BSX023_air-quality-voc-particulate-monitoring.json::bsx-023-predictive-24h::bsx-023-18-24h — lsp-1+scala-1 | cpp-1 then cpp-1+lsp-1+scala-1 then lsp-1+scala-1 | cpp-1
+  intermittent: BSX025_air-quality-humidity-mold-risk.json::bsx-025-predictive-24h::bsx-025-18-24h — lsp-1+scala-1 | cpp-1 then cpp-1+lsp-1+scala-1 then lsp-1+scala-1 | cpp-1
+  intermittent: BSX026_air-quality-outdoor-air-intake-protection.json::bsx-026-predictive-24h::bsx-026-18-24h — lsp-1+scala-1 | cpp-1 then cpp-1+lsp-1+scala-1 then lsp-1+scala-1 | cpp-1
+  intermittent: BSX028_air-quality-air-quality-incident-response.json::bsx-028-verify::bsx-028-evidence-gap — lsp-1+scala-1 | cpp-1 then cpp-1+lsp-1+scala-1 then cpp-1+lsp-1+scala-1
+  intermittent: BSX030_air-quality-air-executive-optimization.json::bsx-030-predictive-24h::bsx-030-18-24h — lsp-1+scala-1 | cpp-1 then cpp-1+lsp-1+scala-1 then cpp-1+lsp-1+scala-1
+  intermittent: BSX032_water-quality-aerator-quarterly-maintenance.json::bsx-032-predictive-24h::bsx-032-18-24h — lsp-1+scala-1 | cpp-1 then cpp-1+lsp-1+scala-1 then lsp-1+scala-1 | cpp-1
+  intermittent: BSX036_water-quality-legionella-management-plan.json::bsx-036-predictive-24h::bsx-036-18-24h — lsp-1+scala-1 | cpp-1 then cpp-1+lsp-1+scala-1 then lsp-1+scala-1 | cpp-1
+  intermittent: BSX036_water-quality-legionella-management-plan.json::bsx-036-verify::bsx-036-evidence-gap — lsp-1+scala-1 | cpp-1 then cpp-1+lsp-1+scala-1 then cpp-1+lsp-1+scala-1
+  intermittent: BSX038_water-quality-water-quality-incident-response.json::bsx-038-predictive-24h::bsx-038-18-24h — lsp-1+scala-1 | cpp-1 then cpp-1+lsp-1+scala-1 then lsp-1+scala-1 | cpp-1
+  intermittent: BSX042_nourishment-raw-food-separation.json::bsx-042-predictive-24h::bsx-042-18-24h — lsp-1+scala-1 | cpp-1 then cpp-1+lsp-1+scala-1 then cpp-1+lsp-1+scala-1
+  intermittent: BSX047_nourishment-sugar-portion-control.json::bsx-047-predictive-24h::bsx-047-18-24h — lsp-1+scala-1 | cpp-1 then lsp-1+scala-1 | cpp-1 then cpp-1+lsp-1+scala-1
+  intermittent: BSX049_nourishment-food-safety-audit-archive.json::bsx-049-verify::bsx-049-evidence-gap — lsp-1+scala-1 | cpp-1 then cpp-1+lsp-1+scala-1 then cpp-1+lsp-1+scala-1
+  intermittent: BSX050_nourishment-nourishment-executive-assurance.json::bsx-050-predictive-24h::bsx-050-18-24h — lsp-1+scala-1 | cpp-1 then cpp-1+lsp-1+scala-1 then lsp-1+scala-1 | cpp-1
+  intermittent: BSX052_light-and-circadian-circadian-lighting-schedule.json::bsx-052-verify::bsx-052-evidence-gap — lsp-1+scala-1 | cpp-1 then cpp-1+lsp-1+scala-1 then cpp-1+lsp-1+scala-1
+  intermittent: BSX054_light-and-circadian-electric-light-quality.json::bsx-054-predictive-24h::bsx-054-18-24h — lsp-1+scala-1 | cpp-1 then cpp-1+lsp-1+scala-1 then lsp-1+scala-1 | cpp-1
+  intermittent: BSX056_light-and-circadian-night-shift-light-policy.json::bsx-056-verify::bsx-056-evidence-gap — lsp-1+scala-1 | cpp-1 then cpp-1+lsp-1+scala-1 then cpp-1+lsp-1+scala-1
+  intermittent: BSX058_light-and-circadian-daylight-energy-optimization.json::bsx-058-predictive-24h::bsx-058-18-24h — lsp-1+scala-1 | cpp-1 then cpp-1+lsp-1+scala-1 then lsp-1+scala-1 | cpp-1
+  intermittent: BSX060_light-and-circadian-light-executive-optimization.json::bsx-060-predictive-24h::bsx-060-18-24h — lsp-1+scala-1 | cpp-1 then cpp-1+lsp-1+scala-1 then cpp-1+lsp-1+scala-1
+  intermittent: BSX062_thermal-comfort-radiant-system-coverage.json::bsx-062-predictive-24h::bsx-062-18-24h — lsp-1+scala-1 | cpp-1 then cpp-1+lsp-1+scala-1 then lsp-1+scala-1 | cpp-1
+  intermittent: BSX062_thermal-comfort-radiant-system-coverage.json::bsx-062-verify::bsx-062-evidence-gap — lsp-1+scala-1 | cpp-1 then cpp-1+lsp-1+scala-1 then cpp-1+lsp-1+scala-1
+  intermittent: BSX067_thermal-comfort-envelope-thermal-resilience.json::bsx-067-predictive-24h::bsx-067-18-24h — lsp-1+scala-1 | cpp-1 then cpp-1+lsp-1+scala-1 then lsp-1+scala-1 | cpp-1
+  intermittent: BSX069_thermal-comfort-thermal-performance-testing.json::bsx-069-predictive-24h::bsx-069-18-24h — lsp-1+scala-1 | cpp-1 then cpp-1+lsp-1+scala-1 then cpp-1+lsp-1+scala-1
+  intermittent: BSX071_sound-and-acoustics-hvac-noise-criteria.json::bsx-071-verify::bsx-071-evidence-gap — lsp-1+scala-1 | cpp-1 then cpp-1+lsp-1+scala-1 then cpp-1+lsp-1+scala-1
+  intermittent: BSX072_sound-and-acoustics-sound-masking-level.json::bsx-072-verify::bsx-072-evidence-gap — lsp-1+scala-1 | cpp-1 then cpp-1+lsp-1+scala-1 then cpp-1+lsp-1+scala-1
+  intermittent: BSX073_sound-and-acoustics-partition-stc-verification.json::bsx-073-predictive-24h::bsx-073-18-24h — lsp-1+scala-1 | cpp-1 then cpp-1+lsp-1+scala-1 then lsp-1+scala-1 | cpp-1
+  intermittent: BSX075_sound-and-acoustics-background-noise-complaints.json::bsx-075-verify::bsx-075-evidence-gap — lsp-1+scala-1 | cpp-1 then cpp-1+lsp-1+scala-1 then cpp-1+lsp-1+scala-1
+  intermittent: BSX076_sound-and-acoustics-meeting-privacy-monitor.json::bsx-076-verify::bsx-076-evidence-gap — lsp-1+scala-1 | cpp-1 then cpp-1+lsp-1+scala-1 then cpp-1+lsp-1+scala-1
+  intermittent: BSX078_sound-and-acoustics-vibration-disturbance-monitor.json::bsx-078-verify::bsx-078-evidence-gap — lsp-1+scala-1 | cpp-1 then cpp-1+lsp-1+scala-1 then cpp-1+lsp-1+scala-1
+  intermittent: BSX079_sound-and-acoustics-quiet-zone-operations.json::bsx-079-predictive-24h::bsx-079-18-24h — lsp-1+scala-1 | cpp-1 then lsp-1+scala-1 | cpp-1 then cpp-1+lsp-1+scala-1
+  intermittent: BSX080_sound-and-acoustics-sound-executive-optimization.json::bsx-080-predictive-24h::bsx-080-18-24h — lsp-1+scala-1 | cpp-1 then cpp-1+lsp-1+scala-1 then cpp-1+lsp-1+scala-1
+  intermittent: BSX080_sound-and-acoustics-sound-executive-optimization.json::bsx-080-verify::bsx-080-evidence-gap — lsp-1+scala-1 | cpp-1 then cpp-1+lsp-1+scala-1 then cpp-1+lsp-1+scala-1
+  intermittent: BSX081_materials-and-cleaning-material-transparency-register.json::bsx-081-verify::bsx-081-evidence-gap — lsp-1+scala-1 | cpp-1 then cpp-1+lsp-1+scala-1 then cpp-1+lsp-1+scala-1
+  intermittent: BSX082_materials-and-cleaning-interior-finish-compliance.json::bsx-082-verify::bsx-082-evidence-gap — lsp-1+scala-1 | cpp-1 then cpp-1+lsp-1+scala-1 then cpp-1+lsp-1+scala-1
+  intermittent: BSX083_materials-and-cleaning-cleaning-product-safety.json::bsx-083-predictive-24h::bsx-083-18-24h — lsp-1+scala-1 | cpp-1 then cpp-1+lsp-1+scala-1 then cpp-1+lsp-1+scala-1
+  intermittent: BSX088_materials-and-cleaning-construction-dust-control.json::bsx-088-predictive-24h::bsx-088-18-24h — lsp-1+scala-1 | cpp-1 then cpp-1+lsp-1+scala-1 then lsp-1+scala-1 | cpp-1
+  intermittent: BSX089_materials-and-cleaning-materials-evidence-archive.json::bsx-089-predictive-24h::bsx-089-18-24h — lsp-1+scala-1 | cpp-1 then cpp-1+lsp-1+scala-1 then lsp-1+scala-1 | cpp-1
+  intermittent: BSX095_movement-and-fitness-sedentary-behavior-prompting.json::bsx-095-verify::bsx-095-evidence-gap — lsp-1+scala-1 | cpp-1 then cpp-1+lsp-1+scala-1 then cpp-1+lsp-1+scala-1
+  intermittent: BSX096_movement-and-fitness-gym-reimbursement-eligibility.json::bsx-096-verify::bsx-096-evidence-gap — lsp-1+scala-1 | cpp-1 then cpp-1+lsp-1+scala-1 then cpp-1+lsp-1+scala-1
+  intermittent: BSX099_movement-and-fitness-movement-feedback-archive.json::bsx-099-predictive-24h::bsx-099-18-24h — lsp-1+scala-1 | cpp-1 then cpp-1+lsp-1+scala-1 then cpp-1+lsp-1+scala-1
+  intermittent: BSX101_mind-and-wellness-policy-eap-counselor-access.json::bsx-101-predictive-24h::bsx-101-18-24h — lsp-1+scala-1 | cpp-1 then cpp-1+lsp-1+scala-1 then cpp-1+lsp-1+scala-1
+  intermittent: BSX103_mind-and-wellness-policy-late-night-communication-cap.json::bsx-103-predictive-24h::bsx-103-18-24h — lsp-1+scala-1 | cpp-1 then cpp-1+lsp-1+scala-1 then lsp-1+scala-1 | cpp-1
+  intermittent: BSX106_mind-and-wellness-policy-volunteer-time-program.json::bsx-106-predictive-24h::bsx-106-18-24h — lsp-1+scala-1 | cpp-1 then cpp-1+lsp-1+scala-1 then lsp-1+scala-1 | cpp-1
+  intermittent: BSX109_mind-and-wellness-policy-mind-policy-evidence-archive.json::bsx-109-predictive-24h::bsx-109-18-24h — lsp-1+scala-1 | cpp-1 then cpp-1+lsp-1+scala-1 then lsp-1+scala-1 | cpp-1
+  intermittent: BSX111_community-and-hr-health-benefits-coverage.json::bsx-111-predictive-24h::bsx-111-18-24h — lsp-1+scala-1 | cpp-1 then cpp-1+lsp-1+scala-1 then cpp-1+lsp-1+scala-1
+  intermittent: BSX112_community-and-hr-paid-family-leave.json::bsx-112-predictive-24h::bsx-112-18-24h — lsp-1+scala-1 | cpp-1 then cpp-1+lsp-1+scala-1 then lsp-1+scala-1 | cpp-1
+  intermittent: BSX114_community-and-hr-nursing-mother-breaks.json::bsx-114-predictive-24h::bsx-114-18-24h — lsp-1+scala-1 | cpp-1 then cpp-1+lsp-1+scala-1 then cpp-1+lsp-1+scala-1
+  intermittent: BSX115_community-and-hr-occupant-transparency-reporting.json::bsx-115-predictive-24h::bsx-115-18-24h — lsp-1+scala-1 | cpp-1 then cpp-1+lsp-1+scala-1 then lsp-1+scala-1 | cpp-1
+  intermittent: BSX118_community-and-hr-emergency-preparedness-wellness.json::bsx-118-predictive-24h::bsx-118-18-24h — lsp-1+scala-1 | cpp-1 then cpp-1+lsp-1+scala-1 then lsp-1+scala-1 | cpp-1
+  intermittent: BSX120_community-and-hr-community-executive-assurance.json::bsx-120-predictive-24h::bsx-120-18-24h — lsp-1+scala-1 | cpp-1 then cpp-1+lsp-1+scala-1 then cpp-1+lsp-1+scala-1
+  intermittent: BSX120_community-and-hr-community-executive-assurance.json::bsx-120-verify::bsx-120-evidence-gap — lsp-1+scala-1 | cpp-1 then cpp-1+lsp-1+scala-1 then cpp-1+lsp-1+scala-1
+  intermittent: BSX121_occupant-feedback-annual-ieq-survey-launch.json::bsx-121-predictive-24h::bsx-121-18-24h — lsp-1+scala-1 | cpp-1 then cpp-1+lsp-1+scala-1 then lsp-1+scala-1 | cpp-1
+  intermittent: BSX123_occupant-feedback-acoustics-feedback-analyzer.json::bsx-123-predictive-24h::bsx-123-18-24h — lsp-1+scala-1 | cpp-1 then cpp-1+lsp-1+scala-1 then cpp-1+lsp-1+scala-1
+  intermittent: BSX127_occupant-feedback-furnishings-feedback-analyzer.json::bsx-127-verify::bsx-127-evidence-gap — lsp-1+scala-1 | cpp-1 then cpp-1+lsp-1+scala-1 then cpp-1+lsp-1+scala-1
+  intermittent: BSX129_occupant-feedback-feedback-corrective-action-loop.json::bsx-129-predictive-24h::bsx-129-18-24h — lsp-1+scala-1 | cpp-1 then cpp-1+lsp-1+scala-1 then cpp-1+lsp-1+scala-1
+  intermittent: BSX130_occupant-feedback-feedback-executive-pulse.json::bsx-130-predictive-24h::bsx-130-18-24h — lsp-1+scala-1 | cpp-1 then cpp-1+lsp-1+scala-1 then lsp-1+scala-1 | cpp-1
+  intermittent: BSX132_performance-verification-on-site-testing-schedule.json::bsx-132-verify::bsx-132-evidence-gap — lsp-1+scala-1 | cpp-1 then lsp-1+scala-1 | cpp-1 then cpp-1+lsp-1+scala-1
+  intermittent: BSX133_performance-verification-water-performance-evidence.json::bsx-133-predictive-24h::bsx-133-18-24h — lsp-1+scala-1 | cpp-1 then cpp-1+lsp-1+scala-1 then cpp-1+lsp-1+scala-1
+  intermittent: BSX134_performance-verification-acoustic-thermal-evidence.json::bsx-134-predictive-24h::bsx-134-18-24h — lsp-1+scala-1 | cpp-1 then cpp-1+lsp-1+scala-1 then lsp-1+scala-1 | cpp-1
+  intermittent: BSX137_performance-verification-annual-iwbi-reporting.json::bsx-137-predictive-24h::bsx-137-18-24h — lsp-1+scala-1 | cpp-1 then cpp-1+lsp-1+scala-1 then lsp-1+scala-1 | cpp-1
+  intermittent: BSX141_predictive-operations-health-performance-forecast.json::bsx-141-predictive-24h::bsx-141-18-24h — lsp-1+scala-1 | cpp-1 then cpp-1+lsp-1+scala-1 then lsp-1+scala-1 | cpp-1
+  intermittent: BSX142_predictive-operations-iaq-energy-tradeoff-optimizer.json::bsx-142-predictive-24h::bsx-142-18-24h — lsp-1+scala-1 | cpp-1 then cpp-1+lsp-1+scala-1 then lsp-1+scala-1 | cpp-1
+  intermittent: BSX143_predictive-operations-water-risk-predictor.json::bsx-143-predictive-24h::bsx-143-18-24h — lsp-1+scala-1 | cpp-1 then cpp-1+lsp-1+scala-1 then lsp-1+scala-1 | cpp-1
+  intermittent: BSX144_predictive-operations-nourishment-risk-predictor.json::bsx-144-predictive-24h::bsx-144-18-24h — lsp-1+scala-1 | cpp-1 then cpp-1+lsp-1+scala-1 then lsp-1+scala-1 | cpp-1
+  intermittent: BSX146_predictive-operations-maintenance-backlog-optimizer.json::bsx-146-verify::bsx-146-evidence-gap — lsp-1+scala-1 | cpp-1 then cpp-1+lsp-1+scala-1 then cpp-1+lsp-1+scala-1
+  intermittent: BSX148_predictive-operations-occupant-satisfaction-predictor.json::bsx-148-predictive-24h::bsx-148-18-24h — lsp-1+scala-1 | cpp-1 then lsp-1+scala-1 | cpp-1 then cpp-1+lsp-1+scala-1
+  intermittent: BSX150_predictive-operations-built-space-command-center.json::bsx-150-verify::bsx-150-evidence-gap — lsp-1+scala-1 | cpp-1 then cpp-1+lsp-1+scala-1 then cpp-1+lsp-1+scala-1

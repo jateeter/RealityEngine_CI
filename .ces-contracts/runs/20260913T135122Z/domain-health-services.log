@@ -1,0 +1,29 @@
+ces-contracts: 652 agreed · 0 disagreement · 28 intermittent · 0 no-runtime-emits · 0 unmeasurable → /Users/johnt/workspace/GitHub/RealityEngine_CI/config/ces-contracts/domain-health-services.json
+  intermittent: HSPH012_interest-holder-alignment-resource-router.json::hsph-012-urgent-dispatch::hsph-012-critical — lsp-1+scala-1 | cpp-1 then cpp-1+lsp-1+scala-1 then cpp-1+lsp-1+scala-1
+  intermittent: HSPH014_interest-holder-alignment-capacity-balancer.json::hsph-014-urgent-dispatch::hsph-014-critical — lsp-1+scala-1 | cpp-1 then cpp-1+lsp-1+scala-1 then cpp-1+lsp-1+scala-1
+  intermittent: HSPH020_interest-holder-alignment-outcome-stabilizer.json::hsph-020-urgent-dispatch::hsph-020-critical — lsp-1+scala-1 | cpp-1 then lsp-1+scala-1 | cpp-1 then cpp-1+lsp-1+scala-1
+  intermittent: HSPH021_evaluation-capacity-signal-monitor.json::hsph-021-urgent-dispatch::hsph-021-critical — lsp-1+scala-1 | cpp-1 then cpp-1+lsp-1+scala-1 then cpp-1+lsp-1+scala-1
+  intermittent: HSPH031_public-health-financing-signal-monitor.json::hsph-031-urgent-dispatch::hsph-031-critical — lsp-1+scala-1 | cpp-1 then lsp-1+scala-1 | cpp-1 then cpp-1+lsp-1+scala-1
+  intermittent: HSPH048_governance-modernization-governance-escalator.json::hsph-048-urgent-dispatch::hsph-048-critical — lsp-1+scala-1 | cpp-1 then lsp-1+scala-1 | cpp-1 then cpp-1+lsp-1+scala-1
+  intermittent: HSPH064_workforce-development-capacity-balancer.json::hsph-064-urgent-dispatch::hsph-064-critical — lsp-1+scala-1 | cpp-1 then lsp-1+scala-1 | cpp-1 then cpp-1+lsp-1+scala-1
+  intermittent: HSPH066_workforce-development-measure-tracker.json::hsph-066-urgent-dispatch::hsph-066-critical — lsp-1+scala-1 | cpp-1 then cpp-1+lsp-1+scala-1 then cpp-1+lsp-1+scala-1
+  intermittent: HSPH092_data-systems-interoperability-resource-router.json::hsph-092-urgent-dispatch::hsph-092-critical — lsp-1+scala-1 | cpp-1 then cpp-1+lsp-1+scala-1 then cpp-1+lsp-1+scala-1
+  intermittent: HSPH117_foundational-public-agent-dispatcher.json::hsph-117-urgent-dispatch::hsph-117-critical — lsp-1+scala-1 | cpp-1 then lsp-1+scala-1 | cpp-1 then cpp-1+lsp-1+scala-1
+  intermittent: HSPH121_equity-and-access-signal-monitor.json::hsph-121-urgent-dispatch::hsph-121-critical — lsp-1+scala-1 | cpp-1 then lsp-1+scala-1 | cpp-1 then cpp-1+lsp-1+scala-1
+  intermittent: HSPH127_equity-and-access-agent-dispatcher.json::hsph-127-urgent-dispatch::hsph-127-critical — lsp-1+scala-1 | cpp-1 then cpp-1+lsp-1+scala-1 then cpp-1+lsp-1+scala-1
+  intermittent: HSPH134_care-coordination-capacity-balancer.json::hsph-134-urgent-dispatch::hsph-134-critical — lsp-1+scala-1 | cpp-1 then cpp-1+lsp-1+scala-1 then cpp-1+lsp-1+scala-1
+  intermittent: HSPH139_care-coordination-learning-loop.json::hsph-139-urgent-dispatch::hsph-139-critical — lsp-1+scala-1 | cpp-1 then cpp-1+lsp-1+scala-1 then cpp-1+lsp-1+scala-1
+  intermittent: HSPH145_behavioral-health-integration-referral-optimizer.json::hsph-145-urgent-dispatch::hsph-145-critical — lsp-1+scala-1 | cpp-1 then lsp-1+scala-1 | cpp-1 then cpp-1+lsp-1+scala-1
+  intermittent: HSPH152_maternal-child-family-health-resource-router.json::hsph-152-urgent-dispatch::hsph-152-critical — lsp-1+scala-1 | cpp-1 then cpp-1+lsp-1+scala-1 then cpp-1+lsp-1+scala-1
+  intermittent: HSPH156_maternal-child-family-health-measure-tracker.json::hsph-156-urgent-dispatch::hsph-156-critical — lsp-1+scala-1 | cpp-1 then cpp-1+lsp-1+scala-1 then cpp-1+lsp-1+scala-1
+  intermittent: HSPH164_chronic-disease-prevention-capacity-balancer.json::hsph-164-urgent-dispatch::hsph-164-critical — lsp-1+scala-1 | cpp-1 then lsp-1+scala-1 | cpp-1 then cpp-1+lsp-1+scala-1
+  intermittent: HSPH172_environmental-health-response-resource-router.json::hsph-172-urgent-dispatch::hsph-172-critical — lsp-1+scala-1 | cpp-1 then lsp-1+scala-1 | cpp-1 then cpp-1+lsp-1+scala-1
+  intermittent: HSPH176_environmental-health-response-measure-tracker.json::hsph-176-urgent-dispatch::hsph-176-critical — lsp-1+scala-1 | cpp-1 then cpp-1+lsp-1+scala-1 then cpp-1+lsp-1+scala-1
+  intermittent: HSPH181_emergency-preparedness-signal-monitor.json::hsph-181-urgent-dispatch::hsph-181-critical — lsp-1+scala-1 | cpp-1 then cpp-1+lsp-1+scala-1 then cpp-1+lsp-1+scala-1
+  intermittent: HSPH184_emergency-preparedness-capacity-balancer.json::hsph-184-urgent-dispatch::hsph-184-critical — lsp-1+scala-1 | cpp-1 then cpp-1+lsp-1+scala-1 then cpp-1+lsp-1+scala-1
+  intermittent: HSPH188_emergency-preparedness-governance-escalator.json::hsph-188-urgent-dispatch::hsph-188-critical — lsp-1+scala-1 | cpp-1 then cpp-1+lsp-1+scala-1 then cpp-1+lsp-1+scala-1
+  intermittent: HSPH190_emergency-preparedness-outcome-stabilizer.json::hsph-190-urgent-dispatch::hsph-190-critical — lsp-1+scala-1 | cpp-1 then cpp-1+lsp-1+scala-1 then cpp-1+lsp-1+scala-1
+  intermittent: HSPH192_learning-health-system-resource-router.json::hsph-192-urgent-dispatch::hsph-192-critical — lsp-1+scala-1 | cpp-1 then cpp-1+lsp-1+scala-1 then lsp-1+scala-1 | cpp-1
+  intermittent: HSPH194_learning-health-system-capacity-balancer.json::hsph-194-urgent-dispatch::hsph-194-critical — lsp-1+scala-1 | cpp-1 then cpp-1+lsp-1+scala-1 then lsp-1+scala-1 | cpp-1
+  intermittent: HSPH197_learning-health-system-agent-dispatcher.json::hsph-197-urgent-dispatch::hsph-197-critical — lsp-1+scala-1 | cpp-1 then cpp-1+lsp-1+scala-1 then cpp-1+lsp-1+scala-1
+  intermittent: HSPH200_learning-health-system-outcome-stabilizer.json::hsph-200-urgent-dispatch::hsph-200-critical — lsp-1+scala-1 | cpp-1 then cpp-1+lsp-1+scala-1 then cpp-1+lsp-1+scala-1

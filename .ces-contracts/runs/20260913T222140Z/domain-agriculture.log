@@ -1,0 +1,10 @@
+ces-contracts: 268 agreed · 2 disagreement · 7 intermittent · 0 no-runtime-emits · 0 unmeasurable → /Users/johnt/workspace/GitHub/RealityEngine_CI/config/ces-contracts/domain-agriculture.json
+  disagreement: AgIrrigationFlowController.json::ag-irrig-drydown::ag-irr-deficit — lsp-1+scala-1 | cpp-1 (held over 3 drives)
+  disagreement: AgZoneTemperatureController.json::ag-zone-temp-overtemp::ag-zt-critical — lsp-1+scala-1 | cpp-1 (held over 3 drives)
+  intermittent: AGX009_aquaculture-solids-removal.json::agx-009-urgent-stabilize::agx-009-critical — lsp-1+scala-1 | cpp-1 then cpp-1+lsp-1+scala-1 then cpp-1+lsp-1+scala-1
+  intermittent: AGX017_aquaculture-harvest-readiness.json::agx-017-urgent-stabilize::agx-017-critical — lsp-1+scala-1 | cpp-1 then cpp-1+lsp-1+scala-1 then cpp-1+lsp-1+scala-1
+  intermittent: AGX020_aquaculture-animal-welfare-response.json::agx-020-urgent-stabilize::agx-020-critical — lsp-1+scala-1 | cpp-1 then cpp-1+lsp-1+scala-1 then cpp-1+lsp-1+scala-1
+  intermittent: AGX042_indoor-grow-house-harvest-labor-coordination.json::agx-042-urgent-stabilize::agx-042-critical — lsp-1+scala-1 | cpp-1 then cpp-1+lsp-1+scala-1 then cpp-1+lsp-1+scala-1
+  intermittent: AgHarvestReadinessAssessor.json::ag-harvest-ready-sequence::ag-hr-approaching — lsp-1+scala-1 | cpp-1 then cpp-1+lsp-1+scala-1 then cpp-1+lsp-1+scala-1
+  intermittent: AgNutrientSolutionMonitor.json::ag-nutrient-deficiency::ag-nut-deficient — lsp-1+scala-1 | cpp-1 then cpp-1+lsp-1+scala-1 then cpp-1+lsp-1+scala-1
+  intermittent: AgZoneTemperatureController.json::ag-zone-temp-undertemp::ag-zt-frost — lsp-1+scala-1 | cpp-1 then cpp-1+lsp-1+scala-1 then cpp-1+lsp-1+scala-1

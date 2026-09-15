@@ -1,0 +1,5 @@
+ces-contracts: 157 agreed · 0 disagreement · 2 intermittent · 2 no-runtime-emits · 0 unmeasurable → /Users/johnt/workspace/GitHub/RealityEngine_CI/config/ces-contracts/domain-health-personal.json
+  intermittent: HomeChronicPainMonitor.json::chronic-pain-crisis::cp-severe — lsp-1+scala-1 | cpp-1 then cpp-1+lsp-1+scala-1 then cpp-1+lsp-1+scala-1
+  intermittent: HomeMentalHealthAccessMonitor.json::mh-access-crisis::mh-deteriorating — lsp-1+scala-1 | cpp-1 then cpp-1+lsp-1+scala-1 then cpp-1+lsp-1+scala-1
+  no runtime emits output: FallDetection.json::fall-intentional-lying::fall-intent-v
+  no runtime emits output: FallDetection.json::fall-sustained-instability::fall-sust-v3
