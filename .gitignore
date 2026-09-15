@@ -36,3 +36,6 @@ __pycache__/
 # Parity evidence copied out of /tmp so it survives a reboot. Raw run records
 # kept alongside an open investigation, not source.
 .parity-evidence/
+
+# Per-run sweep state, not a shared artifact.
+.ces-contracts/
