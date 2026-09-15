@@ -5,7 +5,7 @@ system.
 
 ## Start Here
 
-- [Why this system exists](wiki/Why-This-System-Exists.md) states the system's purpose,
+- [Why this system exists]([(https://github.com/jateeter/RealityEngine_CI/wiki/Why-This-System-Exists)]) states the system's purpose,
   its design commitments, and what it declines to be.
 - [System document index](wiki/System-Document-Index.md) maps the documentation across
   all ten repositories and opens with a reading order for a new reader.
