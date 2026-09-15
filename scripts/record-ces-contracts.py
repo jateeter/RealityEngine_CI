@@ -183,8 +183,14 @@ def drive_corpus(instances: list[Json], steps: int | None, settle_ms: int) -> Js
     # holding means driving a corpus other than the one loaded.
     populations: dict[str, list[Json]] = {}
     for inst in instances:
-        sources, rec_failures = seed.reconcile_sources(
+        sources, rec_failures, sourceless = seed.reconcile_sources(
             get_json, post_json, delete_json, inst["re"], inst["pe"])
+        if sourceless:
+            # Recorded, not failed: a machine that authors no inputSequences
+            # contributes nothing to the seed, which is true and harmless. Named
+            # so a shard says what was resident but silent rather than implying
+            # every resident machine was driven.
+            report.setdefault("sourcelessMachines", {})[inst["id"]] = sourceless
         report["failures"].extend(f"{inst['id']}: {f}" for f in rec_failures)
         if rec_failures:
             return report
@@ -492,6 +498,7 @@ def main() -> int:
                     "steps": report["steps"],
                     "settleMs": args.settle_ms,
                     "residentMachines": len(resident),
+                    "sourcelessMachines": report.get("sourcelessMachines", {}).get(order[0], []),
                     "isolated": bool(args.only),
                     "completionPoint": "none exposed by any runtime (RealityEngine_CI#375)",
                 },

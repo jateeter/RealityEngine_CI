@@ -1,7 +1,7 @@
 {
   "corpusFingerprint": {
     "algorithm": "sha256/relfile-sorted-v1",
-    "digest": "sha256:5796ebcee66d43d22d7e3cad39bb664db8be063b32de040d661cd10e63b8b973",
+    "digest": "sha256:54c5d904a3bded012fa0dada2a2330403f4b78ee233a03e6ec6a70f3b4c28bdc",
     "machineCount": 113,
     "members": {
       "domains/community-services/BenefitsEligibilityScreener.json": "9a5115e0fca78f22655be116f2d9aee9327c2ee8c6d5de59e1263ff411c8c51c",
@@ -13,7 +13,7 @@
       "domains/community-services/CSX006_health-and-human-services-intake-aging-services-intake.json": "29cee4ee7a132194c2d54e3e8bd0344d6d888649317516aa619555ef971f7e89",
       "domains/community-services/CSX007_health-and-human-services-intake-veterans-services-intake.json": "17a2d209ecdff8a19a91b056fe11261a4409d5212dbc7073d8923bab57cd9aee",
       "domains/community-services/CSX008_health-and-human-services-intake-immigrant-refugee-navigation.json": "f1b13bf793341896ea3609a58b24c0b5b7f6f25925404046bb81d273a5733c7f",
-      "domains/community-services/CSX009_health-and-human-services-intake-crisis-benefit-intake.json": "bf901b77ee11bd1dd1e77bccf489302887a9e4ac644a5c9a33c269e6b6afd696",
+      "domains/community-services/CSX009_health-and-human-services-intake-crisis-benefit-intake.json": "8616ac7553a9278c9c6da5e49a1d54e0f249858c59b9c8104cf395c66ed6770e",
       "domains/community-services/CSX010_health-and-human-services-intake-human-services-intake-executive.json": "7b628d208c636f2622f32639bcbfefcc5d38874fd063072da730abef24097384",
       "domains/community-services/CSX011_benefits-and-eligibility-medicaid-renewal-watch.json": "3e90c1db7d5702913c6db4b637f38410c624fae74f2831f8f23d164df010ed8b",
       "domains/community-services/CSX012_benefits-and-eligibility-snap-eligibility-monitor.json": "35890596601eb6c06bee7544fd9cb124b63d7caa3aad2315b84215188db0684f",
@@ -26,16 +26,16 @@
       "domains/community-services/CSX019_benefits-and-eligibility-enrollment-completion-monitor.json": "2e1915e637f56f3f74fde4a09f3a13809097d23c0c0849f9077b586169f7584d",
       "domains/community-services/CSX020_benefits-and-eligibility-benefits-executive-optimizer.json": "58002b56bc2b42ab2fe18d937d3ae786339d8f560bac4ce7139ccfd11fb12427",
       "domains/community-services/CSX021_behavioral-health-and-crisis-988-warm-handoff-router.json": "d4169c9e2fc9fdcfd37a045a77f76223bf053b36ed6414dbb62d211ff9511584",
-      "domains/community-services/CSX022_behavioral-health-and-crisis-mobile-crisis-co-response.json": "90ecf977c26997f99fcde4d21f0be2cb35f8630b5dd5da4ce660ae2e596db746",
+      "domains/community-services/CSX022_behavioral-health-and-crisis-mobile-crisis-co-response.json": "14821466ed73bb7f8e6f075ce9f76411d20f42afb2e5c04f5206a2e83f1040f5",
       "domains/community-services/CSX023_behavioral-health-and-crisis-substance-use-outreach.json": "f07c4672c508f392525b858c402eddff50e7fcf810bcf0a10ee9bf74d4664766",
       "domains/community-services/CSX024_behavioral-health-and-crisis-mental-health-shelter-referral.json": "d19eca787b7776e4362f0c67f28f83c16a1f98716f688073b836ca1861bf42cf",
-      "domains/community-services/CSX025_behavioral-health-and-crisis-youth-crisis-pathway.json": "ebc425863190ac5386b61d1439b45028cd09bea5b584cc1d0382983d92b2e452",
-      "domains/community-services/CSX026_behavioral-health-and-crisis-post-crisis-follow-up.json": "0a322edf5fc0f2d2eb3c94082635cf9e0aa585d7d017dd169326a5fb321f9b1f",
+      "domains/community-services/CSX025_behavioral-health-and-crisis-youth-crisis-pathway.json": "d94779e3da289137b2d32d1cc2030d31ff8f63cc1d31dce9ed0af6ac5aff5fd0",
+      "domains/community-services/CSX026_behavioral-health-and-crisis-post-crisis-follow-up.json": "4823b9aa31a031eeeec15b36bafb72486aafeddb0930e5aec805415e0f8b1659",
       "domains/community-services/CSX027_behavioral-health-and-crisis-naloxone-supply-monitor.json": "6e44b60e2af6bd3d75bf9b911799dc6c75741a6c7deba2c4a563a0c087e956d7",
       "domains/community-services/CSX028_behavioral-health-and-crisis-community-violence-trauma-support.json": "567094ba40e5f9695116166a9e16496dc45e99acfb94168e90887942f3618358",
       "domains/community-services/CSX029_behavioral-health-and-crisis-behavioral-health-data-sharing.json": "ddb6db376f404855085f59b0a5836a414d470bf16a0e2a0442eead2dd922fff0",
-      "domains/community-services/CSX030_behavioral-health-and-crisis-behavioral-crisis-executive.json": "676f72bde921a89de96c70b8dfd2c020afecc82b5ab5815674c911734b5d80e7",
-      "domains/community-services/CSX031_law-enforcement-and-public-safety-non-emergency-call-triage.json": "c2d6bbf3fbd27b2b0e894916d5ce6aac5475c7e1970bf9568ae0ab1790f63cf2",
+      "domains/community-services/CSX030_behavioral-health-and-crisis-behavioral-crisis-executive.json": "3baa840c4dd280bdef90ca0d1397b6df90ae2e87c549f4544fced2efd50177ce",
+      "domains/community-services/CSX031_law-enforcement-and-public-safety-non-emergency-call-triage.json": "2372f3ce7bfc138376066e40747a41a2f0db02df001a827faecbed41b1e41b1e",
       "domains/community-services/CSX032_law-enforcement-and-public-safety-community-policing-beat-monitor.json": "8e8d96a3f5cfc422e81ebca35f4caa5dfce5f6096048b96c0c2b228922868fe7",
       "domains/community-services/CSX033_law-enforcement-and-public-safety-public-safety-hotspot-watch.json": "33ba66ee29526cdbbc8a86d009871da74902889dca43767e955bec30d281b20d",
       "domains/community-services/CSX034_law-enforcement-and-public-safety-domestic-violence-response.json": "77bad098a27b01eb0248cf6859b7a36ff5c25c267d52edfecc0a2e9d8c349366",
@@ -95,8 +95,8 @@
       "domains/community-services/CSX088_community-executive-optimization-community-operations-digital-twin.json": "e38f663f0554af42f4cbcff18624333e8915127a352d7e769b7ad05315bd7d8b",
       "domains/community-services/CSX089_community-executive-optimization-public-trust-feedback-loop.json": "e7f48522147948096d1bc6aefd1677907ed0fe9987fe3928054bf7663e89b0e5",
       "domains/community-services/CSX090_community-executive-optimization-community-services-command-center.json": "0fc5f619bcfd1cf141c4015df1695fa64733a3f3a621c822c688003d3d7dc1ec",
-      "domains/community-services/CaseWorkerCapacityMonitor.json": "c9e71da8f41cb82e7f13b30bd026206d1017ccddaa2763ccdc0e1b0d1b3b3a92",
-      "domains/community-services/CommunityAccessMonitor.json": "9c8deff4e55f5fb45b9296d39ce6c87f6a4e9b31959daf149fc6c6e3bcbff6e1",
+      "domains/community-services/CaseWorkerCapacityMonitor.json": "3c9fb971ca092b07a2636f213a6d401022838c60d0e2f423b5d42d572eb0e787",
+      "domains/community-services/CommunityAccessMonitor.json": "fc5db2e194d47a5ad89ffce570b878479bc6f3e90951f0b3d8f6721af6d115c9",
       "domains/community-services/CommunityCommandAgent.json": "1e98cdfe0f2808c01a67aff13a9f3d4de059f1676d758ba5accbd53c7ad6934f",
       "domains/community-services/CommunityOutreachMonitor.json": "08d058ef3d09fbc88a43f48d696cf266f0e246c9df3a6a567f88e645d88948cf",
       "domains/community-services/CommunityServicesCoreInterconnect.json": "00072d5c30917c82e60948e4b08235e3989f2da3097d27c75994781647b7187d",
@@ -110,12 +110,12 @@
       "domains/community-services/CommunityServicesCsx071080Interconnect.json": "e0725887399f334998a16c49ac320d597063ab65e597a245dd04bb0fe76bfe70",
       "domains/community-services/CommunityServicesCsx081090Interconnect.json": "7e122579d23a0ee1dec4da201865653f98678ce00e600945c65604b9b90363a7",
       "domains/community-services/DocumentSigningWorkflowMonitor.json": "e67e067cdcc20f8977be260831b61a39df60f65bcfaf92727979ae1858116f4a",
-      "domains/community-services/EnrollmentCoordinationMonitor.json": "4c5007ca22ba8fd40246757d5c77a806e763d06353420ed349ff35a8231bbb12",
+      "domains/community-services/EnrollmentCoordinationMonitor.json": "e7d48f4f8ee03c5166040c9721577271098461182f3ef0c7f57ab08c0c5b52f6",
       "domains/community-services/QualificationVerificationMonitor.json": "af56113d78c24852ab5700ed82d7103d2e957b7f446d3a706305c542d00f8900",
-      "domains/community-services/ReferralNetworkMonitor.json": "2442453bd539422b8dac8acb00d9fdd9e65a00876179f75784bc115ccee7bfd7",
+      "domains/community-services/ReferralNetworkMonitor.json": "35c69c971af9107a479ec43cba822966b4331abdbf1cebfa32d3163cb1912468",
       "domains/community-services/ServiceDeliveryComplianceMonitor.json": "6fe2170f154db94bd18e6095310101ad71a370fcac8022630f3762433dfab6e7",
-      "domains/community-services/ServiceDeliveryIntegrityMonitor.json": "fb34684947f392838d30fce89c854661ea11257c82c26dde0c3849a5ed1f286c",
-      "domains/community-services/ServiceIntakeAssessmentMonitor.json": "0d74a951d63b63a6e156ea40d25efb1745c506211635ce1f1477d9d4f4ec255c",
+      "domains/community-services/ServiceDeliveryIntegrityMonitor.json": "a30431c7136fc5a3254839615ab07fcc6c5c19d4c8e389f0ef589a34e5d1ff0a",
+      "domains/community-services/ServiceIntakeAssessmentMonitor.json": "078b755145bcdcf46587abce51a2b3c1cbd0b963041afc7012d3419a7e00d04f",
       "domains/community-services/WorkflowCompletionMonitor.json": "fbcf1d387cfa39ed5c5de7ee7e334d2a00e9240522870c83c297cb3ed89abc15"
     }
   },
@@ -21718,21 +21718,25 @@
   "scope": "domain:community-services",
   "stimulus": {
     "armed": {
-      "cpp-1": 132,
-      "lsp-1": 132,
-      "scala-1": 132
+      "cpp-1": 137,
+      "lsp-1": 137,
+      "scala-1": 137
     },
     "completionPoint": "none exposed by any runtime (RealityEngine_CI#375)",
     "internedSources": {
-      "cpp-1": 132,
-      "lsp-1": 132,
-      "scala-1": 132
+      "cpp-1": 137,
+      "lsp-1": 137,
+      "scala-1": 137
     },
     "isolated": true,
     "model": "corpus-interned test sources (composed ISRESeed)",
-    "residentMachines": 132,
+    "residentMachines": 139,
     "seedDepth": 31,
     "settleMs": 0,
+    "sourcelessMachines": [
+      "localai/agent_topology",
+      "localai/rag_topology"
+    ],
     "steps": 31
   }
 }

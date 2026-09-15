@@ -1,7 +1,7 @@
 {
   "corpusFingerprint": {
     "algorithm": "sha256/relfile-sorted-v1",
-    "digest": "sha256:7b0d3c3d81b6e33fc9884e5d95c7754adecdad4a3f1aa3409dc71138418f2711",
+    "digest": "sha256:beff4d547a89d572356a31180284c6efb56c3646e0ac13fb7922ccb025d2ce9d",
     "machineCount": 187,
     "members": {
       "domains/energy/ENX001_rooftop-solar-fleet-availability-monitor.json": "a7c89172a14dc766c050a4d2e2d6a78700d470ab3a8364bedbc3259287f5bfe1",
@@ -140,14 +140,14 @@
       "domains/energy/ENX134_ev-charging-load-bank-resilience-mode-router.json": "b7d8770733abf779ae91055ff09160c2284653e4f58eeed6930d81aa486eace4",
       "domains/energy/ENX135_ev-charging-load-bank-optimization-planner.json": "2c6a7efc7ee350624c538d47e8b5e839a2589d7835a7703c7d0ec6d2967c0d70",
       "domains/energy/ENX136_ev-charging-load-bank-safety-compliance-checker.json": "6d6817f87f78aa7f34aaa79f46bb48a294c42ff3506e90ed513c3be675ecceab",
-      "domains/energy/ENX137_critical-facility-backup-panel-availability-monitor.json": "170974a8eba3583747747be45ffcb8c3577035ab315db01a7ded7f61cbc5c931",
-      "domains/energy/ENX138_critical-facility-backup-panel-dispatch-controller.json": "4fa8fd14c11300bb67bb97288381592a44505d89d3dd069ad8f6188bc171c87f",
-      "domains/energy/ENX139_critical-facility-backup-panel-forecast-gatekeeper.json": "0004a5383c0931dc0fac5098d240861db820a73e779ac643972a4dcd66ccd1d0",
-      "domains/energy/ENX140_critical-facility-backup-panel-maintenance-scheduler.json": "448391b0d23f0494bb7e4870f42186ad2c42a595919d2b22dc7ef32dbaf6f0ff",
-      "domains/energy/ENX141_critical-facility-backup-panel-power-quality-guardian.json": "ddca28747341b6fc9ad8a1f964ea3dc4c189a1cbadf162b0077622d1c3461006",
-      "domains/energy/ENX142_critical-facility-backup-panel-resilience-mode-router.json": "435c2e94f92e4d6c261e9c05ecde44032cc2c3843cd496279295f02c96ef8a40",
-      "domains/energy/ENX143_critical-facility-backup-panel-optimization-planner.json": "c92b9484cfb855b71b10893eaffd9b93cda75838f57e526f5afacca9f2b06da2",
-      "domains/energy/ENX144_critical-facility-backup-panel-safety-compliance-checker.json": "a7982acc5f7774845f4769f8a52f09eab43219c55e43f6c782decdff648b0528",
+      "domains/energy/ENX137_critical-facility-backup-panel-availability-monitor.json": "ce17b711e321cc48768bb2e928c9107db84fd95fe356b4367c8b05bee0bf10f1",
+      "domains/energy/ENX138_critical-facility-backup-panel-dispatch-controller.json": "b4654210613442a04db3947a5b2a8db4c6a3036ab08596e90a980b2a73c0af5b",
+      "domains/energy/ENX139_critical-facility-backup-panel-forecast-gatekeeper.json": "7eb3ccc4a8e2ad9daa0e2398bf32b4f9901606ea9fa89b815209978b755dbc16",
+      "domains/energy/ENX140_critical-facility-backup-panel-maintenance-scheduler.json": "8b950fc6de971b67dcad5d64eb7d3de57f5d36ce82d99af6777c560b33595a5d",
+      "domains/energy/ENX141_critical-facility-backup-panel-power-quality-guardian.json": "5e313c3ea2ecacd3a78fe3aadcd7f73cc5312b188d9b02e6fc8a7801ac6a55a9",
+      "domains/energy/ENX142_critical-facility-backup-panel-resilience-mode-router.json": "4902d82fb2999adf60121dd9b6f1fbe198f1a0e9404bc611ace02d536efa1367",
+      "domains/energy/ENX143_critical-facility-backup-panel-optimization-planner.json": "903d62c16a2afd3486fff30475829c17d033bdae89fdef4c938cff1f06261de1",
+      "domains/energy/ENX144_critical-facility-backup-panel-safety-compliance-checker.json": "5781013b7d7470e5e10fcac1df996deaae7309261aa0a1274ff4065553411975",
       "domains/energy/ENX145_weather-and-irradiance-station-availability-monitor.json": "751193994732ac4362b523540c0d4d125b2c32b31fcbc6cb066b8513313de403",
       "domains/energy/ENX146_weather-and-irradiance-station-dispatch-controller.json": "e717b52a835a31ad4a9d4b7d2d536cb6d2f20375c8995a7a3ecc6734f8ca1444",
       "domains/energy/ENX147_weather-and-irradiance-station-forecast-gatekeeper.json": "be0a7de182f86166869fb9499c7edb4496f411c9b82bd8bab23b847027fa6df2",
@@ -164,16 +164,16 @@
       "domains/energy/ENX158_preventive-maintenance-work-order-resilience-mode-router.json": "f4d0696e139ffcf694a06b271d47d4bc0a8de74bc62bda94400c7e0f8b206dd1",
       "domains/energy/ENX159_preventive-maintenance-work-order-optimization-planner.json": "e613d34375ba52d4a5eaa6365253e7e6dc17e1ec9619159ea3f0478678d31e40",
       "domains/energy/ENX160_preventive-maintenance-work-order-safety-compliance-checker.json": "5be9c4c4a768a7932a97618967247b6927c8b6c4f481f882fdbf371c425e81d8",
-      "domains/energy/ENX201_community-critical-load-priority-controller.json": "5614b6d7af5c43bb7e9fc555369afb9e567ab1c5e48f3dd3c85a3419e8f53b31",
+      "domains/energy/ENX201_community-critical-load-priority-controller.json": "ecd4d72baea6a81935eacfb690638aac3ea664ed521357d77934a0e189c9926b",
       "domains/energy/ENX202_islanding-readiness-coordinator.json": "7cf2ab66ee78bcab34e14d4c319af1a4eec56f8e4579d7db68edfc31ba017b6b",
       "domains/energy/ENX203_storage-reserve-and-dispatch-optimizer.json": "68e4c89db03c2f2e130d03c1402dfe30e2742ea82ea89a034229a82ca0634948",
       "domains/energy/ENX204_distributed-generation-commitment-planner.json": "22b274d152f42f78aa9487ff5fd4f5c94c98b84698aa6fecc4994fb3186ddf53",
       "domains/energy/ENX205_feeder-and-transmission-path-manager.json": "786da30f8bd2a456784beef2f216d7dea527bb79838f16d33e2498c7f88a45c6",
-      "domains/energy/ENX206_community-service-continuity-monitor.json": "0060d9d8592c7a2b01e8ed7283d4979eee5e067da9378c20d906604d338bc1ba",
+      "domains/energy/ENX206_community-service-continuity-monitor.json": "d9a196302bd66e02a962659d0d0c62358d11ddd335e5487f951a00a195dfda23",
       "domains/energy/ENX207_energy-supply-chain-logistics-coordinator.json": "3197c1efc098383ea11092b02ef24d0951170e6d595c9520d8319d3421180a88",
       "domains/energy/ENX208_smart-grid-protocol-adapter-health-monitor.json": "6d1800676aecac3294297e45c776dfea7cbb41fe75ff8ed424bee142729f0ea8",
       "domains/energy/ENX209_microgrid-cyber-safety-gate.json": "8bb4c0528bb7f43b52050db6f451ab4004949680a7a06167d7a470a3dae6cc6f",
-      "domains/energy/ENX210_resilient-community-microgrid-operations-stabilizer.json": "4caf431c9873978e01c98bd40cbbc024825b7e824bb76153df4e73e855a470a3",
+      "domains/energy/ENX210_resilient-community-microgrid-operations-stabilizer.json": "4d4af4114ecb85ec102b00fd4ac3b86cb8dba7aea67cded4b6f0eceb79d8030c",
       "domains/energy/EnergyEnx001010Interconnect.json": "f4926f59b69c318820eebc4b70938320409e6c8a5557fbb3c56a10e283b45f70",
       "domains/energy/EnergyEnx011020Interconnect.json": "c463646da794c6030e2bb9e7eb37f5ed6b47d1c7ccfb74555855cfaa3f816207",
       "domains/energy/EnergyEnx021030Interconnect.json": "8986a680b053fac81722d7edd69746de8d8e1cefd57b3aa1058d6d02d25b8f14",
@@ -190,7 +190,7 @@
       "domains/energy/EnergyEnx131140Interconnect.json": "90d9e47e9cbed1ecc77a7fb0657ded0d341bd7bd35f4e85f504385e4b4f8d08b",
       "domains/energy/EnergyEnx141150Interconnect.json": "8d7d2631fc260189064e5b6c6a69622246ebda1cc59e660d142cdf784e3da1bf",
       "domains/energy/EnergyEnx151160Interconnect.json": "d25217c879f9870d20022ed8f60be98d4eac13538007f37a1a1b12bc36fa9d92",
-      "domains/energy/EnergyResilientCommunityMicrogridCommandCenterInterconnect.json": "ce16771ab41dbdb6603bb33e336dca4d3d341d1625516529d97952784f2838b0"
+      "domains/energy/EnergyResilientCommunityMicrogridCommandCenterInterconnect.json": "6c36c8f0f5698fc805ece455bbcc154250d6f7205ca4e4cace6ebe9bdeb2b7c9"
     }
   },
   "counts": {
@@ -35926,21 +35926,25 @@
   "scope": "domain:energy",
   "stimulus": {
     "armed": {
-      "cpp-1": 208,
-      "lsp-1": 208,
-      "scala-1": 208
+      "cpp-1": 213,
+      "lsp-1": 213,
+      "scala-1": 213
     },
     "completionPoint": "none exposed by any runtime (RealityEngine_CI#375)",
     "internedSources": {
-      "cpp-1": 208,
-      "lsp-1": 208,
-      "scala-1": 208
+      "cpp-1": 213,
+      "lsp-1": 213,
+      "scala-1": 213
     },
     "isolated": true,
     "model": "corpus-interned test sources (composed ISRESeed)",
-    "residentMachines": 208,
+    "residentMachines": 215,
     "seedDepth": 31,
     "settleMs": 0,
+    "sourcelessMachines": [
+      "localai/agent_topology",
+      "localai/rag_topology"
+    ],
     "steps": 31
   }
 }

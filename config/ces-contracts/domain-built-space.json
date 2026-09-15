@@ -1,7 +1,7 @@
 {
   "corpusFingerprint": {
     "algorithm": "sha256/relfile-sorted-v1",
-    "digest": "sha256:0ee89d593b024478024b9f06a8bd1b61b86c95399fb6a3af814b0bd3a993fc1a",
+    "digest": "sha256:d2de23b21ac5d8db4b1162cacbea0da693694beffafcbc3ae79fb8850a29401e",
     "machineCount": 165,
     "members": {
       "domains/built-space/BSX001_integrative-planning-stakeholder-charrette-tracker.json": "da2ecb86ffd40d5137e411a049aa001c212ed045a49c821da4e42bdae9119c64",
@@ -121,7 +121,7 @@
       "domains/built-space/BSX115_community-and-hr-occupant-transparency-reporting.json": "460d99750436d6eed47bd873b7c9b2272bcea47b34df1df67a50a51d89150a1c",
       "domains/built-space/BSX116_community-and-hr-equity-accessibility-governance.json": "15963771f21d8e4a4e527dec2c55d6bd900987ff70d883740a69a942eadbd4b5",
       "domains/built-space/BSX117_community-and-hr-community-engagement-calendar.json": "f3831a38a07e5d7200ad67ce7f1ee2c23f01a219b12dcd0c92f3d4e2e59d6e46",
-      "domains/built-space/BSX118_community-and-hr-emergency-preparedness-wellness.json": "a37f712eb45c4c3bf5ea6b099b53fd44b777aac1fcce6b6e75ae60cfc2a66326",
+      "domains/built-space/BSX118_community-and-hr-emergency-preparedness-wellness.json": "430a544c2a639ceda09743fc7a35fbf58fc4dad6b8c2a3091ec0b35509a3889f",
       "domains/built-space/BSX119_community-and-hr-community-evidence-archive.json": "bd4d9880f238deacbfe62c8d3c314498bacb2fa14e33c1e08d626878a910f7ea",
       "domains/built-space/BSX120_community-and-hr-community-executive-assurance.json": "43f2d54ebfae66de7f18618ca5ca17474e769c6e9b63d58655ac274b0f5528ca",
       "domains/built-space/BSX121_occupant-feedback-annual-ieq-survey-launch.json": "8be202b589104e5479beb000a3ad956897baf0a803e4576d68a936ab9adea539",
@@ -31702,21 +31702,25 @@
   "scope": "domain:built-space",
   "stimulus": {
     "armed": {
-      "cpp-1": 186,
-      "lsp-1": 186,
-      "scala-1": 186
+      "cpp-1": 191,
+      "lsp-1": 191,
+      "scala-1": 191
     },
     "completionPoint": "none exposed by any runtime (RealityEngine_CI#375)",
     "internedSources": {
-      "cpp-1": 186,
-      "lsp-1": 186,
-      "scala-1": 186
+      "cpp-1": 191,
+      "lsp-1": 191,
+      "scala-1": 191
     },
     "isolated": true,
     "model": "corpus-interned test sources (composed ISRESeed)",
-    "residentMachines": 186,
+    "residentMachines": 193,
     "seedDepth": 31,
     "settleMs": 0,
+    "sourcelessMachines": [
+      "localai/agent_topology",
+      "localai/rag_topology"
+    ],
     "steps": 31
   }
 }
