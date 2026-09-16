@@ -1,24 +1,24 @@
 {
   "corpusFingerprint": {
     "algorithm": "sha256/relfile-sorted-v1",
-    "digest": "sha256:e3d7512d30273cea2b99bf125f21e081afec0bbcaff1ae671fe6fa7557aa9536",
+    "digest": "sha256:c210320fca2c46328a54ad06869eb0a7503023b5cd0c4c6dcd6ebb4560ca3c24",
     "machineCount": 43,
     "members": {
       "domains/health-personal/AdolescentMentalHealthMonitor.json": "27d16a6c7fcff10500c5ba44e53127613023272a2454c92a3494cd79db982a16",
       "domains/health-personal/CareTransitionResponseInterconnect.json": "c0a5ca9954e7371d0f8b2ee730676c23653683cb4365ce95da9b5d282f3feac9",
-      "domains/health-personal/CareTransitionWorkflow.json": "73861649fcae407a60ea899a6600b763f4617def1d7c55444fe82204888ca8ff",
+      "domains/health-personal/CareTransitionWorkflow.json": "b3731a693e13565821cea40d3e5efe0a6432c9d0eb9d1fa1b0f50a307fbb84f0",
       "domains/health-personal/ChildDevelopmentMonitor.json": "be11ac99935b5173613fbb5e8f6deef50c8f87467b5a2a8fe4a444a5bfb3ee23",
       "domains/health-personal/ChildDevelopmentSupportInterconnect.json": "8fbd50212e1760dfa5a743c0b0cbd511fbb273243f51db2148e07e095618f0fc",
-      "domains/health-personal/DailyActivityMonitor.json": "18918c71d1599a1866047c6e55ef17c79b08686cb1621a8f63c1d6e9f5f74d44",
+      "domains/health-personal/DailyActivityMonitor.json": "ca9edc9ad16a4a74d6bdba3ca80e9d1cf3ce08e1a6160c4074bc75d3c4162209",
       "domains/health-personal/DailyActivityWellnessInterconnect.json": "ca13ebb1ba6e0f5650aad736240e13984ced252e752524dddb349cdfd1a0e5cc",
-      "domains/health-personal/DailyPatientCare.json": "db7dd82e74c716371079e5a4623d9a81e1ea3a4879216d4244be70a0cc701ddb",
+      "domains/health-personal/DailyPatientCare.json": "1e5146836d675ab633a281456f3fb24968a1970c156d3ff1968d0823432a8ad6",
       "domains/health-personal/DailyPatientCareResponseInterconnect.json": "0f501610e597726893d3a9438249664b82f26e50b711fd4c72724c4b40af1402",
       "domains/health-personal/FacilitiesMaintenance.json": "57ed0d2f5c0969505af0e004ba66f91546360338513406e84bf27b8d6bfe580d",
       "domains/health-personal/FacilitiesMaintenanceResponseInterconnect.json": "ec5d2aef4bd1c2fe60482baed19d3ad31213fb5ea193c332dafbf043418a0198",
       "domains/health-personal/FallDetection.json": "421e9512c0985fe929026c688322e26b489952cc9066a3388ffc19a20ffacbbe",
       "domains/health-personal/FallSensorMotionPreaggregator.json": "00722af3b0bd87a5c5fd638248170751ab36453be99c6c3b1666e59b838b90c8",
       "domains/health-personal/HealthInfrastructureSupportInterconnect.json": "4bd11b392869fa3e395a55c278eea9f7a14ff2f89232decbabc4973e066371d9",
-      "domains/health-personal/HealthKitVitalsMonitor.json": "b986af2712982f90a1e5fd4a80c24c8be30c93456861584d8a52986adc969481",
+      "domains/health-personal/HealthKitVitalsMonitor.json": "47623b45a9b34c23ac4613397987ce1364e2080a9f42e3ede0689a816cc2e593",
       "domains/health-personal/HomeCaregiverBurdenMonitor.json": "3235c263a7f476cf2054d763700f5f7a5e6c75bc5e27d3bdb8c6d96623e6fb0b",
       "domains/health-personal/HomeCaregiverSupportResponseInterconnect.json": "60a12dc59b4460342d1894def5ce550a764888938efe372276e999d38cd36d3a",
       "domains/health-personal/HomeChronicDiseaseMonitor.json": "0c22b909185440206da7e7d0b21b03ef999b1728a023577a45faf85607fca232",
@@ -33,17 +33,17 @@
       "domains/health-personal/HomeMentalHealthAccessMonitor.json": "a6d247a6c0e797663a46471388a7894e5436356784ea6d10629958bad05f8e0e",
       "domains/health-personal/HomeSocialIsolationMonitor.json": "1ad772af3bb7cdc2cc70c77fe5c940db9f2c443a7359cd3fed88eea36bec2528",
       "domains/health-personal/HomeTransportationBarrierMonitor.json": "cba40e2ae14f4229390079a3f32ce941a1f9766327c83e0663eef863d5d7fff8",
-      "domains/health-personal/HydrationMonitor.json": "14233b7e0a7281cbf4482d3eeb013cd8b392328479d3909027fb3e5c501ad247",
+      "domains/health-personal/HydrationMonitor.json": "690ff86bee4c813301d6776255da11df2d19e375bd61200986ee109b1028cf04",
       "domains/health-personal/HydrationRiskResponseInterconnect.json": "7b3037348486a10ed8516fc05c9fd5a59d57334d956130112f79bfa736fb284d",
       "domains/health-personal/IntakeWellnessRoutingInterconnect.json": "6781d8fcd3686cf1a063cac3679d17c13853eb8da5f658a0284d5ba597a96976",
       "domains/health-personal/MedicationAccessAdherenceInterconnect.json": "02e0a9c96884889d642cc7b08a181aeea7b88a20cb359366c648558f0b41e57f",
-      "domains/health-personal/MedicationAdherenceMonitor.json": "074ff73635b3c59daeb94c131adc20d1375b6495c7ac11a1049de4abbcf087f1",
+      "domains/health-personal/MedicationAdherenceMonitor.json": "a8ac06be22b3f70423c23802609d2f36cbc2dafc1c4f0b5171ea29d1abc60cb5",
       "domains/health-personal/NewPatientInflow.json": "cc77339b1c84eccfd38d743b20dd91f837c40069d69ad2bbd678cd0e777f07ac",
       "domains/health-personal/PatientSafetyTransportInterconnect.json": "babfbd1b0047c5a3a981f1ff651bb5fc6c197dad5fb0f0e086dd79f9c3ad7109",
       "domains/health-personal/PatientWellness.json": "bc0c7ef7ed04bdfe976f664a663d7611bf074f3a2c88dc49969fb9fcd023f865",
       "domains/health-personal/PediatricAdolescentFamilySupportInterconnect.json": "305fe29be60064683f0454c686198da07c1626abc2ac4b4941c80e742aea2977",
       "domains/health-personal/PediatricNutritionMonitor.json": "84f09e32923ebfb8d16ae60d209b69e25e7268ecd6e5902d8e6632a93f1faf78",
-      "domains/health-personal/SleepQualityMonitor.json": "a5cbeda872e5e23be2bec3cad16f04934fbbbc30aaf387c93db68be748cca3df",
+      "domains/health-personal/SleepQualityMonitor.json": "3e2886050dcc4a8524614f238d8c8decbe14fe9b1c59d9cf33a477ed25cc0c3d",
       "domains/health-personal/SleepRecoveryWellnessInterconnect.json": "cbff897a16b49b6543a13c97ae7351d5b8323e2edd1e3ff1a5fb37d91848149d",
       "domains/health-personal/SocialIsolationAccessInterconnect.json": "3a26d8a4a244e4757ba37bfad22993b5bfbd717230fae27e6da078b88fc2d9f4",
       "domains/health-personal/WellnessAnalytics.json": "9e559b8a505faafbd5f82bc6a601a8dc85411fb33a4a41b242346caf8e15dfd5"
@@ -21374,21 +21374,22 @@
   "scope": "domain:health-personal",
   "stimulus": {
     "armed": {
-      "cpp-1": 62,
-      "lsp-1": 62,
-      "scala-1": 62
+      "cpp-1": 59,
+      "lsp-1": 59,
+      "scala-1": 59
     },
     "completionPoint": "none exposed by any runtime (RealityEngine_CI#375)",
     "internedSources": {
-      "cpp-1": 62,
-      "lsp-1": 62,
-      "scala-1": 62
+      "cpp-1": 59,
+      "lsp-1": 59,
+      "scala-1": 59
     },
     "isolated": true,
     "model": "corpus-interned test sources (composed ISRESeed)",
-    "residentMachines": 62,
+    "residentMachines": 59,
     "seedDepth": 79,
     "settleMs": 0,
+    "sourcelessMachines": [],
     "steps": 79
   }
 }
