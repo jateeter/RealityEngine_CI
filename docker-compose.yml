@@ -168,6 +168,15 @@ services:
       - AUDIT_LOG_LEVEL=2
       - AUDIT_LOG_SERVICE=visualizer-backend
       - VIZ_CACHE_TTL_MS=${VIZ_CACHE_TTL_MS:-500}
+      # Rate limits, matching startUniverse.sh's defaults so the two lanes agree
+      # (RealityEngine_Manager#152). Without these the Docker lane ran at the
+      # server.ts defaults of 200/120 while the native lane ran 25x higher, and
+      # every Playwright worker presents as 127.0.0.1 so the whole suite shares
+      # one bucket. That asymmetry is what produced the 11 saved e2e artifacts
+      # carrying "Failed to load machine graph (HTTP 429)" in #122 — all of them
+      # from this lane, none from the native one.
+      - VIZ_RATE_LIMIT_MAX=${VIZ_RATE_LIMIT_MAX:-5000}
+      - VIZ_MACHINES_RATE_LIMIT_MAX=${VIZ_MACHINES_RATE_LIMIT_MAX:-2000}
     depends_on:
       reality-engine:
         condition: service_healthy
