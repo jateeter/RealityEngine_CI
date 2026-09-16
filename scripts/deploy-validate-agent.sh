@@ -408,6 +408,49 @@ phase_deploy() {
   # with "Docker daemon not running" right after teardown). `docker compose
   # down` frees the ports by removing the containers and never touches the
   # Docker backend process.
+  # …and a NATIVE universe holds the same ports, which the paragraph above does
+  # not cover. `docker compose down` frees only what Docker bound. When
+  # startUniverse.sh has been run natively, RealityEngine_Manager's visualizer
+  # backend owns :3001 as an ordinary node process, the TLS proxy cannot bind
+  # it, and the proxy never starts.
+  #
+  # That is the whole of RealityEngine_Manager#126, #125 and #127. The TLS proxy
+  # is the single front door for every https:// health probe in this script —
+  # RE :5001, PE :3004, Visualizer :3001/:5173 — so one unbound port reports
+  # five services unhealthy, none of which is. Across twenty archived runs the
+  # correlation is exact: every run where the proxy started has zero health
+  # failures, and every run where it failed to bind :3001 has five. In those
+  # runs `reality-engine-perception-backend` reached "Started" every time.
+  #
+  # Detected and reported, never killed. The paragraph above explains why a
+  # blunt kill is dangerous — when the containers are up, all these ports belong
+  # to one PID, com.docker.backend, and SIGKILLing it takes the daemon down. So
+  # this looks at *what* holds the port and only refuses when the holder is a
+  # native process from this workspace.
+  local proxy_ports="3001 3004 5001 5173"
+  local blockers=""
+  for _port in $proxy_ports; do
+    local _pid _exe _cwd
+    _pid="$(lsof -ti ":$_port" -sTCP:LISTEN 2>/dev/null | head -1)"
+    [ -n "$_pid" ] || continue
+    _exe="$(ps -o comm= -p "$_pid" 2>/dev/null)"
+    # com.docker.backend is the Docker port proxy; compose down below frees it.
+    case "$_exe" in *com.docker*|*Docker*) continue ;; esac
+    _cwd="$(lsof -a -p "$_pid" -d cwd -Fn 2>/dev/null | sed -n 's/^n//p' | head -1)"
+    case "$_cwd" in
+      "$WS"/*) blockers="$blockers  :$_port  pid $_pid  $_exe  ($_cwd)\n" ;;
+    esac
+  done
+  if [ -n "$blockers" ]; then
+    fail orchestration deploy \
+      "a native universe holds the TLS-proxy ports; the Docker lane cannot bind them" \
+      "$(printf "Stop the native universe first:\n  cd $CI_DIR && ./stopUniverse.sh\n\nHolders:\n$blockers")"
+    warn "Refusing to start the Docker lane: the TLS proxy would fail to bind and"
+    warn "five services would be reported unhealthy when none of them is."
+    printf "%b" "$blockers" | while IFS= read -r _l; do [ -n "$_l" ] && warn "$_l"; done
+    return 1
+  fi
+
   info "Pre-deploy teardown (docker compose down: CI, localAIStack, OpenClaw)..."
   ( cd "$CI_DIR" && docker compose down --remove-orphans ) >>"$RUN_LOG" 2>&1 || true
   if [ -f "$LAS_DIR/docker-compose.yml" ]; then
