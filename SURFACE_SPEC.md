@@ -1085,6 +1085,7 @@ observed at the next reset — makes it inactive again.
 | GET | `/api/integrations/localai/catalog` | ✓ | ✓ | ✓ |
 | POST | `/api/integrations/localai/bootstrap` | ✓ | ✓ | ✓ |
 | POST | `/api/integrations/localai/invoke` | ✓ | ✓ | ✓ |
+| GET | `/api/integrations/localai/ledger` | ✓ | — | — |
 
 ### Dispatch & Triggers
 
