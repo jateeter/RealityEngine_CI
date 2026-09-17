@@ -1,5 +1,7 @@
 # Integration Architecture — Roadmap
 
+Last reviewed: 2026-09-17 · Status: **Gap analysis closed** — all 19 rows against `INTEGRATION_ARCHITECTURE.md` are ✅; Phases 0-6 are the delivery record behind them.
+
 Companion to [`INTEGRATION_ARCHITECTURE.md`](./INTEGRATION_ARCHITECTURE.md).
 
 This roadmap is scoped to the TypeScript Perception Engine

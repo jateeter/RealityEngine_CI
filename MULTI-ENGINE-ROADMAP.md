@@ -1,5 +1,7 @@
 # Multi-Engine Roadmap — Simultaneous RE Instances on a Single Host
 
+Last reviewed: 2026-09-17 · Status: **All 5 phases delivered** — verify by checking each phase's shipped artifact, not by reading the plan; `startUniverse.sh --help` and the instance registry are authoritative for current behaviour.
+
 Enables spawning multiple RealityEngine runtimes (Scala, C++, LSP) simultaneously
 on the same machine, each bound to the host's LAN IP, with `RealityEngine_Manager`
 able to dynamically connect to any running instance.
