@@ -482,6 +482,9 @@ def response_schema(method: str, path: str) -> dict:
 SURFACE_HEADINGS = {
     "re": "Reality Engine (RE) Surface",
     "pe": "Perception Engine (PE) Surface",
+    # The external surface, served by the Manager rather than by a runtime, so
+    # it is generated once instead of per runtime (RealityEngine_CI#399).
+    "manager": "Manager (Visualizer) Surface",
 }
 
 
@@ -528,6 +531,7 @@ def parse_surface_spec(spec_path: str) -> dict[str, list[tuple[str, str, str]]]:
     text = Path(spec_path).read_text()
     re_text = _section(text, SURFACE_HEADINGS["re"])
     pe_text = _section(text, SURFACE_HEADINGS["pe"])
+    mgr_text = _section(text, SURFACE_HEADINGS["manager"])
 
     protocol_to_method = {"SSE": "GET", "WebSocket": "GET"}
 
@@ -551,7 +555,8 @@ def parse_surface_spec(spec_path: str) -> dict[str, list[tuple[str, str, str]]]:
                 routes.append((tag, method, openapi_path))
         return routes
 
-    parsed = {"re": extract(re_text), "pe": extract(pe_text)}
+    parsed = {"re": extract(re_text), "pe": extract(pe_text),
+              "manager": extract(mgr_text)}
 
     # A surface that parses to nothing is a parser failure, not a spec with no
     # routes. Both of these documents describe dozens; neither will ever
@@ -656,12 +661,22 @@ def build_paths(routes: list[tuple[str, str, str]],
 # ---------------------------------------------------------------------------
 def assemble(surface: str, routes: list[tuple[str, str, str]],
              overlay: dict, spec_path: str) -> dict:
-    is_re = (surface == "re")
-    sse_paths = {"/api/engine/stream"} if is_re else {"/api/events"}
+    is_re  = (surface == "re")
+    is_mgr = (surface == "manager")
+
+    # The Manager surface streams nothing and is not a runtime, so it takes
+    # neither SSE path. Spelled out rather than left to fall through the
+    # is_re/else split, which would have silently given it the PE stream path
+    # and the PE component set (RealityEngine_CI#399).
+    if is_mgr:
+        sse_paths = set()
+        components = re_components()   # the vector and sequence schemas it reads
+    else:
+        sse_paths = {"/api/engine/stream"} if is_re else {"/api/events"}
+        components = re_components() if is_re else pe_components()
 
     tags = sorted({tag for tag, _, _ in routes})
     paths = build_paths(routes, sse_paths)
-    components = re_components() if is_re else pe_components()
 
     # Derive operationIds (must be unique)
     for path, methods in paths.items():
@@ -673,7 +688,10 @@ def assemble(surface: str, routes: list[tuple[str, str, str]],
     spec: dict = {
         "openapi": "3.1.0",
         "info": {
-            "title": overlay.get("info", {}).get("title", f"RealityEngine {surface.upper()} API"),
+            "title": overlay.get("info", {}).get(
+                "title",
+                "RealityEngine Manager API (external)" if is_mgr
+                else f"RealityEngine {surface.upper()} API"),
             "version": overlay.get("info", {}).get("version", "1.1.0"),
             "description": overlay.get("info", {}).get(
                 "description",
@@ -697,6 +715,7 @@ def main() -> None:
     ap.add_argument("--overlay", required=True, help="Runtime overlay YAML")
     ap.add_argument("--out-re",  required=True, help="Output path for RE spec")
     ap.add_argument("--out-pe",  required=True, help="Output path for PE spec")
+    ap.add_argument("--out-manager", help="Output path for the Manager (external) spec")
     args = ap.parse_args()
 
     routes = parse_surface_spec(args.spec)
@@ -712,6 +731,17 @@ def main() -> None:
             yaml.dump(spec, f, allow_unicode=True, sort_keys=False,
                       default_flow_style=False, width=120)
         print(f"wrote {out_path}")
+
+    # The Manager surface is not runtime-specific: one document, no overlay.
+    # Written only when asked for, so the per-runtime invocations above are
+    # unchanged and do not each rewrite the same file.
+    if args.out_manager:
+        spec = assemble("manager", routes["manager"], {}, args.spec)
+        Path(args.out_manager).parent.mkdir(parents=True, exist_ok=True)
+        with open(args.out_manager, "w") as f:
+            yaml.dump(spec, f, allow_unicode=True, sort_keys=False,
+                      default_flow_style=False, width=120)
+        print(f"wrote {args.out_manager}")
 
 
 if __name__ == "__main__":

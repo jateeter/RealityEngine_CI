@@ -442,6 +442,7 @@ run_unit() {
     fi
 
     run_manager_builds_and_tests
+    run_docs_audit
     run_machines_offline
     run_openclaw_adapter_tests
     run_regression_issue_filer_tests
@@ -496,6 +497,31 @@ run_manager_builds_and_tests() {
                 run_suite "$label (jest)" "$dir" npm test ;;
         esac
     done
+}
+
+# Documentation audit: SURFACE_SPEC copies, deprecated ports, OpenAPI parity
+# (including the Manager surface), wiki drift, stale blocker text.
+#
+# Wired here because it was wired nowhere. `audit-docs.sh` existed and nothing
+# invoked it, so the committed OpenAPI specs drifted 9 routes behind
+# SURFACE_SPEC and every propagated mirror went stale without a word
+# (RealityEngine_CI#399). A gate reachable from nothing is the same defect as a
+# generator nobody runs — this repo has now paid for that shape three times
+# (Machines#115, #158, and here).
+#
+# Offline and cheap: it reads files and regenerates into a temp dir. No engine,
+# no universe.
+run_docs_audit() {
+    local py
+    if ! py="$(resolve_python)"; then
+        skip_suite "Docs audit" "no Python >=3.11 found"
+        return
+    fi
+    if ! "$py" -c "import yaml" >/dev/null 2>&1; then
+        skip_suite "Docs audit" "pyyaml not installed (pip install pyyaml)"
+        return
+    fi
+    run_suite "Docs audit" "$CI_DIR" bash "$CI_DIR/scripts/audit-docs.sh"
 }
 
 run_machines_offline() {
