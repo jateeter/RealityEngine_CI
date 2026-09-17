@@ -1412,8 +1412,8 @@ So this route is the **internal** surface. The external read is engine-qualified
 on the Manager:
 
 ```
-GET /api/engines/:engineId/vectors/:vectorId
-GET /api/engines/:engineId/sequences/:sequenceId
+GET /api/engine/:engineId/vectors/:vectorId
+GET /api/engine/:engineId/sequences/:sequenceId
 ```
 
 Those resolve the engine by instance id and proxy to that engine's own route. An
