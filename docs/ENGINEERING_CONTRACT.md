@@ -134,6 +134,52 @@ recorded rather than investigated.
 
 ---
 
+## MUST: this repository is the authority — peripheral CI stays minimal
+
+**`RealityEngine_CI` is where verification lives and where guidance is
+authoritative. Look here first, before deciding how anything is verified.**
+
+Every other repository in the focus set — `RealityEngine_Machines`,
+`RealityEngine_Manager`, `RealityEngine_CPP`, `RealityEngine_LSP`,
+`RealityEngine_Scala`, `localAIStack`, `localOpenClawStack`,
+`localHealthkitBridge` — keeps its repo-specific CI **deliberately minimal**:
+enough to force the local validation, never enough to stand in for it. A fix is
+fully verified by this repo, against a live universe.
+
+### Why
+
+A per-repo lane can only exercise what a lone checkout reaches. It cannot stand
+up a 3-of-3 universe, cannot reach `localAIStack` or the OpenClaw gateway, and
+cannot answer whether a change works where it has to work. Its green is
+therefore an invitation to believe a change is verified when the integration
+points were never touched — the precise failure the rule above exists to stop.
+
+Keeping those lanes small keeps the verification burden where it can actually be
+discharged, and keeps the local run non-optional rather than something a green
+checkmark excuses.
+
+### In practice
+
+- **Check this repo's `docs/` before adding or extending CI anywhere else**, and
+  follow what it says.
+- A peripheral lane may run cheap, checkout-local gates: schema validation, unit
+  tests, a linter, a repo's own `--check` generators.
+- It may **not** install heavy toolchains, check out sibling repositories, or
+  otherwise approximate a universe. That work belongs here. A peripheral lane
+  that needs three sibling checkouts to be meaningful has outgrown its remit and
+  is doing this repo's job badly.
+- **Never present a peripheral repo's green CI as verification of a fix.** Say
+  what ran locally, and say what this repo still has to confirm.
+
+### Not yet: freestanding per-repo CI
+
+Each repo standing on its own CI is a future state, and a deliberate one. It is
+not a direction to build toward incrementally, and a peripheral lane should not
+grow "towards" it a job at a time. When that change is made it will be made
+here, on purpose, and this section will say so.
+
+---
+
 ## MUST: never commit to main — branch, PR, verify, merge, clean up
 
 **No change reaches `main` in any repo except through a branch and a pull
