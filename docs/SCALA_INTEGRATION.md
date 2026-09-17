@@ -133,7 +133,7 @@ used — and the per-repository commands, the two-independent-builds rule and th
 
 ```bash
 cd RealityEngine_CI
-./scripts/regression-test.sh --build-only
+./scripts/regression-test.sh --execute --build-only
 ```
 
 What matters to an **integrator** rather than a builder is narrower: the engine

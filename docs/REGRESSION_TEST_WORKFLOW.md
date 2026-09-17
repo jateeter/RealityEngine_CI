@@ -119,8 +119,13 @@ working branches directly. It should:
    (`profile` plus the `coverage` it implies).
 
 For provenance and build certification without a deployed universe, use
-`--build-only`. That mode still creates the run-local worktrees and executes the
-full build phase, but skips universe startup and all live tests.
+`--execute --build-only`. That mode still creates the run-local worktrees and
+executes the full build phase, but skips universe startup and all live tests.
+
+`--execute` is the master switch and `--build-only` does not imply it — the two
+are separate because `plan` and `build-only` are distinct run modes, and the
+hosted lane uses both. `--build-only` alone is refused rather than silently
+planned.
 
 Participating repos:
 

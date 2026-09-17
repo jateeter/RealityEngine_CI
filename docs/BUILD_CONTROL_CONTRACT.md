@@ -50,8 +50,8 @@ Run the whole thing with:
 
 ```bash
 cd RealityEngine_CI
-./scripts/regression-test.sh --build-only     # build everything, start nothing
-./scripts/regression-test.sh --skip-build     # use what is already built
+./scripts/regression-test.sh --execute --build-only   # build everything, start nothing
+./scripts/regression-test.sh --execute --skip-build   # use what is already built
 ```
 
 ### 2.1 RealityEngine_Scala is two builds, not one build with two subprojects
@@ -150,9 +150,10 @@ all three are running the code you think they are.
 
 ## 6. Rules
 
-1. **Build through `RealityEngine_CI`.** `./scripts/regression-test.sh
+1. **Build through `RealityEngine_CI`.** `./scripts/regression-test.sh --execute
    --build-only` builds every repository in the right order with the right
-   prerequisites. Reach for a per-repo `make` or `sbt` only when working on that
+   prerequisites. `--execute` is not optional: without it the script prints its
+   plan and exits, having built nothing. Reach for a per-repo `make` or `sbt` only when working on that
    repository alone, and never as the last step before a parity claim.
 2. **Never assume one repository's build implies another's.** They are separate
    repositories; nothing propagates.
