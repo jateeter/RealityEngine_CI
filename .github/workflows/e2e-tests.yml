@@ -449,6 +449,16 @@ jobs:
         working-directory: RealityEngine_CI
         run: bash scripts/tests/test-push-shape-probe.sh
 
+      # Proves the OpenAPI validator is not vacuous. A validator that passes
+      # everything reports green while checking nothing, so every case here
+      # breaks exactly one thing in a document that passes and asserts the
+      # validator goes red and names it. The defects reproduced are the real
+      # ones from #403 and #402, so if these fixtures stopped failing those
+      # defects could return unnoticed.
+      - name: Run OpenAPI validator unit tests
+        working-directory: RealityEngine_CI
+        run: bash scripts/tests/test-openapi-validate.sh
+
       - name: Run fresh-start state clearing unit tests
         working-directory: RealityEngine_CI
         run: bash scripts/tests/test-fresh-start.sh

@@ -369,11 +369,12 @@ components:
         timestamp:
           type: number
         machineOutput:
-          type: array
+          type:
+          - array
+          - 'null'
           items:
             type: number
             format: double
-          nullable: true
         sequenceResults:
           type: array
           items:
