@@ -2,7 +2,7 @@
 
 Last reviewed: 2026-06-22
 
-See `/Users/johnt/workspace/GitHub/claude.md` for the integrated application map. Update both this file and the root map when orchestration, registry, environment, or e2e responsibilities change.
+See `/Users/johnt/workspace/GitHub/CLAUDE.md` for the integrated application map. Update both this file and the root map when orchestration, registry, environment, or e2e responsibilities change.
 
 ## Role
 
@@ -32,7 +32,7 @@ npm run test:deployment
 # Incremental corpus parity: boot with one machine, then add one corpus machine
 # per iteration over the RE/PE APIs and re-check trajectory parity after each.
 # Iteration n drives the engines with machines 1..n interned sequences merged.
-# See scripts/claude.md — currently blocked by cpp freezing interned sequences
+# See scripts/CLAUDE.md — currently blocked by cpp freezing interned sequences
 # at their first vector and lsp discarding sources on POST /api/reset.
 ./scripts/test-corpus-parity-loop.sh --stop-on-fail
 ```
@@ -78,7 +78,7 @@ npm run test:deployment
 ## Standing rules — authoritative in `docs/ENGINEERING_CONTRACT.md`
 
 These apply here and are **not** restated in this file. They were previously
-copied into eighteen `claude.md` files across six repositories, which is the
+copied into eighteen `CLAUDE.md` files across six repositories, which is the
 duplication problem the rules themselves warn about: copies drift, a rule added
 to one applies only where someone looked, and with no authority a reader cannot
 tell which copy is current.

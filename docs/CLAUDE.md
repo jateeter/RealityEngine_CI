@@ -4,13 +4,13 @@ This directory documents application orchestration, deployment, APIs, and integr
 
 - Update docs when `startUniverse.sh`, registry shape, OpenClaw/localAI wiring, or e2e commands change.
 - Keep generated OpenAPI docs distinct from hand-written architecture notes.
-- Link back to `/Users/johnt/workspace/GitHub/claude.md` for the current application map.
+- Link back to `/Users/johnt/workspace/GitHub/CLAUDE.md` for the current application map.
 - Use markdown LSP support for structural edits.
 
 ## Standing rules — authoritative in `../docs/ENGINEERING_CONTRACT.md`
 
 These apply here and are **not** restated in this file. They were previously
-copied into eighteen `claude.md` files across six repositories, which is the
+copied into eighteen `CLAUDE.md` files across six repositories, which is the
 duplication problem the rules themselves warn about: copies drift, a rule added
 to one applies only where someone looked, and with no authority a reader cannot
 tell which copy is current.

@@ -3,13 +3,13 @@
 Last reviewed: 2026-09-14
 
 **This file is authoritative for the standing rules below.** Every repository's
-`claude.md` points here rather than restating them, the same way each engine
+`CLAUDE.md` points here rather than restating them, the same way each engine
 points at `BUILD_CONTROL_CONTRACT.md` instead of carrying its own copy of the
 build rules.
 
 ## Why this file exists
 
-These four rules were written into eighteen `claude.md` files across six
+These four rules were written into eighteen `CLAUDE.md` files across six
 repositories, in full, by copy. That is the defect the rules themselves warn
 about, arriving in the guidance rather than in the code:
 
@@ -180,6 +180,38 @@ here, on purpose, and this section will say so.
 
 ---
 
+## MUST: the guidance file is `CLAUDE.md`, in uppercase
+
+**Every Claude guidance file is named `CLAUDE.md`. Never `claude.md`.** One case
+everywhere: the filename on disk, the name recorded in git, and every reference
+to it in prose.
+
+This is not tidiness. The workspace sits on a case-insensitive filesystem, where
+`claude.md` and `CLAUDE.md` are the **same file** -- one inode, two names -- and
+tooling disagrees about which name it is:
+
+- A per-repo `git ls-files` sweep reports whichever case git recorded, so a file
+  committed in the other case is invisible to it.
+- `Path.resolve()` treats the two names as distinct paths. A dedupe keyed on the
+  resolved path therefore processes one file **twice**. On 2026-09-17 that
+  nearly wrote a duplicate standing-rule row into the workspace-root map; it was
+  caught by comparing `st_ino`, not by the path check meant to stop it.
+- On a case-sensitive filesystem -- any Linux CI runner -- the two names are
+  genuinely different files. A reference written in the wrong case resolves on a
+  developer's Mac and 404s in CI.
+
+In practice:
+
+- Create every new guidance file as `CLAUDE.md`.
+- Renaming an existing one needs a temporary name or `git mv -f`; a direct
+  `git mv claude.md CLAUDE.md` fails on a case-insensitive filesystem because
+  the destination already exists.
+- Update prose references to match, including the workspace-root map path.
+- When enumerating these files, dedupe on `(st_dev, st_ino)`, never on a
+  resolved path string.
+
+---
+
 ## MUST: never commit to main — branch, PR, verify, merge, clean up
 
 **No change reaches `main` in any repo except through a branch and a pull
@@ -221,9 +253,9 @@ inventory stops meaning anything.
 ## Amending this file
 
 Change it here, in a branch, through a PR, like anything else. Do not copy a
-rule back into a repository's `claude.md`: the pointer is the mechanism, and a
+rule back into a repository's `CLAUDE.md`: the pointer is the mechanism, and a
 local copy silently becomes a competing authority the moment this file moves on.
 
 If a repository needs a rule that genuinely applies only to it, that belongs in
-that repository's own `claude.md` under its own heading — not as a variant of a
+that repository's own `CLAUDE.md` under its own heading — not as a variant of a
 rule stated here.
