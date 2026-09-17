@@ -1,6 +1,6 @@
 # MVP Release Roadmap
 
-Last reviewed: 2026-08-09
+Last reviewed: 2026-09-17
 
 The route from the current `v0.0.1-baseline` tag to a tagged MVP release of the
 integrated RealityEngine application.
@@ -13,10 +13,48 @@ released, and is the place to record gate status as it changes.
 
 | Gate | What it means | Status |
 |---|---|---|
-| **G1** | Certification runs and passes on every merge to main | **Done** — hosted green nightly (run 31297685782); local lane validated live, all stages green |
+| **G1** | Certification runs and passes on every merge to main | **REGRESSED** — nightly red since 2026-09-11; last green 2026-09-10 (`cac03f01`). See *G1 status, 2026-09-17* below |
 | **G2** | Versions pinned across repos, reproducibly | **Done** — first certified pin at `releases/v0.1.0-rc1.json` |
 | **G3** | Release documentation and process | **Done** — `RELEASE.md`, `scripts/cut-release.sh` |
 | **G4** | MVP scope: PIM and HealthKit bridge | **Decided** — both in; SCS POD is authoritative |
+
+---
+
+## G1 status, 2026-09-17
+
+**The nightly certification lane has been red for seven consecutive nights.**
+This file recorded G1 as "Done — hosted green nightly (run 31297685782)" for
+that entire period, and that run is from 2026-08-09.
+
+| | |
+|---|---|
+| Last green | **2026-09-10** (`cac03f01`) |
+| Red since | **2026-09-11**, every night through 2026-09-17 |
+| Failing job | `Regression workflow` (the `Regression Preflight` job passes) |
+
+The cause is not a test result. The MQTT-seeding step picks a free port with a
+Python one-liner, and its quoting was wrong:
+
+```yaml
+mqtt_port="$(python3 -c 'import socket; ... s.bind((\"\", 0)); ...')"
+```
+
+Inside bash single quotes `\"` is literal, so Python received `s.bind((\"\", 0))`
+and died with `SyntaxError: unexpected character after line continuation
+character` before any engine started. Fixed in the same change as this entry.
+
+**What the seven days actually cost is the point.** The lane failed identically
+every night, in a step that cannot pass, and the roadmap went on asserting the
+gate was green because nobody re-read the run. A gate marked green without a
+current reference is the failure this file's own closing section names — "a gate
+marked green without a reference is the same failure mode as a stage that passes
+without checking anything" — and it happened to the gate that the rest of the
+verification posture rests on.
+
+G1 returns to **Done** when a scheduled run goes green again, named here by run
+id and date. Not before, and not on the strength of the fix alone: the fix
+removes one syntax error, and what is behind it has not executed since
+2026-09-10.
 
 ---
 
@@ -302,12 +340,25 @@ of a boundary is what produced this gate.
 
 ## Known open items
 
+Checked 2026-09-17: **every item this table listed has since closed.** They are
+kept below with their resolution rather than deleted, because a table that
+empties silently gives no way to tell "resolved" from "forgotten".
+
+| Item | Where | Resolution |
+|---|---|---|
+| Dispatch replay exists in no runtime | CI#100 | **Closed** |
+| `startUniverse.sh` hangs when Docker is unavailable | CI#94 | **Closed** |
+| Certification cadence undocumented | CI#87, #79 | **Closed** — both |
+| ROBOT / OWL reasoner gap | Machines#46 | **Closed** |
+
+### Open now
+
 | Item | Where | Effect |
 |---|---|---|
-| Dispatch replay exists in no runtime | CI#100 | `trigger.replay` withdrawn from the MCP catalogue until it does |
-| `startUniverse.sh` hangs when Docker is unavailable | CI#94 | blocks local rehearsal; hosted lane unaffected |
-| Certification cadence undocumented | CI#87, #79 | G3 |
-| ROBOT / OWL reasoner gap | Machines#46 | outside the MVP path |
+| Nightly certification red since 2026-09-11 | this file, *G1 status* | **G1 regressed.** Returns to Done only on a named green scheduled run |
+| `docs/LOCALHOST_MVP_SCOPE.md` is referenced here but does not exist | this file | a reader following the reference finds nothing; the scope it names is unrecorded |
+| Mirror seam unspecified — who writes to the SCS POD, on what trigger, how `pendingMirror` and `conflict` resolve | G4 follow-on | the authority rule is enforced by agreement, not by a test |
+| No mirror leg in the local lane | G4 follow-on | blocked on the contract above |
 
 ## How to update this file
 
