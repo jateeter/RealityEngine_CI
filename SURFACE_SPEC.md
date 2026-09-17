@@ -208,12 +208,10 @@ with one — `transitionsInhibited` — having no surface at all. Nothing could
 enumerate them, so nothing could compare them across runtimes, and a control
 that cannot be read cannot be gated (RealityEngine_CI#271).
 
-Phase 1 is now live on all three runtimes, carrying `transitionsInhibited`, and
-Phase 2 — migrating the `/api/runtime/options` controls onto this pathway and
-converging their defaults — has not started. `historyLimit` measures **100 on
-C++, 250 on LSP and 1000 on Scala**, and the C++ value is not the 256 this
-document recorded when Phase 2 was scoped. It drifted while nothing was reading
-the three together, which is the argument for the pathway restated as evidence.
+Phase 1 carried `transitionsInhibited`; Phase 2 below brings the observational
+filters onto the pathway and converges their defaults. `historyLimit` was
+**256 on C++, 250 on LSP and 1000 on Scala** — three defaults for one control,
+because nothing read them together.
 
 Every control's name, scope and **default** is declared here rather than chosen
 per runtime. A runtime that disagrees with a declared default is wrong rather
@@ -280,31 +278,127 @@ The first control on the pathway, chosen because it is **machine-scoped**. A
 pathway proven only against engine-wide scalars would look finished and fail on
 the first per-entity control, which is most of them.
 
-| | |
-|---|---|
-| `name` | `transitionsInhibited` |
-| `scope` | `machine` |
-| `default` | `false` |
-| `mutable` | `true` |
-
 Its behaviour is defined under `POST /api/engine/process`, and it is unchanged
 by this route: `false` accepts the Universal Reality Event and flows it through;
-`true` accepts it and does not pass it forward.
+`true` accepts it and does not pass it forward. It is declared in the universal
+table below, with the Phase 2 controls.
 
 ##### Phase 2 — the observational filters
 
-`includeMachineResults`, `includePerceptualSpace`, `includeActiveRegions`,
-`compact`, `phaseDetail`, `historyLimit`, and whatever `projectionControls`
-currently describes in prose on two of the three runtimes.
+Four engine-scoped controls join `transitionsInhibited` from Phase 1.
 
-Two things phase 2 settles rather than carries forward:
+##### The universal control set
 
-- **The defaults converge.** One value declared here, adopted by all three.
-- **The per-request flags remain.** A caller declining `machineResults` on one
-  push is not configuration; folding it in would make response shape depend on
-  hidden state. The config value is the **default a request overrides** — which
-  is already how C++'s `includeMachineResultsDefault` behaves, and this makes
-  that relationship declared rather than incidental.
+Every runtime implements every row, with these names and these defaults. **A
+comparison requires this set to match exactly**; a runtime holding a different
+default is wrong rather than different.
+
+| control | scope | default | mutable | |
+|---|---|---|---|---|
+| `historyLimit` | `engine` | `250` | `true` | entries retained in the simulation-step history |
+| `includeActiveRegions` | `engine` | `true` | `true` | the active-region list in a step response |
+| `includeMachineResults` | `engine` | `true` | `true` | per-machine results in a step response |
+| `includePerceptualSpace` | `engine` | `true` | `true` | the perceptual-space vector in a step response |
+| `transitionsInhibited` | `machine` | `false` | `true` | whether a machine passes its Reality Event forward |
+
+This table is the declaration, and `regression-engine-config-parity.py` **parses
+it** rather than restating it. A gate carrying its own copy of the contract is a
+second contract: it passes when the runtimes agree with the copy, which is not
+the same as agreeing with the specification, and the two drift in exactly the
+way this pathway exists to catch.
+
+**`historyLimit` converges on 250**, and this is a contract decision rather than
+a measurement. The declared defaults in source are **256 on C++, 250 on LSP and
+1000 on Scala**; 250 is chosen because C++ and LSP already sit within six of
+each other and Scala's 1000 is the outlier, not the target, for a buffer holding
+a full step record per entry across 1338 machines.
+
+A live engine reporting some other number is not evidence of a fourth default.
+`/api/runtime/options` reports a **value with no default beside it**, so a
+runtime someone has written to is indistinguishable there from a runtime shipped
+that way — and that is not hypothetical: `RealityEngine_Manager/scripts/smoke-test.sh`
+PATCHes `historyLimit` to 100 and does not restore it, so any engine a smoke run
+touched reports 100 forever after. This document said so, having read the live
+value as a default.
+
+That is the argument for the pathway, arriving as evidence against the person
+making it. `GET /api/engine/config` reports `default` beside `value` for exactly
+this reason: the two questions "what does this runtime hold" and "what is this
+runtime supposed to hold" have different answers, and a surface that answers only
+the first cannot be used to detect drift in the second.
+
+It bounds the **simulation-step** history only. The ISRE and OSRE trajectory
+histories have their own limit and are not governed by this control — worth
+stating because the parity stages read the trajectories, and a reader who
+assumes otherwise would think lowering this control narrows what a comparison
+can see.
+
+##### Not every control is universal, and the difference must be sayable
+
+`phaseDetail` exists on C++ alone. It gates reading a clock inside `merge_build`
+and emitting the resulting sub-phase timings; LSP and Scala construct a step
+differently and have no sub-phases to time.
+
+The tempting move is to require all three to carry it. That would produce, on
+two runtimes, a control that accepts `true`, reports `true`, and changes
+nothing — which is the precise failure this pathway exists to remove, rebuilt
+deliberately and called conformance. **A control that reports a value it does
+not act on is worse than an absent one**, because an absent control is visible
+and a lying one is not.
+
+So the pathway distinguishes two kinds:
+
+| | |
+|---|---|
+| **universal** | every runtime implements it, same name, same declared default. The set must match exactly across runtimes; a difference is drift. |
+| **instrumentation** | a runtime exposes it because it has the machinery behind it. Declared here with the runtimes that carry it. A difference is a capability difference, not drift. |
+
+| instrumentation control | `scope` | `default` | runtimes |
+|---|---|---|---|
+| `phaseDetail` | `engine` | `false` | CPP |
+
+Both kinds use the same five-field shape, so nothing about the response changes
+and a reader cannot tell them apart from the wire — which is correct. **Which
+controls are universal is declared here, not inferred from what the runtimes
+happen to agree on.** Inferring it would make the comparison circular: three
+runtimes that all omit a control would define it out of the contract, and the
+`historyLimit` split is exactly what happens when the runtimes get to decide.
+
+**The per-request flags remain.** A caller declining `machineResults` on one
+push is not configuration; folding it in would make response shape depend on
+hidden state. The config value is the **default a request overrides** — which is
+already how C++'s `includeMachineResultsDefault` behaves, and this makes that
+relationship declared rather than incidental.
+
+`compact` is **not** a control. It is a request-body field that sets
+`includeMachineResults` false for that one call when the field is omitted, so it
+has no stored value to read or write — and giving it one would imply an engine
+could be left in a compact mode, which nothing implements and nothing should.
+
+##### `projectionControls` is removed from `/api/runtime/options`
+
+It was an object of prose strings describing request-body fields, emitted by C++
+and Scala and absent from LSP. Nothing reads it — no consumer exists in any
+repository — and the two that emit it already disagree: C++ carries four keys
+and Scala five, with Scala documenting `includeActiveRegions` and C++ not.
+
+Documentation of a request field belongs in this document, where there is one
+copy. Carried in a response body it is three copies that drift, and it makes
+`/api/runtime/options` a surface that cannot be compared byte-for-byte while one
+runtime omits it. The relationship it described is stated above: the config
+value is the default, the request field overrides it for one call.
+
+##### `/api/runtime/options` and `/api/engine/config` are one state
+
+They are two views of the same values, not two stores. A write through either is
+visible through the other immediately, and a runtime holding two copies that can
+disagree does not conform.
+
+`/api/runtime/options` is retained rather than removed: it is the flat shape
+existing callers use, and it carries no scope or default. `/api/engine/config`
+is the enumerable one — it is what a comparison reads, because it reports every
+control with its declared default beside its current value, which is what makes
+the drift this issue exists to prevent visible on the first run.
 
 ### Runtime Introspection
 

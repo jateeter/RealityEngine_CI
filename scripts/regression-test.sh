@@ -1684,6 +1684,18 @@ run_engine_process_parity() {
     --registry /tmp/re-registry/re-registry.json \
     --machines "$(repo_root RealityEngine_Machines)" \
     --out "$REPORT_DIR/engine-process-parity.json"
+
+  # Configuration parity. /api/engine/config exists so configuration can be
+  # compared, and until this stage nothing compared it — which is why
+  # historyLimit sat at 256/250/1000 across the three runtimes with nothing
+  # going red (RealityEngine_CI#271).
+  #
+  # It reads the declared control set out of SURFACE_SPEC rather than carrying a
+  # copy, so it cannot pass a universe that agrees with the gate while
+  # disagreeing with the specification.
+  run_cmd "engine-config-parity" python3 "$ci/scripts/regression-engine-config-parity.py" \
+    --registry /tmp/re-registry/re-registry.json \
+    --json "$REPORT_DIR/engine-config-parity.json"
 }
 
 run_mcp() {
