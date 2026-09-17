@@ -1,5 +1,39 @@
 # RealityEngine Deployment Validation — Analysis & Roadmap
 
+> ## Native/Docker port collision — fixed 2026-09-16 (#388)
+>
+> Five "unhealthy service" failures across three filed issues
+> (RealityEngine_Manager#125, #126, #127) were **one** defect, and none of the
+> named services was unhealthy.
+>
+> The TLS proxy is the single front door for every `https://` probe this agent
+> makes — RE `:5001`, PE `:3004`, Visualizer `:3001`/`:5173`. When a native
+> universe is running, the Manager's visualizer backend owns `:3001` as an
+> ordinary node process, so the proxy cannot bind and never starts. One unbound
+> port reports five services down.
+>
+> The evidence is unambiguous across twenty archived runs in `.deploy-validate/`:
+>
+> | tls-proxy | health failures | runs |
+> |---|---|---|
+> | `Started` | **0** | 11 |
+> | `address already in use` | **5** | 5 |
+>
+> In all five, `reality-engine-perception-backend` reached `Started`.
+>
+> The agent already tore down the *Docker* stack first, and a long comment
+> explains why `stopUniverse.sh --all` must not be used here — with containers
+> up, all those ports belong to `com.docker.backend` and SIGKILLing it takes the
+> daemon down. That reasoning was sound; it simply did not cover a **native**
+> holder. The preflight now inspects what holds each proxy port, skips the
+> Docker port-proxy, and refuses only for a native process from this workspace,
+> naming ports, pids and paths.
+>
+> **Worth its own work, not fixed:** the agent attributed the failure to the
+> service behind the door rather than the door, and filed three issues against
+> an innocent repository. A probe that cannot distinguish "this service is down"
+> from "the proxy in front of everything never started" will keep doing that.
+
 > ## Live `--fresh` validation findings (2026-06-24)
 > A live `--fresh` docker deployment run through the agent surfaced **three real
 > defects**, all now fixed in `scripts/deploy-validate-agent.sh`:
