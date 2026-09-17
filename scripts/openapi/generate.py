@@ -310,8 +310,12 @@ def re_components() -> dict:
                     "machine": {"type": "string",
                                 "description": "Required when the control's scope is machine"},
                     "value":   {"description": "The value to set"}}},
+            # The flat view of the engine-scoped controls. `projectionControls`
+            # was removed from this response in #271 Phase 2: prose describing
+            # request fields, emitted by two runtimes with different key sets
+            # and read by nothing.
             "RuntimeOptions": {"type": "object", "properties": {
-                "historyLimit":          {"type": "integer", "example": 256},
+                "historyLimit":          {"type": "integer", "example": 250},
                 "includeMachineResults": {"type": "boolean"},
                 "includePerceptualSpace": {"type": "boolean"}}},
             "RuntimeOptionsPatch": {"type": "object", "properties": {
