@@ -39,6 +39,25 @@ SUMMARIES: dict[str, str] = {
     "GET:/api/config":                                         "Runtime configuration snapshot",
     "PUT:/api/config/dimension":                               "Set vector dimension",
     "PUT:/api/config/threshold":                               "Set match threshold",
+    # The one pathway every runtime control is read or written through
+    # (RealityEngine_CI#271). Internal surface — the external face is the
+    # Manager's engine-qualified /api/engine/{id}/config, because a control
+    # value belongs to the runtime that holds it.
+    "GET:/api/engine/config":                                  "Every runtime control, with its scope and declared default",
+    "GET:/api/engine/config/{control}":                        "Read one runtime control",
+    "PUT:/api/engine/config/{control}":                        "Set one runtime control",
+    "DELETE:/api/engine/config/{control}":                     "Restore a control to its declared default",
+    # Manager (external) — engine-qualified. The engine is part of the address
+    # because vector, sequence and control values are all scoped to the runtime
+    # that holds them (RealityEngine_CI#397).
+    "GET:/api/engines":                                        "List the registered engine instances",
+    "GET:/api/engine/{id}/health":                             "Health of one engine, probed",
+    "GET:/api/engine/{id}/vectors/{vectorId}":                 "Read a vector from the named engine",
+    "GET:/api/engine/{id}/sequences/{sequenceId}":             "Read a sequence from the named engine",
+    "GET:/api/engine/{id}/config":                             "Every control on the named engine",
+    "GET:/api/engine/{id}/config/{control}":                   "Read one control on the named engine",
+    "PUT:/api/engine/{id}/config/{control}":                   "Set one control on the named engine",
+    "DELETE:/api/engine/{id}/config/{control}":                "Restore one control on the named engine to its declared default",
     # RE — Runtime Introspection
     "GET:/api/runtime/metrics":                                "Engine and worker-pool metrics",
     "GET:/api/runtime/vector-space":                           "Perceptual-space shape and mapping version",
@@ -182,6 +201,20 @@ PATH_PARAMS: dict[str, list[dict]] = {
                       "schema": {"type": "string"}}],
     "{cpId}": [{"name": "cpId", "in": "path", "required": True,
                  "schema": {"type": "string"}}],
+    # The Manager's engine-qualified routes. Without these the generated
+    # documents templated `{vectorId}` and `{sequenceId}` into the path and
+    # declared no parameter for them, which OpenAPI forbids — a path template
+    # name must have a matching parameter. Nothing complained because no
+    # validator ran over the output.
+    "{vectorId}": [{"name": "vectorId", "in": "path", "required": True,
+                     "schema": {"type": "string"},
+                     "description": "Scoped to the engine named by {id}"}],
+    "{sequenceId}": [{"name": "sequenceId", "in": "path", "required": True,
+                       "schema": {"type": "string"},
+                       "description": "Scoped to the engine named by {id}"}],
+    "{control}": [{"name": "control", "in": "path", "required": True,
+                    "schema": {"type": "string"},
+                    "description": "Control name, as declared in SURFACE_SPEC"}],
 }
 
 # ---------------------------------------------------------------------------
@@ -242,6 +275,28 @@ def re_components() -> dict:
                 "matchThreshold":  {"type": "number", "example": 0.5},
                 "qdrantUrl":       {"type": "string"},
                 "collectionName":  {"type": "string", "example": "reality-events"}}},
+            # The five fields SURFACE_SPEC declares a control to have. `value`
+            # is untyped because it follows `scope`: a scalar for `engine`, an
+            # object keyed by machine id for `machine`.
+            "EngineControl": {"type": "object",
+                "required": ["name", "scope", "value", "default", "mutable"],
+                "properties": {
+                    "name":    {"type": "string", "example": "transitionsInhibited"},
+                    "scope":   {"type": "string", "enum": ["engine", "machine"]},
+                    "value":   {"description": "Scalar when scope is engine; "
+                                               "an object keyed by machine id when scope is machine"},
+                    "default": {"description": "The default this document declares"},
+                    "mutable": {"type": "boolean",
+                                "description": "Whether PUT is accepted; a derived reading is reported, not set"}}},
+            "EngineConfig": {"type": "object", "properties": {
+                "controls": {"type": "array", "items":
+                             {"$ref": "#/components/schemas/EngineControl"},
+                             "description": "Emitted sorted by name"}}},
+            "EngineControlWrite": {"type": "object", "required": ["value"],
+                "properties": {
+                    "machine": {"type": "string",
+                                "description": "Required when the control's scope is machine"},
+                    "value":   {"description": "The value to set"}}},
             "RuntimeOptions": {"type": "object", "properties": {
                 "historyLimit":          {"type": "integer", "example": 256},
                 "includeMachineResults": {"type": "boolean"},
@@ -410,6 +465,9 @@ def request_body(method: str, path: str) -> dict | None:
         schema_ref = {"$ref": "#/components/schemas/PerceiveRequest"}
     elif path == "/api/perceptual-simulation/configure/chunk":
         schema_ref = {"$ref": "#/components/schemas/SimulationConfigureChunk"}
+    elif path in ("/api/engine/config/{control}",
+                  "/api/engine/{id}/config/{control}") and method == "PUT":
+        schema_ref = {"$ref": "#/components/schemas/EngineControlWrite"}
     elif path == "/api/runtime/options" and method == "PATCH":
         schema_ref = {"$ref": "#/components/schemas/RuntimeOptionsPatch"}
     elif path == "/api/integrations/healthkit/ingest":
@@ -433,6 +491,11 @@ def response_schema(method: str, path: str) -> dict:
     for suffix in ("/health",):
         if path.endswith(suffix):
             return {"$ref": "#/components/schemas/Health"}
+    if path in ("/api/engine/config", "/api/engine/{id}/config"):
+        return {"$ref": "#/components/schemas/EngineConfig"}
+    if path in ("/api/engine/config/{control}", "/api/engine/{id}/config/{control}"):
+        return {"type": "object", "properties": {
+            "control": {"$ref": "#/components/schemas/EngineControl"}}}
     if path == "/api/machines" and method == "GET":
         return {"type": "object",
                 "properties": {

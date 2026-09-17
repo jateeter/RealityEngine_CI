@@ -195,20 +195,25 @@ decrease. It was verified to fail against the old predicate.
 | GET | `/api/config` | ✓ | ✓ | ✓ |
 | PUT | `/api/config/dimension` | ✓ | ✓ | ✓ |
 | PUT | `/api/config/threshold` | ✓ | ✓ | ✓ |
-| GET | `/api/engine/config` | — | — | — |
-| GET | `/api/engine/config/:control` | — | — | — |
-| PUT | `/api/engine/config/:control` | — | — | — |
-| DELETE | `/api/engine/config/:control` | — | — | — |
+| GET | `/api/engine/config` | ✓ | ✓ | ✓ |
+| GET | `/api/engine/config/:control` | ✓ | ✓ | ✓ |
+| PUT | `/api/engine/config/:control` | ✓ | ✓ | ✓ |
+| DELETE | `/api/engine/config/:control` | ✓ | ✓ | ✓ |
 
 #### `/api/engine/config` — one pathway for every runtime control
 
-**Specified before it is implemented, and specified once.** Controls are today
+**Specified before it was implemented, and specified once.** Controls were
 spread across `/api/runtime/options`, `/api/config` and per-request body flags,
-with one — `transitionsInhibited` — having no surface at all. Nothing can
-enumerate them, so nothing can compare them across runtimes, and a control that
-cannot be read cannot be gated. `historyLimit` is **256 on C++, 250 on LSP and
-1000 on Scala** and nothing noticed, because no stage could ask all three what
-their controls were (RealityEngine_CI#271).
+with one — `transitionsInhibited` — having no surface at all. Nothing could
+enumerate them, so nothing could compare them across runtimes, and a control
+that cannot be read cannot be gated (RealityEngine_CI#271).
+
+Phase 1 is now live on all three runtimes, carrying `transitionsInhibited`, and
+Phase 2 — migrating the `/api/runtime/options` controls onto this pathway and
+converging their defaults — has not started. `historyLimit` measures **100 on
+C++, 250 on LSP and 1000 on Scala**, and the C++ value is not the 256 this
+document recorded when Phase 2 was scoped. It drifted while nothing was reading
+the three together, which is the argument for the pathway restated as evidence.
 
 Every control's name, scope and **default** is declared here rather than chosen
 per runtime. A runtime that disagrees with a declared default is wrong rather
@@ -247,6 +252,23 @@ configuration must serialise it identically — same control set, same names, sa
 order, same defaults. That is the whole point: the pathway exists so
 configuration can be compared, and a comparison over a shape that differs per
 runtime compares nothing.
+
+**Except the keys of a `scope: machine` value**, which cannot be compared and
+must not be. That `value` is an object keyed by machine id, and machine ids are
+minted per runtime — the same corpus machine is
+`machine-1789677668723-235803635` on C++, `machine-1U4PASL-6KJA1USAFM6O` on LSP
+and `machine-1789677670509-164e9eac` on Scala. Requiring the serialisations to
+match would require an equality that id generation forbids, so the clause as
+first written could never have passed and would eventually have been read as
+the pathway being broken.
+
+What is compared for a machine-scoped control is everything else: the control
+set, field names, field order, `scope`, `default`, `mutable`, the number of
+entries in `value`, and the distribution of values across them. Measured
+against the live universe, all of those agree on all three runtimes at 1338
+machines each, and only the keys differ. This is the scoping rule of
+RealityEngine_CI#397 reaching configuration: an id is meaningful only inside the
+engine that minted it, so a comparison across engines cannot be keyed on one.
 
 Controls are emitted **sorted by `name`**, for the reason the active-region
 ordering exists: a set walked in each runtime's own iteration order reports the
@@ -825,6 +847,30 @@ Plural names the set; singular names one engine's resources.
 | GET | `/api/engine/:id/health` | ✓ |
 | GET | `/api/engine/:id/vectors/:vectorId` | ✓ |
 | GET | `/api/engine/:id/sequences/:sequenceId` | ✓ |
+
+### Configuration
+
+| Method | Path | Manager |
+|--------|------|---------|
+| GET | `/api/engine/:id/config` | ✓ |
+| GET | `/api/engine/:id/config/:control` | ✓ |
+| PUT | `/api/engine/:id/config/:control` | ✓ |
+| DELETE | `/api/engine/:id/config/:control` | ✓ |
+
+The external face of the `/api/engine/config` pathway specified in the RE
+section above. Semantics are that section's, unchanged — including `DELETE`
+meaning "restore the declared default" and controls being uncreatable over the
+API. What this surface adds is the engine qualifier, for the reason the reads
+carry one: a control value belongs to one runtime. `historyLimit` is 100 on
+C++, 250 on LSP and 1000 on Scala today, so "the current value" is not a
+question that can be asked without naming the engine.
+
+The refusals match the qualified reads — an unregistered instance is refused
+rather than substituted, a malformed control name is `400`, and a control the
+named engine does not carry is that engine's `404`. A write is refused on the
+same terms as a read: answering a `PUT` from a different engine than the caller
+addressed would be invisible at the call site and would change the wrong
+runtime.
 
 `GET /api/engines` returns the engine collection:
 
