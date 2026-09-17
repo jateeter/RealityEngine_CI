@@ -12,6 +12,15 @@ HISTORY_DIR="$CI_DIR/.regression-tests"
 RUN_DIR=""
 BRANCH_NAME="Regression-Test"
 EXECUTE=false
+# Flags that change what an actual run *does*, as opposed to what it targets.
+# Passing one without --execute is a contradiction: they modify a run that is
+# not going to happen. See the refusal below `plan`.
+#
+# Deliberately not every flag. The hosted lane's `plan` run mode passes
+# --engines, --profile, --run-id, --retain, --mcp-url and --swagger-url, and
+# planning a specific target is a real thing to want; planning a run with its
+# build phase skipped is not.
+RUN_SHAPING=()
 COLD_START=true
 BUILD=true
 START=true
@@ -135,6 +144,7 @@ Options:
   --skip-build              Skip full build phase.
   --skip-start              Skip universe start phase; use current deployment.
   --build-only              Create worktrees and build only; skip start/live tests.
+                            Requires --execute, like every other run-shaping flag.
   --engines SPEC            Engine spec. Default: cpp:1,lsp:1,scala:1
   --mqtt-broker-url URL     Yuma MQTT broker URL. 'none'/'off'/'skip' (any case)
                             is an explicit opt-out: MQTT checks are skipped and
@@ -181,10 +191,10 @@ while [ $# -gt 0 ]; do
     --history-dir) HISTORY_DIR="$2"; shift 2 ;;
     --run-id=*) RUN_ID="${1#*=}"; shift ;;
     --run-id) RUN_ID="$2"; shift 2 ;;
-    --no-cold-start) COLD_START=false; shift ;;
-    --skip-build) BUILD=false; shift ;;
-    --skip-start) START=false; shift ;;
-    --build-only) START=false; LIVE_TESTS=false; shift ;;
+    --no-cold-start) COLD_START=false; RUN_SHAPING+=("$1"); shift ;;
+    --skip-build) BUILD=false; RUN_SHAPING+=("$1"); shift ;;
+    --skip-start) START=false; RUN_SHAPING+=("$1"); shift ;;
+    --build-only) START=false; LIVE_TESTS=false; RUN_SHAPING+=("$1"); shift ;;
     --engines=*) ENGINES_SPEC="${1#*=}"; shift ;;
     --engines) ENGINES_SPEC="$2"; shift 2 ;;
     --mqtt-broker-url=*) MQTT_BROKER_URL="${1#*=}"; shift ;;
@@ -1962,6 +1972,31 @@ run_stage() {
 
 plan
 if [ "$EXECUTE" = false ]; then
+  # A run-shaping flag without --execute built nothing and exited 0, with the
+  # only signal one line of prose under twenty lines of plan output listing the
+  # repositories it was about to build. That reads like a build report, and it
+  # was read as one: RealityEngine_CI#405 records following CLAUDE.md's
+  # `regression-test.sh --build-only`, seeing exit 0, and having to build the
+  # engines by hand after noticing nothing had been built.
+  #
+  # Three documents said to run it that way. They now say --execute --build-only,
+  # which is what the hosted lane has always passed. This is the other half:
+  # the combination those documents recommended is now refused rather than
+  # silently reinterpreted as a plan.
+  if [ "${#RUN_SHAPING[@]}" -gt 0 ]; then
+    log ""
+    # Top-level, not inside a function, so no `local` here.
+    shaping_noun="flag"
+    [ "${#RUN_SHAPING[@]}" -gt 1 ] && shaping_noun="flags"
+    log "REFUSED: run-shaping $shaping_noun given without --execute: ${RUN_SHAPING[*]}"
+    log ""
+    log "  Those flags change what a run does, and no run is about to happen —"
+    log "  --execute is the master switch and this invocation did not pass it."
+    log ""
+    log "  To build:   ./scripts/regression-test.sh --execute ${RUN_SHAPING[*]}"
+    log "  To plan:    ./scripts/regression-test.sh            (without ${RUN_SHAPING[*]})"
+    exit 2
+  fi
   exit 0
 fi
 
