@@ -311,7 +311,7 @@ jobs:
           # /mosquitto/config depends on image-specific ownership. A mount does
           # not, and it leaves the image's own entrypoint and command in place.
           mkdir -p "$RUNNER_TEMP/mosquitto"
-          mqtt_port="$(python3 -c 'import socket; s=socket.socket(); s.bind((\"\", 0)); print(s.getsockname()[1]); s.close()')"
+          mqtt_port="$(python3 -c 'import socket; s=socket.socket(); s.bind(("", 0)); print(s.getsockname()[1]); s.close()')"
           printf 'listener %s 0.0.0.0\nallow_anonymous true\n' "$mqtt_port" > "$RUNNER_TEMP/mosquitto/mosquitto.conf"
           docker run -d --name regression-mqtt -p "$mqtt_port:$mqtt_port" \
             -v "$RUNNER_TEMP/mosquitto/mosquitto.conf:/mosquitto/config/mosquitto.conf:ro" \
