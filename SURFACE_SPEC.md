@@ -1367,6 +1367,51 @@ Script location: `scripts/smoke-test.sh` (accepts `--target <url>` for RE and `-
 
 Route parity (a route exists) is necessary but not sufficient. The following contracts specify the exact JSON fields each endpoint must emit and accept. Deviations are bugs in the runtime.
 
+### Vectors
+
+`/api/vectors` is a **JSON document store**, not a Reality Event constructor.
+Settled here for RealityEngine_CI#288, where Scala did the other thing.
+
+#### `POST /api/vectors`
+
+Store the posted body verbatim under an id and hand it back:
+
+```json
+{ "success": true, "vector": "<the body you posted, plus \"id\">" }
+```
+
+- `id` is taken from the body when present, generated when absent.
+- **Every other field in the body is preserved.** The runtime does not parse,
+  validate or reshape the document — a field it has never heard of comes back
+  unchanged, and is still there on a later search.
+- The stored document is exactly what the response echoes.
+
+#### `POST /api/vectors/search`
+
+```json
+{ "results": [ { "vector": "<the stored document>", "score": 0.97 } ] }
+```
+
+Scoring reads the numbers out of the stored document: the `vector` array when
+present, otherwise `elements[].value`. Selection is **first-k above threshold in
+id order** — not top-k by score. Documented at the implementation in each
+runtime.
+
+#### Why this shape
+
+C++ and LSP already agreed on it, which is the usual tiebreak, and the companion
+`GET /api/vectors/:id` is a stub in all three runtimes — so this family is a
+plain store rather than part of a retrieval API that would justify a typed
+model. "Store what you were given, hand it back with an id" is also the only
+shape under which an unknown field survives, which is what makes the route
+usable by callers the runtime does not know about.
+
+Scala previously read `elements` and `isInitial`, constructed a `RealityEvent`,
+returned `RealityEvent.toJson` — carrying `isActive`, `matchCount` and the rest
+— and **stored nothing**. Two consequences: the response could not pass byte
+equivalence, and a POST followed by a search found the document on C++ and LSP
+and never on Scala.
+
 ### HealthKit Integration
 
 #### `GET /api/integrations/healthkit/status`
