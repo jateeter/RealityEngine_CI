@@ -102,6 +102,7 @@ Legend: ✅ present · ⚠️ partial/data-only · ❌ missing.
 | Provider adapters: **ACP / OpenClaw xACP** | ✅ | No-wait handoff adapter plus status/dispatch routes. |
 | Provider adapters: **HealthKit** bridge intake | ✅ | Authorized bridge payloads map through source mappings. |
 | Provider adapters: **localAIStack GraphQL** | ✅ | `LocalAiGraphQLAdapter` posts `updateProcessState` for `kind: "localai"`. Outbound notification only — it deliberately commits no completion, since localAIStack is told a determination happened rather than asked to produce values. Delivered 2026-09-15. |
+| MCP invocation ledger | ✅ | `GET /api/integrations/localai/ledger` on all three runtimes — C++ `#105`, LSP `#111`, Scala `#125`, declared tri-runtime in SURFACE_SPEC `#387`. Before it, an invocation reached localAIStack and left no record anywhere: 256 dispatch-ledger records before a successful invoke, 256 after. A completion could be traced to the mapping that authorised it but never to the invocation that justified it. Records successes, failures **and refusals**, with a correlation id taken from the caller or minted. Delivered 2026-09-16 (RealityEngine_Machines#152). |
 | Provider adapters: **MQTT** | ✅ | Already wired. |
 | Provider adapters: **Manual** (CLI/test) | ✅ | Covered by `/api/signals` and `/api/integrations/completions`. |
 
