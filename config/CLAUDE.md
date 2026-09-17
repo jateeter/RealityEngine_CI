@@ -3,7 +3,7 @@
 This directory holds generated and shared runtime configuration for the integrated universe.
 
 - Keep `integrations.json` compatible with every PE implementation that consumes `INTEGRATIONS_CONFIG`.
-- Keep registry/config defaults aligned with `/Users/johnt/workspace/GitHub/claude.md`.
+- Keep registry/config defaults aligned with `/Users/johnt/workspace/GitHub/CLAUDE.md`.
 - Treat generated runtime manifests as operational state unless the user explicitly asks to commit them.
 - Use JSON schema-aware editing where available.
 - `ces-contracts.json` and `ces-contracts/` hold CES output-stream contract shards derived from 3-of-3 runtime agreement (`docs/QUORUM_CONTRACT.md`). They are authoritative git files, not runtime state: review them as diffs. `ces-contracts.json` is the regression scope and stays at that path because the drift gate in `scripts/run-all-tests.sh` reads it there; every other scope is a shard in `ces-contracts/`, named `domain-<name>.json` or `corpus-<name>.json`.
@@ -12,7 +12,7 @@ This directory holds generated and shared runtime configuration for the integrat
 ## Standing rules — authoritative in `../docs/ENGINEERING_CONTRACT.md`
 
 These apply here and are **not** restated in this file. They were previously
-copied into eighteen `claude.md` files across six repositories, which is the
+copied into eighteen `CLAUDE.md` files across six repositories, which is the
 duplication problem the rules themselves warn about: copies drift, a rule added
 to one applies only where someone looked, and with no authority a reader cannot
 tell which copy is current.
