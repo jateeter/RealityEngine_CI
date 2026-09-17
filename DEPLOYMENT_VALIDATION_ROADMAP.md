@@ -1,5 +1,7 @@
 # RealityEngine Deployment Validation — Analysis & Roadmap
 
+Last reviewed: 2026-09-17 · Status: **Phases 1-5 complete** — the native/Docker port collision was fixed 2026-09-16 (#388); the §1.5 blocker table is a record of one environment on one day, not current state.
+
 > ## Native/Docker port collision — fixed 2026-09-16 (#388)
 >
 > Five "unhealthy service" failures across three filed issues

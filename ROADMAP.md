@@ -1,5 +1,7 @@
 # RealityEngine_CI — Deployment & Testing Roadmap
 
+Last reviewed: 2026-09-17 · Status: **All phases complete** — deployment and testing infrastructure; `docs/MVP_ROADMAP.md` carries what remains before a release.
+
 Orchestrates the full RealityEngine universe from these sibling source repos:
 
 | Repo | Role |
