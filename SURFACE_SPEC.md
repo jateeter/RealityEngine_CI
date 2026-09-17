@@ -1397,6 +1397,40 @@ present, otherwise `elements[].value`. Selection is **first-k above threshold in
 id order** — not top-k by score. Documented at the implementation in each
 runtime.
 
+#### `GET /api/vectors/:id` — internal, and engine-scoped
+
+- present in this engine's store → `200 {"vector": <the stored document>}`
+- absent → `404 {"error": "Vector not found"}`
+
+**A vector id is only meaningful inside the engine that minted it.** Each runtime
+keeps its own store, so the same id can name different documents on different
+engines, or exist on exactly one. A bare `/api/vectors/:id` therefore answers
+from whichever engine the request reached, and the caller cannot tell which
+answer they got.
+
+So this route is the **internal** surface. The external read is engine-qualified,
+on the Manager:
+
+```
+GET /api/engines/:engineId/vectors/:vectorId
+GET /api/engines/:engineId/sequences/:sequenceId
+```
+
+Those resolve the engine by instance id and proxy to that engine's own route. An
+unknown instance is refused, never substituted — the same rule the
+`X-RE-Instance` binding follows. A 404 from the engine is passed through with
+the engine named, so "no such id" stays distinguishable from "not on this
+engine".
+
+The same scoping applies to `GET /api/sequences/:id`, which has always had this
+ambiguity and is likewise internal.
+
+Before RealityEngine_CI#397 the vector route was a stub in all three runtimes:
+it returned `200 {"message": "Vector retrieval endpoint", "id": …}` for every
+id, including ids that existed nowhere, so a caller read "not found" as "found".
+It was byte-equivalent across the three while carrying no information, which is
+why parity checks never flagged it.
+
 #### Why this shape
 
 C++ and LSP already agreed on it, which is the usual tiebreak, and the companion

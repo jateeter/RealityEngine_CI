@@ -48,11 +48,18 @@ SUMMARIES: dict[str, str] = {
     # RE — Vectors
     "POST:/api/vectors/search":                                "Search vectors by cosine similarity",
     "POST:/api/vectors":                                       "Store a vector",
-    "GET:/api/vectors/{id}":                                   "Read a vector",
+    # Internal surface. Vector ids are engine-scoped, so the external read is
+    # the Manager's engine-qualified GET /api/engines/{id}/vectors/{vectorId}
+    # — an id is only meaningful in the context of the engine that minted it
+    # (RealityEngine_CI#397).
+    "GET:/api/vectors/{id}":                                   "Read a vector from THIS engine's store (internal; external callers use /api/engines/{id}/vectors/{vectorId})",
     "DELETE:/api/vectors/{id}":                                "Delete a vector",
     # RE — Sequences
     "GET:/api/sequences":                                      "List sequences",
     "POST:/api/sequences":                                     "Create sequence",
+    # Internal surface, same reason as vectors: sequence ids are scoped to the
+    # engine that holds them. External read is
+    # GET /api/engines/{id}/sequences/{sequenceId}.
     "GET:/api/sequences/{id}":                                 "Read a sequence",
     "DELETE:/api/sequences/{id}":                              "Delete a sequence",
     "POST:/api/sequences/{id}/reset":                          "Reset sequence state",
