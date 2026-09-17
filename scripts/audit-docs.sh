@@ -2,7 +2,7 @@
 # audit-docs.sh — cross-repo documentation audit
 #
 # Checks:
-#   1. SURFACE_SPEC byte-identical across all runtime copies
+#   1. Governance contracts have one master in CI, pointers intact
 #   2. Deprecated port references (3299, 3300) outside allowed files
 #   3. OpenAPI route parity (generated files current with SURFACE_SPEC)
 #   4. Wiki content drift (port tables in files that should only link)
@@ -48,11 +48,17 @@ GREP_EXCL=(
 )
 
 # ── Check 1: Surface spec hashes ─────────────────────────────────────────────
-hdr "1. SURFACE_SPEC byte-identical copies"
+# The label used to read "byte-identical copies ... match canonical
+# (RealityEngine_CPP)", which is the design check-surface-specs.sh was rewritten
+# to replace. There is no canonical copy in CPP and nothing is diffed: the
+# master lives here and the runtimes hold pointers, and what the script asserts
+# is that the pointers are still pointers. A check whose label describes a
+# different check is the failure this audit exists to catch.
+hdr "1. Governance contract pointers"
 if bash "$CI_DIR/scripts/check-surface-specs.sh" 2>/dev/null 1>/dev/null; then
-  pass "all SURFACE_SPEC copies match canonical (RealityEngine_CPP)"
+  pass "every governance contract has one master in RealityEngine_CI, pointers intact"
 else
-  fail "SURFACE_SPEC drift — propagate from RealityEngine_CPP/SURFACE_SPEC.md"
+  fail "governance contract forked — the master lives in RealityEngine_CI"
   output=$(bash "$CI_DIR/scripts/check-surface-specs.sh" 2>&1 || true)
   while IFS= read -r line; do detail "$line"; done <<< "$output"
 fi

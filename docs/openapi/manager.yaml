@@ -6,13 +6,14 @@ info:
   x-generated-from: /Users/johnt/workspace/GitHub/RealityEngine_CI/SURFACE_SPEC.md
 servers: []
 tags:
+- name: Configuration
 - name: Engines
 paths:
   /api/engines:
     get:
       tags:
       - Engines
-      summary: Get /api/engines
+      summary: List the registered engine instances
       responses:
         '200':
           description: Success
@@ -27,7 +28,7 @@ paths:
     get:
       tags:
       - Engines
-      summary: Get /api/engine/{id}/health
+      summary: Health of one engine, probed
       parameters:
       - &id001
         name: id
@@ -51,9 +52,15 @@ paths:
     get:
       tags:
       - Engines
-      summary: Get /api/engine/{id}/vectors/{vectorId}
+      summary: Read a vector from the named engine
       parameters:
       - *id001
+      - name: vectorId
+        in: path
+        required: true
+        schema:
+          type: string
+        description: Scoped to the engine named by {id}
       responses:
         '200':
           description: Success
@@ -70,9 +77,15 @@ paths:
     get:
       tags:
       - Engines
-      summary: Get /api/engine/{id}/sequences/{sequenceId}
+      summary: Read a sequence from the named engine
       parameters:
       - *id001
+      - name: sequenceId
+        in: path
+        required: true
+        schema:
+          type: string
+        description: Scoped to the engine named by {id}
       responses:
         '200':
           description: Success
@@ -85,6 +98,104 @@ paths:
         '404':
           $ref: '#/components/responses/NotFound'
       operationId: get_api_engine_id_sequences_sequenceId
+  /api/engine/{id}/config:
+    get:
+      tags:
+      - Configuration
+      summary: Every control on the named engine
+      parameters:
+      - *id001
+      responses:
+        '200':
+          description: Success
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/EngineConfig'
+        '500':
+          $ref: '#/components/responses/InternalError'
+        '404':
+          $ref: '#/components/responses/NotFound'
+      operationId: get_api_engine_id_config
+  /api/engine/{id}/config/{control}:
+    get:
+      tags:
+      - Configuration
+      summary: Read one control on the named engine
+      parameters:
+      - *id001
+      - &id002
+        name: control
+        in: path
+        required: true
+        schema:
+          type: string
+        description: Control name, as declared in SURFACE_SPEC
+      responses:
+        '200':
+          description: Success
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  control:
+                    $ref: '#/components/schemas/EngineControl'
+        '500':
+          $ref: '#/components/responses/InternalError'
+        '404':
+          $ref: '#/components/responses/NotFound'
+      operationId: get_api_engine_id_config_control
+    put:
+      tags:
+      - Configuration
+      summary: Set one control on the named engine
+      parameters:
+      - *id001
+      - *id002
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/EngineControlWrite'
+      responses:
+        '200':
+          description: Success
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  control:
+                    $ref: '#/components/schemas/EngineControl'
+        '500':
+          $ref: '#/components/responses/InternalError'
+        '404':
+          $ref: '#/components/responses/NotFound'
+      operationId: put_api_engine_id_config_control
+    delete:
+      tags:
+      - Configuration
+      summary: Restore one control on the named engine to its declared default
+      parameters:
+      - *id001
+      - *id002
+      responses:
+        '200':
+          description: Success
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  control:
+                    $ref: '#/components/schemas/EngineControl'
+        '500':
+          $ref: '#/components/responses/InternalError'
+        '404':
+          $ref: '#/components/responses/NotFound'
+      operationId: delete_api_engine_id_config_control
 components:
   parameters:
     MachineId:
@@ -149,6 +260,48 @@ components:
         collectionName:
           type: string
           example: reality-events
+    EngineControl:
+      type: object
+      required:
+      - name
+      - scope
+      - value
+      - default
+      - mutable
+      properties:
+        name:
+          type: string
+          example: transitionsInhibited
+        scope:
+          type: string
+          enum:
+          - engine
+          - machine
+        value:
+          description: Scalar when scope is engine; an object keyed by machine id when scope is machine
+        default:
+          description: The default this document declares
+        mutable:
+          type: boolean
+          description: Whether PUT is accepted; a derived reading is reported, not set
+    EngineConfig:
+      type: object
+      properties:
+        controls:
+          type: array
+          items:
+            $ref: '#/components/schemas/EngineControl'
+          description: Emitted sorted by name
+    EngineControlWrite:
+      type: object
+      required:
+      - value
+      properties:
+        machine:
+          type: string
+          description: Required when the control's scope is machine
+        value:
+          description: The value to set
     RuntimeOptions:
       type: object
       properties:
