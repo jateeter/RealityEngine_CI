@@ -4,7 +4,7 @@
 # Checks:
 #   1. Governance contracts have one master in CI, pointers intact
 #   2. Deprecated port references (3299, 3300) outside allowed files
-#   3. OpenAPI route parity (generated files current with SURFACE_SPEC)
+#   3. OpenAPI route parity (current with SURFACE_SPEC, and valid OpenAPI)
 #   4. Wiki content drift (port tables in files that should only link)
 #   5. Stale known-blocker text in contract / operator / wiki docs
 #   6. Manager OpenAPI spec current with the routes the proxy serves
@@ -193,6 +193,27 @@ else
 
   if $PROPAGATION_PASS; then
     pass "propagated OpenAPI mirrors match CI generated specs"
+  fi
+
+  # The staleness check above regenerates and diffs, which compares generated
+  # output against generated output: a generator that consistently emits an
+  # invalid document compares equal to itself and passes forever. Three defects
+  # lived in the output under it — a response referenced 43 times per PE
+  # document and defined in none, 3.0 `nullable` inside 3.1 documents, and path
+  # templates with no declared parameter (RealityEngine_CI#403, #402).
+  #
+  # This reads the committed documents and checks them against the
+  # specification instead, which is the measurement the diff cannot make. The
+  # two RealityEngine_AI documents in the directory are included deliberately:
+  # they are valid 3.0.3 and stay that way, and excluding files from a validator
+  # because they are "not ours" is how a directory acquires documents nothing
+  # checks.
+  OPENAPI_DOCS=("$CI_DIR"/docs/openapi/*.yaml)
+  if VALIDATE_OUT=$(python3 "$CI_DIR/scripts/openapi/validate.py" --quiet "${OPENAPI_DOCS[@]}" 2>&1); then
+    pass "all ${#OPENAPI_DOCS[@]} OpenAPI documents are valid OpenAPI"
+  else
+    fail "invalid OpenAPI — see scripts/openapi/validate.py"
+    while IFS= read -r line; do detail "$line"; done <<< "$VALIDATE_OUT"
   fi
 fi
 

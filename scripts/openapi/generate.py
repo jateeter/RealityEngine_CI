@@ -241,24 +241,37 @@ MACHINE_SCHEMA = {
 }
 
 
+# Responses both surfaces attach to their operations. `build_paths` puts
+# `InternalError` on every non-streaming operation and `NotFound` on every
+# operation with an id parameter, regardless of surface, so the definitions
+# cannot live in one component set and not the other.
+#
+# `InternalError` did exactly that: defined in `re_components`, absent from
+# `pe_components`, referenced 43 times in each generated PE document and
+# resolvable in none of them (RealityEngine_CI#403). Nothing complained,
+# because the audit regenerated the documents and diffed them against
+# themselves — a generator that consistently emits a dangling reference
+# compares equal to itself.
+SHARED_RESPONSES: dict = {
+    "NotFound": {
+        "description": "Resource not found",
+        "content": {"application/json": {
+            "schema": {"$ref": "#/components/schemas/Error"}}},
+    },
+    "InternalError": {
+        "description": "Internal server error",
+        "content": {"application/json": {
+            "schema": {"$ref": "#/components/schemas/Error"}}},
+    },
+}
+
 def re_components() -> dict:
     return {
         "parameters": {
             "MachineId": {"name": "id", "in": "path", "required": True,
                           "schema": {"type": "string"}},
         },
-        "responses": {
-            "NotFound": {
-                "description": "Resource not found",
-                "content": {"application/json": {
-                    "schema": {"$ref": "#/components/schemas/Error"}}},
-            },
-            "InternalError": {
-                "description": "Internal server error",
-                "content": {"application/json": {
-                    "schema": {"$ref": "#/components/schemas/Error"}}},
-            },
-        },
+        "responses": dict(SHARED_RESPONSES),
         "schemas": {
             "Object": {"type": "object", "additionalProperties": True},
             "Vector": {"type": "array", "items": {"type": "number", "format": "double"}},
@@ -319,9 +332,11 @@ def re_components() -> dict:
                 "properties": {
                     "inputEvent":    {"$ref": "#/components/schemas/Vector"},
                     "timestamp":      {"type": "number"},
-                    "machineOutput":  {"type": "array",
-                                       "items": {"type": "number", "format": "double"},
-                                       "nullable": True},
+                    # `nullable: true` here was 3.0 syntax inside a document
+                    # declaring 3.1.0, where the keyword no longer exists. 3.1
+                    # spells an optional value as a union with the null type.
+                    "machineOutput":  {"type": ["array", "null"],
+                                       "items": {"type": "number", "format": "double"}},
                     "sequenceResults": {"type": "array",
                                         "items": {"type": "object",
                                                   "additionalProperties": True}}}},
@@ -355,13 +370,7 @@ def re_components() -> dict:
 
 def pe_components() -> dict:
     return {
-        "responses": {
-            "NotFound": {
-                "description": "Resource not found",
-                "content": {"application/json": {
-                    "schema": {"$ref": "#/components/schemas/Error"}}},
-            },
-        },
+        "responses": dict(SHARED_RESPONSES),
         "schemas": {
             "Machine": MACHINE_SCHEMA,
             "Object": {"type": "object", "additionalProperties": True},

@@ -447,6 +447,7 @@ run_unit() {
     run_openclaw_adapter_tests
     run_regression_issue_filer_tests
     run_parity_surface_tests
+    run_openapi_validator_tests
     run_ces_contract_drift
     run_localai_tests
 }
@@ -455,6 +456,15 @@ run_regression_issue_filer_tests() {
     local label="Regression auto-filer dedup unit tests"
     require_node "$label" "25.5.0" || return
     run_suite "$label" "$CI_DIR" npm run test:regression-issue-filer
+}
+
+# The validator itself, not the documents. `run_docs_audit` already checks that
+# every OpenAPI document is valid; this checks that the check can fail — each
+# case breaks one thing in a passing document and asserts the validator names
+# it. A validator nobody has watched go red is a validator nobody has tested.
+run_openapi_validator_tests() {
+    run_suite "OpenAPI validator unit tests" "$CI_DIR" \
+        bash scripts/tests/test-openapi-validate.sh
 }
 
 run_parity_surface_tests() {
