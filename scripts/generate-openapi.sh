@@ -28,6 +28,17 @@ done
 [ -f "$SPEC" ] || { echo "missing: $SPEC" >&2; exit 1; }
 python3 -c "import yaml" 2>/dev/null || { echo "pip3 install pyyaml"; exit 1; }
 
+# The Manager surface is not runtime-specific: one document, generated once,
+# from the same SURFACE_SPEC the runtime documents come from. It is the external
+# API — the engine-qualified reads — and until RealityEngine_CI#399 it was the
+# only part of the surface with no generated spec at all.
+python3 "$SCRIPT" \
+  --spec "$SPEC" \
+  --overlay "$OVERLAY_DIR/cpp.yaml" \
+  --out-re  "$(mktemp -t re-discard)" \
+  --out-pe  "$(mktemp -t pe-discard)" \
+  --out-manager "$OUT_DIR/manager.yaml"
+
 for runtime in cpp lsp scala; do
   python3 "$SCRIPT" \
     --spec    "$SPEC" \

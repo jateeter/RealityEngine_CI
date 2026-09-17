@@ -803,6 +803,60 @@ Generators emitting range text render the last cell, not the exclusive bound.
 
 ---
 
+## Manager (Visualizer) Surface
+
+The external API. Everything in the RE and PE sections above is the **internal**
+surface — reachable by addressing one engine's port directly, and answered by
+whichever engine you reached.
+
+This surface is served by `RealityEngine_Manager`'s visualizer backend, and it
+is the one an outside caller is meant to use, because it makes the engine
+explicit. A vector id and a sequence id are both scoped to the engine that
+minted them (RealityEngine_CI#397), so a bare id is ambiguous in a multi-engine
+universe and an engine-qualified one is not.
+
+Plural names the set; singular names one engine's resources.
+
+### Engines
+
+| Method | Path | Manager |
+|--------|------|---------|
+| GET | `/api/engines` | ✓ |
+| GET | `/api/engine/:id/health` | ✓ |
+| GET | `/api/engine/:id/vectors/:vectorId` | ✓ |
+| GET | `/api/engine/:id/sequences/:sequenceId` | ✓ |
+
+`GET /api/engines` returns the engine collection:
+
+```json
+{
+  "engines": [
+    {"id": "cpp-1", "runtime": "cpp", "re_url": "…", "pe_url": "…",
+     "status": "running", "active": true}
+  ],
+  "count": 1,
+  "activeId": "cpp-1",
+  "instances": [ "…" ]
+}
+```
+
+`status` is the instance registry's word for the instance; this route does not
+probe liveness. `/api/engine/:id/health` does that, per engine, and reports
+`unreachable` when the engine does not answer.
+
+The qualified reads answer from the named engine or 404 from it:
+
+- found → `200 {"vector": "<document>"}` / `200 {"sequence": "<sequence>"}`
+- the engine does not hold it → `404 {"error": "…", "engine": "<id>"}`
+- the instance is not registered → `404 {"error": "Engine instance '<id>' is not registered", "available": ["…"]}`
+- malformed id → `400`
+
+An unregistered instance is refused, never substituted — the same rule the
+`X-RE-Instance` request binding follows, and for the same reason: answering from
+a different engine than the caller addressed is invisible at the call site.
+
+---
+
 ## Perception Engine (PE) Surface
 
 Served by `perception_engine_server` (CPP), `perception-service` (LSP), `PerceptionRoutes` (Scala).  

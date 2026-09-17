@@ -7,6 +7,7 @@
 #   3. OpenAPI route parity (generated files current with SURFACE_SPEC)
 #   4. Wiki content drift (port tables in files that should only link)
 #   5. Stale known-blocker text in contract / operator / wiki docs
+#   6. Manager OpenAPI spec current with the routes the proxy serves
 #
 # Usage (from RealityEngine_CI root):
 #   bash scripts/audit-docs.sh [--fix]
@@ -70,6 +71,9 @@ hdr "2. Deprecated port references (3299, 3300)"
 #   EXAMPLE_DOMAIN_COMPENDIUM.md / Example-Machine-Compendium.md — use 3299 as
 #     perceptual-space offset ([3295:3299]), not a port number
 #   Machine-Interconnection-Index.md — uses [3295:3299] as perceptual-space offset
+#   wiki/archive/** — archived pages record what was true when they were written.
+#     A deprecated port in an archive is the point of the archive; editing it to
+#     satisfy this check would falsify the record rather than fix anything.
 DEPR_HITS=$(find "$WS" \
     \( -name "*.md" -o -name "*.sh" -o -name "*.env" -o -name "*.txt" \) \
     ! \( \
@@ -89,6 +93,7 @@ DEPR_HITS=$(find "$WS" \
       -o -name "Example-Machine-Compendium.md" \
       -o -name "Machine-Interconnection-Index.md" \
       -o -name "releases.txt" \
+      -o -path "*/wiki/archive/*" \
     \) \
     -print0 2>/dev/null \
   | xargs -0 grep -En '\b3299\b|\b3300\b' 2>/dev/null || true)
@@ -184,6 +189,31 @@ else
     pass "propagated OpenAPI mirrors match CI generated specs"
   fi
 fi
+
+# ── Check 6: Manager OpenAPI spec ────────────────────────────────────────────
+# The external API lives on the Manager and nowhere else. Until #399 no spec
+# covered it, so the routes an outside caller is meant to use were the only ones
+# with no generated documentation — while the engine-internal routes had six
+# documents between them.
+hdr "6. Manager OpenAPI spec"
+MGR_COMMITTED="$CI_DIR/docs/openapi/manager.yaml"
+MGR_TMP=$(mktemp -d)
+python3 "$CI_DIR/scripts/openapi/generate.py" \
+  --spec "$CI_DIR/SURFACE_SPEC.md" \
+  --overlay "$CI_DIR/scripts/openapi/overlays/cpp.yaml" \
+  --out-re "$MGR_TMP/re.yaml" --out-pe "$MGR_TMP/pe.yaml" \
+  --out-manager "$MGR_TMP/manager.yaml" >/dev/null 2>&1
+
+if [ ! -f "$MGR_COMMITTED" ]; then
+  fail "missing: docs/openapi/manager.yaml — run: bash scripts/generate-openapi.sh"
+elif ! diff -q "$MGR_COMMITTED" "$MGR_TMP/manager.yaml" >/dev/null 2>&1; then
+  fail "stale: docs/openapi/manager.yaml — run: bash scripts/generate-openapi.sh"
+  if $FIX; then cp "$MGR_TMP/manager.yaml" "$MGR_COMMITTED"; detail "fixed"; fi
+else
+  routes=$(grep -cE "^  /api/" "$MGR_COMMITTED")
+  pass "Manager OpenAPI current with SURFACE_SPEC ($routes paths)"
+fi
+rm -rf "$MGR_TMP"
 
 # ── Check 4: Wiki content drift ───────────────────────────────────────────────
 hdr "4. Wiki content drift"
