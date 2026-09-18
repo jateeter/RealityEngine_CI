@@ -249,15 +249,27 @@ The perceptual space grows during machine loading to fit every resident
 machine's declared regions. A write to this route **must never take it below
 what the resident corpus requires.**
 
+The floor is `max(requiredDimension, current width)`:
+
 | request | behaviour |
 |---|---|
-| below the live requirement | **refused**, `400`, naming the requirement. Nothing is mutated. |
-| at or above the requirement | applied; the space grows if the value exceeds the current width |
+| below the corpus requirement | **refused**, `400`, naming the requirement |
+| below the width already held | **refused**, `400`, naming that width |
+| at or above both | applied; the space grows if the value exceeds the current width |
 
-The requirement is `max(offset + length)` over the input **and** output regions
-of every machine the engine is currently holding — the same figure
-`/api/runtime/vector-space` reports as `requiredDimension`. It is derived from
-the corpus in hand, not configured, so it moves as machines are added.
+Nothing is mutated on a refusal.
+
+`requiredDimension` is `max(offset + length)` over the input **and** output
+regions of every machine the engine is currently holding — the same figure
+`/api/runtime/vector-space` reports. It is derived from the corpus in hand, not
+configured, so it moves as machines are added.
+
+**Both bounds refuse, and the error names which one applied.** They are
+different facts — "the corpus needs more than that" and "this engine already
+holds more than that" — and a caller can only act on the one that is true for
+them. A request below the current width but above the requirement is still a
+downward request, and answering it `200` because nothing was violated would
+report success for a write that did not take effect.
 
 **Refused, never clamped.** Silently accepting a lowering request and applying
 the requirement instead would make the response disagree with the request while
