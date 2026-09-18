@@ -243,6 +243,54 @@ control". Controls are fixed by the specification and cannot be created or
 destroyed over the API — which is why the C of CRUD has no verb here, and saying
 so is clearer than leaving a reader to infer it from a 405.
 
+##### PUT /api/config/dimension is read-only downward
+
+The perceptual space grows during machine loading to fit every resident
+machine's declared regions. A write to this route **must never take it below
+what the resident corpus requires.**
+
+The floor is `max(requiredDimension, current width)`:
+
+| request | behaviour |
+|---|---|
+| below the corpus requirement | **refused**, `400`, naming the requirement |
+| below the width already held | **refused**, `400`, naming that width |
+| at or above both | applied; the space grows if the value exceeds the current width |
+
+Nothing is mutated on a refusal.
+
+`requiredDimension` is `max(offset + length)` over the input **and** output
+regions of every machine the engine is currently holding — the same figure
+`/api/runtime/vector-space` reports. It is derived from the corpus in hand, not
+configured, so it moves as machines are added.
+
+**Both bounds refuse, and the error names which one applied.** They are
+different facts — "the corpus needs more than that" and "this engine already
+holds more than that" — and a caller can only act on the one that is true for
+them. A request below the current width but above the requirement is still a
+downward request, and answering it `200` because nothing was violated would
+report success for a write that did not take effect.
+
+**Refused, never clamped.** Silently accepting a lowering request and applying
+the requirement instead would make the response disagree with the request while
+reporting success, which is how a caller ends up believing it holds a narrower
+space than it does — the failure #364 already cost us once, one endpoint over.
+
+The response reports the width the engine actually has after the call, never the
+value the caller asked for.
+
+This was violated three different ways, all answering `success: true`:
+
+| runtime | what the write did |
+|---|---|
+| scala | bound the parameter and echoed it — nothing assigned at all |
+| cpp | assigned a server-side seed member that nothing reads for the space |
+| lsp | `(setf (reality-state-dimension state) dim)` — unconditional, and would **shrink** below the requirement |
+
+A write that reports success and changes nothing is not harmless: it is
+indistinguishable from one that worked, so a caller cannot tell that the control
+it is using has no effect (#425).
+
 ##### POST /api/machines takes either the Machine object or the corpus envelope
 
 Two accepted request bodies, disambiguated by an **object-valued `machine`
