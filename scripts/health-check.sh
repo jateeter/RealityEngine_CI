@@ -112,7 +112,9 @@ echo "[7/14] API Configuration"
 CONFIG=$(curl -s http://localhost:$PORT/api/config 2>/dev/null)
 if [ $? -eq 0 ]; then
     check_pass "API configuration accessible"
-    echo "$CONFIG" | grep -o '"vectorDimension":[0-9]*' | sed 's/^/       /'
+    # eventDimension is the key all three runtimes emit; vectorDimension is
+    # matched too but no runtime has ever produced it (RealityEngine_CI#422).
+    echo "$CONFIG" | grep -oE '"(event|vector)Dimension":[0-9]*' | sed 's/^/       /'
     echo "$CONFIG" | grep -o '"matchThreshold":[0-9.]*' | sed 's/^/       /'
 else
     check_fail "Cannot access API configuration"

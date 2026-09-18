@@ -158,34 +158,12 @@ mkdir -p "$REPORT_DIR"
 CORPUS_SIZE="$(find "$MACHINES_DIR/machines" -name '*.json' | wc -l | tr -d ' ')"
 
 # The perceptual space must be wide enough for every machine the loop will add,
-# not just the one the universe boots with. All three engines default to 7680
-# and 250 corpus machines map above it (max 16944) — booting at the default
-# would put those machines' regions outside the space and report the resulting
-# mess as an engine parity break. Size the space from the corpus up front.
-CORPUS_REQUIRED_DIM="$(python3 - "$MACHINES_DIR/machines" <<'PY'
-import json, pathlib, sys
-root = pathlib.Path(sys.argv[1])
-required = 0
-for path in root.rglob('*.json'):
-    try:
-        machine = json.loads(path.read_text(encoding='utf-8')).get('machine') or {}
-    except (OSError, ValueError, AttributeError):
-        continue
-    mapping = machine.get('perceptualMapping') or {}
-    for key in ('input', 'output'):
-        region = mapping.get(key)
-        if isinstance(region, dict):
-            try:
-                required = max(required, int(region['offset']) + int(region['length']))
-            except (KeyError, TypeError, ValueError):
-                pass
-print(required)
-PY
-)"
-if [ -z "$VECTOR_DIMENSION" ]; then
-  VECTOR_DIMENSION=7680
-  [ "$CORPUS_REQUIRED_DIM" -gt "$VECTOR_DIMENSION" ] && VECTOR_DIMENSION="$CORPUS_REQUIRED_DIM"
-fi
+# not just the one the universe boots with. The rule and its reasoning live in
+# scripts/lib/corpus-dimension.sh — startUniverse.sh needs the same rule, and it
+# was stated only here, which is how the canonical entrypoint came to launch
+# undersized (RealityEngine_CI#422).
+source "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/lib/corpus-dimension.sh"
+resolve_vector_dimension "$MACHINES_DIR/machines"
 export VECTOR_DIMENSION
 
 # Loading a machine interns its inputSequences as a test source; the sweep drives
@@ -317,10 +295,15 @@ while IFS=$'\t' read -r iid re_url pe_url; do
     }
   done
   # /api/config, not /api/engine/stats: only LSP reports a width in stats.
+  # The key is `eventDimension`. This asked for `vectorDimension`, which no
+  # runtime emits, so re_dim was 0 on every engine and this capacity check —
+  # the one that would have caught the undersized space — never fired
+  # (RealityEngine_CI#422).
   re_dim="$(curl -sf --max-time 5 "$re_url/api/config" \
     | python3 -c 'import json,sys
 try:
-    print(int(json.load(sys.stdin).get("vectorDimension", 0)))
+    d = json.load(sys.stdin)
+    print(int(d.get("eventDimension") or d.get("vectorDimension") or 0))
 except Exception:
     print(0)' 2>/dev/null || echo 0)"
   if [ "${re_dim:-0}" -lt "$CORPUS_REQUIRED_DIM" ]; then

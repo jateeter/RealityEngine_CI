@@ -271,16 +271,24 @@ def machine_names(instance: dict[str, Any]) -> tuple[list[str], str | None]:
 def space_width(instance: dict[str, Any]) -> int | None:
     """Width of this runtime's perceptual space, or None if it will not say.
 
-    Read from `GET /api/config`, which reports `vectorDimension` identically on
-    all three runtimes. `GET /api/engine/stats` also carries a width but only on
-    LSP — cpp returns `totalMachines`/`totalVectors`/`domainWorkerPool` and
-    scala returns `sequenceStats`, so a capacity check written against stats
-    silently does nothing on two engines of three.
+    Read from `GET /api/config`, where the key is **`eventDimension`** on all
+    three runtimes. This asked for `vectorDimension`, which none of them emits,
+    so it returned None on every runtime and every capacity check built on it
+    did nothing — including the one that would have caught the undersized space
+    in RealityEngine_CI#422. `vectorDimension` is still accepted, second, in
+    case a runtime ever adds it; a width that is absent under both names is
+    None rather than 0, because 0 is a width and "would not say" is not.
+
+    `GET /api/engine/stats` also carries a width but only on LSP — cpp returns
+    `totalMachines`/`totalVectors`/`domainWorkerPool` and scala returns
+    `sequenceStats`, so a capacity check written against stats silently does
+    nothing on two engines of three. That is the same failure one endpoint over,
+    which is why the key is named in a docstring rather than assumed.
     """
     status, payload = TP.get_json(f"{instance['re']}/api/config")
     if status != 200 or not isinstance(payload, dict):
         return None
-    width = payload.get("vectorDimension")
+    width = payload.get("eventDimension", payload.get("vectorDimension"))
     return int(width) if isinstance(width, (int, float)) else None
 
 

@@ -345,7 +345,10 @@ machine-specific parity result can be trusted.
   value echoed back, then reports the old one on the next GET. Start the PEs
   with `PE_SOURCE_ACTIVATE_ON_LOAD=true` instead of activating over the API.
 - `GET /api/engine/stats` is listed as uniform in `SURFACE_SPEC.md` but returns
-  different payloads per runtime; use `GET /api/config` for `vectorDimension`.
+  different payloads per runtime; use `GET /api/config` for the perceptual
+  space width. The key there is **`eventDimension`** — this file said
+  `vectorDimension`, which no runtime emits, and three call sites read it and
+  got nothing (RealityEngine_CI#422).
 
 `regression-trajectory-parity.py` shares the source-equalisation exposure — it
 seeds one source without checking the others match.

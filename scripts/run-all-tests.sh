@@ -448,6 +448,7 @@ run_unit() {
     run_regression_issue_filer_tests
     run_parity_surface_tests
     run_openapi_validator_tests
+    run_corpus_dimension_tests
     run_ces_contract_drift
     run_localai_tests
 }
@@ -465,6 +466,16 @@ run_regression_issue_filer_tests() {
 run_openapi_validator_tests() {
     run_suite "OpenAPI validator unit tests" "$CI_DIR" \
         bash scripts/tests/test-openapi-validate.sh
+}
+
+# The rule that sizes the perceptual space from the corpus. An undersized space
+# is silent by construction — a machine whose region is not in the space can
+# never match, and that reads identically to a machine that matched nothing —
+# so this asserts the exact requirement for corpora laid out by hand, and that
+# an explicit VECTOR_DIMENSION is never silently widened (#422).
+run_corpus_dimension_tests() {
+    run_suite "Corpus dimension sizing unit tests" "$CI_DIR" \
+        bash scripts/tests/test-corpus-dimension.sh
 }
 
 run_parity_surface_tests() {
