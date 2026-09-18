@@ -1050,6 +1050,35 @@ every level — the eight above, the source fields, and the keys of each nested
 object. A field one runtime carries and another does not is a divergence, and is
 reported as such rather than tolerated.
 
+**A combined machine output reports both where it came from and what it is.**
+
+`transitionResult.machineOutput` is the arbiter's fold of a machine's completed
+Reality Events. Two facts about it are contractual, and every runtime carries
+both:
+
+| field | holds | |
+|---|---|---|
+| `provenance` | the **input** event ids that caused the output | the chain, as `RealityEvent::provenance_chain` resolves it |
+| `metadata.sources` | the **output** event ids that were folded | one per entry in the fold, in fold order |
+
+They are different facts and neither substitutes for the other. The runtimes
+each carried one: C++ and LSP emitted `provenance` and no `sources`, Scala
+emitted `sources` and no `provenance`, so a consumer asking either question got
+an answer from some runtimes and `null` from the rest
+(RealityEngine_CI#410).
+
+**`metadata.sources` names output events, not input events.** For
+`AIHardwareResilience`, the fold of the `aihr-in-healthy` event's output reports
+`sources: ["aihr-out-healthy"]` and `provenance: ["aihr-in-healthy"]`. Reporting
+the input id as the output's identity is what made the two indistinguishable,
+and is why the corpus now spells the input `aihr-in-healthy` rather than
+`aihr-healthy` (RealityEngine_Machines#163).
+
+`metadata.descriptions` is **not** contractual. Scala emits it when a folded
+output carries a `description`; it is a convenience for a human reading a
+response, no consumer reads it, and it is filtered at the boundary rather than
+implemented by the other two — the rule under "The observable boundary".
+
 **A machine that produced no output reports `null`, never `[]`.**
 
 Each `machineResults` entry describes the output *this step* produced.
