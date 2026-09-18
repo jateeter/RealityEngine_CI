@@ -243,6 +243,37 @@ control". Controls are fixed by the specification and cannot be created or
 destroyed over the API — which is why the C of CRUD has no verb here, and saying
 so is clearer than leaving a reader to infer it from a 405.
 
+##### The perceptual space width is per-engine and is never compared across runtimes
+
+`eventDimension` is a **runtime fact about one engine**, not a shared constant.
+Each engine may, during normal operation, hold a different corpus and therefore a
+different width — engines are loaded independently, a corpus may be added to at
+runtime, and two engines holding different machine sets *should* report different
+widths. A difference is not evidence of anything on its own.
+
+The launch value is a **seed**. Every runtime grows its Reality Event length
+during machine loading to fit each resident machine's declared regions, so the
+width an engine ends at is a property of what it loaded, not of how it was
+started.
+
+**The criterion is internal consistency, per engine:** the width an engine
+reports must cover `max(offset + length)` over the input *and* output regions of
+every machine that engine is holding. That is checkable on a single runtime,
+needs no quorum, and is the assertion the conformance checks make.
+
+Recorded because the inverse reading cost three issues. A default launch read
+`cpp=7680, scala=7680, lsp=16944`, and the 2-1 split was investigated as an
+engine disagreement about a specific machine mapped at `[14364:14384]` — a
+machine that was resident and live on all three throughout. The split was real
+and was a defect (#364: two runtimes reported the seed rather than the space
+they had grown to), but **the split alone never established that**, and reasoning
+from it directly led to a harness change that would have entrenched the
+misreading. Comparing widths between engines without first equalising their
+corpora compares two different questions.
+
+Writing the width is governed separately: a set below the live corpus
+requirement must be refused, not clamped (#425).
+
 ##### Byte equivalence applies
 
 `GET /api/engine/config` is a compared surface. Two runtimes that hold the same

@@ -80,6 +80,12 @@ as a count.
 - **Work-product whose lifecycle belongs to a regression run may live outside
   git** — but it **must be able to tell it is stale** relative to the
   authoritative documents it derives from.
+- **And once it can tell, it refreshes itself.** A registry that disagrees with
+  the dynamic operational system is regenerated from that system automatically;
+  only a disagreement surviving regeneration is a finding. Stated once, in
+  `ENGINEERING_CONTRACT.md`, "a stale `<registryName>` registry is regenerated,
+  not failed" — detecting staleness is the precondition this rule builds on, not
+  a competing one.
 
 The case that produced this rule: `contracts.json` sat two months behind the
 corpus it described, because its `--check` drift gate was wired to nothing
