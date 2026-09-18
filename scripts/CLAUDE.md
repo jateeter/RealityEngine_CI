@@ -322,10 +322,18 @@ Notes that bite when changing these:
   once rather than per stage.
 - Per-iteration `POST /api/engine/reset` is what makes RE histories comparable:
   it clears ISRE/OSRE *and* zeroes the step counter.
-- The corpus needs a perceptual space of 16944, well above the 7680 every engine
-  defaults to. `test-corpus-parity-loop.sh` computes the requirement and exports
-  `VECTOR_DIMENSION`; machines mapping outside the space are reported as a
-  capacity class, never as a parity verdict.
+- The corpus drives the perceptual space to 16944, above the 7680 every engine
+  seeds at. **That is a seed, not a limit** — every engine grows its Reality
+  Event length during machine loading to fit each declared mapping, so a
+  universe launched at 7680 reaches 16944 on its own with every machine resident
+  and live. `test-corpus-parity-loop.sh` and `startUniverse.sh` both seed at the
+  final width (`scripts/lib/corpus-dimension.sh`) to avoid the reallocations,
+  not to make the machines work.
+  - Read the width from `GET /api/config`, key **`eventDimension`**. It reported
+    the *seed* on cpp and scala and the grown space on lsp, so a default launch
+    read 7680/7680/16944 and the 2-1 split was investigated as an engine
+    disagreement (RealityEngine_CI#422, CPP#120, Scala#137). If you see a
+    dimension split again, suspect the report before the space.
 - Sources must be equalised before anything is compared. An active source one PE
   has and another does not is stimulus, and the trajectory comparison will
   faithfully report the difference as engine divergence.
