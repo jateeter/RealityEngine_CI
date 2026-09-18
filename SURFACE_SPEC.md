@@ -1181,6 +1181,50 @@ equivalence follows from it.
 | GET | `/api/perceptual-simulation/state` | ✓ | ✓ | ✓ |
 | GET | `/api/perceptual-simulation/history` | ✓ | ✓ | ✓ |
 
+#### Active events
+
+`GET /api/engine/active` returns `activeEvents` and **it is ordered**. The
+canonical order is `machineName`, then `sequenceId`, then `vector.id`, all
+ascending. Every runtime sorts before serializing, and every entry carries
+`machineName`.
+
+**`machineName` is on the entry because the order cannot use `machineId`.**
+Machine ids are minted per runtime — the same corpus machine is
+`machine-1789768975960-558592386` on C++, `machine-1U4R98V-DASCTPWKLDG4` on LSP
+and `machine-1789768976007-a02a7fee` on Scala — so sorting on one gives a total
+order *within* a runtime and a different one *between* runtimes. That is the
+property being fixed, not a fix for it. `machineName` is corpus-declared and is
+what every other cross-runtime comparison in this project matches on
+(`scripts/lib/parity_identity.py`).
+
+All three key parts are needed and none is sufficient:
+
+| key | why it is not enough alone |
+|---|---|
+| `machineName` | a machine contributes many active events |
+| `(machineId, sequenceId)` | **not unique** — one sequence can hold several active events at once. Measured on the full corpus after twelve steps: 5080 distinct pairs across 5141 entries, 60 of them repeating |
+| `(sequenceId, vector.id)` | repeats across machines that instantiate the same CES — 2 collisions at boot on the full corpus |
+
+**This is hardening, and the record should say so.** Unlike `activeRegions`
+before #197, the runtimes currently agree: measured across cpp, lsp and scala on
+identical corpora at boot, after stepping, after adding a machine at runtime,
+and after twelve steps at 5141 active events, the order was identical every
+time.
+
+That agreement is **incidental**. Each runtime emits in its own machine-collection
+order — C++ walks a `std::map` keyed by the minted id — and the orders coincide
+only because minted ids are time-ordered in all three formats and every runtime
+loads the same corpus by the same deterministic walk, so id order tracks load
+order. It survives only while all three of those hold. Change id minting, the
+corpus walk, or the collection type, and the field diverges with nothing
+watching it, surfacing later as an engine disagreement found by someone looking
+at something else — which is how #418 was found.
+
+The reasoning is the one `activeRegions` already records below: a field that
+carries no order but is compared as though it does cannot be checked at all.
+Declaring the order now costs a sort; discovering later that it was never
+declared costs an investigation.
+
 #### Active regions
 
 `activeRegions` is emitted on every simulation step and **is ordered**. The
