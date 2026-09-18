@@ -338,6 +338,23 @@ it is using has no effect (#425).
 name that is already resident, and it does not replace the machine holding that
 name.
 
+**"Already resident" is runtime state, not corpus state.** A name is resident
+when a machine carrying it has been previously ingested and is still held in
+*this engine's* machine corpus. It is not a question of what the corpus on disk
+declares, and it is not shared between engines — an engine that never ingested
+a machine has no conflict for its name.
+
+Two consequences follow, and both are contract:
+
+- **`DELETE` frees the name.** Remove the machine holding it and the next `POST`
+  of that name is not a conflict: no version suffix, and the **declared mapping
+  is honoured**. Versioning is a response to a collision that exists at the
+  moment of ingestion, not a permanent mark on a name.
+- **A machine with no `perceptualMapping` still occupies its name.** It is
+  ingested and resident even though it never enters the perceptual space, so a
+  second machine of that name is versioned — and, having no region to reallocate,
+  is ingested under the versioned name with nothing allocated.
+
 When the requested `name` is already held by a resident machine:
 
 1. **The ingested machine's name carries a version suffix.** The engine appends
