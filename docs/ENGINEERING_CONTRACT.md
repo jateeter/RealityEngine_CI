@@ -94,10 +94,14 @@ truth for what the engines are actually doing, and none may be treated as one.
 - **A gate that fails on a stale registry is wrong.** It regenerates and then
   compares, or reports the regeneration as an event. It does not report staleness
   as a defect.
-- **A disagreement that survives regeneration is a real finding**, and is the
-  only kind of registry disagreement that may fail anything. That is the case
-  worth stopping for: the operational system and a view freshly derived from it
-  do not agree, which means the derivation is wrong.
+- **A disagreement that survives regeneration is reported as a failure.** Not a
+  warning, not a note in a log — a failure. It is also the *only* kind of
+  registry disagreement that may fail anything: a split found before
+  regeneration is a stale view and is repaired, while a split still present
+  after the rebuild means the operational system and a view freshly derived from
+  it do not agree, which means the derivation is wrong. That is the case worth
+  stopping the line for, and a gate that downgrades it to a warning has removed
+  the only signal this whole rule exists to preserve.
 - **A measurement is never taken from a registry when the operational system can
   be asked directly.** A registry answers "what was recorded"; the running system
   answers "what is true now". Substituting the first for the second is the same
