@@ -1079,6 +1079,36 @@ output carries a `description`; it is a convenience for a human reading a
 response, no consumer reads it, and it is filtered at the boundary rather than
 implemented by the other two — the rule under "The observable boundary".
 
+##### `POST /api/sources/bootstrap-from-machines` is skip-if-present
+
+A machine that already has a test source is **skipped**, not rebuilt. The
+counters mean:
+
+| | |
+|---|---|
+| `machinesSeen` | machines examined |
+| `created` | sources that **did not exist** and now do |
+| `skipped` | machines left untouched, for any reason |
+
+`created` counts additions. A runtime that rebuilds an existing source in place
+has not created anything, and reporting that as `created` makes the number
+describe work done rather than sources gained — which is what it meant on LSP,
+where a second bootstrap reported `created: 1336` while the source count stayed
+at 1351 with no new names and no duplicates (RealityEngine_CI#413).
+
+Skip-if-present is chosen because **the harness depends on idempotence**. Every
+cross-runtime comparison arms its stimulus with this call, and a bootstrap that
+rebuilds on one runtime and skips on two has done different work on each before
+the comparison starts — `scripts/CLAUDE.md` states the rule it breaks: *sources
+must be equalised before anything is compared*.
+
+The cost is real and worth naming: a machine redefined since its source was
+built keeps a source describing the old definition. LSP's implementation
+recorded that concern and defaulted to rebuilding because of it. The answer is
+that a redefined corpus is reloaded, not merged — `POST /api/reset` plus a fresh
+bootstrap, or a restart — and a runtime that wants the old behaviour can set
+`PE_SOURCE_MERGE=false` to force the rebuild.
+
 **A machine that produced no output reports `null`, never `[]`.**
 
 Each `machineResults` entry describes the output *this step* produced.
