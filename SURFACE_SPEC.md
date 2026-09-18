@@ -1010,6 +1010,59 @@ Default ports: Scala 5000 · CPP 5300 · LSP 5600
 | GET | `/api/health` | ✓ | ✓ | ✓ |
 | GET | `/api/state` | ✓ | ✓ | ✓ |
 
+#### `lastPush` is the last step, not when it happened
+
+`GET /api/state` reports `lastPush` as **`null` before any push, and afterwards
+the step object the last push produced** — the same shape `POST /api/push`
+returns under `step`, carrying the same keys:
+
+```
+activeRegions  eventBus  machineResults  mergeBatch  perceptualSpace
+perceptualSpaceIsDebugProjection  stepNumber  timestamp
+```
+
+**`timestamp` is part of that object and is required.** It is the field a
+timestamp-only `lastPush` used to be, so nothing a caller could previously read
+is lost: `lastPush.timestamp` answers "when", and the rest answers "what". A
+client reconnecting can render the last result without replaying it, which a
+bare timestamp cannot support and is the reason this shape is the contract.
+
+This is declared because the runtimes disagreed and nothing had noticed
+(RealityEngine_CI#407): LSP reported the step object, C++ and Scala reported a
+bare integer timestamp. Two of three agreeing is not the same as two of three
+being right — quorum here is 3-of-3 (`docs/QUORUM_CONTRACT.md`) — and the shape
+that carries strictly more, while still containing the other, is the one that
+can be adopted without loss.
+
+It went unseen because **before any push all three report `null`**, and every
+comparison that had looked at this route ran against a freshly started
+universe. A contract stated only for the pre-push state cannot detect a
+post-push divergence. Conformance is therefore checked **after at least one
+push**; a green result from a PE that has never been pushed to is not evidence.
+
+##### How `/api/state` is compared
+
+Two rules, because this surface carries engine-scoped identity and a naive
+comparison of it can never pass.
+
+**1. The key sets must match exactly.** Every runtime reports the same fields at
+every level — the eight above, the source fields, and the keys of each nested
+object. A field one runtime carries and another does not is a divergence, and is
+reported as such rather than tolerated.
+
+**2. Engine-specific ids are never compared.** `machineResults` is an object
+**keyed by machine id**, and ids are minted per runtime: the same corpus machine
+is `machine-1789687061048-341051310` on C++ and `machine-1U4PI1H-506GF8UC6O3K`
+on LSP. Comparing those keys requires an equality that id generation forbids, so
+what is compared is the **shape of the values and the number of entries**, never
+the keys themselves. The same applies to `sequenceResults`, keyed by sequence
+name, and to any future id-keyed map.
+
+This is the rule already settled for reads (#397) and for machine-scoped
+configuration controls ("Byte equivalence applies", above), reaching `/api/state`.
+An id is meaningful only inside the engine that minted it, so a comparison
+across engines cannot be keyed on one.
+
 ### Push Cycle
 
 | Method | Path | CPP | LSP | Scala |
