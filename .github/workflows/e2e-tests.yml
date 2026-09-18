@@ -459,6 +459,19 @@ jobs:
         working-directory: RealityEngine_CI
         run: bash scripts/tests/test-openapi-validate.sh
 
+      # The generators' own drift checks. Four offered --check and nothing
+      # invoked any of them (#352) — a check that exists and never runs is
+      # indistinguishable from one that passes. It cost the aihr-healthy ->
+      # aihr-in-healthy rename: the corpus changed and the generated C++ header
+      # did not, because nothing compared them. Read-only; --check writes
+      # nothing.
+      - name: Run generator drift checks
+        working-directory: RealityEngine_CI
+        run: |
+          node scripts/cesgen.mjs --all --check
+          node scripts/cesgen-oracles.mjs --check
+          python3 scripts/build-semantic-guardrails-dashboard.py --check
+
       # The rule that sizes the perceptual space from the corpus. An undersized
       # space is silent by construction, so this asserts the exact requirement
       # for corpora laid out by hand, and that an explicit VECTOR_DIMENSION is

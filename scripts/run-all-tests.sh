@@ -449,6 +449,7 @@ run_unit() {
     run_parity_surface_tests
     run_openapi_validator_tests
     run_corpus_dimension_tests
+    run_generator_drift_checks
     run_ces_contract_drift
     run_localai_tests
 }
@@ -473,6 +474,27 @@ run_openapi_validator_tests() {
 # never match, and that reads identically to a machine that matched nothing —
 # so this asserts the exact requirement for corpora laid out by hand, and that
 # an explicit VECTOR_DIMENSION is never silently widened (#422).
+# The generators' own drift checks.
+#
+# Four generators in this repo offered `--check` and NOTHING invoked any of
+# them (#352). A check that exists and never runs is indistinguishable from one
+# that passes, and it cost exactly what that implies: the corpus rename
+# `aihr-healthy` -> `aihr-in-healthy` landed on 2026-09-18 and the generated C++
+# header still carried the old name, because nothing compared them.
+#
+# These are read-only. `--check` compares what the generator would emit against
+# what is on disk and exits non-zero on a difference; it writes nothing, so it is
+# safe to run on any checkout.
+run_generator_drift_checks() {
+    require_node "Generator drift checks" "25.5.0" || return
+    run_suite "cesgen drift check" "$CI_DIR" \
+        node scripts/cesgen.mjs --all --check
+    run_suite "cesgen-oracles drift check" "$CI_DIR" \
+        node scripts/cesgen-oracles.mjs --check
+    run_suite "semantic-guardrails dashboard drift check" "$CI_DIR" \
+        python3 scripts/build-semantic-guardrails-dashboard.py --check
+}
+
 run_corpus_dimension_tests() {
     run_suite "Corpus dimension sizing unit tests" "$CI_DIR" \
         bash scripts/tests/test-corpus-dimension.sh

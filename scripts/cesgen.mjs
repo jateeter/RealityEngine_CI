@@ -30,8 +30,14 @@
  *   ../RealityEngine_CPP/include/reality/generated/          (C++)
  *   scala/src/main/scala/com/realityengine/generated/        (Scala)
  *
- * The Scala output directory is created on demand and only written if the
- * Scala source tree exists in the AI repo (it does today under scala/).
+ * **A target whose root does not exist is skipped.** Only the C++ tree exists
+ * in this repository — `src/generated/` is neither present nor tracked and
+ * nothing imports it, and there is no `scala/` here either; the sibling
+ * RealityEngine_Scala repo is not this path. These defaults describe the
+ * retired single-repo AI layout, along with the `examples/machines` source
+ * above, which MACHINES_DIR has long since replaced.
+ *
+ * Passing --out-ts DIR opts back in explicitly and creates the directory.
  */
 
 import fs from 'node:fs';
@@ -67,14 +73,14 @@ function corpusPath(basename) {
 // ── CLI ──────────────────────────────────────────────────────────────────────
 
 function parseArgs(argv) {
-  const args = { names: [], domains: [], all: false, check: false, outTs: null, outCpp: null, outScala: null };
+  const args = { names: [], domains: [], all: false, check: false, outTs: null, outCpp: null, outScala: null, outTsExplicit: false };
   for (let i = 0; i < argv.length; i++) {
     const a = argv[i];
     if (a === '--all') args.all = true;
     else if (a === '--check') args.check = true;
     else if (a === '--names')   args.names   = argv[++i].split(',').filter(Boolean);
     else if (a === '--domains') args.domains = argv[++i].split(',').filter(Boolean);
-    else if (a === '--out-ts')    args.outTs    = argv[++i];
+    else if (a === '--out-ts')    { args.outTs = argv[++i]; args.outTsExplicit = true; }
     else if (a === '--out-cpp')   args.outCpp   = argv[++i];
     else if (a === '--out-scala') args.outScala = argv[++i];
     else if (a === '-h' || a === '--help') { printHelp(); process.exit(0); }
@@ -416,10 +422,25 @@ function main() {
   const specs = files.map(f => normalize(corpusPath(f)));
   let ok = true;
 
+  // A target whose root does not exist is SKIPPED, not generated into.
+  //
+  // The Scala target already worked this way; TypeScript did not, and this repo
+  // has no TypeScript output — `src/generated/` is neither present nor tracked,
+  // and nothing in the repo imports it. `--check` therefore reported 1329
+  // phantom drifts for files nobody has, which is why a check that exists could
+  // never be wired (RealityEngine_CI#352).
+  //
+  // Skipping on absence rather than on a flag keeps the rule the same for all
+  // three languages: emit where there is an output tree, say nothing where
+  // there is not. `--out-ts DIR` still opts a caller back in, and the directory
+  // is created on write as before.
+  const wantTs    = args.outTsExplicit || fs.existsSync(args.outTs);
+  const wantScala = fs.existsSync(path.join(ROOT, 'scala'));
+
   for (const spec of specs) {
-    ok = writeIfChanged(path.join(args.outTs,    `${spec.slug}.ts`),  emitTs(spec),    args) && ok;
+    if (wantTs) ok = writeIfChanged(path.join(args.outTs, `${spec.slug}.ts`), emitTs(spec), args) && ok;
     ok = writeIfChanged(path.join(args.outCpp,   `${spec.slug}.hpp`), emitCpp(spec),   args) && ok;
-    if (fs.existsSync(path.join(ROOT, 'scala'))) {
+    if (wantScala) {
       ok = writeIfChanged(path.join(args.outScala, `${spec.slug}.scala`), emitScala(spec), args) && ok;
     }
   }
@@ -429,11 +450,18 @@ function main() {
   // a partial run like `--names RSFlipFlop` would shrink the index and break
   // every other generated machine's exports.
   if (args.all) {
-    const indexSpecs = listOnDiskSpecs(args.outTs);
-    ok = writeIfChanged(path.join(args.outTs,    'index.ts'),    emitTsIndex(indexSpecs),    args) && ok;
-    ok = writeIfChanged(path.join(args.outCpp,   'index.hpp'),   emitCppIndex(indexSpecs),   args) && ok;
-    if (fs.existsSync(path.join(ROOT, 'scala'))) {
-      ok = writeIfChanged(path.join(args.outScala, 'Machines.scala'), emitScalaIndex(indexSpecs), args) && ok;
+    // Each index from its own directory. Deriving all three from the TS listing
+    // made the C++ index a function of the TypeScript output, which is how a
+    // repo with no TS tree reported its complete C++ index as drifted.
+    if (wantTs) {
+      ok = writeIfChanged(path.join(args.outTs, 'index.ts'),
+                          emitTsIndex(listOnDiskSpecs(args.outTs, '.ts')), args) && ok;
+    }
+    ok = writeIfChanged(path.join(args.outCpp, 'index.hpp'),
+                        emitCppIndex(listOnDiskSpecs(args.outCpp, '.hpp')), args) && ok;
+    if (wantScala) {
+      ok = writeIfChanged(path.join(args.outScala, 'Machines.scala'),
+                          emitScalaIndex(listOnDiskSpecs(args.outScala, '.scala')), args) && ok;
     }
   }
 
@@ -444,14 +472,24 @@ function main() {
   console.log(`cesgen: ${specs.length} machine(s) ${args.check ? 'verified' : 'emitted'}`);
 }
 
-// Walk the TS output directory and rebuild the spec list from the source JSON
-// of every existing per-machine file.  Used so the index always reflects the
+// Walk ONE language's output directory and rebuild the spec list from the source
+// JSON of every existing per-machine file. Used so an index always reflects the
 // union of generated machines rather than the subset passed to this invocation.
-function listOnDiskSpecs(outTs) {
-  if (!fs.existsSync(outTs)) return [];
-  const slugs = fs.readdirSync(outTs)
-    .filter(f => f.endsWith('.ts') && f !== 'index.ts')
-    .map(f => f.replace(/\.ts$/, ''))
+//
+// Takes the directory and its extension, because each language's index must be
+// derived from ITS OWN output. This read the TS directory for all three, so the
+// C++ index was a function of which TypeScript files happened to be on disk.
+// With no TS output — this repo has none, `src/generated/` is neither present
+// nor tracked — it returned [] and `--check` compared the real 1328-entry
+// index.hpp against an empty one and reported drift that did not exist. Write
+// mode masked it: writing the TS files created the directory before the index
+// read it, so `--all` passed and only `--check` failed (RealityEngine_CI#352).
+function listOnDiskSpecs(outDir, ext) {
+  if (!fs.existsSync(outDir)) return [];
+  const indexName = `index${ext}`;
+  const slugs = fs.readdirSync(outDir)
+    .filter(f => f.endsWith(ext) && f !== indexName)
+    .map(f => f.slice(0, -ext.length))
     .sort();
   return slugs.map(slug => normalize(corpusPath(`${slug}.json`)));
 }
