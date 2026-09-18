@@ -373,6 +373,23 @@ jobs:
         with:
           path: RealityEngine_CI
 
+      # cesgen reads the corpus and writes generated headers into
+      # RealityEngine_CPP, and cesgen-oracles reads RealityEngine_Machines/
+      # oracles.json. This job checked out only RealityEngine_CI, so wiring the
+      # drift checks here made them die on a missing corpus rather than run
+      # (#352). Both are read-only under --check.
+      - name: Checkout RealityEngine_Machines
+        uses: actions/checkout@v7
+        with:
+          repository: jateeter/RealityEngine_Machines
+          path: RealityEngine_Machines
+
+      - name: Checkout RealityEngine_CPP
+        uses: actions/checkout@v7
+        with:
+          repository: jateeter/RealityEngine_CPP
+          path: RealityEngine_CPP
+
       # The parity-surface test imports the TypeScript module the e2e spec uses,
       # which needs the type stripping Node enables by default from 23. Pinned to
       # the same 26.8 the other jobs use rather than trusting the runner default.
@@ -458,6 +475,19 @@ jobs:
       - name: Run OpenAPI validator unit tests
         working-directory: RealityEngine_CI
         run: bash scripts/tests/test-openapi-validate.sh
+
+      # The generators' own drift checks. Four offered --check and nothing
+      # invoked any of them (#352) — a check that exists and never runs is
+      # indistinguishable from one that passes. It cost the aihr-healthy ->
+      # aihr-in-healthy rename: the corpus changed and the generated C++ header
+      # did not, because nothing compared them. Read-only; --check writes
+      # nothing.
+      - name: Run generator drift checks
+        working-directory: RealityEngine_CI
+        run: |
+          node scripts/cesgen.mjs --all --check
+          node scripts/cesgen-oracles.mjs --check
+          python3 scripts/build-semantic-guardrails-dashboard.py --check
 
       # The rule that sizes the perceptual space from the corpus. An undersized
       # space is silent by construction, so this asserts the exact requirement
