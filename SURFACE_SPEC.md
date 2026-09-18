@@ -1050,6 +1050,29 @@ every level — the eight above, the source fields, and the keys of each nested
 object. A field one runtime carries and another does not is a divergence, and is
 reported as such rather than tolerated.
 
+**A machine that produced no output reports `null`, never `[]`.**
+
+Each `machineResults` entry describes the output *this step* produced.
+`outputRegion`, `outputVector` and `mergedOutputVector` are therefore `null`
+together when the machine completed no Reality Event — there is no vector, and
+no region one was written to.
+
+`[]` is not a neutral stand-in for absence. It is a positive claim that an
+output vector exists and is empty, and a consumer asking "did this machine
+produce output?" must not get *yes, an empty one* from one runtime and *no* from
+another. This is the same error as a vector of zeros, which this document
+already rejects for arbitration: zeros are a positive claim about every cell in
+the region.
+
+The machine's **declared** output region is a property of the machine and is
+still reachable from `GET /api/machines/:id`. This field answers the narrower
+question of where this step's output went.
+
+LSP reported the declared region and `[]` here while reporting `null` for
+`mergedOutputVector` beside them — one object, one condition, two encodings
+(RealityEngine_CI#409). `inputRegion` and `inputEvent` are unaffected: a machine
+always consumes input, so their absence would mean something different.
+
 **2. Engine-specific ids are never compared.** `machineResults` is an object
 **keyed by machine id**, and ids are minted per runtime: the same corpus machine
 is `machine-1789687061048-341051310` on C++ and `machine-1U4PI1H-506GF8UC6O3K`
