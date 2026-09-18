@@ -243,6 +243,47 @@ control". Controls are fixed by the specification and cannot be created or
 destroyed over the API — which is why the C of CRUD has no verb here, and saying
 so is clearer than leaving a reader to infer it from a 405.
 
+##### A machine transition reports both the fold and the arbiter's pick
+
+A machine that completes several Reality Events in one transition holds a
+*collection* of asserted outputs. Two different things can be said about that
+collection, and the step surface already says both, under distinct names in
+`machineResults[id]`:
+
+| field | what it is |
+|---|---|
+| `outputVector` | the arbiter's representative member — evidence that sequences fired |
+| `mergedOutputVector` | the collection folded by the machine's declared `outputMergeTransformation` — **what the machine presents**, and what is written to the perceptual space |
+
+They differ whenever more than one sequence asserts. For
+`localai/session_rag_context` — PASSTHROUGH, three sequences asserting
+`[1,0,0,0]`, `[0,1,0,0]` and `[0,0,1,0]`, default `or` — the step reports
+`outputVector [0,0,1,0]` and `mergedOutputVector [1,1,1,0]`, and writes the
+latter.
+
+**The single-machine transition routes must report both.**
+`POST /api/machines/:id/process`, `/process-universal`, `/whatif` and
+`/whatif-universal` carried only `machineOutput`, the pick — so a caller of
+those routes could not obtain what the machine actually presents, on a surface
+where no step result is available to consult instead. The transition response
+therefore carries `mergedOutput` alongside `machineOutput`, the same pair the
+step already reports.
+
+`machineOutput.metadata` keeps `combinedFrom` and `sources`, which name the
+outputs that went *into* the fold. Beside a pick alone they read as a claim the
+value does not support — `combinedFrom: 3` over a value taken from one member —
+and that is what made this look like a fold that had been implemented wrongly
+rather than a fold that was absent (#418).
+
+**A refusing fold reports `mergedOutput: null` and keeps `machineOutput`.** The
+Łukasiewicz pair without a declared chain top refuses rather than guessing, the
+machine presents nothing, and nothing is written — but the sequences did
+complete, and the arbiter's pick still reports that they did. This mirrors the
+step exactly, where a refusal drops the merge operation and leaves
+`outputVector` in place, and it is the reason the fix here is an added field
+rather than a redefined one: making `machineOutput` the fold would have deleted
+the only evidence that a refusing machine fired at all.
+
 ##### PUT /api/config/dimension is read-only downward
 
 The perceptual space grows during machine loading to fit every resident
