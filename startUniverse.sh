@@ -1831,33 +1831,31 @@ if [ "$MULTI_ENGINE_MODE" = true ]; then
     [ -n "${MCP_URL:-}" ]         && registry_set_service "mcp" "$MCP_URL"
     [ -n "${SWAGGER_URL:-}" ]     && registry_set_service "swagger" "$SWAGGER_URL"
 
-    # Size the perceptual space from the corpus, before any engine is spawned.
+    # Seed the perceptual space at the width the corpus will drive it to.
     #
-    # The engines default to 7680 and the corpus maps up to 16944, so a launch
-    # naming no dimension put ~250 machines outside the space. That is not a
-    # failure anyone sees: a machine whose input region is not in the space can
-    # never match, and the runtime reports that identically to a machine that
-    # matched nothing. `Digital Logic DLX-021-030 Interconnect` was investigated
-    # as an engine disagreement on exactly this (RealityEngine_CI#422).
+    # A seed, not a limit. Every engine grows its Reality Event length during
+    # machine loading to fit each declared mapping, so a universe launched at
+    # 7680 against a corpus mapping to 16944 reaches 16944 on its own and every
+    # machine is resident and live. Seeding at the final width just avoids the
+    # reallocations on the way there and lets this report one number up front.
     #
-    # scripts/test-corpus-parity-loop.sh already did this; the canonical
-    # entrypoint did not. Both now share one definition in
-    # scripts/lib/corpus-dimension.sh, because two copies of a sizing rule drift
-    # and the drift is as silent as the defect was.
+    # This block previously claimed that a smaller seed left machines "inert".
+    # It does not, and the evidence for that claim was a misreport: GET
+    # /api/config returned the seed rather than the grown space on cpp and
+    # scala, and the grown space on lsp, so a default launch read 7680/7680/
+    # 16944 and the split looked like an engine disagreement
+    # (RealityEngine_CI#422).
     #
-    # An explicit VECTOR_DIMENSION is never overridden — an operator asking for
-    # a narrow space is entitled to one — but it is reported against the
-    # requirement, so a deliberately narrow space is a stated choice and not a
-    # surprise discovered later as a parity break.
+    # An explicit VECTOR_DIMENSION is never overridden. It is a seed either way,
+    # so a small one costs reallocations and nothing else.
     resolve_vector_dimension "$MACHINES_DIR/machines"
     export VECTOR_DIMENSION
     if [ "${CORPUS_REQUIRED_DIM:-0}" -le 0 ] 2>/dev/null; then
-        add_warn "could not read a dimension requirement from $MACHINES_DIR/machines — launching at ${VECTOR_DIMENSION}"
+        add_warn "could not read a dimension requirement from $MACHINES_DIR/machines — seeding the perceptual space at ${VECTOR_DIMENSION}"
     elif [ "$VECTOR_DIMENSION" -lt "$CORPUS_REQUIRED_DIM" ]; then
-        add_warn "perceptual space ${VECTOR_DIMENSION} is narrower than the corpus requires (${CORPUS_REQUIRED_DIM}); machines mapped above ${VECTOR_DIMENSION} will never match and will be indistinguishable from machines that matched nothing"
-        warn "VECTOR_DIMENSION=${VECTOR_DIMENSION} < corpus requirement ${CORPUS_REQUIRED_DIM} — machines above ${VECTOR_DIMENSION} are inert"
+        info "Perceptual space seeded at ${VECTOR_DIMENSION}; the corpus will grow it to ${CORPUS_REQUIRED_DIM} during loading"
     else
-        info "Perceptual space: ${VECTOR_DIMENSION} (corpus requires ${CORPUS_REQUIRED_DIM})"
+        info "Perceptual space seeded at ${VECTOR_DIMENSION} (corpus requires ${CORPUS_REQUIRED_DIM})"
     fi
 
     # Parse --engines=scala:2,cpp:1 and spawn each set of instances

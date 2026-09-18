@@ -1,22 +1,30 @@
 #!/usr/bin/env bash
-# corpus-dimension.sh — how wide the perceptual space must be for a corpus.
+# corpus-dimension.sh — how wide a corpus asks the perceptual space to be.
 #
-# A machine's regions are absolute offsets into the space. A space narrower than
-# a machine's declared region does not make that machine fail: its input region
-# simply is not there, so it can never match, and the runtime reports that
-# identically to a machine that matched nothing. No error, no warning, no count
-# that differs from a universe where the machine is present and quiet.
+# **This computes a seed, not a limit.** Every engine is required to grow the
+# Reality Event length during machine loading to fit each machine's declared
+# mapping, and all three do — C++ in `PerceptualSpaceRuntime::add_machine`, LSP
+# in `ensure-space-length`, Scala in its space runtime. A universe seeded at
+# 7680 against a corpus mapping to 16944 ends up with a space of 16944 and every
+# machine resident and live.
 #
-# That is the whole reason this is computed rather than defaulted. All three
-# engines default to 7680; the corpus maps up to 16944, and ~250 machines sit
-# above the default. Booting at 7680 makes every one of them inert and makes the
-# resulting mess read as an engine disagreement — which is exactly how it was
-# read, on `Digital Logic DLX-021-030 Interconnect` (RealityEngine_CI#422).
+# An earlier revision of this file said the opposite: that a space narrower than
+# a machine's region left that machine unable to match, so booting at 7680 made
+# ~250 machines inert. That was wrong, and wrong in a way worth keeping on the
+# record, because the evidence for it was a **misreport**. `GET /api/config`
+# returned the launch seed rather than the grown space on C++ and Scala, and the
+# grown space on LSP, so a default launch read `cpp=7680, scala=7680,
+# lsp=16944`. That 2-1 split was investigated as an engine disagreement about a
+# machine mapped at [14364:14384] — resident and live throughout — and then very
+# nearly answered by this file (RealityEngine_CI#422).
 #
-# It lives here because `test-corpus-parity-loop.sh` already did this correctly
-# and `startUniverse.sh` — the canonical entrypoint — did not. Two copies of a
-# sizing rule drift, and the drift is invisible for the same reason the defect
-# was: an undersized space is silent.
+# So what is this still for? Seeding the space at the width it will reach anyway
+# avoids a pile of reallocations during a 1328-machine load, and gives the
+# harness a number to state up front. Both are conveniences. Neither is a
+# correctness requirement, and nothing here should ever be described as
+# preventing a machine from working — if a machine mapped beyond the seed does
+# not work, the defect is that an engine failed to grow, and this file is not
+# the place it gets fixed.
 #
 #   source scripts/lib/corpus-dimension.sh
 #   corpus_required_dimension /path/to/machines    # prints the requirement
