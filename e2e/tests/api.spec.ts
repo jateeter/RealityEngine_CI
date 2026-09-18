@@ -16,14 +16,68 @@ const API_BASE_URL = reEndpointOr('https://localhost:5001');
 const created = trackCreated();
 
 test.describe('Reality Engine API - Configuration', () => {
-  test('should get current configuration', async ({ request }) => {
+  // `eventDimension` is a runtime fact about THIS engine, not a constant.
+  //
+  // This asserted `toBe(7680)` — the launch seed. It passed only for as long as
+  // cpp and scala misreported: both returned the value they were started with
+  // while holding a space grown to fit the corpus (RealityEngine_CI#364). The
+  // moment they began reporting honestly, this went red against a correct
+  // engine. An assertion that only holds while the system is broken is worse
+  // than no assertion, because it actively defends the defect.
+  //
+  // It cannot become `toBe(16944)` either. Each engine may hold a different
+  // corpus and therefore a different width, legitimately — engines load
+  // independently and a corpus may be added to at runtime. This run proves it:
+  // the CI corpus produces 16934 where a local full-corpus load produces 16944.
+  // A literal here is a promise about someone else's corpus.
+  //
+  // So the check is the one SURFACE_SPEC declares ("The perceptual space width
+  // is per-engine and is never compared across runtimes"): internal
+  // consistency. The width this engine reports must cover every region every
+  // machine it is holding declares. That needs no quorum, no fixed number, and
+  // no assumption about how the universe was launched.
+  test('should report a width covering every resident machine', async ({ request }) => {
     const response = await request.get(`${API_BASE_URL}/api/config`);
     expect(response.ok()).toBeTruthy();
 
     const config = await response.json();
     expect(config).toHaveProperty('eventDimension');
     expect(config).toHaveProperty('matchThreshold');
-    expect(config.eventDimension).toBe(7680);
+    expect(typeof config.eventDimension).toBe('number');
+
+    const machinesResponse = await request.get(`${API_BASE_URL}/api/machines`);
+    expect(machinesResponse.ok()).toBeTruthy();
+    const payload = await machinesResponse.json();
+    const machines = Array.isArray(payload) ? payload : (payload.machines ?? []);
+
+    // max(offset + length) over input AND output. Output regions sit beyond
+    // input regions for much of the corpus, so folding over inputs alone
+    // under-reports the requirement and would let a real truncation through.
+    let required = 0;
+    let furthest = '';
+    for (const machine of machines) {
+      const mapping = machine?.perceptualMapping ?? {};
+      for (const key of ['input', 'output'] as const) {
+        const region = mapping[key];
+        if (!region) continue;
+        const end = Number(region.offset) + Number(region.length);
+        if (Number.isFinite(end) && end > required) {
+          required = end;
+          furthest = `${machine.name} ${key} offset=${region.offset} length=${region.length}`;
+        }
+      }
+    }
+
+    // A corpus that declares nothing means this proved nothing — fail rather
+    // than pass an empty comparison, which is the shape a broken read takes.
+    expect(machines.length).toBeGreaterThan(0);
+    expect(required).toBeGreaterThan(0);
+
+    expect(config.eventDimension,
+      `engine reports ${config.eventDimension} but holds a machine mapped to ` +
+      `${required} (${furthest}) — the space grew and the report did not, ` +
+      `or the space failed to grow (RealityEngine_CI#364)`,
+    ).toBeGreaterThanOrEqual(required);
   });
 });
 
