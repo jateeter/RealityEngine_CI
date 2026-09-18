@@ -1120,25 +1120,75 @@ jobs:
           name: playwright-report
         continue-on-error: true
 
+      # This job reported `pass` on every run, whatever happened upstream, and a
+      # reader scanning the check list saw "Test Summary — pass" directly beneath
+      # a failed parity job. Three things had to line up: `if: always()` with
+      # nothing consulting `needs.*.result`, a `continue-on-error` download, and
+      # a script that exits 0 having written nothing when the results file is
+      # absent. Missing results looked exactly like good results
+      # (RealityEngine_CI#428).
+      #
+      # `if: always()` is still right — a summary that only runs on success
+      # cannot report a failure — but it means the job must decide for itself,
+      # explicitly, from the results it was given.
       - name: Publish test summary
         uses: actions/github-script@v9
         with:
           script: |
             const fs = require('fs');
+
+            // Upstream conclusions first. They are the primary signal: the spec
+            // counts below describe one job, and a run can fail in a job that
+            // produces no specs at all — the build-provenance gate, corpus
+            // gates, shellcheck.
+            const upstream = ${{ toJSON(needs) }};
+            const rows = Object.entries(upstream)
+              .map(([name, job]) => `| ${name} | ${job.result} |`)
+              .join('\n');
+            const failedJobs = Object.entries(upstream)
+              .filter(([, job]) => job.result === 'failure')
+              .map(([name]) => name);
+
             const resultsPath = 'RealityEngine_Machines/e2e-results.json';
+            let specLine = '';
+            let specFailures = 0;
             if (fs.existsSync(resultsPath)) {
               const results = JSON.parse(fs.readFileSync(resultsPath, 'utf8'));
               const total  = results.suites?.reduce((a, s) => a + s.specs.length, 0) ?? 0;
               const passed = results.suites?.reduce((a, s) => a + s.specs.filter(sp => sp.ok).length, 0) ?? 0;
-              const failed = total - passed;
               const dur    = ((results.stats?.duration ?? 0) / 1000).toFixed(2);
-              core.summary.addRaw(`
-            ## E2E Test Results (RealityEngine Universe)
-            | Metric | Value |
-            |---|---|
-            | Total | ${total} |
-            | Passed | ${passed} |
-            | Failed | ${failed} |
-            | Duration | ${dur}s |
-              `).write();
+              specFailures = total - passed;
+              specLine = `\n### Playwright specs\n\n| Metric | Value |\n|---|---|\n` +
+                         `| Total | ${total} |\n| Passed | ${passed} |\n` +
+                         `| Failed | ${total - passed} |\n| Duration | ${dur}s |\n`;
+            } else {
+              // Stated, never silent. An absent artifact means the specs did not
+              // run or did not upload, and that is a fact about this run rather
+              // than an absence of news.
+              specLine = '\n### Playwright specs\n\n' +
+                         '**No `e2e-results.json` artifact** — the spec job did not ' +
+                         'run to completion or did not upload results. The spec ' +
+                         'counts below are therefore absent, not zero.\n';
+            }
+
+            core.summary.addRaw(
+              `## E2E Test Results (RealityEngine Universe)\n\n` +
+              `### Jobs\n\n| Job | Result |\n|---|---|\n${rows}\n` +
+              specLine
+            ).write();
+
+            // The whole point. Without this, `if: always()` turns every upstream
+            // failure into a green check named after the tests.
+            if (failedJobs.length > 0) {
+              core.setFailed(
+                `${failedJobs.length} job(s) failed: ${failedJobs.join(', ')}. ` +
+                `This summary reports the run, so it fails with it.`);
+            } else if (specFailures > 0) {
+              // A failed spec with every job green is a contradiction: some job
+              // ran the specs and reported success anyway. Failing here surfaces
+              // the swallowed result rather than publishing a table that shows
+              // failures beside a green check.
+              core.setFailed(
+                `${specFailures} spec(s) failed but every job reported success — ` +
+                `a job is swallowing the spec result.`);
             }
