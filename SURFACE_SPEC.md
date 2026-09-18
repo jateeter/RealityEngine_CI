@@ -243,6 +243,46 @@ control". Controls are fixed by the specification and cannot be created or
 destroyed over the API — which is why the C of CRUD has no verb here, and saying
 so is clearer than leaving a reader to infer it from a 405.
 
+##### POST /api/machines takes either the Machine object or the corpus envelope
+
+Two accepted request bodies, disambiguated by an **object-valued `machine`
+key**:
+
+```
+{"version": "1.0.0", "machine": {…}}    the corpus file envelope
+{"name": …, "perceptualMapping": …}     the bare Machine object
+```
+
+If the body has a `machine` key whose value is an object, the body is the
+envelope and the machine is that value. Otherwise the body **is** the machine.
+`PUT /api/machines/:id` takes the same two.
+
+**The disambiguation is total for this corpus.** All 1328 files carry the
+envelope, and none has an inner machine with its own object-valued `machine`
+key, so there is no machine for which the two readings differ. A machine object
+that did carry a nested `machine` object would be ambiguous, and the corpus
+schema should keep it that way — do not add such a field.
+
+`version` belongs to the envelope. It is **required and validated** there on its
+major component, because every corpus file carries one and loosening it would
+let a file of the wrong major version load silently. The bare `Machine` schema
+does not declare `version`, so it is optional in that shape — and still
+validated when a caller supplies one, rather than ignored because of which shape
+it arrived in.
+
+A body that cannot be parsed into a machine answers **400**, never 500 and never
+200. This is stated because it was violated in both available directions: cpp
+answered 200 for a bare object, returned a machine named `unnamed` with no
+sequences, and registered nothing — a caller was told a machine was created and
+had none — while Scala answered 400 `Missing machine.name` for a body that
+*had* a name, because it looked for `body.machine.name` in a body that was
+itself the machine (#419). An error must name the field the caller has to add in
+the shape they actually sent.
+
+LSP implemented this correctly throughout and is where the rule comes from
+(`src/loader.lisp:248`). The generated documents declare both shapes as a
+`oneOf`, so a caller holding a corpus file can post it without unwrapping.
+
 ##### The perceptual space width is per-engine and is never compared across runtimes
 
 `eventDimension` is a **runtime fact about one engine**, not a shared constant.

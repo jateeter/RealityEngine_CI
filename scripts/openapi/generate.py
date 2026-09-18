@@ -227,6 +227,21 @@ PATH_PARAMS: dict[str, list[dict]] = {
 # `$ref: '#/components/schemas/Machine'` dangling in every generated PE
 # document. Invisible until #250, because before that fix the PE document was
 # being generated from the RE surface entirely.
+# The corpus file's own top level — the shape of every machines/**/*.json.
+# Accepted by POST /api/machines and PUT /api/machines/{id} alongside the bare
+# Machine object, so a caller holding a corpus file can post it unmodified.
+MACHINE_ENVELOPE_SCHEMA = {
+    "type": "object",
+    "required": ["version", "machine"],
+    "properties": {
+        "version": {"type": "string", "description":
+                    "Corpus file format version. Required in this shape and "
+                    "validated on its major component; the bare Machine schema "
+                    "does not declare it."},
+        "machine": {"$ref": "#/components/schemas/Machine"},
+    },
+}
+
 MACHINE_SCHEMA = {
     "type": "object", "additionalProperties": True,
     "description": "RealityEngine machine JSON.",
@@ -327,6 +342,7 @@ def re_components() -> dict:
                            "offset": {"type": "integer"},
                            "length": {"type": "integer"}}},
             "Machine": MACHINE_SCHEMA,
+            "MachineEnvelope": MACHINE_ENVELOPE_SCHEMA,
             "MachineMutationResponse": {"type": "object", "properties": {
                 "success": {"type": "boolean"},
                 "machine": {"$ref": "#/components/schemas/Machine"},
@@ -377,6 +393,7 @@ def pe_components() -> dict:
         "responses": dict(SHARED_RESPONSES),
         "schemas": {
             "Machine": MACHINE_SCHEMA,
+            "MachineEnvelope": MACHINE_ENVELOPE_SCHEMA,
             "Object": {"type": "object", "additionalProperties": True},
             "Success": {"type": "object", "properties": {
                 "success": {"type": "boolean"}}},
@@ -457,10 +474,22 @@ def request_body(method: str, path: str) -> dict | None:
 
     schema_ref: dict | None = None
 
-    if path == "/api/machines" and method == "POST":
-        schema_ref = {"$ref": "#/components/schemas/Machine"}
-    elif path in ("/api/machines/{id}", ) and method in ("PUT",):
-        schema_ref = {"$ref": "#/components/schemas/Machine"}
+    # Two accepted shapes, not one. The document declared only the bare Machine
+    # object while two of three runtimes required the corpus file's
+    # `{version, machine}` envelope — cpp answering 200 and discarding the body,
+    # scala refusing it outright. A client generated from these documents could
+    # not add a machine to either (RealityEngine_CI#419).
+    #
+    # All three now accept both, disambiguating on an object-valued `machine`
+    # key, so the document describes both. oneOf rather than a merged schema:
+    # they are genuinely alternative bodies, and a caller should be told it may
+    # post the corpus file it already holds without unwrapping it.
+    if path == "/api/machines" and method == "POST" or (
+            path == "/api/machines/{id}" and method == "PUT"):
+        schema_ref = {"oneOf": [
+            {"$ref": "#/components/schemas/Machine"},
+            {"$ref": "#/components/schemas/MachineEnvelope"},
+        ]}
     elif path == "/api/machines/{id}" and method == "PATCH":
         schema_ref = {"type": "object", "additionalProperties": True}
     elif path == "/api/engine/process":
