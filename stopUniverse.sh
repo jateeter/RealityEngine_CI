@@ -21,6 +21,10 @@ CI_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 LAS_DIR="$CI_DIR/../localAIStack"
 CPP_DIR="$CI_DIR/../RealityEngine_CPP"
 LSP_DIR="$CI_DIR/../RealityEngine_LSP"
+# Absent from this file entirely, so `--all` stopped CPP, LSP, OpenClaw and
+# Manager and silently omitted Scala — even with ENGINES=cpp:2,lsp:1,scala:1
+# stamped in .universe-engine-selection (#322).
+SCALA_DIR="$CI_DIR/../RealityEngine_Scala"
 OCS_DIR="$CI_DIR/../localOpenClawStack"
 MCP_HTTP_PID_FILE="${MCP_HTTP_PID_FILE:-/tmp/realityengine-mcp-http.pid}"
 OPENAPI_SWAGGER_PID_FILE="${OPENAPI_SWAGGER_PID_FILE:-/tmp/realityengine-openapi-swagger.pid}"
@@ -30,6 +34,20 @@ GREEN='\033[0;32m'; YELLOW='\033[1;33m'; RED='\033[0;31m'; NC='\033[0m'
 ok()   { echo -e "${GREEN}✓${NC} $*"; }
 info() { echo -e "${YELLOW}ℹ${NC} $*"; }
 warn() { echo -e "${RED}⚠${NC} $*"; }
+
+# A teardown step that did not do its job.
+#
+# `warn` was used for these and the script then printed `ok` for the same
+# operation anyway — "⚠ CI compose down returned non-zero" followed immediately
+# by "✓ CI compose down complete" — and exited 0 regardless (#322). A teardown
+# that reports success for work it did not perform is worse than one that fails
+# loudly: the next startUniverse.sh inherits a partially-live world it believes
+# is clean, and any parity result from that run is suspect.
+#
+# Recorded as well as printed, so the summary and the exit status can say what
+# survived.
+STOP_FAILURES=()
+fail() { echo -e "${RED}✗${NC} $*"; STOP_FAILURES+=("$*"); }
 
 RE_ENGINE=""
 PE_ENGINE=""
@@ -227,8 +245,11 @@ stop_openclaw_stack() {
     info "OpenClaw: was not started — skipping"
   elif [ "$STOP_DOCKER" = true ] && [ -d "$OCS_DIR" ] && [ -f "$OCS_DIR/docker-compose.yml" ]; then
     info "Stopping OpenClaw stack..."
-    (cd "$OCS_DIR" && docker compose down 2>/dev/null) || warn "OpenClaw compose down returned non-zero"
-    ok "OpenClaw stopped"
+    if (cd "$OCS_DIR" && docker compose down 2>&1); then
+      ok "OpenClaw stopped"
+    else
+      fail "OpenClaw compose down failed — containers may still be running"
+    fi
   elif [ "$STOP_DOCKER" = false ]; then
     info "OpenClaw: leaving Docker containers running (use --stop-docker to tear down)"
   else
@@ -238,8 +259,11 @@ stop_openclaw_stack() {
     local _plist="$HOME/Library/LaunchAgents/ai.openclaw.gateway.plist"
     if [ -f "$_plist" ]; then
       info "Reloading native openclaw-gateway (launchd)..."
-      launchctl load "$_plist" 2>/dev/null || warn "launchctl load returned non-zero"
-      ok "Native openclaw-gateway restored"
+      if launchctl load "$_plist" 2>&1; then
+        ok "Native openclaw-gateway restored"
+      else
+        fail "launchctl load failed — the native gateway was NOT restored"
+      fi
     else
       warn "Native openclaw-gateway plist not found — cannot restore"
     fi
@@ -250,8 +274,11 @@ stop_native_engine() {
   local engine_dir="$1" engine_name="$2"
   if [ -x "$engine_dir/stop.sh" ]; then
     info "Stopping $engine_name engine via $engine_dir/stop.sh..."
-    (cd "$engine_dir" && ./stop.sh) || warn "$engine_name stop.sh returned non-zero"
-    ok "$engine_name engine stopped"
+    if (cd "$engine_dir" && ./stop.sh); then
+      ok "$engine_name engine stopped"
+    else
+      fail "$engine_name stop.sh failed — the engine may still be running"
+    fi
   else
     warn "$engine_dir/stop.sh missing or not executable — skipping"
   fi
@@ -284,8 +311,20 @@ stop_ai_stack() {
   if [ "$STOP_DOCKER" = true ]; then
     info "Stopping RealityEngine CI Docker stack..."
     if [ -f "$CI_DIR/docker-compose.yml" ]; then
-      (cd "$CI_DIR" && docker compose down 2>/dev/null) || warn "CI compose down returned non-zero"
-      ok "CI compose down complete"
+      # MACHINES_DIR is a *required* interpolation in docker-compose.yml
+      # (`${MACHINES_DIR:?…}`), so Compose aborts during config parsing before
+      # stopping a single container when it is unset. startUniverse.sh defaults
+      # it; this script never mentioned it, so teardown of the CI stack failed
+      # 100% of the time and left all four containers up and healthy (#322).
+      #
+      # Same default as the start path, so the two cannot drift apart.
+      # Errors are no longer sent to /dev/null: the `2>/dev/null` is what
+      # reduced a specific interpolation error to a bare "returned non-zero".
+      if (cd "$CI_DIR" && MACHINES_DIR="${MACHINES_DIR:-$CI_DIR/../RealityEngine_Machines}" docker compose down 2>&1); then
+        ok "CI compose down complete"
+      else
+        fail "CI compose down failed — containers may still be running"
+      fi
     fi
 
     info "Stopping localAIStack..."
@@ -366,19 +405,37 @@ fi
 if [ "$STOP_ALL" = true ]; then
   stop_native_engine "$CPP_DIR" "CPP"
   stop_native_engine "$LSP_DIR" "LSP"
+  # Scala was missing here. Two paths partially covered for it and both have
+  # gaps: stop_all_engines() only reaches registry-tracked instances and returns
+  # early when the registry file is gone, and _sweep_native_ports() is a
+  # kill -KILL with no graceful stop that declines to act on exactly Scala's
+  # default ports — 5000 is macOS Control Center (AirPlay) and 5001 is
+  # com.docker.backend, both on the protected-process denylist (#322).
+  stop_native_engine "$SCALA_DIR" "Scala"
   stop_ai_stack
 else
-  need_ai=false; need_cpp=false; need_lsp=false
-  for engine in "$RE_ENGINE" "$PE_ENGINE"; do
-    case "$engine" in
-      ai)  need_ai=true ;;
-      cpp) need_cpp=true ;;
-      lsp) need_lsp=true ;;
+  need_ai=false; need_cpp=false; need_lsp=false; need_scala=false
+  # `STAMPED_ENGINES` is read out of .universe-engine-selection and was then
+  # never used — the script recorded exactly which engines it started
+  # (`ENGINES=cpp:2,lsp:1,scala:1`) and decided what to stop from RE_ENGINE and
+  # PE_ENGINE instead, which name a single RE/PE pair and cannot express a
+  # multi-engine universe. That is why Scala was missed: the answer was already
+  # in the file and nothing read it (#322).
+  #
+  # Both sources are consulted. The stamp says what was launched; RE_ENGINE and
+  # PE_ENGINE cover a universe started before the stamp existed.
+  for engine in "$RE_ENGINE" "$PE_ENGINE" ${STAMPED_ENGINES//,/ }; do
+    case "${engine%%:*}" in
+      ai)    need_ai=true ;;
+      cpp)   need_cpp=true ;;
+      lsp)   need_lsp=true ;;
+      scala) need_scala=true ;;
     esac
   done
-  $need_cpp && stop_native_engine "$CPP_DIR" "CPP"
-  $need_lsp && stop_native_engine "$LSP_DIR" "LSP"
-  $need_ai  && stop_ai_stack
+  $need_cpp   && stop_native_engine "$CPP_DIR" "CPP"
+  $need_lsp   && stop_native_engine "$LSP_DIR" "LSP"
+  $need_scala && stop_native_engine "$SCALA_DIR" "Scala"
+  $need_ai    && stop_ai_stack
   # Multi-engine mode uses Docker only for infrastructure
   [ "$STAMPED_MULTI_ENGINE_MODE" = "true" ] && stop_ai_stack
 fi
@@ -387,4 +444,19 @@ _sweep_native_ports
 
 rm -f "$CI_DIR/.universe-engine-selection"
 echo ""
+# Gated, and the exit status with it. This was an unconditional `ok` plus an
+# implicit exit 0, so a caller could not tell a clean teardown from one that
+# left containers and an engine running (#322).
+if [ "${#STOP_FAILURES[@]}" -gt 0 ]; then
+  # `echo`, not `fail` — the summary is a report ABOUT the failures, not another
+  # one. Using fail() here appended the summary line to the list it was
+  # summarising, so the report listed itself.
+  echo -e "${RED}✗${NC} Universe shutdown INCOMPLETE — ${#STOP_FAILURES[@]} step(s) failed:"
+  for _f in "${STOP_FAILURES[@]}"; do echo "    - $_f"; done
+  echo ""
+  echo "  Processes or containers from those steps are probably still running."
+  echo "  Starting a universe on top of them will produce results that look"
+  echo "  clean and are not."
+  exit 1
+fi
 ok "Universe shutdown complete"
