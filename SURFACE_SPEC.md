@@ -855,6 +855,52 @@ Implemented in `reality.cpp` (`std::sort` after the machineResults walk),
 (`sort-active-regions`, replacing an `nreverse` that only undid push order and
 carried no meaning).
 
+#### Merge batch
+
+`mergeBatch` is emitted on every simulation step and **is ordered**. The
+canonical order is `machineName`, then `region.offset`, both ascending. Every
+runtime sorts before serialising; a consumer may rely on it, and a byte
+comparison of the field is meaningful.
+
+Each entry carries **`machineName`** for this reason. `machineId` is also on the
+entry and is deliberately not the sort key.
+
+##### Why not `machineId`
+
+All three runtimes sorted on `machineId`, and each recorded that it was
+canonical. It is not, because **`machineId` is minted per runtime for any
+machine the corpus does not declare an id for**. The same logical machine:
+
+```
+cpp    machine-1789751080357-823522090
+lsp    machine-1U4QVFS-OARN5RKBOPS6
+scala  machine-1789751110045-120498f1
+```
+
+Three keys, three orders, identical content. Four of the five reproduced
+disagreements in `domain:digital-logic` were this one defect
+(RealityEngine_CI#374): region, `values`, `provenance` and `sequenceIds`
+identical on all three, only the sequence differing, and the regions disjoint —
+so the committed state agreed and only the wire did not.
+
+The harness then hid the cause. `strip_engine_identity` removes `machineId`
+before comparison, correctly, because it is not comparable across runtimes — so
+the recorded clusters showed identical entries in three orders with no visible
+reason and `machineId=None` in every entry.
+
+This was predicted. RealityEngine_CI#270 rejected id-based ordering for
+`POST /api/engine/process` in exactly these terms — *"a minted id is per-runtime
+by construction"* — and resolved it by ordering on `machineName`, which is
+corpus-declared and globally unique. `mergeBatch` was not covered by that change
+and kept the key #270 had just rejected.
+
+`region.offset` breaks ties for a machine writing more than one region, and is
+corpus-declared too. Neither half of the key is minted.
+
+This is the same rule as active regions above, for the same reason, and it is
+the third field to need it after `activeRegions` (#197) and the engine-process
+join (#270).
+
 #### Lane range notation
 
 The wire format carries `{offset, length}` and nothing else. Every range on
