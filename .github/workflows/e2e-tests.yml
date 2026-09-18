@@ -459,6 +459,14 @@ jobs:
         working-directory: RealityEngine_CI
         run: bash scripts/tests/test-openapi-validate.sh
 
+      # The rule that sizes the perceptual space from the corpus. An undersized
+      # space is silent by construction, so this asserts the exact requirement
+      # for corpora laid out by hand, and that an explicit VECTOR_DIMENSION is
+      # never silently widened (#422).
+      - name: Run corpus dimension sizing unit tests
+        working-directory: RealityEngine_CI
+        run: bash scripts/tests/test-corpus-dimension.sh
+
       - name: Run fresh-start state clearing unit tests
         working-directory: RealityEngine_CI
         run: bash scripts/tests/test-fresh-start.sh
