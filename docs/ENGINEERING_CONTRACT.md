@@ -76,6 +76,46 @@ under discussion.
 
 ---
 
+## MUST: a stale `<registryName>` registry is regenerated, not failed
+
+**Where any `<registryName>` registry disagrees with the dynamic operational
+system, the `<registryName>` registry is regenerated from the operational system
+automatically.**
+
+The operational system is the authority. A registry is a *materialised view* of
+it. A stale view is a cache miss, not a fault.
+
+This holds for each qualified registry on its own terms — instance, machine,
+cesgen, arbitration, domain, semantic-bus, tag. None of them is the source of
+truth for what the engines are actually doing, and none may be treated as one.
+
+### What this requires of a gate
+
+- **A gate that fails on a stale registry is wrong.** It regenerates and then
+  compares, or reports the regeneration as an event. It does not report staleness
+  as a defect.
+- **A disagreement that survives regeneration is a real finding**, and is the
+  only kind of registry disagreement that may fail anything. That is the case
+  worth stopping for: the operational system and a view freshly derived from it
+  do not agree, which means the derivation is wrong.
+- **A measurement is never taken from a registry when the operational system can
+  be asked directly.** A registry answers "what was recorded"; the running system
+  answers "what is true now". Substituting the first for the second is the same
+  error as reading a launch seed in place of a live value (#364), and it is
+  silent in the same way.
+
+### Where this bites today
+
+`RealityEngine_Machines/domains/ces-contract-registry.json` and its gate in
+`tests/contracts/ces_contract_registry_test.py`: the gate fails on any shard the
+corpus has moved out from under, naming the machines. Under this rule it
+regenerates those shards and fails only if the regenerated contract still
+disagrees.
+
+This does not weaken §4 of `QUORUM_CONTRACT.md` — a derived artifact must still
+be *able to tell it is stale*. That remains the precondition. This says what
+happens next once it can: it refreshes itself rather than stopping the line.
+
 ## MUST: verify a merge beyond the hosted checks
 
 **A green PR is not a verified PR. Never merge on the hosted checks alone.**
