@@ -332,6 +332,134 @@ A write that reports success and changes nothing is not harmless: it is
 indistinguishable from one that worked, so a caller cannot tell that the control
 it is using has no effect (#425).
 
+##### POST /api/machines always ingests; a name conflict is versioned and reallocated
+
+`POST /api/machines` **MUST ingest the requested machine.** It does not reject a
+name that is already resident, and it does not replace the machine holding that
+name.
+
+**"Already resident" is runtime state, not corpus state.** A name is resident
+when a machine carrying it has been previously ingested and is still held in
+*this engine's* machine corpus. It is not a question of what the corpus on disk
+declares, and it is not shared between engines — an engine that never ingested
+a machine has no conflict for its name.
+
+Two consequences follow, and both are contract:
+
+- **`DELETE` frees the name.** Remove the machine holding it and the next `POST`
+  of that name is not a conflict: no version suffix, and the **declared mapping
+  is honoured**. Versioning is a response to a collision that exists at the
+  moment of ingestion, not a permanent mark on a name.
+- **ingest → delete → ingest returns the same machine in its initial
+  condition.** Not merely a machine with the same name: the same declared name,
+  the same declared regions, and the state a freshly-loaded machine has — every
+  sequence at its initial Reality Events, no accumulated activation, no matched
+  history. The cycle is idempotent, and repeating it any number of times lands
+  in the same place.
+
+  This follows from the machine being rebuilt from the request body on every
+  ingestion rather than revived from anything retained, and it is stated because
+  it is the property that makes `DELETE` safe to rely on. A cycle that returned
+  a machine mid-flight — or one carrying a version suffix from a collision that
+  no longer exists — would make re-ingestion a different operation from
+  ingestion, and a caller reloading a machine would have no way to reach a known
+  state.
+
+  **The minted id and the load timestamps are not state and do differ.** A
+  re-ingested machine gets a fresh id, and its `outputEvents[].timestamp` records
+  when *this* ingestion happened. Both are records of the act of loading, not of
+  what the machine has done, and a comparison asserting this property must drop
+  them — as every cross-runtime comparison already drops ids
+  (`scripts/lib/parity_identity.py`). Verified across three cycles on all three
+  runtimes: with ids and load timestamps excluded, every cycle lands on the
+  identical initial condition; with them included, the timestamps are the only
+  difference.
+- **A machine with no `perceptualMapping` still occupies its name.** It is
+  ingested and resident even though it never enters the perceptual space, so a
+  second machine of that name is versioned — and, having no region to reallocate,
+  is ingested under the versioned name with nothing allocated.
+
+When the requested `name` is already held by a resident machine:
+
+1. **The ingested machine's name carries a version suffix.** The engine takes
+   the requested name's **base** — the name with a trailing ` v<n>` removed, if
+   it has one — and assigns `base v<m>` for the lowest `m ≥ 2` not already
+   resident. The suffix is applied to the *requested* name's base, never to the
+   resident one: the machine already in the engine is not touched, renamed, or
+   moved.
+
+   So the sequence continues rather than nesting:
+
+   | requested | already resident | ingested as |
+   |---|---|---|
+   | `Foo` | `Foo` | `Foo v2` |
+   | `Foo` | `Foo`, `Foo v2` | `Foo v3` |
+   | `Foo v2` | `Foo`, `Foo v2` | `Foo v3` |
+   | `Foo v2` | `Foo`, `Foo v2`, `Foo v3` | `Foo v4` |
+   | `Foo v3` | `Foo`, `Foo v2` | `Foo v3` — no conflict, taken as requested |
+
+   **The base is recovered, not stacked.** Appending to the requested name
+   verbatim would give `Foo v2 v2` and then `Foo v2 v2 v2`, and a caller
+   re-posting what it received would drift further from the base on every
+   attempt. Recovering the base keeps one version sequence per machine name
+   however the caller addresses it.
+
+   A name that ends in ` v<n>` and is *not* resident is ingested exactly as
+   requested — the base is consulted only to number a conflict, never to rewrite
+   a name that has none.
+2. **Its perceptual mapping is newly allocated.** The regions the request
+   declares are **not** used. The engine allocates a fresh input region and a
+   fresh output region that do not overlap or intersect any resident machine's
+   regions, growing the perceptual space to fit.
+3. The response reports the machine as ingested — versioned name, minted id and
+   allocated regions — so a caller learns what it actually received.
+
+A `POST` whose name is **not** resident is unchanged: the declared name and the
+declared regions are honoured exactly.
+
+`PUT /api/machines/:id` and `PATCH /api/machines/:id` are unchanged. They address
+an existing machine **by id**, and neither versions a name nor reallocates a
+region — a caller that means "make this id be this machine" already has that
+route, and this rule must not turn it into a second way to create machines.
+
+###### Why ingest rather than reject or replace
+
+Rejecting makes a re-import fail on the first machine a caller was wrong about.
+Replacing silently discards a machine that may have advanced — sequences
+mid-flight, activation state — and gives the caller no way to tell a replacement
+from a first registration.
+
+Ingesting keeps both machines, keeps both observable, and keeps the caller's
+request satisfied. The disambiguation is visible in the response rather than
+inferred from a count.
+
+###### The allocation must be deterministic, or the runtimes diverge
+
+Regions are **not** engine-scoped the way ids are: `mergeBatch` carries
+`region.offset`, `activeRegions` is ordered on it, and the merge batch is
+ordered by `(machineName, region.offset)`. An allocator that produced different
+offsets per runtime would put every conflicted machine's output in a different
+place on each engine, and every comparison over those fields would report a
+divergence that is really an allocation difference.
+
+So the allocation rule is fixed: **append at the end of the current perceptual
+space — the input region first, then the output region, contiguously, in that
+order.** Given the same resident corpus and the same sequence of ingestions,
+three runtimes allocate identically, and a conflicted machine stays comparable.
+
+###### What this costs, stated plainly
+
+The declared mapping of a conflicted machine is **discarded**. A caller that
+posts a machine expecting it to read cells 100–104 gets one reading somewhere
+past the end of the space instead, and the only way to know is to read the
+response. That is the price of guaranteeing ingestion, and it is why the
+response must carry the allocated regions rather than echo the request.
+
+It also means a conflicted machine observes a region **no PE source writes**, so
+it will not fire until something targets its new input region. It is ingested,
+resident and inert — which is a different state from ingested and wrong, and the
+response is what distinguishes them.
+
 ##### POST /api/machines takes either the Machine object or the corpus envelope
 
 Two accepted request bodies, disambiguated by an **object-valued `machine`
