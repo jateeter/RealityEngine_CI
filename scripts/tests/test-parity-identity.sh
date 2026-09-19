@@ -95,9 +95,32 @@ b = {"regions": [{"offset": 190}, {"offset": 52}]}
 out.append(("ordering divergence is preserved, not normalized",
             pi.strip_engine_identity(a) != pi.strip_engine_identity(b)))
 
-# Arbiter internals are excluded; their effect shows up in the vectors.
-out.append(("mergeBatch excluded as intermediate",
-            "mergeBatch" not in pi.parity_signature({"mergeBatch": [1], "perceptualSpace": [0]})))
+# mergeBatch IS compared — it is the observable boundary, not a stop on the way
+# to one. It is what the Perception Engine receives and what is written to the
+# perceptual space, its order is declared at (machineName, region.offset), and
+# FOLD_PLACEMENT.md §1 enumerates the MergeOperation shape (#293).
+#
+# This case previously asserted the opposite, and asserted it at the TOP level —
+# where the exclusion applied — while the payload the stages actually compare
+# carries mergeBatch under `.step`. So the test passed, the exclusion never
+# fired, and the two statements in this file contradicted each other with
+# neither one describing what ran.
+out.append(("mergeBatch compared at the top level",
+            "mergeBatch" in pi.parity_signature({"mergeBatch": [1], "perceptualSpace": [0]})))
+out.append(("mergeBatch compared where the stages find it, under .step",
+            "mergeBatch" in (pi.parity_signature({"step": {"mergeBatch": [1]}}).get("step") or {})))
+# And a fold divergence must survive to the comparison, which is the whole point
+# of not excluding it: two runtimes folding differently produce different
+# signatures.
+out.append(("a fold divergence is visible in the signature",
+            pi.parity_signature({"step": {"mergeBatch": [{"values": [1, 1, 1, 0]}]}})
+            != pi.parity_signature({"step": {"mergeBatch": [{"values": [0, 0, 1, 0]}]}})))
+# The narrow carve-out still applies, at any depth: internal augmentation no
+# consumer reads is filtered, and the governed surface carrying it is not.
+out.append(("valuesPacked still filtered inside a compared mergeBatch",
+            "valuesPacked" not in (pi.parity_signature(
+                {"step": {"mergeBatch": [{"values": [1], "valuesPacked": {"base64": "AQ=="}}]}}
+            )["step"]["mergeBatch"][0])))
 # JSON has one number type; Python does not, and the comparators key clusters on
 # json.dumps(). `0` and `0.0` are the same JSON number and must not split.
 out.append(("int and float renderings of the same number agree",
