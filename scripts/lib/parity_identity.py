@@ -98,32 +98,48 @@ ENGINE_LOCAL_KEYS = frozenset(
     }
 )
 
-# Intermediate surfaces in the RE -> PE(arbitration) -> PE(input space) flow.
+# `mergeBatch` IS compared. It is not an intermediate surface and it is not
+# excluded (RealityEngine_CI#293).
 #
-# Excluded from parity, and for a different reason from identity: these are
-# private algorithms that are a focus of learning in the deployed environment
-# and are expected to change and morph during training. Holding three runtimes
-# to byte equality on a surface that is meant to evolve independently would
-# make the parity gate an obstacle to the thing it is supposed to protect.
+# This file used to carry INTERMEDIATE_SURFACE_KEYS = {"mergeBatch"}, described
+# as "private algorithms that are a focus of learning ... expected to change and
+# morph during training". SURFACE_SPEC.md says the opposite — "`mergeBatch`
+# itself is observable and governed" — and both could not be true.
 #
-# The exclusion is narrow on purpose. Everything the flow *produces* — the
-# assembled input space, the active regions, the event bus writes, the machine
-# results — is a public surface and is held to the full contract below.
-# CONTRADICTS SURFACE_SPEC, unresolved — RealityEngine_CI#293.
+# Settled toward SURFACE_SPEC, for three reasons rather than by precedence:
 #
-# The comment above says this whole surface is excluded from parity.
-# SURFACE_SPEC.md says the opposite: "`mergeBatch` itself is observable and
-# governed", with docs/FOLD_PLACEMENT.md §1 enumerating the MergeOperation
-# shape. Both cannot be true, and which one holds decides whether a fold
-# divergence is a gate failure or invisible.
+#   1. It is not intermediate. `mergeBatch` is what the Perception Engine
+#      actually receives and what is written to the perceptual space; the step
+#      folds into it and the PE consumes it. #418 measured a machine whose
+#      arbiter presented [0,0,1,0] while its mergeBatch carried [1,1,1,0], and
+#      the [1,1,1,0] is the value the universe ran on. A surface the next layer
+#      consumes is the observable boundary, not a stop on the way to it.
 #
-# Left as-is deliberately. It applies at the top level only, so on the payloads
-# the stages actually compare — where mergeBatch sits under `.step` — it never
-# fires, and #281 was fixed by filtering the internal augmentation instead,
-# which is what SURFACE_SPEC prescribes. Widening this to any depth would make
-# the gate green by no longer comparing a governed surface; that is a contract
-# decision, not a bug fix.
-INTERMEDIATE_SURFACE_KEYS = frozenset({"mergeBatch"})
+#   2. Its ORDER is declared. SURFACE_SPEC fixes the merge batch at
+#      `(machineName, region.offset)` and FOLD_PLACEMENT.md §1 enumerates the
+#      MergeOperation shape. Nobody declares an ordering for a surface nobody
+#      compares — the declaration only means anything under comparison.
+#
+#   3. The training argument is answered, not overruled. What evolves is the
+#      TRANSFORMATION: `outputMergeTransformation` is a per-machine training
+#      variable, mutable between steps. What must not differ is the operation
+#      three runtimes produce from the SAME declared transformation over the
+#      SAME inputs. Retuning the knob changes all three together; a runtime
+#      folding differently under one knob setting is a defect, and that is
+#      exactly what this gate is for.
+#
+# The narrower worry the old comment had — a runtime carrying an extra internal
+# field — is real and already handled, one instrument down: INTERNAL_AUGMENTATION
+# _KEYS filters `valuesPacked` at any depth, which is FOLD_PLACEMENT.md §5a.
+# That is the carve-out; excluding the whole surface was not.
+#
+# The set is deleted rather than emptied. A frozenset that never fires is a
+# trap: it applied at the top level only, and the payload the stages compare
+# carries `mergeBatch` under `.step`, so it silently did nothing. The next
+# person to make a filter recursive would have changed what the gate measures
+# without intending to — and #281 is the worked example, where filtering the
+# internal augmentation and widening this exclusion would both have turned the
+# gate green for opposite reasons.
 
 # Units of measure, explicit or implied, are part of the contract and must
 # never be filtered: an engine reporting a region length in cells against one
@@ -144,11 +160,15 @@ UNIT_BEARING_KEYS = frozenset(
 # packing in a third runtime to satisfy a field nobody reads (#208).
 #
 # Filtered at ANY DEPTH, which is the whole point of this set existing
-# separately. `shared_keys` intersects only top-level keys and
-# INTERMEDIATE_SURFACE_KEYS is dropped only from the top-level dict, so neither
-# reached `.step.mergeBatch[].valuesPacked` — one level below where they look.
-# The result was five reported parity failures per run, on a route where all
-# three runtimes agree once the field is excluded (#281).
+# separately. `shared_keys` intersects only top-level keys, so it never reached
+# `.step.mergeBatch[].valuesPacked` — one level below where it looks. The result
+# was five reported parity failures per run, on a route where all three runtimes
+# agree once the field is excluded (#281).
+#
+# This is the narrow instrument, and it is the right one: it removes the field
+# no consumer reads and leaves the governed surface carrying it compared. The
+# now-deleted INTERMEDIATE_SURFACE_KEYS would have removed the whole of
+# `mergeBatch` instead, turning the same gate green by measuring less (#293).
 #
 # Not UNIT_BEARING: `valuesPacked` carries `bitsPerElement` and `length` inside
 # itself, but they describe its own encoding rather than a measurement of the
@@ -317,7 +337,6 @@ def parity_signature(payload: Any, keys: set[str] | None = None) -> Any:
     """
     value = payload
     if isinstance(value, dict):
-        value = {k: v for k, v in value.items() if k not in INTERMEDIATE_SURFACE_KEYS}
         if keys is not None:
             value = {k: v for k, v in value.items() if k in keys}
     return canonical_numbers(drop_debug_projection(strip_engine_identity(value)))
