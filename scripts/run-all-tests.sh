@@ -450,6 +450,7 @@ run_unit() {
     run_openapi_validator_tests
     run_corpus_dimension_tests
     run_generator_drift_checks
+    run_machine_set_parity_tests
     run_ces_contract_drift
     run_localai_tests
 }
@@ -485,6 +486,15 @@ run_openapi_validator_tests() {
 # These are read-only. `--check` compares what the generator would emit against
 # what is on disk and exits non-zero on a difference; it writes nothing, so it is
 # safe to run on any checkout.
+# The machine-set parity gate's own comparison. It replaces a correct check that
+# could not fire (#356), so a replacement that cannot fail would be the same
+# defect wearing a new name — every case builds a corpus shape and asserts the
+# exit status.
+run_machine_set_parity_tests() {
+    run_suite "Machine-set parity unit tests" "$CI_DIR" \
+        bash scripts/tests/test-machine-set-parity.sh
+}
+
 run_generator_drift_checks() {
     require_node "Generator drift checks" "25.5.0" || return
     run_suite "cesgen drift check" "$CI_DIR" \

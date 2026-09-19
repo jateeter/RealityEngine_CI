@@ -1182,6 +1182,29 @@ start_universe() {
   run_cmd "$label" bash -lc "cd '$ci' && ./startUniverse.sh ${args[*]}"
 }
 
+# Machine-set parity — a PRECONDITION of every parity result, not one of them.
+#
+# If the runtimes hold different machines, a trajectory or byte comparison is
+# measuring stimulus rather than behaviour and reports the difference as an
+# engine divergence. Scala once ran with six extra localai/* machines — 1344
+# against cpp and lsp's 1338 — and every parity stage passed (#356,
+# RealityEngine_Scala#114).
+#
+# Runs before the parity stages so a split is named before anything is compared
+# against it, and needs only GET /api/machines per runtime: no PE, no reset, no
+# seeded source. That independence is the reason it is a stage of its own — the
+# same comparison inside regression-reset-contract.py cannot run when any PE is
+# down, and on a live universe with one PE unreachable its loadParity is null,
+# never computed.
+run_machine_set_parity() {
+  step "Machine-set parity across runtimes"
+  local ci
+  ci="$(repo_root RealityEngine_CI)"
+  run_cmd "machine-set-parity" python3 "$ci/scripts/regression-machine-set-parity.py" \
+    --registry /tmp/re-registry/re-registry.json \
+    --out "$REPORT_DIR/machine-set-parity.json"
+}
+
 run_service_inventory() {
   step "Service inventory and readiness gates"
   local ci
@@ -2032,6 +2055,10 @@ if [ "$LIVE_TESTS" = true ]; then
   # re-mutes when it is done (#307).
   mqtt_bridges mute
   run_stage "service-inventory" run_service_inventory
+  # Before pe-step-contract and every parity stage: those compare behaviour, and
+  # comparing behaviour across runtimes holding different corpora compares
+  # stimulus instead.
+  run_stage "machine-set-parity" run_machine_set_parity
   run_stage "pe-step-contract" run_pe_step_contract
   # Parity first: it is the result the multi-engine deployment rests on, and it
   # runs on a freshly started universe before any other stage has registered
