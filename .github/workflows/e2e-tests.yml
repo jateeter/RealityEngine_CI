@@ -476,6 +476,13 @@ jobs:
         working-directory: RealityEngine_CI
         run: bash scripts/tests/test-openapi-validate.sh
 
+      # The export-parity gate's own comparison. Every export defect so far was
+      # found by hand-diffing, so a gate that cannot fail would leave the
+      # surface as unguarded as it was.
+      - name: Run export parity unit tests
+        working-directory: RealityEngine_CI
+        run: bash scripts/tests/test-export-parity.sh
+
       # The machine-set parity gate's own comparison. It replaces a correct
       # check that could not fire (#356), so a replacement that cannot fail
       # would be the same defect under a new name.
