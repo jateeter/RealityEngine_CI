@@ -350,6 +350,30 @@ Two consequences follow, and both are contract:
   of that name is not a conflict: no version suffix, and the **declared mapping
   is honoured**. Versioning is a response to a collision that exists at the
   moment of ingestion, not a permanent mark on a name.
+- **ingest → delete → ingest returns the same machine in its initial
+  condition.** Not merely a machine with the same name: the same declared name,
+  the same declared regions, and the state a freshly-loaded machine has — every
+  sequence at its initial Reality Events, no accumulated activation, no matched
+  history. The cycle is idempotent, and repeating it any number of times lands
+  in the same place.
+
+  This follows from the machine being rebuilt from the request body on every
+  ingestion rather than revived from anything retained, and it is stated because
+  it is the property that makes `DELETE` safe to rely on. A cycle that returned
+  a machine mid-flight — or one carrying a version suffix from a collision that
+  no longer exists — would make re-ingestion a different operation from
+  ingestion, and a caller reloading a machine would have no way to reach a known
+  state.
+
+  **The minted id and the load timestamps are not state and do differ.** A
+  re-ingested machine gets a fresh id, and its `outputEvents[].timestamp` records
+  when *this* ingestion happened. Both are records of the act of loading, not of
+  what the machine has done, and a comparison asserting this property must drop
+  them — as every cross-runtime comparison already drops ids
+  (`scripts/lib/parity_identity.py`). Verified across three cycles on all three
+  runtimes: with ids and load timestamps excluded, every cycle lands on the
+  identical initial condition; with them included, the timestamps are the only
+  difference.
 - **A machine with no `perceptualMapping` still occupies its name.** It is
   ingested and resident even though it never enters the perceptual space, so a
   second machine of that name is versioned — and, having no region to reallocate,
