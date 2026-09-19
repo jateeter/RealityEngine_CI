@@ -1181,6 +1181,69 @@ equivalence follows from it.
 | GET | `/api/perceptual-simulation/state` | ✓ | ✓ | ✓ |
 | GET | `/api/perceptual-simulation/history` | ✓ | ✓ | ✓ |
 
+#### Active events
+
+`GET /api/engine/active` returns `activeEvents`, and **it carries no order.**
+Compare it as a **multiset**, never as a sequence. A consumer that diffs it
+positionally is asserting a guarantee this surface does not make.
+
+**Identity for the comparison is `(machineName, sequenceId, vector.id)`** — all
+corpus-declared. The entry itself carries `machineId`, which is minted per
+runtime: the same corpus machine is `machine-1789768975960-558592386` on C++,
+`machine-1U4R98V-DASCTPWKLDG4` on LSP and `machine-1789768976007-a02a7fee` on
+Scala (#146, #397). A consumer comparing across runtimes must resolve it through
+`GET /api/machines` and must never compare it directly.
+
+**Why no order is declared**, when `activeRegions` below declares one:
+
+**The runtimes do not agree on order, and an ordered comparison of this field
+reports a false divergence today.** Measured on the live universe, 5768 active
+events, identical corpora:
+
+```
+cpp vs scala    same ORDER = true    same MULTISET = true
+cpp vs lsp      same ORDER = FALSE   same MULTISET = true   (diverges at index 3 of 5768)
+```
+
+LSP emits its `localai/agent_activity_classifier` entries where C++ and Scala
+emit `localai/session_rag_context`. Every entry is present on all three; only
+the sequence differs. Each runtime emits in its own machine-collection order —
+C++ walks a `std::map` keyed by the minted id — and nothing obliges those
+collections to coincide.
+
+They did coincide when this was first measured: at boot, after stepping, after
+adding a machine at runtime, and at 5141 active events after twelve steps, all
+three orders were identical. That agreement was **incidental**, it has since
+lapsed, and nothing reported it — which is the whole argument for saying so here
+rather than leaving the field undeclared.
+
+The obvious repair is to declare a sort on the corpus-declared triple. **That
+was proposed and rejected (#416, #432), because the triple is total only while
+the corpus cooperates:**
+
+| assumption | what actually holds |
+|---|---|
+| machine names are globally unique | declared unique **per domain** — `RealityEngine_Machines/tests/contracts/name_uniqueness_test.py` (b). This corpus happens to be globally unique, and is separately checked for it, but only because `GET /api/machines/json/:name` accepts a bare basename. Two domains holding the same machine name is permitted, and ties the key. |
+| the triple is unique | measured total today — 5768 entries, 5768 distinct triples, 0 ties, on all three runtimes. A measurement, not a guarantee. |
+| ascending is one order | **unspecified across runtimes.** C++ `std::string` compares UTF-8 bytes, Lisp `string<` compares code points, Scala `String.compareTo` compares UTF-16 code units. These disagree above U+FFFF and between supplementary characters and U+E000–U+FFFF. They coincide here only because all three key parts are pure ASCII today: 0 non-ASCII across 1338 machine names, 5108 sequence ids and 5765 vector ids. |
+
+So a declared sort would hold for the same reason the unsorted field held until
+it stopped — because the corpus happens to cooperate — while *reading* as a
+guarantee. Tied or non-ASCII entries would fall back to each runtime's own
+collection order, silently, on exactly the subset nobody tested. **Declaring an
+order that is total only by luck is worse than declaring none.**
+
+Nothing byte-compares this field today, which is consistent with the rule above:
+`api.spec.ts` asserts only that it is an array, and Manager's `types.ts` types
+`activeEvents` as a **number** — a count from a different endpoint, not this
+list. `scripts/lib/parity_identity.py` already compares by corpus-declared
+identity rather than by position, which is the pattern this section makes
+explicit.
+
+A canonical order becomes available when the corpus carries an identity that is
+total **by construction** — the UUID direction `name_uniqueness_test.py` names
+as intended — at which point the collation must be declared alongside it.
+
 #### Active regions
 
 `activeRegions` is emitted on every simulation step and **is ordered**. The
