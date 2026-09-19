@@ -1183,47 +1183,66 @@ equivalence follows from it.
 
 #### Active events
 
-`GET /api/engine/active` returns `activeEvents` and **it is ordered**. The
-canonical order is `machineName`, then `sequenceId`, then `vector.id`, all
-ascending. Every runtime sorts before serializing, and every entry carries
-`machineName`.
+`GET /api/engine/active` returns `activeEvents`, and **it carries no order.**
+Compare it as a **multiset**, never as a sequence. A consumer that diffs it
+positionally is asserting a guarantee this surface does not make.
 
-**`machineName` is on the entry because the order cannot use `machineId`.**
-Machine ids are minted per runtime — the same corpus machine is
-`machine-1789768975960-558592386` on C++, `machine-1U4R98V-DASCTPWKLDG4` on LSP
-and `machine-1789768976007-a02a7fee` on Scala — so sorting on one gives a total
-order *within* a runtime and a different one *between* runtimes. That is the
-property being fixed, not a fix for it. `machineName` is corpus-declared and is
-what every other cross-runtime comparison in this project matches on
-(`scripts/lib/parity_identity.py`).
+**Identity for the comparison is `(machineName, sequenceId, vector.id)`** — all
+corpus-declared. The entry itself carries `machineId`, which is minted per
+runtime: the same corpus machine is `machine-1789768975960-558592386` on C++,
+`machine-1U4R98V-DASCTPWKLDG4` on LSP and `machine-1789768976007-a02a7fee` on
+Scala (#146, #397). A consumer comparing across runtimes must resolve it through
+`GET /api/machines` and must never compare it directly.
 
-All three key parts are needed and none is sufficient:
+**Why no order is declared**, when `activeRegions` below declares one:
 
-| key | why it is not enough alone |
+**The runtimes do not agree on order, and an ordered comparison of this field
+reports a false divergence today.** Measured on the live universe, 5768 active
+events, identical corpora:
+
+```
+cpp vs scala    same ORDER = true    same MULTISET = true
+cpp vs lsp      same ORDER = FALSE   same MULTISET = true   (diverges at index 3 of 5768)
+```
+
+LSP emits its `localai/agent_activity_classifier` entries where C++ and Scala
+emit `localai/session_rag_context`. Every entry is present on all three; only
+the sequence differs. Each runtime emits in its own machine-collection order —
+C++ walks a `std::map` keyed by the minted id — and nothing obliges those
+collections to coincide.
+
+They did coincide when this was first measured: at boot, after stepping, after
+adding a machine at runtime, and at 5141 active events after twelve steps, all
+three orders were identical. That agreement was **incidental**, it has since
+lapsed, and nothing reported it — which is the whole argument for saying so here
+rather than leaving the field undeclared.
+
+The obvious repair is to declare a sort on the corpus-declared triple. **That
+was proposed and rejected (#416, #432), because the triple is total only while
+the corpus cooperates:**
+
+| assumption | what actually holds |
 |---|---|
-| `machineName` | a machine contributes many active events |
-| `(machineId, sequenceId)` | **not unique** — one sequence can hold several active events at once. Measured on the full corpus after twelve steps: 5080 distinct pairs across 5141 entries, 60 of them repeating |
-| `(sequenceId, vector.id)` | repeats across machines that instantiate the same CES — 2 collisions at boot on the full corpus |
+| machine names are globally unique | declared unique **per domain** — `RealityEngine_Machines/tests/contracts/name_uniqueness_test.py` (b). This corpus happens to be globally unique, and is separately checked for it, but only because `GET /api/machines/json/:name` accepts a bare basename. Two domains holding the same machine name is permitted, and ties the key. |
+| the triple is unique | measured total today — 5768 entries, 5768 distinct triples, 0 ties, on all three runtimes. A measurement, not a guarantee. |
+| ascending is one order | **unspecified across runtimes.** C++ `std::string` compares UTF-8 bytes, Lisp `string<` compares code points, Scala `String.compareTo` compares UTF-16 code units. These disagree above U+FFFF and between supplementary characters and U+E000–U+FFFF. They coincide here only because all three key parts are pure ASCII today: 0 non-ASCII across 1338 machine names, 5108 sequence ids and 5765 vector ids. |
 
-**This is hardening, and the record should say so.** Unlike `activeRegions`
-before #197, the runtimes currently agree: measured across cpp, lsp and scala on
-identical corpora at boot, after stepping, after adding a machine at runtime,
-and after twelve steps at 5141 active events, the order was identical every
-time.
+So a declared sort would hold for the same reason the unsorted field held until
+it stopped — because the corpus happens to cooperate — while *reading* as a
+guarantee. Tied or non-ASCII entries would fall back to each runtime's own
+collection order, silently, on exactly the subset nobody tested. **Declaring an
+order that is total only by luck is worse than declaring none.**
 
-That agreement is **incidental**. Each runtime emits in its own machine-collection
-order — C++ walks a `std::map` keyed by the minted id — and the orders coincide
-only because minted ids are time-ordered in all three formats and every runtime
-loads the same corpus by the same deterministic walk, so id order tracks load
-order. It survives only while all three of those hold. Change id minting, the
-corpus walk, or the collection type, and the field diverges with nothing
-watching it, surfacing later as an engine disagreement found by someone looking
-at something else — which is how #418 was found.
+Nothing byte-compares this field today, which is consistent with the rule above:
+`api.spec.ts` asserts only that it is an array, and Manager's `types.ts` types
+`activeEvents` as a **number** — a count from a different endpoint, not this
+list. `scripts/lib/parity_identity.py` already compares by corpus-declared
+identity rather than by position, which is the pattern this section makes
+explicit.
 
-The reasoning is the one `activeRegions` already records below: a field that
-carries no order but is compared as though it does cannot be checked at all.
-Declaring the order now costs a sort; discovering later that it was never
-declared costs an investigation.
+A canonical order becomes available when the corpus carries an identity that is
+total **by construction** — the UUID direction `name_uniqueness_test.py` names
+as intended — at which point the collation must be declared alongside it.
 
 #### Active regions
 
