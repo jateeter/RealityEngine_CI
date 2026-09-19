@@ -332,6 +332,81 @@ A write that reports success and changes nothing is not harmless: it is
 indistinguishable from one that worked, so a caller cannot tell that the control
 it is using has no effect (#425).
 
+##### POST /api/perceive takes an optional `only` selector
+
+A step response carries the whole universe. At the full corpus that is **1637 KB
+per push**, and the cost is not a slow response — it is transient allocation
+during serialization outrunning GC, which killed two runtimes mid-sweep: LSP with
+`Heap exhausted, game over` inside `WRITE-JSON`, Scala with
+`java.lang.OutOfMemoryError` followed by `akka.jvm-exit-on-fatal-error` taking
+the JVM with it (#367).
+
+Measured on cpp, full corpus, one push:
+
+| field | size | entries |
+|---|---:|---:|
+| `machineResults` | 1422.4 KB | 1328 |
+| `activeRegions` | 171.9 KB | 1467 |
+| `mergeBatch` | 133.6 KB | 139 |
+| `perceptualSpace` | 49.6 KB | 16944 |
+
+`includePerceptualSpace: false` and `includeActiveRegions: false` already exist
+and remove two of those. Neither touches `machineResults`, which is the
+dominant cost and scales with the resident corpus — a caller reading one
+machine receives an entry for all 1328.
+
+**The selector:**
+
+```json
+{ "vector": [ ... ],
+  "only": { "sequenceIds": ["dcx-012-24h-projection"],
+            "machineNames": ["Data Center DCX-012 Projection"] } }
+```
+
+- `sequenceIds` — restrict `mergeBatch`, `eventBus`, `machineResults` and
+  `activeRegions` to entries attributable to these sequences.
+- `machineNames` — the same, by machine **name**. Name rather than id, because
+  ids are minted per runtime and are not comparable across the quorum
+  (#146, #397).
+- Both may be given; an entry is kept if it matches **either**.
+
+**Attribution is by sequence id, never by region.** A region can be shared by
+more than one writer; a sequence id cannot. That is what makes the selection
+well defined for exactly the contended cells the arbiter exists for.
+
+**Omitting `only` is byte-identical to today**, on every runtime. Several
+regression stages compare this wire exactly, so the default must not move.
+
+**An unknown sequence id selects nothing** — not an error, and not the
+unfiltered universe. Silently returning everything would make the filter
+unfalsifiable: a caller could not tell a selector that matched nothing from one
+that was ignored, which is the same defect class as a check that cannot fail.
+
+**The selector is activated by its presence, not by its contents.** `only: {}`
+is a selector that names nothing, and it therefore selects nothing. The
+runtimes disagreed here — C++ activated on presence, LSP treated an empty
+selector as absent and returned the universe — and presence wins for the reason
+above: a caller building `sequenceIds` from a list that happened to be empty
+would otherwise be handed everything and have no way to tell. An `only` that is
+absent, `null`, or not an object is not a selector at all.
+
+**A Perception Engine applies the selector to its reply, never to the request
+it makes of the Reality Engine.** The RE filters `machineResults` like every
+other field, and every PE merges that field into the next InputSpaceVector — so
+a forwarded selector makes what the caller asked to be *shown* decide what the
+engine *computes*. Measured on the live universe at 1338 machines resident: 408
+machine results fed the aggregator with no selector and **0** fed it with one.
+
+That leaves the RE→PE hop proportional to the resident corpus, and that is the
+decided shape rather than a gap (#367). The rule it follows is the one the
+`compact` flag already established after the same failure: *response verbosity
+must not change what the engine computes.*
+
+**The filter runs before serialization.** Building the full structure and then
+removing entries leaves the allocation cost in place, and the allocation *is*
+the defect. A runtime that filters afterwards satisfies the shape of this
+contract and none of its purpose.
+
 ##### POST /api/machines always ingests; a name conflict is versioned and reallocated
 
 `POST /api/machines` **MUST ingest the requested machine.** It does not reject a
