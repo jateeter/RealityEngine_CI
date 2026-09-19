@@ -381,11 +381,32 @@ Two consequences follow, and both are contract:
 
 When the requested `name` is already held by a resident machine:
 
-1. **The ingested machine's name carries a version suffix.** The engine appends
-   ` v<n>` with the lowest `n ≥ 2` that is not already resident, so a second
-   `Foo` becomes `Foo v2`, a third `Foo v3`. The suffix is applied to the
-   *requested* name, never to the resident one — the machine already in the
-   engine is not touched, renamed, or moved.
+1. **The ingested machine's name carries a version suffix.** The engine takes
+   the requested name's **base** — the name with a trailing ` v<n>` removed, if
+   it has one — and assigns `base v<m>` for the lowest `m ≥ 2` not already
+   resident. The suffix is applied to the *requested* name's base, never to the
+   resident one: the machine already in the engine is not touched, renamed, or
+   moved.
+
+   So the sequence continues rather than nesting:
+
+   | requested | already resident | ingested as |
+   |---|---|---|
+   | `Foo` | `Foo` | `Foo v2` |
+   | `Foo` | `Foo`, `Foo v2` | `Foo v3` |
+   | `Foo v2` | `Foo`, `Foo v2` | `Foo v3` |
+   | `Foo v2` | `Foo`, `Foo v2`, `Foo v3` | `Foo v4` |
+   | `Foo v3` | `Foo`, `Foo v2` | `Foo v3` — no conflict, taken as requested |
+
+   **The base is recovered, not stacked.** Appending to the requested name
+   verbatim would give `Foo v2 v2` and then `Foo v2 v2 v2`, and a caller
+   re-posting what it received would drift further from the base on every
+   attempt. Recovering the base keeps one version sequence per machine name
+   however the caller addresses it.
+
+   A name that ends in ` v<n>` and is *not* resident is ingested exactly as
+   requested — the base is consulted only to number a conflict, never to rewrite
+   a name that has none.
 2. **Its perceptual mapping is newly allocated.** The regions the request
    declares are **not** used. The engine allocates a fresh input region and a
    fresh output region that do not overlap or intersect any resident machine's
