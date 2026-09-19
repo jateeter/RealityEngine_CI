@@ -476,6 +476,13 @@ jobs:
         working-directory: RealityEngine_CI
         run: bash scripts/tests/test-openapi-validate.sh
 
+      # The machine-set parity gate's own comparison. It replaces a correct
+      # check that could not fire (#356), so a replacement that cannot fail
+      # would be the same defect under a new name.
+      - name: Run machine-set parity unit tests
+        working-directory: RealityEngine_CI
+        run: bash scripts/tests/test-machine-set-parity.sh
+
       # The generators' own drift checks. Four offered --check and nothing
       # invoked any of them (#352) — a check that exists and never runs is
       # indistinguishable from one that passes. It cost the aihr-healthy ->
