@@ -1196,6 +1196,28 @@ start_universe() {
 # same comparison inside regression-reset-contract.py cannot run when any PE is
 # down, and on a live universe with one PE unreachable its loadParity is null,
 # never computed.
+# Export-shape parity — does every runtime emit the same machine document?
+#
+# GET /api/machines/:id/export is how a machine moves between engines, and
+# POST /api/machines ingests whatever it is handed, so an export that does not
+# match is an export that silently changes the machine. Every defect on this
+# surface so far was found by hand-diffing: Scala#104 (4 missing event fields),
+# LSP#104 (timestamp hardcoded to 0), and the four in #436 — one of which
+# dropped outputMergeTransformation, so a machine came back with a different
+# fold and a training variable was retuned without anyone asking.
+#
+# Runs beside machine-set parity and for the same reason: one GET per runtime,
+# no PE, no reset, no seeded source.
+run_export_parity() {
+  step "Export-shape parity across runtimes"
+  local ci
+  ci="$(repo_root RealityEngine_CI)"
+  run_cmd "export-parity" python3 "$ci/scripts/regression-export-parity.py" \
+    --registry /tmp/re-registry/re-registry.json \
+    --machines 24 \
+    --out "$REPORT_DIR/export-parity.json"
+}
+
 run_machine_set_parity() {
   step "Machine-set parity across runtimes"
   local ci
@@ -2059,6 +2081,7 @@ if [ "$LIVE_TESTS" = true ]; then
   # comparing behaviour across runtimes holding different corpora compares
   # stimulus instead.
   run_stage "machine-set-parity" run_machine_set_parity
+  run_stage "export-parity"      run_export_parity
   run_stage "pe-step-contract" run_pe_step_contract
   # Parity first: it is the result the multi-engine deployment rests on, and it
   # runs on a freshly started universe before any other stage has registered

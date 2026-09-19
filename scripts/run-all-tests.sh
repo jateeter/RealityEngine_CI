@@ -451,6 +451,7 @@ run_unit() {
     run_corpus_dimension_tests
     run_generator_drift_checks
     run_machine_set_parity_tests
+    run_export_parity_tests
     run_ces_contract_drift
     run_localai_tests
 }
@@ -490,6 +491,14 @@ run_openapi_validator_tests() {
 # could not fire (#356), so a replacement that cannot fail would be the same
 # defect wearing a new name — every case builds a corpus shape and asserts the
 # exit status.
+# The export-parity gate's own comparison. Every export defect so far was found
+# by hand-diffing, so a gate that cannot fail would leave the surface exactly as
+# unguarded as it was — each case reproduces one of those shapes on stub engines.
+run_export_parity_tests() {
+    run_suite "Export parity unit tests" "$CI_DIR" \
+        bash scripts/tests/test-export-parity.sh
+}
+
 run_machine_set_parity_tests() {
     run_suite "Machine-set parity unit tests" "$CI_DIR" \
         bash scripts/tests/test-machine-set-parity.sh
