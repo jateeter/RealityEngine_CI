@@ -91,6 +91,7 @@
     "GET /api/integrations/carekit/status",
     "GET /api/integrations/healthkit/status",
     "GET /api/integrations/localai/catalog",
+    "GET /api/integrations/localai/ledger",
     "GET /api/integrations/localai/status",
     "GET /api/integrations/ollama/status",
     "GET /api/integrations/openai/status",
