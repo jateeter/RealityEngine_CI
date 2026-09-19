@@ -49,6 +49,26 @@ first is the run that would have passed while both defects were live:
      the selector they would starve their aggregators identically, agree
      perfectly, and the quorum would certify the defect.
 
+## State is equalised before anything is compared
+
+Every runtime is reset before it is probed. This is not tidiness — without it
+the cross-runtime comparison is unsound, and it reported a false divergence
+during this stage's own development: `mergeBatch` came back 193 on C++ and LSP
+against 145 on Scala, which reads exactly like an engine defect. It was not.
+The three runtimes had accumulated different numbers of steps, and driven from a
+common reset they are identical at every push (201/1539, 698/2036, 915/2253).
+
+`scripts/CLAUDE.md` already names this hazard for sources:
+
+  > Sources must be equalised before anything is compared. An active source one
+  > PE has and another does not is stimulus, and the trajectory comparison will
+  > faithfully report the difference as engine divergence.
+
+Accumulated steps are stimulus in exactly the same way. So the reset is a
+precondition of the comparison rather than part of the inertness check, and
+`--skip-inertness` does not skip it: without a reset the cross-runtime verdict
+is reported as unsound rather than passed.
+
 ## Attribution
 
 Selection is by sequence id, never by region — a region can have more than one
@@ -269,18 +289,25 @@ def judge_surface(observed: dict) -> list[str]:
     return failures
 
 
-def perceptual_space(re_url: str) -> tuple[list[float] | None, str | None]:
-    status, payload = get(f"{re_url}/api/engine/state")
+def persistent_vector(pe_url: str) -> tuple[list[float] | None, str | None]:
+    """The Perception Engine's own vector — the witness the inertness check needs.
+
+    `assembledVector` on `GET /api/state` is what every runtime's machine-output
+    aggregator writes into, and it becomes the next push's stimulus. That makes
+    it the shortest path between "the selector reached the computation" and
+    something observable: a starved aggregator merges fewer outputs and this
+    vector moves.
+
+    The Reality Engine's own `perceptualSpace` would diverge too, one hop later,
+    but reading it costs 17 MB per fetch against this one's 4 MB and says the
+    same thing less directly.
+    """
+    status, payload = get(f"{pe_url}/api/state")
     if status == 200 and isinstance(payload, dict):
-        space = payload.get("perceptualSpace")
-        if isinstance(space, list):
-            return space, None
-    status, payload = get(f"{re_url}/api/state")
-    if status == 200 and isinstance(payload, dict):
-        space = payload.get("perceptualSpace")
-        if isinstance(space, list):
-            return space, None
-    return None, f"no readable perceptual space on {re_url}"
+        vector = payload.get("assembledVector")
+        if isinstance(vector, list):
+            return vector, None
+    return None, f"GET {pe_url}/api/state carried no assembledVector (HTTP {status})"
 
 
 def drive(pe_url: str, steps: int, only: dict | None) -> str | None:
@@ -306,7 +333,7 @@ def check_inertness(instance: dict, target: dict, reset) -> dict:
     selector agree with each other perfectly, so a cross-runtime comparison
     would certify the defect rather than catch it.
     """
-    re_url, pe_url = instance["re_url"], instance["pe_url"]
+    pe_url = instance["pe_url"]
     arms: dict[str, list[float]] = {}
     for label, only in (("without", None), ("with", {"machineNames": [target["name"]]})):
         failed = reset(instance)
@@ -315,10 +342,10 @@ def check_inertness(instance: dict, target: dict, reset) -> dict:
         failed = drive(pe_url, INERTNESS_STEPS, only)
         if failed:
             return {"ok": False, "error": f"{label} selector: {failed}"}
-        space, failed = perceptual_space(re_url)
-        if space is None:
+        vector, failed = persistent_vector(pe_url)
+        if vector is None:
             return {"ok": None, "skipped": failed}
-        arms[label] = space
+        arms[label] = vector
 
     if arms["with"] == arms["without"]:
         return {"ok": True, "cells": len(arms["with"])}
@@ -326,7 +353,8 @@ def check_inertness(instance: dict, target: dict, reset) -> dict:
     return {
         "ok": False,
         "error": (f"the selector changed what the engine computed: "
-                  f"{len(differing)} of {len(arms['without'])} cells differ after "
+                  f"{len(differing)} of {len(arms['without'])} cells of the Perception "
+                  f"Engine's assembled vector differ after "
                   f"{INERTNESS_STEPS} identical pushes"),
         "firstDifferingCells": differing[:12],
     }
@@ -339,9 +367,11 @@ def main() -> int:
                     default=os.environ.get("RE_REGISTRY_URL",
                                            "/tmp/re-registry/re-registry.json"))
     ap.add_argument("--skip-inertness", action="store_true",
-                    help="Skip the reset-and-drive comparison. It is the only check that "
+                    help="Skip the with/without drive comparison. It is the only check that "
                          "catches a selector applied to the computation rather than to the "
-                         "reply, so skipping it is a narrower run, not a faster equivalent.")
+                         "reply, so skipping it is a narrower run, not a faster equivalent. "
+                         "It does NOT skip the reset that equalises the runtimes: that is a "
+                         "precondition of comparing them at all.")
     ap.add_argument("--out", help="Write the full report to this path.")
     args = ap.parse_args()
 
@@ -354,8 +384,10 @@ def main() -> int:
         print(f"no instances in {args.registry}", file=sys.stderr)
         return 2
 
+    # Imported regardless of --skip-inertness: the reset is a precondition of
+    # the cross-runtime comparison, not part of the inertness check.
     reset: Callable[[dict], str | None] | None = None
-    if not args.skip_inertness:
+    if True:
         sys.path.insert(0, str(Path(__file__).resolve().parent / "lib"))
         try:
             from reset_contract import reset_instances  # type: ignore[import-not-found]
@@ -370,7 +402,20 @@ def main() -> int:
                 failures = reset_instances(post, [instance], re_key="re_url", pe_key="pe_url")
                 return "; ".join(failures) if failures else None
 
-    report: dict = {"instances": {}, "failures": []}
+    # Equalise before measuring. See "State is equalised before anything is
+    # compared" above: two runtimes at different step counts are being driven by
+    # different stimulus, and every count below scales with that.
+    equalised = True
+    if reset is None:
+        equalised = False
+    else:
+        for instance in instances:
+            failed = reset(instance)
+            if failed:
+                equalised = False
+                break
+
+    report: dict = {"instances": {}, "failures": [], "equalised": equalised}
     for instance in instances:
         rid = instance.get("id", "?")
         entry: dict = {}
@@ -401,7 +446,7 @@ def main() -> int:
             for failure in judge_surface(observed):
                 report["failures"].append(f"{rid} {surface}: {failure}")
 
-        if reset is not None:
+        if reset is not None and not args.skip_inertness:
             entry["inertness"] = check_inertness(instance, target, reset)
             if entry["inertness"].get("ok") is False:
                 report["failures"].append(f"{rid}: {entry['inertness']['error']}")
@@ -414,7 +459,17 @@ def main() -> int:
     # Cross-runtime: the same selector must select the same *number* of entries
     # everywhere. Counts and names, never the payloads — ids are minted per
     # runtime (#146, #397).
-    for surface in ("RE /api/perceive", "PE /api/push"):
+    #
+    # Sound only against equalised state. Reported as unsound rather than
+    # skipped: "we did not check" and "we checked and they agree" are different
+    # findings, and a stage that quietly downgrades to the first while printing
+    # the second is the failure class this whole file exists to catch.
+    if not equalised:
+        report["failures"].append(
+            "cross-runtime comparison not made: the runtimes could not be reset to a "
+            "common state, and counts from runtimes at different step counts compare "
+            "stimulus rather than behaviour")
+    for surface in ("RE /api/perceive", "PE /api/push") if equalised else ():
         for case in ("by-name", "by-sequence", "absent-sequence", "names-nothing"):
             seen: dict[str, str] = {}
             for rid, entry in report["instances"].items():
@@ -437,7 +492,8 @@ def main() -> int:
     report["ok"] = ok
 
     print(f"perceive `only` selector — {len(report['instances'])} runtimes, "
-          f"{INERTNESS_STEPS} pushes per inertness arm")
+          f"{INERTNESS_STEPS} pushes per inertness arm, "
+          f"state {'equalised' if equalised else 'NOT equalised'}")
     for rid, entry in sorted(report["instances"].items()):
         if "error" in entry:
             print(f"  {rid:<8} unreadable: {entry['error']}")
