@@ -27,7 +27,7 @@ Two of those paths moved: the trigger artifacts live in
 focus set (see §6 Q1).
 
 The architecture document enumerates the shared PE integration contract. This
-roadmap started as the `_AI` gap plan; the registry, source mapper, trigger
+roadmap started as the `_AI` gap plan; the integration registry, source mapper, trigger
 dispatcher, dispatch ledger, completion ingest, OpenAI/Ollama bridges,
 HealthKit/CareKit intake, and ACP/OpenClaw xACP handoff are now implemented in
 the TypeScript PE. Remaining work should treat the tables below as planning
@@ -64,7 +64,7 @@ perceptual_sim_reset, perceptual_sim_history, demo_load
 
 ### 1.3 Integration contracts present
 
-- `config/integrations.example.json` — full registry example (defaults,
+- `config/integrations.example.json` — full integration registry example (defaults,
   `integrations[]` for `mqtt`/`localai`/`openai`/`ollama`/`acp`/`healthkit`,
   `sourceMappings[]`). The TS loader indexes these mappings at startup.
 - `examples/triggers/ai_trigger_envelope.template.json` — canonical
