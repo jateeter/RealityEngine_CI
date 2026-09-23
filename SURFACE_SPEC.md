@@ -1888,6 +1888,57 @@ observed at the next reset — makes it inactive again.
 | POST | `/api/integrations/localai/invoke` | ✓ | ✓ | ✓ |
 | GET | `/api/integrations/localai/ledger` | ✓ | ✓ | ✓ |
 
+#### localAI invoke contract *(settled 2026-09-23, 3-of-3)*
+
+Settled under `docs/INTEGRATION_ROADMAP.md` §6 Q7 (with Q1), and closes
+RealityEngine_CI#445. Before this, each runtime kept its own hand-written allow-list:
+- C++: 9 operations, exact match.
+- LSP: 8, prefix match, and `/` allowed.
+- Scala: OpenAI-shaped paths, most of which localAIStack does not serve, and it
+  read only `path`.
+
+The catalogs had three different shapes, and a refused call answered 403 on C++
+and 200 on LSP.
+
+**The allow-list is a policy, and it lives in one place:** `allowedOperations` on
+the `localai` integration in `config/integrations.example.json`, which
+`startUniverse.sh` materialises into the `INTEGRATIONS_CONFIG` every engine
+receives. Each entry is `{id, method, path, description}`. The list is **curated**:
+localAIStack serves routes the PE must not reach (file ingest, model listing,
+the wellness simulator), so it is never derived from localAIStack's OpenAPI.
+`scripts/check-localai-operations.py` (regression stage `local-ai`) fails if a
+listed operation is no longer served, and prints served routes that are not
+listed. A runtime whose config carries no list allows **nothing** (deny by
+default), and says so in its catalog.
+
+**LangGraph** is localAIStack's `graph_schema`, `graph_rag` and `graph_agent`
+operations of kind `localai` (§6 Q1). There is no separate `langgraph` kind.
+
+**`GET /api/integrations/localai/catalog`** →
+`{ success, status, graphSchema, recentGraphQLEvents, invokeEndpoint, allowedEndpoints, allowedEndpointsSource, realityBridge }`:
+- `allowedEndpoints` is the configured list, verbatim and in order.
+- `allowedEndpointsSource` is the config path it came from, or `null` when there
+  was none.
+- `graphSchema` and `recentGraphQLEvents` are fetched from localAIStack; `null` if
+  it does not answer.
+
+**`POST /api/integrations/localai/invoke`**:
+- **Request.** The target is `endpoint`, falling back to `path`, with a leading `/`
+  added if missing. The query string is ignored for matching. `method` defaults
+  to the method of the allowed operation with that path. The body sent upstream
+  is `payload`, falling back to `body`. `correlationId`, `machineName`,
+  `sequenceId`, `requestClass` and `resultClass` are carried into the ledger.
+- **Allowed** when `(method, path)` exactly matches an allowed operation.
+  Otherwise **403**
+  `{ success: false, endpoint, method, correlationId, invocationId, error: "localAI endpoint is not allowed" }`,
+  and the refusal is recorded in the ledger.
+- **No target** → **400** `{ success: false, error: "localAI invocation requires endpoint or path" }`.
+- **Success** → **200** `{ success: true, endpoint, method, correlationId, invocationId, response }`.
+- **Provider failure** → **502**
+  `{ success: false, endpoint, method, correlationId, invocationId, error }`.
+- Ledger records name the operation by its `id` (`operationId`) whenever the
+  route is allowed.
+
 ### Dispatch & Triggers
 
 | Method | Path | CPP | LSP | Scala |
