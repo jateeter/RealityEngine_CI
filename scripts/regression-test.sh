@@ -1305,12 +1305,31 @@ refresh_mqtt_fixtures() {
   fi
 
   step "Refresh retained MQTT fixtures (contemporaneous sensor stamps)"
-  local published=0 topic payload
+
+  # The broker listens only on the port MQTT_BROKER_URL names. The hosted lane
+  # allocates a free one per run, so mosquitto_pub's default 1883 reaches
+  # nothing — the same defect that kept the workflow's seeding loop red from
+  # 2026-09-11 (CI#350). It presents differently here, and worse: the publish
+  # error was discarded, so every topic would have been skipped, `published`
+  # would have stayed 0, and this function would have logged "no fixtures
+  # republished" as though the fixtures were missing rather than undeliverable.
+  # A failed publish is now counted and reported.
+  local broker_port="${MQTT_BROKER_URL##*:}"
+  case "$broker_port" in ''|*[!0-9]*) broker_port=1883 ;; esac
+
+  local published=0 failed=0 topic payload
   while IFS="$(printf '\t')" read -r topic payload; do
     [ -n "$topic" ] || continue
-    docker exec "$container" mosquitto_pub -h 127.0.0.1 -r -t "$topic" -m "$payload" 2>/dev/null || continue
-    published=$((published + 1))
+    if docker exec "$container" mosquitto_pub -h 127.0.0.1 -p "$broker_port" \
+         -r -t "$topic" -m "$payload" 2>/dev/null; then
+      published=$((published + 1))
+    else
+      failed=$((failed + 1))
+    fi
   done < <(python3 "$(repo_root RealityEngine_CI)/scripts/seed-mqtt-fixtures.py" "$mappings" 2>/dev/null || true)
+
+  [ "$failed" -eq 0 ] || \
+    log "  WARN $failed retained topic(s) failed to publish to 127.0.0.1:$broker_port"
 
   if [ "$published" -gt 0 ]; then
     log "  republished $published retained topic(s) after boot"

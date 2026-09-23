@@ -326,10 +326,16 @@ jobs:
             sleep 1
           done
 
+          # -p is not optional. The config above declares one listener, on the
+          # port allocated for this run, so mosquitto_pub's default 1883 reaches
+          # nothing and reports `Error: Bad file descriptor` (CI#350). The
+          # readiness probe passed the port and this loop did not, which is why
+          # the step could report `broker ready` and then die on the first
+          # publish.
           published=0
           while IFS="$(printf '\t')" read -r topic payload; do
             [ -n "$topic" ] || continue
-            docker exec regression-mqtt mosquitto_pub -h 127.0.0.1 -r -t "$topic" -m "$payload"
+            docker exec regression-mqtt mosquitto_pub -h 127.0.0.1 -p "$mqtt_port" -r -t "$topic" -m "$payload"
             echo "  retained $topic"
             published=$((published + 1))
           done < <(python3 RealityEngine_CI/scripts/seed-mqtt-fixtures.py \
