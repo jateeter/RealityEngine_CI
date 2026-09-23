@@ -183,7 +183,13 @@ const baseline = JSON.parse(fs.readFileSync(process.argv[3], 'utf8'));
 const sequenceId = process.argv[4];
 const prior = new Set((baseline.records || []).map((record) => record.id));
 const records = (current.records || [])
-  .filter((record) => record.sequenceId === sequenceId && !prior.has(record.id))
+  // Records name the contributing set, sequenceIds (RealityEngine_CI#327,
+  // SURFACE_SPEC.md "Dispatch surface shapes"). This matched the scalar
+  // sequenceId, which no runtime has emitted since the fold moved into the
+  // machine's atomic step, so it could never find the seeded record.
+  .filter((record) => (Array.isArray(record.sequenceIds)
+      ? record.sequenceIds.includes(sequenceId)
+      : record.sequenceId === sequenceId) && !prior.has(record.id))
   .sort((a, b) => Number(b.createdAt || 0) - Number(a.createdAt || 0));
 if (records[0]?.id) process.stdout.write(records[0].id);
 NODE
