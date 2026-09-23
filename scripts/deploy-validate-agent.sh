@@ -14,11 +14,12 @@
 #                             Manager Viz+PE) or its repo scripts/start.sh
 #                             (localAIStack, OpenClaw — containerized only).
 #   Phase 3N Native lane      LOCAL-PROCESS lane — start→health→restart→stop each
-#                             native runtime via its own start.sh on OFF-BAND
-#                             ports so it coexists with the Docker stack:
-#                             Scala (5101/5100), Manager backend (3011),
-#                             CPP (5301/5300), LSP (5601/5600). CPP/LSP have no
-#                             container image, so native is their only lane.
+#                             native runtime via its own start.sh on ports the
+#                             OS reports free, so it coexists with the Docker
+#                             stack and with a running native universe:
+#                             Scala, CPP, LSP (claimed per run), Manager backend
+#                             (3011). CPP/LSP have no container image, so
+#                             native is their only lane.
 #   Phase 4  Operational tests bash scripts/run-all-tests.sh --deployment
 #   Phase 5  Summary          populated roadmap status table + manifest
 #
@@ -133,6 +134,8 @@ CREATE_ISSUES=false
 DRY_RUN=false
 CYCLES=1
 INTERVAL=0
+DOCKER_LANE_BLOCKERS=""  # set per cycle by run_cycle — see native_proxy_blockers
+DOCKER_LANE_REFUSED=false
 
 # ── Colours / logging ───────────────────────────────────────────────────────
 GREEN='\033[0;32m'; YELLOW='\033[1;33m'; RED='\033[0;31m'
@@ -381,6 +384,46 @@ phase_preflight() {
 }
 
 # =============================================================================
+# Docker-lane blockers — a native universe holding the TLS-proxy ports.
+# =============================================================================
+# Prints one line per TLS-proxy port held by a native process from this
+# workspace. com.docker.backend is skipped: it is Docker's own port proxy, and
+# `docker compose down` frees what it holds (see phase_deploy for why it must
+# never be killed).
+native_proxy_blockers() {
+  local proxy_ports="3001 3004 5001 5173"
+  for _port in $proxy_ports; do
+    local _pid _exe _cwd
+    _pid="$(lsof -ti ":$_port" -sTCP:LISTEN 2>/dev/null | head -1)"
+    [ -n "$_pid" ] || continue
+    _exe="$(ps -o comm= -p "$_pid" 2>/dev/null)"
+    case "$_exe" in *com.docker*|*Docker*) continue ;; esac
+    _cwd="$(lsof -a -p "$_pid" -d cwd -Fn 2>/dev/null | sed -n 's/^n//p' | head -1)"
+    case "$_cwd" in
+      "$WS"/*) printf '  :%s  pid %s  %s  (%s)\n' "$_port" "$_pid" "$_exe" "$_cwd" ;;
+    esac
+  done
+}
+
+# One orchestration finding for a blocked Docker lane, whichever phase meets it
+# first. Refusing the deploy was not enough on its own: run_cycle ignored the
+# refusal and went on to health-gate and restart the Docker stack it had just
+# declined to start. Those probes go through the TLS proxy, which cannot bind,
+# so every one of them failed and was filed against the runtime it named —
+# RealityEngine_Scala#118 (RE :5001 unhealthy) and #119 (RE container did not
+# come back after restart) are that, not a Scala defect.
+refuse_docker_lane() {  # refuse_docker_lane <phase>
+  [ "$DOCKER_LANE_REFUSED" = true ] && return 0
+  DOCKER_LANE_REFUSED=true
+  fail orchestration "$1" \
+    "a native universe holds the TLS-proxy ports; the Docker lane cannot bind them" \
+    "$(printf "Stop the native universe first:\n  cd %s && ./stopUniverse.sh\n\nHolders:\n%s" "$CI_DIR" "$DOCKER_LANE_BLOCKERS")"
+  warn "Refusing the Docker lane: the TLS proxy would fail to bind, and every"
+  warn "service behind it would be reported unhealthy when none of them is."
+  printf '%s\n' "$DOCKER_LANE_BLOCKERS" | while IFS= read -r _l; do [ -n "$_l" ] && warn "$_l"; done
+}
+
+# =============================================================================
 # Phase 1 · Full deploy (Docker AI path)
 # =============================================================================
 phase_deploy() {
@@ -427,27 +470,8 @@ phase_deploy() {
   # to one PID, com.docker.backend, and SIGKILLing it takes the daemon down. So
   # this looks at *what* holds the port and only refuses when the holder is a
   # native process from this workspace.
-  local proxy_ports="3001 3004 5001 5173"
-  local blockers=""
-  for _port in $proxy_ports; do
-    local _pid _exe _cwd
-    _pid="$(lsof -ti ":$_port" -sTCP:LISTEN 2>/dev/null | head -1)"
-    [ -n "$_pid" ] || continue
-    _exe="$(ps -o comm= -p "$_pid" 2>/dev/null)"
-    # com.docker.backend is the Docker port proxy; compose down below frees it.
-    case "$_exe" in *com.docker*|*Docker*) continue ;; esac
-    _cwd="$(lsof -a -p "$_pid" -d cwd -Fn 2>/dev/null | sed -n 's/^n//p' | head -1)"
-    case "$_cwd" in
-      "$WS"/*) blockers="$blockers  :$_port  pid $_pid  $_exe  ($_cwd)\n" ;;
-    esac
-  done
-  if [ -n "$blockers" ]; then
-    fail orchestration deploy \
-      "a native universe holds the TLS-proxy ports; the Docker lane cannot bind them" \
-      "$(printf "Stop the native universe first:\n  cd $CI_DIR && ./stopUniverse.sh\n\nHolders:\n$blockers")"
-    warn "Refusing to start the Docker lane: the TLS proxy would fail to bind and"
-    warn "five services would be reported unhealthy when none of them is."
-    printf "%b" "$blockers" | while IFS= read -r _l; do [ -n "$_l" ] && warn "$_l"; done
+  if [ -n "$DOCKER_LANE_BLOCKERS" ]; then
+    refuse_docker_lane deploy
     return 1
   fi
 
@@ -497,10 +521,24 @@ phase_deploy() {
 # =============================================================================
 phase_health() {
   hdr "Phase 2 · Health gate (public Docker endpoints)"
+  # With the Docker lane blocked, the RE/PE/Visualizer probes measure nothing
+  # Docker owns: :5001/:3004 go through a proxy that never bound, and
+  # :3001/:5173 answer from the native universe's Manager — a pass there would
+  # be credited to containers that are not running. Skipped, not failed; the
+  # blocked lane is reported once, as an orchestration finding.
+  if [ -n "$DOCKER_LANE_BLOCKERS" ]; then
+    refuse_docker_lane health
+    local why="Docker lane blocked by a native universe (orchestration finding)"
+    skip reality-engine health "RE API (:5001)" "$why"
+    skip manager health "PE API (:3004)" "$why"
+    skip manager health "Visualizer backend (:3001)" "$why"
+    skip manager health "Visualizer UI (:5173)" "$why"
+  else
   poll "https://localhost:5001/api/health" "RE API (:5001)" 20      && pass reality-engine health "RE API healthy"          || fail reality-engine health "RE API unhealthy (:5001)" "docker logs reality-engine-app"
   poll "https://localhost:3004/api/health" "PE API (:3004)" 20      && pass manager health "PE API healthy"                 || fail manager health "PE API unhealthy (:3004)" "docker logs reality-engine-perception-backend"
   poll "http://localhost:3001/health" "Visualizer backend (:3001)" 15 && pass manager health "Visualizer backend healthy"  || fail manager health "Visualizer backend unhealthy (:3001)" "docker logs reality-engine-visualizer-backend"
   poll "http://localhost:5173/" "Visualizer UI (:5173)" 15         && pass manager health "Visualizer UI reachable"        || fail manager health "Visualizer UI unreachable (:5173)" "docker logs reality-engine-visualizer-frontend"
+  fi
   poll "http://localhost:4000/health" "localAIStack API (:4000)" 15 && pass localai health "localAIStack API healthy"      || fail localai health "localAIStack API unhealthy (:4000)" "docker logs localai_api"
   poll "http://localhost:4333/collections" "Qdrant (:4333)" 15     && pass localai health "Qdrant reachable"               || fail localai health "Qdrant unreachable (:4333)" "docker logs localai_qdrant"
   if [ "$OPENCLAW" != "no" ]; then
@@ -552,9 +590,18 @@ restart_repo_script() {  # <unit> <health-url> <label> <repo-dir>
 
 phase_restart_matrix() {
   hdr "Phase 3 · Restart matrix — CONTAINERIZED lane (per-unit)"
-  restart_compose_service reality-engine "https://localhost:5001/api/health" "RE API (Scala container)" reality-engine
-  restart_compose_service manager "https://localhost:3004/api/health" "Manager PE+Visualizer containers" \
-      perception-engine-backend perception-engine-frontend visualizer-backend visualizer-frontend
+  if [ -n "$DOCKER_LANE_BLOCKERS" ]; then
+    # Recreating these would start containers whose tls-proxy cannot bind, then
+    # poll through it — the whole of RealityEngine_Scala#119.
+    refuse_docker_lane restart
+    local why="Docker lane blocked by a native universe (orchestration finding)"
+    skip reality-engine restart "RE API (Scala container)" "$why"
+    skip manager restart "Manager PE+Visualizer containers" "$why"
+  else
+    restart_compose_service reality-engine "https://localhost:5001/api/health" "RE API (Scala container)" reality-engine
+    restart_compose_service manager "https://localhost:3004/api/health" "Manager PE+Visualizer containers" \
+        perception-engine-backend perception-engine-frontend visualizer-backend visualizer-frontend
+  fi
   restart_repo_script localai "http://localhost:4000/health" "localAIStack" "$LAS_DIR"
   if [ "$OPENCLAW" = "yes" ] || { [ "$OPENCLAW" = "auto" ] && curl -sf --max-time 3 http://localhost:18789/healthz >/dev/null 2>&1; }; then
     restart_repo_script openclaw "http://localhost:18789/healthz" "OpenClaw gateway" "$OCS_DIR"
@@ -566,8 +613,9 @@ phase_restart_matrix() {
 # =============================================================================
 # Phase 3N · Native runtime lane — local processes via each repo's start.sh.
 # Validates start → health → restart-in-place → stop for the Scala/Manager/
-# CPP/LSP runtimes. Runs on OFF-BAND ports + a dedicated "dv" instance id so it
-# never collides with the Docker stack (RE :5001, Viz :3001/:5173).
+# CPP/LSP runtimes. Runs on OS-assigned free ports + a dedicated "dv" instance
+# id so it collides with neither the Docker stack (RE :5001, Viz :3001/:5173)
+# nor a native universe's deterministic allocation (5100+, 5300+, 5600+).
 # CPP/LSP have no container image — native is their only deployment lane.
 # OpenClaw + localAIStack are intentionally excluded (containerized only).
 # =============================================================================
@@ -587,12 +635,37 @@ prereq_lsp()   { have sbcl && { [ -f "$WS/RealityEngine_LSP/quicklisp/setup.lisp
 
 DV_INST="dv"   # validation instance id — keeps PID files off the canonical band
 
-# native_runtime <unit> <repo-dir> <re-port> <pe-port> <prereq-fn> <label>
+# shellcheck source=scripts/allocate-ports.sh
+source "$CI_DIR/scripts/allocate-ports.sh"
+
+# native_runtime <unit> <repo-dir> <prereq-fn> <label>
 native_runtime() {
-  local unit="$1" dir="$2" re_port="$3" pe_port="$4" prereq="$5" label="$6"
+  local unit="$1" dir="$2" prereq="$3" label="$4"
   [ -d "$dir" ] || { skip "$unit" native "$label" "repo not found at $dir"; return 0; }
   [ -x "$dir/start.sh" ] || { skip "$unit" native "$label" "start.sh missing"; return 0; }
   if ! "$prereq"; then skip "$unit" native "$label" "toolchain prerequisites not installed"; return 0; fi
+
+  # Ports the OS reports free, never a fixed pair.
+  #
+  # The lane used 5101/5100, 5301/5300 and 5601/5600, described as off-band.
+  # They are not: they are instance 1 of each runtime in startUniverse's
+  # deterministic allocation, so whenever a native universe was up the lane
+  # started its validation engine onto ports that universe already held. Scala's
+  # start.sh refused (`fatal: port 5100 is already in use`) and the lane filed
+  # RealityEngine_Scala#120 against it. C++ carried on past the same collision,
+  # and the poll then got an answer from the universe's engine and recorded
+  # "native start + health OK" for a process it never started. The runtime that
+  # refused was reported broken; the one that did not was reported healthy.
+  # Neither result measured the engine under test.
+  local re_port pe_port
+  if ! _claim_free_port; then
+    fail orchestration native "$label: no free port for the validation instance" "see $RUN_LOG"; return 0
+  fi
+  re_port="$_RE_ALLOCATED_PORT"
+  if ! _claim_free_port; then
+    fail orchestration native "$label: no free port for the validation instance" "see $RUN_LOG"; return 0
+  fi
+  pe_port="$_RE_ALLOCATED_PORT"
 
   # Scala builds its jar via sbt; forward a resolved sbt path so start.sh finds it.
   local -a env_extra=()
@@ -674,12 +747,12 @@ native_manager() {
 }
 
 phase_native_lane() {
-  hdr "Phase 3N · Native runtime lane — LOCAL processes (off-band ports)"
-  info "Native runtimes use off-band ports + instance '$DV_INST' to coexist with the Docker stack."
-  native_runtime scala "$SCALA_DIR" 5101 5100 prereq_scala "Scala RE/PE (native)"
+  hdr "Phase 3N · Native runtime lane — LOCAL processes (OS-assigned free ports)"
+  info "Native runtimes claim free ports + instance '$DV_INST' to coexist with the Docker stack and a native universe."
+  native_runtime scala "$SCALA_DIR" prereq_scala "Scala RE/PE (native)"
   native_manager
-  native_runtime cpp "$CPP_DIR" 5301 5300 prereq_cpp "C++ RE/PE (native)"
-  native_runtime lsp "$LSP_DIR" 5601 5600 prereq_lsp "LSP RE/PE (native)"
+  native_runtime cpp "$CPP_DIR" prereq_cpp "C++ RE/PE (native)"
+  native_runtime lsp "$LSP_DIR" prereq_lsp "LSP RE/PE (native)"
   info "CPP/LSP have no container image — native is their only deployment lane."
 }
 
@@ -743,6 +816,13 @@ phase_summary() {
 run_cycle() {
   RESULTS=(); PASS_N=0; FAIL_N=0; SKIP_N=0
   phase_preflight || { phase_summary; return 1; }
+  # Measured once per cycle, before any Docker phase: deploy, health and the
+  # restart matrix all need the same answer, and --restart-only / --no-deploy
+  # reach the Docker phases without passing through phase_deploy at all.
+  DOCKER_LANE_BLOCKERS=""; DOCKER_LANE_REFUSED=false
+  if [ "$DRY_RUN" = false ] && [ "$FOOTPRINT" != native ]; then
+    DOCKER_LANE_BLOCKERS="$(native_proxy_blockers)"
+  fi
   [ "$DO_DEPLOY" = true ] && phase_deploy
   # Health-gate the Docker public stack whenever the docker footprint is in play
   # (native Manager points at it too) or a deploy/restart just ran.
