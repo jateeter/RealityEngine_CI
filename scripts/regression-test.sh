@@ -1821,6 +1821,12 @@ run_local_ai() {
     --registry /tmp/re-registry/re-registry.json \
     --localai-url "$LOCAL_AI_URL" \
     --out "$REPORT_DIR/local-ai.json"
+  # The curated invoke allow-list (INTEGRATION_ROADMAP §6 Q7) against what
+  # localAIStack actually serves. An allowed operation it no longer serves
+  # fails; a served route that is not allowed is policy, printed, not failed.
+  run_cmd "localai-allowed-operations" python3 "$ci/scripts/check-localai-operations.py" \
+    --config "$ci/config/integrations.example.json" \
+    --base-url "$LOCAL_AI_URL"
 }
 
 # localAIStack ships eight machine definitions of its own that the reality

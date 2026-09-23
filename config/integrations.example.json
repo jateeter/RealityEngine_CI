@@ -24,7 +24,63 @@
         "mode": "graphql",
         "url": "http://localhost:4000/graphql",
         "mutation": "updateProcessState"
-      }
+      },
+      "allowedOperations": [
+        {
+          "id": "health",
+          "method": "GET",
+          "path": "/health",
+          "description": "Operational health for API, Ollama, Qdrant, and Redis."
+        },
+        {
+          "id": "graph_schema",
+          "method": "GET",
+          "path": "/graph/schema",
+          "description": "LangGraph topology and Reality Engine binding schema."
+        },
+        {
+          "id": "graph_rag",
+          "method": "POST",
+          "path": "/graph/rag",
+          "description": "Run the corrective RAG graph (LangGraph)."
+        },
+        {
+          "id": "graph_agent",
+          "method": "POST",
+          "path": "/graph/agent",
+          "description": "Run the ReAct agent graph (LangGraph)."
+        },
+        {
+          "id": "rag_query",
+          "method": "POST",
+          "path": "/rag/query",
+          "description": "Run a RAG query."
+        },
+        {
+          "id": "rag_ingest_text",
+          "method": "POST",
+          "path": "/rag/ingest/text",
+          "description": "Ingest text into the localAIStack Qdrant collection."
+        },
+        {
+          "id": "chat",
+          "method": "POST",
+          "path": "/chat",
+          "description": "Call the Ollama-backed chat endpoint."
+        },
+        {
+          "id": "graphql",
+          "method": "POST",
+          "path": "/graphql",
+          "description": "GraphQL trigger receiver (updateProcessState)."
+        },
+        {
+          "id": "graphql_events",
+          "method": "GET",
+          "path": "/graphql/events",
+          "description": "Recent GraphQL trigger events."
+        }
+      ]
     },
     {
       "id": "openai-agents",
