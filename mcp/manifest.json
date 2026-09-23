@@ -126,6 +126,11 @@
       "mutating": true
     },
     {
+      "name": "trigger.replay",
+      "target": "pe",
+      "mutating": true
+    },
+    {
       "name": "integrations.completion",
       "target": "pe",
       "mutating": true

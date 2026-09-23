@@ -1946,6 +1946,7 @@ operations of kind `localai` (§6 Q1). There is no separate `langgraph` kind.
 | GET | `/api/dispatch/ledger` | ✓ | ✓ | ✓ |
 | GET | `/api/dispatch/records/:id` | ✓ | ✓ | ✓ |
 | PATCH | `/api/dispatch/records/:id` | ✓ | ✓ | ✓ |
+| POST | `/api/dispatch/records/:id/replay` | ✓ | ✓ | ✓ |
 | GET | `/api/triggers/status` | ✓ | ✓ | ✓ |
 
 #### Dispatch surface shapes *(settled 2026-09-23, 3-of-3)*
@@ -1979,6 +1980,7 @@ the runtimes used different names, the name was chosen by what consumers read
 | `envelopesCreated` | int | |
 | `droppedNoGovernance` | int | Merge entry carried no governance |
 | `droppedNoDispatch` | int | Catalog loaded; the machine is absent from it or declares no agent/trigger |
+| `replaysCreated` | int | Records created by replay (a subset of `envelopesCreated`) |
 | `droppedCatalogCold` | int | The machine catalog has **never** loaded, so the drop says nothing about the machine (RealityEngine_LSP#63). Before this, C++ counted these as `droppedNoDispatch`: "this machine has no binding", the opposite of the truth. |
 | `dispatchErrors` | int | |
 | `machineCatalogCold` | bool | `true` until the first successful catalog fetch |
@@ -2025,10 +2027,35 @@ fields are ignored, so the envelope cannot be rewritten. Response
 `{ "success": true, "record": {...} }`. It broadcasts
 `{ "type": "dispatch.record.updated", "dispatchId", "status", "target", "attempts", "timestamp" }`.
 
-**Scala** has no trigger dispatcher yet (RealityEngine_Scala#149). It answers
-`participation: "unsupported"` with every status key present. That is a declared
-state, not silence. Until #149, the record-shape signature cannot reach 3-of-3, and
-the quorum test reports it as not evaluable rather than as agreement.
+**Scala** answers `participation: "unsupported"` until it has a dispatcher. RealityEngine_Scala#149 gave it one, and it now takes part fully.
+
+#### Dispatch replay *(settled 2026-09-23, 3-of-3)*
+
+Settled under `docs/INTEGRATION_ROADMAP.md` §6 Q6, which reinstates what #100
+removed. Before this, no native runtime served a replay route. The MCP
+`trigger.replay` tool pointed at `/api/triggers/replay/:dispatchId`, which only
+the TypeScript PE served, and it was pulled from the gateway. LSP had
+`replay-dispatch-record` implemented, but no route called it.
+
+**`POST /api/dispatch/records/:id/replay`**, body `{ "freshIds"?: bool }` (optional):
+
+- It creates a **new** record that re-emits the original's envelope:
+  - a new `id`;
+  - `mode: "replay"` and `replayOf: <original id>`;
+  - `status: "recorded"`, `attempts: 0`, `providerReceipt: null`, `error: null`;
+  - `target`, `machineId`, `sequenceIds`, `ragStatusCode`, `processStatus` and
+    `semantics` copied from the original.
+- The same envelope and correlation ids, so subscribers see the original causal
+  chain. With `freshIds: true`, both are re-minted, and so are the envelope's own
+  `envelopeId`, `correlationId` and `emittedAtMs`.
+- It calls no provider and touches no PE or RE state.
+- It counts toward `envelopesCreated` and `replaysCreated`, and broadcasts
+  `trigger.envelope.created` with `replayOf`.
+- Response **200** `{ success: true, record, replayOf, freshIds }`. An unknown id
+  is **404** `{ "error": "Dispatch record not found" }`.
+
+The TypeScript PE also keeps `/api/triggers/replay/:dispatchId` as a deprecated
+alias for the same handler.
 
 ### MQTT Bridge
 
