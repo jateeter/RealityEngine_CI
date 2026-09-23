@@ -111,7 +111,7 @@ Legend: ✅ present · ⚠️ partial/data-only · ❌ missing.
 | **Trigger Envelope Dispatcher** — observe `mergeBatch`, build `ces.terminal.event` | ✅ | Dispatcher records envelopes without blocking PE push. |
 | **Dispatch Ledger** — `GET /api/dispatch/ledger`, `GET/PATCH /api/dispatch/records/{id}` | ✅ | In-memory ring plus optional JSONL persistence. |
 | **Completion Ingest** — `POST /api/integrations/completions` | ✅ | Provider-neutral completion path routes through `/api/signals`. |
-| **`GET /api/integrations/status`** | ✅ | Reports loaded registry and source mappings. |
+| **`GET /api/integrations/status`** | ✅ | Reports loaded integration registry and source mappings. |
 | **`GET /api/triggers/status`** | ✅ | Reports dispatcher counters and replay count. |
 | Env flags `TRIGGERS_ENABLED`, `TRIGGER_DISPATCH_MODE`, `TRIGGER_GRAPHQL_URL` | ✅ | Read at PE startup. |
 | **MCP recommended tools** (`re.read_state`, `re.list_machines`, `re.read_machine`, `pe.list_sources`, `pe.push_signal`, `pe.enqueue_push`, `trigger.replay`, `dispatch.read_ledger`) | ✅ | All eight are registered in `perception-engine/backend/src/mcp.ts` under the spec's own names. Verified 2026-09-15. Until 2026-09-23 that was true of the TS PE only: CI's MCP gateway had dropped `trigger.replay` because no native runtime served a replay route (#100). All three now serve `POST /api/dispatch/records/:id/replay` and the gateway tool is back (§6 Q6). |
@@ -176,7 +176,7 @@ exposes a typed `IntegrationRegistry` to the rest of the backend.
   `"Loaded 5 integrations, 1 sourceMapping"`.
 - `GET /api/integrations/status` returns the shape above, byte-compatible with
   `RealityEngine_CPP` (`integration_status()` in `src/perception_engine_server.cpp`).
-- Absent file: PE starts, registry empty, status reports `loaded: false`,
+- Absent file: PE starts, integration registry empty, status reports `loaded: false`,
   `path: null`, `error: null`.
 - Unit tests for valid/invalid registries.
 
@@ -197,7 +197,7 @@ a `sourceMappingId` (or inline `sourceMapping`) into a concrete sensor write.
   `sensorId` when nothing resolves: `agent.<agent>.completion`.
 - new `perception-engine/backend/src/integrations/extractors.ts` — JSON-pointer
   extractor (`extract.type: "json"`) plus passthrough/clamp normalization to
-  match the registry schema.
+  match the integration registry schema.
 - `server.ts` — two routes, both wire-compatible with the C++ handlers:
   - `POST /api/signals` — underlying primitive (publicly exposed in C++ —
     keep it public here). Body: `values: number[]` (required, non-empty) +
@@ -208,7 +208,7 @@ a `sourceMappingId` (or inline `sourceMapping`) into a concrete sensor write.
   - `POST /api/integrations/completions` — provider-neutral adapter that
     builds a signal body and calls the signal path. Accepted body fields:
     `sourceMappingId` (also accept legacy alias `mappingId`); optional
-    inline `sourceMapping` (merged onto the registry mapping); `provider`
+    inline `sourceMapping` (merged onto the integration registry mapping); `provider`
     (default `"external"`); `agent` (also accept `agentId`, default
     `"agent"`); `sensorId` (overrides mapping); `correlationId`,
     `envelopeId`, `completionId` (also accept `id`); `values`, `active`,
@@ -222,7 +222,7 @@ a `sourceMappingId` (or inline `sourceMapping`) into a concrete sensor write.
 **Acceptance.**
 - Curl with the example body in §Completion Ingest of the architecture doc
   commits a 4-cell update at offset 4200.
-- Inline override path (`sourceMapping`) works without a registry entry;
+- Inline override path (`sourceMapping`) works without a integration registry entry;
   inline `sensorId` / `region` override the resolved mapping.
 - Unknown `sourceMappingId` returns 404 with a typed error
   (`Unknown sourceMappingId "<id>"`) matching C++ wording.
@@ -338,7 +338,7 @@ None of these adapters complete an agent result synchronously inside the PE cycl
 **4a · Ollama** (recommended first — local, no secrets) · **S–M**
 - Files: `perception-engine/backend/src/integrations/adapters/OllamaAdapter.ts`.
 - Modes: native `/api/chat`, OpenAI-compatible.
-- Validation: structured-output schema matches the registry `sourceMapping.extract`.
+- Validation: structured-output schema matches the integration registry `sourceMapping.extract`.
 - Acceptance: round-trip on a local Ollama instance (gpt-oss:20b) producing a
   completion that PE commits via `/api/integrations/completions`.
 
@@ -485,7 +485,7 @@ Natural home: the Machine Interconnection view we just landed.
 
 ## 5. Suggested sequencing & first PRs
 
-1. **PR #1 — Phase 0**: registry loader + `/api/integrations/status`. Small,
+1. **PR #1 — Phase 0**: integration registry loader + `/api/integrations/status`. Small,
    safe, unlocks everything else.
 2. **PR #2 — Phase 1**: `SourceMapper` + `POST /api/integrations/completions`.
    Replaces ad-hoc `/api/sensors/:id` callbacks with the documented contract.
@@ -572,7 +572,7 @@ drop-in interchangeable from an adapter's point of view.
 
 | Env var | Default | Used by |
 |---|---|---|
-| `INTEGRATIONS_CONFIG`     | `config/integrations.json` if present | Phase 0 registry loader |
+| `INTEGRATIONS_CONFIG`     | `config/integrations.json` if present | Phase 0 integration registry loader |
 | `TRIGGERS_ENABLED`        | `false` (bool) | Phase 2 dispatcher |
 | `TRIGGER_DISPATCH_MODE`   | `"dry-run"`    | Phase 2 dispatcher |
 | `TRIGGER_GRAPHQL_URL`     | `<LOCAL_AI_BASE_URL>/graphql` | Phase 2 / Phase 4b |
