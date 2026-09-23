@@ -1897,6 +1897,88 @@ observed at the next reset — makes it inactive again.
 | PATCH | `/api/dispatch/records/:id` | ✓ | ✓ | ✓ |
 | GET | `/api/triggers/status` | ✓ | ✓ | ✓ |
 
+#### Dispatch surface shapes *(settled 2026-09-23, 3-of-3)*
+
+Settled under `docs/INTEGRATION_ROADMAP.md` §6 Q5. Before this, the routes above
+were declared present on all three runtimes, and each answered in its own shape:
+
+| | C++ | LSP | Scala |
+|---|---|---|---|
+| `/api/dispatch/ledger` keys | `enabled, mode, records` | `count, records, triggers` | `records, total` |
+| `/api/triggers/status` | 8 keys | 12 keys, `graphqlUrl`, `ledgerSize` | `enabled, dispatchMode` |
+| `GET /api/dispatch/records/:id` | `{record}` | bare record | bare record |
+| `PATCH` response / WS event | `{success, record}` / `dispatch.record.updated` | bare record / `dispatch-updated` | bare record / `dispatch-updated` |
+| ledger order | oldest first | **newest first** | oldest first |
+
+No runtime is the reference. These shapes are what all three must emit, verified
+3-of-3 (`docs/QUORUM_CONTRACT.md`), and the TypeScript PE conforms to them. Where
+the runtimes used different names, the name was chosen by what consumers read
+(the TS PE, its adapters and `mcp/src/tools.js` read `graphqlEndpoint` and a
+`providerReceipt` object), not by which runtime had it.
+
+**`GET /api/triggers/status`**, every key always present:
+
+| Key | Type | Meaning |
+|---|---|---|
+| `participation` | string | `active` (dispatching), `not-active` (implemented; `TRIGGERS_ENABLED` is off), or `unsupported` (no dispatcher in this runtime). See Participation States. |
+| `enabled` | bool | `TRIGGERS_ENABLED` |
+| `mode` | string | `TRIGGER_DISPATCH_MODE`, default `dry-run` |
+| `graphqlEndpoint` | string | `TRIGGER_GRAPHQL_URL`, default `<localAI base>/graphql` |
+| `records` | int | Current dispatch-ledger size |
+| `envelopesCreated` | int | |
+| `droppedNoGovernance` | int | Merge entry carried no governance |
+| `droppedNoDispatch` | int | Catalog loaded; the machine is absent from it or declares no agent/trigger |
+| `droppedCatalogCold` | int | The machine catalog has **never** loaded, so the drop says nothing about the machine (RealityEngine_LSP#63). Before this, C++ counted these as `droppedNoDispatch`: "this machine has no binding", the opposite of the truth. |
+| `dispatchErrors` | int | |
+| `machineCatalogCold` | bool | `true` until the first successful catalog fetch |
+| `machineCatalogRefreshedAt` | int | Epoch ms of the last successful fetch; `0` = never |
+| `machineCatalogSize` | int | Machines in the catalog |
+
+**`GET /api/dispatch/ledger`** → `{ "enabled", "mode", "records": [...] }`. Records are
+**oldest first**: the ledger is an append log. It is a diagnostic window, not an
+audit trail (§6 Q2): a ring of `TRIGGER_DISPATCH_LEDGER_LIMIT` records, default 256.
+
+**Dispatch record**, every key always present:
+`id, envelopeId, correlationId, status, mode, target, machineId, sequenceIds, ragStatusCode, processStatus, attempts, createdAt, updatedAt, providerReceipt, envelope, error, semantics, replayOf`.
+`ragStatusCode`, `processStatus`, `providerReceipt`, `error` and `replayOf` are `null`
+when there is no value, never `""`. Provider details (`provider`, `adapter`,
+`externalRunId`, ...) live inside `providerReceipt`, not flattened onto the record.
+`replayOf` is the id of the record a replay re-emits, `null` on a primary record.
+
+`semantics` is the record's link to the corpus ABox
+(`RealityEngine_Machines/docs/SEMANTIC_AUDIT_CONTRACT.md`, M5):
+`{ "machineIri", "sequenceIri", "actionCode" }`. It is always an object, with fields
+`null` when there is nothing to link. It was TS-only; the owner extended it to every
+runtime. The derivation is the same everywhere, so the values agree byte for byte:
+
+- **base**: the `abox-manifest.json` entry whose `name` is the machine's name,
+  with its `iri` cut at `#`. `null` when there's no entry.
+- **`machineIri`**: `base + "#machine"`.
+- **`sequenceIri`**: `base + "#seq-" + local`. The sequence is governance's
+  `sequenceId`, or else the only element of `sequenceIds`, or else there isn't
+  one and the field is `null`. `local` is that id with every character outside
+  `[A-Za-z0-9_-]` replaced by `_` (`unnamed` if empty).
+- **`actionCode`**: governance's `actionCode`.
+
+Every record also increments `semantic_dispatch_records_total`, and, when
+joined, `semantic_dispatch_records_iri_joined_total`. C++ and LSP declared both
+counters but never incremented them.
+
+**`GET /api/dispatch/records/:id`** → `{ "record": {...} }`; unknown id → 404
+`{ "error": "Dispatch record not found" }`.
+
+**`PATCH /api/dispatch/records/:id`** accepts `status`, `error`, `clearError`,
+`attempts` or `incrementAttempts`, `providerReceipt` (merged onto the existing one),
+and `provider` / `adapter` / `externalRunId` (folded into `providerReceipt`). Other
+fields are ignored, so the envelope cannot be rewritten. Response
+`{ "success": true, "record": {...} }`. It broadcasts
+`{ "type": "dispatch.record.updated", "dispatchId", "status", "target", "attempts", "timestamp" }`.
+
+**Scala** has no trigger dispatcher yet (RealityEngine_Scala#149). It answers
+`participation: "unsupported"` with every status key present. That is a declared
+state, not silence. Until #149, the record-shape signature cannot reach 3-of-3, and
+the quorum test reports it as not evaluable rather than as agreement.
+
 ### MQTT Bridge
 
 | Method | Path | CPP | LSP | Scala |
