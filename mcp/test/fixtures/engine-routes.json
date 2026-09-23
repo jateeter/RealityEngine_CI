@@ -109,6 +109,7 @@
     "PATCH /api/sources/:id",
     "POST /api/auto/start",
     "POST /api/auto/stop",
+    "POST /api/dispatch/records/:id/replay",
     "POST /api/integrations/acp/dispatch",
     "POST /api/integrations/carekit/ingest",
     "POST /api/integrations/completions",

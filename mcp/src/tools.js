@@ -229,13 +229,6 @@ export const TOOLS = [
       body: { values: a.values },
     }),
   },
-  // trigger.replay is intentionally absent. It advertised
-  // POST /api/triggers/replay/:dispatchId, which no runtime serves — C++,
-  // LSP and Scala all expose only /api/triggers/status. LSP has
-  // replay-dispatch-record implemented but wired to no route. Being a
-  // mutating tool it was refused before dispatch by default, so it never
-  // surfaced as a failure; it would have 404'd against every engine. It comes
-  // back when the engines expose the endpoint — see RealityEngine_CI#100.
   {
     name: 'dispatch.update_record',
     title: 'PE: annotate dispatch delivery metadata',
@@ -261,9 +254,34 @@ export const TOOLS = [
         ...(a.adapter ? { adapter: a.adapter } : {}),
         ...(a.externalRunId ? { externalRunId: a.externalRunId } : {}),
         ...(a.incrementAttempts ? { incrementAttempts: true } : {}),
-        ...(a.receipt ? { receipt: a.receipt } : {}),
+        // providerReceipt, the field every runtime's PATCH merges. This sent
+        // `receipt`, which none of them has ever accepted, so the receipt was
+        // silently dropped (SURFACE_SPEC.md, Dispatch surface shapes).
+        ...(a.receipt ? { providerReceipt: a.receipt } : {}),
         ...(a.error ? { error: a.error } : {}),
       },
+    }),
+  },
+  {
+    // Reinstated (RealityEngine_CI#100). It was removed because it pointed at
+    // POST /api/triggers/replay/:dispatchId, which no runtime served. Every
+    // runtime now serves POST /api/dispatch/records/:id/replay, settled 3-of-3
+    // (SURFACE_SPEC.md, "Dispatch replay"; INTEGRATION_ROADMAP §6 Q6).
+    name: 'trigger.replay',
+    title: 'PE: replay a dispatch record',
+    description:
+      'Re-emit a dispatch record\'s envelope as a new record (mode "replay", replayOf set). Calls no provider and does not touch PE/RE state. freshIds re-mints the envelope and correlation ids.',
+    target: 'pe',
+    mutating: true,
+    input: {
+      instance,
+      id: z.string().describe('dispatchId to replay'),
+      freshIds: z.boolean().optional().describe('Mint new envelope and correlation ids'),
+    },
+    build: (a) => ({
+      method: 'POST',
+      path: `/api/dispatch/records/${encodeURIComponent(a.id)}/replay`,
+      body: a.freshIds ? { freshIds: true } : {},
     }),
   },
   {

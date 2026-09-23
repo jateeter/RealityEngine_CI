@@ -6,7 +6,7 @@
   "manifest": {
     "name": "realityengine",
     "version": "1.1.0",
-    "toolCount": 20
+    "toolCount": 21
   },
   "profiles": {
     "local": {
@@ -43,7 +43,8 @@
             "re.machine_graph",
             "re.perceive",
             "re.read_machine",
-            "re.read_state"
+            "re.read_state",
+            "trigger.replay"
           ],
           "require_approval": {
             "always": {
@@ -56,7 +57,8 @@
                 "pe.enqueue_push",
                 "pe.push_signal",
                 "pe.sensor_push",
-                "re.perceive"
+                "re.perceive",
+                "trigger.replay"
               ]
             },
             "never": {
@@ -112,7 +114,8 @@
             "re.machine_graph",
             "re.perceive",
             "re.read_machine",
-            "re.read_state"
+            "re.read_state",
+            "trigger.replay"
           ],
           "require_approval": {
             "always": {
@@ -125,7 +128,8 @@
                 "pe.enqueue_push",
                 "pe.push_signal",
                 "pe.sensor_push",
-                "re.perceive"
+                "re.perceive",
+                "trigger.replay"
               ]
             },
             "never": {
