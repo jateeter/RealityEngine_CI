@@ -1,13 +1,30 @@
 # Integration Architecture — Roadmap
 
-Last reviewed: 2026-09-17 · Status: **Gap analysis closed** — all 19 rows against `INTEGRATION_ARCHITECTURE.md` are ✅; Phases 0-6 are the delivery record behind them.
+Last reviewed: 2026-09-23 · Status: **Gap analysis closed for the TypeScript PE** — all 19 rows against `INTEGRATION_ARCHITECTURE.md` are ✅; Phases 0-6 are the delivery record behind them. **§6 open questions resolved 2026-09-23**; the dispatch, replay and localAI invoke surfaces now agree 3-of-3 across the native runtimes (see §6).
+
+> **Correction, 2026-09-23.** The status line above said "gap analysis closed"
+> without saying it was measured against the TypeScript PE only. The native
+> runtimes were not in the table, and against them the dispatch surface was far
+> from closed: Scala built no envelopes, the three ledgers had three shapes, no
+> runtime served replay, and the localAI allow-lists disagreed. §6 records how
+> each was settled. As §2's own note says, a stale ✅ is a false statement, not
+> a harmless lag.
+>
+> **No runtime is canonical.** This document says in several places to copy the
+> C++ shape exactly (Phases 0–4, §4 "C++ parity", Appendix A). That is legacy:
+> a wire shape is what all three native runtimes agree on, verified 3-of-3
+> (`docs/QUORUM_CONTRACT.md`), and the TypeScript PE conforms to it. Where the
+> text below says "match C++", read "match the agreed shape in `SURFACE_SPEC.md`".
 
 Companion to [`INTEGRATION_ARCHITECTURE.md`](./INTEGRATION_ARCHITECTURE.md).
 
 This roadmap is scoped to the TypeScript Perception Engine
-under `perception-engine/backend/`, its MCP gateway, the example trigger
-artifacts under `examples/triggers/`, the integration registry example under
-`config/`, and the LangGraph orchestrator under `langgraph-orchestrator/`.
+under `perception-engine/backend/`, its MCP gateway, the trigger artifacts, the
+integration registry example under `config/`, and the LangGraph orchestrator.
+Two of those paths moved: the trigger artifacts live in
+`RealityEngine_Machines/triggers/` (not `examples/triggers/`), and
+`langgraph-orchestrator/` exists only in `RealityEngine_AI`, which is outside the
+focus set (see §6 Q1).
 
 The architecture document enumerates the shared PE integration contract. This
 roadmap started as the `_AI` gap plan; the registry, source mapper, trigger
@@ -97,7 +114,7 @@ Legend: ✅ present · ⚠️ partial/data-only · ❌ missing.
 | **`GET /api/integrations/status`** | ✅ | Reports loaded registry and source mappings. |
 | **`GET /api/triggers/status`** | ✅ | Reports dispatcher counters and replay count. |
 | Env flags `TRIGGERS_ENABLED`, `TRIGGER_DISPATCH_MODE`, `TRIGGER_GRAPHQL_URL` | ✅ | Read at PE startup. |
-| **MCP recommended tools** (`re.read_state`, `re.list_machines`, `re.read_machine`, `pe.list_sources`, `pe.push_signal`, `pe.enqueue_push`, `trigger.replay`, `dispatch.read_ledger`) | ✅ | All eight are registered in `perception-engine/backend/src/mcp.ts` under the spec's own names. Verified 2026-09-15. |
+| **MCP recommended tools** (`re.read_state`, `re.list_machines`, `re.read_machine`, `pe.list_sources`, `pe.push_signal`, `pe.enqueue_push`, `trigger.replay`, `dispatch.read_ledger`) | ✅ | All eight are registered in `perception-engine/backend/src/mcp.ts` under the spec's own names. Verified 2026-09-15. Until 2026-09-23 that was true of the TS PE only: CI's MCP gateway had dropped `trigger.replay` because no native runtime served a replay route (#100). All three now serve `POST /api/dispatch/records/:id/replay` and the gateway tool is back (§6 Q6). |
 | Mutating MCP tool policy gate | ✅ | `checkPolicy` / `loadPolicyFromEnv` / `policyErrorResult` gate every mutating tool under a named capability — `trigger.dispatch`, `sources.write`, `engine.control` — and refuse with a policy error rather than executing. Verified 2026-09-15. |
 | Provider adapters: **OpenAI** | ✅ | Responses/chat-compatible adapter and webhook completion path. |
 | Provider adapters: **Ollama** | ✅ | Native and OpenAI-compatible local adapter. |
@@ -443,6 +460,12 @@ Natural home: the Machine Interconnection view we just landed.
   in `examples/triggers/ai_trigger_envelope.template.json` and run it both
   inside the dispatcher (pre-write to ledger) and in tests against every
   `examples/triggers/ai_trigger.*.example.json` file. Catches drift early.
+  *Done differently, 2026-09-23 (§6 Q3):* the schema is
+  `RealityEngine_Machines/schemas/ai-trigger-envelope.schema.json`, checked by
+  `npm run validate:schemas` and by a live test against every PE
+  (`tests/integration/trigger-envelope-contract.spec.ts`). It is not run inside
+  the dispatcher. It had not caught drift before: the schema it replaced
+  described a document no runtime emitted.
 - **Determinism.** All adapters must be fire-and-record. Add a CI test that
   fails if any adapter awaits an external response inside the PE step
   callback (static check on `PerceptionEngine.on('mergeBatch')` handler graph).
@@ -453,10 +476,10 @@ Natural home: the Machine Interconnection view we just landed.
 - **Security.** Mutating MCP tools, `PATCH /api/dispatch/records/:id`, and
   webhook receivers must share one auth middleware (token or mTLS).
   Document expected dev defaults (currently the dev cert in `certs/`).
-- **C++ parity.** Where the C++ slice already names a field/route, copy the
-  shape exactly (`GET /api/dispatch/ledger`, `PATCH /api/dispatch/records/:id`
-  with the doc-specified deny-list) so the two engines stay drop-in
-  compatible for adapters and ledger readers.
+- **Runtime parity** *(was "C++ parity"; legacy, see the note at the top)*. Shapes
+  are held 3-of-3 across C++, LSP and Scala, and the TS PE conforms. The dispatch
+  ledger, records, PATCH, trigger status, replay and localAI invoke are recorded
+  in `SURFACE_SPEC.md`, and checked live by the Machines quorum tests.
 
 ---
 
@@ -480,30 +503,51 @@ PR #3 (end-to-end envelope round-trip in `dry-run`) and again in PR #4
 
 ---
 
-## 6. Open questions (worth deciding before Phase 4)
+## 6. Design questions — resolved 2026-09-23
 
-1. **Where does LangGraph live in the registry?** New `kind: "langgraph"`
-   or reuse `kind: "mcp"` with `execution: "local"`? Recommendation: new
-   kind, because completion semantics (state-graph runs) differ from
-   tool-call MCP.
-2. **Ledger storage.** In-memory + JSONL is enough for v1; do we want
-   SQLite for cross-restart query? Recommendation: defer to Phase 4d if
-   LangGraph runs need long-horizon correlation.
-3. **Envelope schema versioning.** Today the template carries
-   `schemaVersion: "1.0.0"`. Decide now whether `1.x` is wire-compatible
-   (additive only) — affects how adapters tolerate unknown fields.
-4. **`/api/signals` alias.** *Resolved.* The C++ implementation publicly
-   exposes `POST /api/signals` as the underlying primitive
-   (`ingest_signal()` in `src/perception_engine_server.cpp`). For wire
-   compatibility, `_AI` must do the same — keep the route public, document
-   it alongside `/api/integrations/completions`, and route both through the
-   same `SourceMapper` write path.
+§6 used to list these as "worth deciding before Phase 4". Phase 4 shipped
+without deciding them, so each had been answered by default, by whatever the
+code happened to do. They were taken to the owner, decided, and implemented in
+that order. Q4–Q7 were not in the original list; they surfaced when the
+questions were checked against the running engines rather than re-read.
+
+| # | Question | Decision (owner) | Where it lives now |
+|---|---|---|---|
+| Q3 | Envelope schema versioning | **1.x is additive-only.** Readers ignore unknown fields; a new field is optional and bumps the minor version; removing, renaming or changing a field's meaning is 2.0.0. The runtime shape is canonical 1.0.0, because the old schema described a document no runtime produced (0 of 76 live envelopes validated). | Machines `schemas/ai-trigger-envelope.schema.json`, `triggers/README.md` § Envelope versioning; Machines#168 |
+| Q2 | Dispatch ledger storage | **A diagnostic window**, not an audit trail: a ring of `TRIGGER_DISPATCH_LEDGER_LIMIT` records, default 256, in all four runtimes. It was 256 in C++ and 100 in LSP and Scala, and TS ignored the variable. Durability is deferred to #287. `DISPATCH_LEDGER_FILE` is a TS-only development aid. | CPP#129, LSP#134, Scala#150, Manager#190 |
+| Q5 | Canonical wire shape for the dispatch routes | **3-of-3, no reference runtime.** Status keys include the catalog-cold diagnostics promoted from LSP#63, plus `participation`. The record is 18 keys: `providerReceipt`, `error`, `semantics` and `replayOf` are always present. `semantics` was extended from the TS PE to every runtime. PATCH semantics are agreed, and the ledger is served oldest first. | `SURFACE_SPEC.md` → *Dispatch surface shapes*; #447, CPP#130, LSP#135, Scala#151, Manager#191; quorum test Machines#169 |
+| Q1 | Where LangGraph lives in the integration registry | **No `langgraph` kind.** LangGraph is localAIStack's `graph_schema`, `graph_rag` and `graph_agent` operations of kind `localai`. An envelope for a kind with no adapter is now recorded `undeliverable`, where the TS PE used to drop it silently. | `SURFACE_SPEC.md` → *localAI invoke contract*; #448, Manager#192 |
+| Q7 | What a localAI invocation may reach (#445) | **A curated allow-list with a drift check.** `allowedOperations` on the `localai` integration is one policy that all runtimes read. Matching is exact on `(method, path)`, and nothing is allowed by default. `scripts/check-localai-operations.py` fails when a listed operation is no longer served. The catalog and invoke request/response are agreed 3-of-3. | `SURFACE_SPEC.md` → *localAI invoke contract*; #448, CPP#131, LSP#136, Scala#152; quorum test Machines#170 |
+| Q4 | Is Scala a trigger-dispatch runtime? | **In scope.** Scala now builds envelopes and dispatch records, and follows the ACP status/dispatch contract. It had declared `participation: "unsupported"` until then. | Scala#154 (closes Scala#149), Machines#171 |
+| Q6 | `trigger.replay` | **Adopt the route.** `POST /api/dispatch/records/:id/replay` is served by all three runtimes and the TS PE, with `replaysCreated` on status, and the MCP gateway tool is reinstated (#100). | `SURFACE_SPEC.md` → *Dispatch replay*; CPP#132, LSP#138, Scala#155, Manager#193, #450; Machines#172 |
+| — | `/api/signals` alias | *Resolved before 2026-09-23*: public, as C++ exposes it. | — |
+
+### Found along the way, not in the original list
+
+- **A regression, found and fixed.** LSP's ACP handoff stopped reaching
+  `providerReceipt` after the Q5 PATCH semantics landed; LSP#137 fixed it.
+- **`scripts/test-openclaw-integration.sh` could never pass on any native
+  runtime.** Its record finder matched the scalar `sequenceId`, which no runtime
+  has emitted since #327. Fixed in #449.
+- **The MCP gateway's `dispatch.update_record` sent its receipt as `receipt`**,
+  a field no runtime accepted, so every receipt was silently dropped. Fixed in
+  #450.
+- **Open:**
+  - RealityEngine_Scala#153: completion ingest leaves a lasting sensor source
+    over the machine's input region and does not preserve correlation fields, so
+    Scala passes the OpenClaw gate once and then fails.
+  - `POST /api/push`: C++ adds a top-level `dispatch` summary block to its
+    response; LSP and Scala don't.
+  - `GET /api/integrations/localai/status`: its shape has not been brought into
+    agreement.
 
 ---
 
 ## Appendix A — C++ integration route table (authoritative cross-reference)
 
 Sourced verbatim from `RealityEngine_CPP/src/perception_engine_server.cpp`.
+*Historical:* C++ is not the authority for these shapes. The agreed shapes live
+in `SURFACE_SPEC.md` (see the note at the top).
 Each TS route delivered by this roadmap **must match the method, path,
 request body keys, and response keys below** for `_AI` and `_CPP` to be
 drop-in interchangeable from an adapter's point of view.
