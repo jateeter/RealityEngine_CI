@@ -108,9 +108,18 @@ def _literal(token: str):
     return token
 
 
-def read_registry(url: str) -> list[dict]:
-    with request.urlopen(url, timeout=30) as response:
-        return json.loads(response.read().decode("utf-8")).get("instances", [])
+def read_registry(source: str) -> list[dict]:
+    """The instance registry, from a URL or a path.
+
+    The regression stage passes the file the universe wrote
+    (/tmp/re-registry/re-registry.json); urlopen alone rejected it as
+    "unknown url type" and the stage failed without comparing anything.
+    Same reader as regression-machine-set-parity.py.
+    """
+    if source.startswith(("http://", "https://")):
+        with request.urlopen(source, timeout=30) as response:
+            return json.loads(response.read().decode("utf-8")).get("instances", [])
+    return json.loads(Path(source).read_text(encoding="utf-8")).get("instances", [])
 
 
 def read_config(base: str) -> tuple[dict | None, str | None]:
