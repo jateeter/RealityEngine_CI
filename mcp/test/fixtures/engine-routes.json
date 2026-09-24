@@ -114,6 +114,8 @@
     "POST /api/integrations/carekit/ingest",
     "POST /api/integrations/completions",
     "POST /api/integrations/healthkit/ingest",
+    "POST /api/integrations/healthkit/resync",
+    "POST /api/integrations/healthkit/scope",
     "POST /api/integrations/localai/bootstrap",
     "POST /api/integrations/localai/invoke",
     "POST /api/integrations/ollama/dispatch",
