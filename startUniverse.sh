@@ -2651,6 +2651,23 @@ print(f'machines_evaluated={n}, non-zero_perceptual_elements={nz}')
               "import json,sys; d=json.load(sys.stdin); exit(0 if d.get('ok') or d.get('id') or d.get('success') or d.get('updated') else 1)" \
               2>/dev/null; then
               ok "Sensor write [${_sm_first_id}]: accepted"
+              # Undo it. A sensor write activates the source, and this one is
+              # localAI's, in localAI's band, on one engine only: left active,
+              # it put [2, 0.85, 0, 0] into ${_sm_first_id}'s perception and
+              # nobody else's until its TTL lapsed, and trajectory parity
+              # reported that as an engine divergence at cell 7440 (regression
+              # run 20260924T172724Z). The smoke only asks whether a write is
+              # accepted; it must not leave the value behind.
+              _sm_src_id=$(curl -sf --max-time 5 "$_sm_pe_url/api/sources" 2>/dev/null | python3 -c \
+                  "import json,sys; d=json.load(sys.stdin); d=d if isinstance(d,list) else d.get('sources',[]); print(next((s['id'] for s in d if s.get('sensorId')=='localai_rag_retrieval'), ''))" \
+                  2>/dev/null || echo "")
+              if [ -n "$_sm_src_id" ] && curl -sf --max-time 5 -X PATCH "$_sm_pe_url/api/sources/$_sm_src_id" \
+                  -H "Content-Type: application/json" -d '{"active": false}' >/dev/null 2>&1; then
+                  ok "Sensor write [${_sm_first_id}]: source restored to inactive"
+              else
+                  add_warn "${_sm_first_id} sensor smoke-test left localai_rag_retrieval active"
+                  warn "Sensor write [${_sm_first_id}]: could not restore the source to inactive"
+              fi
           elif [ -n "$SENSOR_WRITE" ]; then
               add_warn "Sensor write unexpected response"
               warn "Sensor write [${_sm_first_id}]: $(echo "$SENSOR_WRITE" | head -c 120)"
