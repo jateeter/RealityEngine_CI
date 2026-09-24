@@ -361,6 +361,18 @@ machine-specific parity result can be trusted.
 `regression-trajectory-parity.py` shares the source-equalisation exposure — it
 seeds one source without checking the others match.
 
+## Regression run history is bounded: two runs
+
+`regression-test.sh` keeps the **2** most recent run directories under
+`.regression-tests/runs/`, the current run included, and removes older ones with
+their git worktrees and `Regression-Test-*` branches in every member repo. Each
+run holds full worktrees and builds (1.6-3.9 GiB). Unbounded, they filled the
+disk twice on 2026-09-24 and put Docker's containerd store into I/O errors and
+then read-only. The previous run survives by construction: it is the
+comparison baseline. Pruning runs after the Docker preflight has stopped the
+old universe, so nothing still mounts what is removed. Change it with
+`--keep-runs N` or `REGRESSION_KEEP_RUNS`; `0` keeps everything.
+
 ## Standing rules — authoritative in `../docs/ENGINEERING_CONTRACT.md`
 
 These apply here and are **not** restated in this file. They were previously

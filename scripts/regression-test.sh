@@ -9,6 +9,10 @@ CI_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 WS="$(cd "$CI_DIR/.." && pwd)"
 RUN_ID="$(date -u +%Y%m%dT%H%M%SZ)"
 HISTORY_DIR="$CI_DIR/.regression-tests"
+# Run directories kept, this run included. Each run holds full worktrees of
+# every member repo and their builds (1.6-3.9 GiB); unbounded, they filled the
+# disk twice on 2026-09-24 and took Docker's containerd store down with it.
+KEEP_RUNS="${REGRESSION_KEEP_RUNS:-2}"
 RUN_DIR=""
 BRANCH_NAME="Regression-Test"
 EXECUTE=false
@@ -140,6 +144,9 @@ Options:
   --branch NAME             Regression branch name for run-local worktrees.
   --history-dir DIR         Run-history root. Default: .regression-tests
   --run-id ID               Override generated run id.
+  --keep-runs N             Run directories kept, this run included; older runs
+                            are removed with their worktrees and branches.
+                            Default: 2 (env REGRESSION_KEEP_RUNS). 0 keeps all.
   --no-cold-start           Do not create run-local worktrees.
   --skip-build              Skip full build phase.
   --skip-start              Skip universe start phase; use current deployment.
@@ -189,6 +196,8 @@ while [ $# -gt 0 ]; do
     --branch) BRANCH_NAME="$2"; shift 2 ;;
     --history-dir=*) HISTORY_DIR="${1#*=}"; shift ;;
     --history-dir) HISTORY_DIR="$2"; shift 2 ;;
+    --keep-runs=*) KEEP_RUNS="${1#*=}"; shift ;;
+    --keep-runs) KEEP_RUNS="$2"; shift 2 ;;
     --run-id=*) RUN_ID="${1#*=}"; shift ;;
     --run-id) RUN_ID="$2"; shift 2 ;;
     --no-cold-start) COLD_START=false; RUN_SHAPING+=("$1"); shift ;;
@@ -875,6 +884,46 @@ prepare_docker() {
     exit 1
   fi
   log "Lane ports are clear"
+}
+
+# Keep the newest KEEP_RUNS run directories, this run included; remove the rest
+# with their git worktrees and Regression-Test-* branches, so nothing dangles in
+# any member repo. Runs after prepare_docker: the previous universe (started from
+# an older run's worktrees) has been stopped, so nothing still mounts what is
+# removed. The previous run survives by construction when KEEP_RUNS >= 2 — it is
+# the comparison baseline (regression-comparison.json, previousRunId).
+prune_run_history() {
+  [ "$KEEP_RUNS" -gt 0 ] 2>/dev/null || { log "Run history: keeping all runs (--keep-runs 0)"; return 0; }
+  local runs_dir="$HISTORY_DIR/runs"
+  [ -d "$runs_dir" ] || return 0
+  local -a runs=()
+  local r
+  while IFS= read -r r; do runs+=("$r"); done < <(ls -1 "$runs_dir" | grep -v "^$RUN_ID\$" | sort -r)
+  # This run counts toward KEEP_RUNS even though its directory is being created now.
+  local keep_old=$(( KEEP_RUNS - 1 )) i=0 removed=0
+  for r in "${runs[@]}"; do
+    i=$(( i + 1 ))
+    [ "$i" -le "$keep_old" ] && continue
+    local dir="$runs_dir/$r" wt common repo br
+    if [ -d "$dir/worktrees" ]; then
+      for wt in "$dir"/worktrees/*/; do
+        [ -d "$wt" ] || continue
+        wt="$(cd "$wt" && pwd)"
+        common="$(git -C "$wt" rev-parse --git-common-dir 2>/dev/null)" || continue
+        repo="$(cd "$wt" && cd "$common/.." && pwd)"
+        br="$(git -C "$wt" branch --show-current 2>/dev/null || true)"
+        git -C "$repo" worktree remove --force "$wt" >/dev/null 2>&1 || true
+        case "$br" in Regression-Test*) git -C "$repo" branch -D "$br" >/dev/null 2>&1 || true ;; esac
+        git -C "$repo" worktree prune >/dev/null 2>&1 || true
+      done
+    fi
+    if rm -rf "$dir" 2>/dev/null; then
+      removed=$(( removed + 1 ))
+    else
+      log "Run history: could not fully remove $r (a mount may still hold part of it)"
+    fi
+  done
+  log "Run history: kept $(( ${#runs[@]} < keep_old ? ${#runs[@]} : keep_old )) previous run(s) + this one; removed $removed (--keep-runs $KEEP_RUNS)"
 }
 
 create_worktrees() {
@@ -2092,6 +2141,7 @@ fi
 prepare_history
 # Before any worktree or build: the build phase itself needs the daemon.
 prepare_docker
+prune_run_history
 create_worktrees
 build_repos
 if [ "$LIVE_TESTS" = true ]; then
