@@ -644,7 +644,7 @@ else
     dim=$(python3 -c "
 import json,sys
 d=json.loads(sys.stdin.read())
-print(d.get('dimensionality',d.get('totalDimension','?')))
+print(len((d.get('state') or {}).get('perceptualSpace') or []) or '?')
 " <<< "$state_resp" 2>/dev/null || echo "?")
     ENGINE_DIMS+=("$dim")
     info "  [$id] perceptual dimensionality: $dim"

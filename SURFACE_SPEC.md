@@ -2407,6 +2407,43 @@ returned `RealityEvent.toJson` — carrying `isActive`, `matchCount` and the res
 equivalence, and a POST followed by a search found the document on C++ and LSP
 and never on Scala.
 
+### Perceptual simulation state
+
+#### `GET /api/perceptual-simulation/state`
+
+```json
+{
+  "state": {
+    "perceptualSpace": [0, 0, 1, 0],
+    "currentStep": 0,
+    "isRunning": false,
+    "machines": [ { "id": "...", "name": "...", "...": "as GET /api/machines" } ]
+  }
+}
+```
+
+- **The payload is nested under `state`.** Consumers read
+  `state.perceptualSpace`. The owner ruled C++ and Scala's shape correct
+  (RealityEngine_CI#453). LSP returned `{running, dimension, perceptualSpace}`
+  flat until RealityEngine_LSP#140, so every consumer reading
+  `state.perceptualSpace` (localAIStack's health readers among them) saw
+  nothing from it.
+- `perceptualSpace`: the full vector, length equal to the engine's current
+  dimension.
+- `currentStep`: integer, the number of `POST /api/perceptual-simulation/step`
+  calls since the last reset. Pushes (`POST /api/perceive`) do not advance it.
+- `isRunning`: boolean, set by `start`, cleared by `stop` and `reset`.
+- `machines`: every loaded machine, in canonical order, each serialised exactly
+  as `GET /api/machines` serialises it.
+- Scala additionally emits a top-level `"success": true`. That is additive and
+  permitted; a consumer must not depend on it, because C++ and LSP do not emit
+  it.
+
+Held 3-of-3 by
+`RealityEngine_Machines/tests/integration/perceptual-simulation-state-quorum.spec.ts`.
+The behaviour behind `currentStep` (what a step does with a configured input
+sequence) still diverges on LSP: RealityEngine_LSP#141.
+
 ### HealthKit Integration
 
 #### `GET /api/integrations/healthkit/status`
