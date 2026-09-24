@@ -1932,9 +1932,16 @@ run_healthkit_bridge() {
   # "deliver failed unauthorized" and the script reports only as
   # "expected >=3 healthkit sensors, saw 0" — a real auth failure that reads
   # like the bridge never ran.
+  #
+  # The token file is the one the universe was started from: on a cold start
+  # that is the run worktree's, generated fresh for the run, not $CI_DIR's.
+  # Reading $CI_DIR sent a different token to every cold-start universe and
+  # failed this stage exactly as described above (run 20260924T165353Z).
   local token="${HEALTHKIT_BRIDGE_TOKEN:-}"
-  if [ -z "$token" ] && [ -s "$CI_DIR/config/.healthkit-bridge-token" ]; then
-    token="$(cat "$CI_DIR/config/.healthkit-bridge-token")"
+  local token_file
+  token_file="$(repo_root RealityEngine_CI)/config/.healthkit-bridge-token"
+  if [ -z "$token" ] && [ -s "$token_file" ]; then
+    token="$(cat "$token_file")"
   fi
   if [ -z "$token" ]; then
     # --no-healthkit-token is a legitimate configuration; the PE then accepts
