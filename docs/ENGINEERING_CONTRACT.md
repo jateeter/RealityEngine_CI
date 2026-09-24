@@ -294,6 +294,42 @@ inventory stops meaning anything.
 
 ---
 
+## MUST: shell work runs in bash — `/opt/homebrew/bin/bash`, not zsh
+
+**Shell work runs in bash 5 from Homebrew, `/opt/homebrew/bin/bash`.** Not the
+interactive default zsh, and not macOS `/bin/bash`, which is 3.2 from 2007 (no
+associative arrays, no `mapfile`, no `${var^^}`).
+
+A command runner or agent tool that starts in zsh does not satisfy this by
+default. Route the work through bash explicitly:
+
+- **Any command with a loop, an unquoted variable, a glob, or `set --`** goes
+  through `/opt/homebrew/bin/bash` — a heredoc (`/opt/homebrew/bin/bash <<'EOF'
+  … EOF`) or a script file — with `set -euo pipefail`. A single plain command
+  may run as it is.
+- Quote globs regardless of shell; pass flag lists as arrays (`"${flags[@]}"`).
+- **Check the exit status of the command you care about, not the tail of a
+  pipeline.** `echo "exit=$?"` after a pipe reports the last stage, and
+  `pgrep -f "<pattern>"` matches the watcher's own command line.
+
+### Why
+
+zsh differs from bash exactly where scripts are fragile, and the failures are
+mostly *silent wrong answers*, not errors:
+
+- An unquoted `$var` does not word-split: `c++ $CXXFLAGS file.cpp` passed every
+  flag as one argument, so a "fast compile" measurement timed a failed
+  invocation; `for i in $ids; do curl …/$i` sent the whole list as one malformed
+  URL, so a cleanup removed nothing.
+- `set -- $spec` does not split: a background wait on PR checks polled with empty
+  arguments and never finished.
+- An unmatched glob is fatal (`grep --include=*.py`, `ls dir/*.py`), and
+  `echo ====` is `=cmd` expansion.
+
+Every one of these happened in this workspace, several after the rule had
+already been written down in an agent memory — which is why it is a contract
+rule now rather than a note.
+
 ## Amending this file
 
 Change it here, in a branch, through a PR, like anything else. Do not copy a
