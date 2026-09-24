@@ -2651,22 +2651,40 @@ print(f'machines_evaluated={n}, non-zero_perceptual_elements={nz}')
               "import json,sys; d=json.load(sys.stdin); exit(0 if d.get('ok') or d.get('id') or d.get('success') or d.get('updated') else 1)" \
               2>/dev/null; then
               ok "Sensor write [${_sm_first_id}]: accepted"
-              # Undo it. A sensor write activates the source, and this one is
-              # localAI's, in localAI's band, on one engine only: left active,
-              # it put [2, 0.85, 0, 0] into ${_sm_first_id}'s perception and
-              # nobody else's until its TTL lapsed, and trajectory parity
-              # reported that as an engine divergence at cell 7440 (regression
-              # run 20260924T172724Z). The smoke only asks whether a write is
-              # accepted; it must not leave the value behind.
-              _sm_src_id=$(curl -sf --max-time 5 "$_sm_pe_url/api/sources" 2>/dev/null | python3 -c \
-                  "import json,sys; d=json.load(sys.stdin); d=d if isinstance(d,list) else d.get('sources',[]); print(next((s['id'] for s in d if s.get('sensorId')=='localai_rag_retrieval'), ''))" \
-                  2>/dev/null || echo "")
-              if [ -n "$_sm_src_id" ] && curl -sf --max-time 5 -X PATCH "$_sm_pe_url/api/sources/$_sm_src_id" \
-                  -H "Content-Type: application/json" -d '{"active": false}' >/dev/null 2>&1; then
-                  ok "Sensor write [${_sm_first_id}]: source restored to inactive"
+              # Undo it, value included. The source is localAI's, in localAI's
+              # band, on one engine only. Switching it off is not enough: the
+              # reset contract recomputes activity from the rules, and a
+              # sensor whose value arrived is active, so every later reset
+              # re-activated [2, 0.85, 0, 0] on ${_sm_first_id} alone and
+              # trajectory parity reported it as an engine divergence at cell
+              # 7440 (runs 20260924T172724Z, 20260924T175910Z). Delete the
+              # source and re-declare it exactly as localAI declared it, with
+              # no value: the smoke asks whether a write is accepted and must
+              # leave no trace.
+              if _SM_RESTORE_OUT=$(_sm_pe_url="$_sm_pe_url" python3 - <<'PY' 2>&1
+import json, os, urllib.request
+pe = os.environ["_sm_pe_url"]
+def call(method, path, body=None):
+    req = urllib.request.Request(pe + path, method=method,
+                                 data=json.dumps(body).encode() if body is not None else None,
+                                 headers={"Content-Type": "application/json"})
+    with urllib.request.urlopen(req, timeout=5) as r:
+        raw = r.read()
+        return json.loads(raw) if raw else {}
+raw = call("GET", "/api/sources")
+sources = raw if isinstance(raw, list) else raw.get("sources", [])
+src = next(s for s in sources if s.get("sensorId") == "localai_rag_retrieval")
+call("DELETE", f"/api/sources/{src['id']}")
+keep = ("type", "name", "region", "sensorId", "ttlMs")
+call("POST", "/api/sources", {**{k: src[k] for k in keep if k in src},
+                               "active": False, "lastValue": [], "lastUpdated": None})
+print("restored")
+PY
+              ); then
+                  ok "Sensor write [${_sm_first_id}]: source re-declared without the smoke value"
               else
-                  add_warn "${_sm_first_id} sensor smoke-test left localai_rag_retrieval active"
-                  warn "Sensor write [${_sm_first_id}]: could not restore the source to inactive"
+                  add_warn "${_sm_first_id} sensor smoke-test left its value on localai_rag_retrieval"
+                  warn "Sensor write [${_sm_first_id}]: could not restore the source: $(echo "$_SM_RESTORE_OUT" | tail -1 | head -c 120)"
               fi
           elif [ -n "$SENSOR_WRITE" ]; then
               add_warn "Sensor write unexpected response"
