@@ -28,14 +28,14 @@
  * Defaults are:
  *   src/generated/machines/                                  (TS)
  *   ../RealityEngine_CPP/include/reality/generated/          (C++)
- *   scala/src/main/scala/com/realityengine/generated/        (Scala)
+ *   ../RealityEngine_Scala/src/main/scala/com/realityengine/generated/  (Scala)
  *
- * **A target whose root does not exist is skipped.** Only the C++ tree exists
- * in this repository — `src/generated/` is neither present nor tracked and
- * nothing imports it, and there is no `scala/` here either; the sibling
- * RealityEngine_Scala repo is not this path. These defaults describe the
- * retired single-repo AI layout, along with the `examples/machines` source
- * above, which MACHINES_DIR has long since replaced.
+ * **A target whose root does not exist is skipped.** `src/generated/` is
+ * neither present nor tracked here and nothing imports it, so TS is skipped
+ * unless --out-ts asks for it. C++ and Scala write into their sibling engine
+ * repos, and are skipped only when that sibling is not checked out. The TS
+ * default and the `examples/machines` source above describe the retired
+ * single-repo AI layout, which MACHINES_DIR has long since replaced.
  *
  * Passing --out-ts DIR opts back in explicitly and creates the directory.
  */
@@ -88,7 +88,7 @@ function parseArgs(argv) {
   }
   args.outTs    ??= path.join(ROOT, 'src', 'generated', 'machines');
   args.outCpp   ??= path.resolve(ROOT, '..', 'RealityEngine_CPP', 'include', 'reality', 'generated');
-  args.outScala ??= path.join(ROOT, 'scala', 'src', 'main', 'scala', 'com', 'realityengine', 'generated');
+  args.outScala ??= path.resolve(ROOT, '..', 'RealityEngine_Scala', 'src', 'main', 'scala', 'com', 'realityengine', 'generated');
   return args;
 }
 
@@ -435,7 +435,14 @@ function main() {
   // there is not. `--out-ts DIR` still opts a caller back in, and the directory
   // is created on write as before.
   const wantTs    = args.outTsExplicit || fs.existsSync(args.outTs);
-  const wantScala = fs.existsSync(path.join(ROOT, 'scala'));
+  //
+  // The Scala test used to be `fs.existsSync(path.join(ROOT, 'scala'))` — the
+  // retired single-repo layout, which never exists here — and ignored
+  // --out-scala entirely. So the sibling RealityEngine_Scala bindings were
+  // never generated or checked: on 2026-09-25 they were 355 files behind (319
+  // machines missing, 36 stale) while `--all --check` reported 1328 verified.
+  // Test the output root itself, the same rule as the other two languages.
+  const wantScala = fs.existsSync(args.outScala);
 
   for (const spec of specs) {
     if (wantTs) ok = writeIfChanged(path.join(args.outTs, `${spec.slug}.ts`), emitTs(spec), args) && ok;
@@ -461,7 +468,7 @@ function main() {
                         emitCppIndex(listOnDiskSpecs(args.outCpp, '.hpp')), args) && ok;
     if (wantScala) {
       ok = writeIfChanged(path.join(args.outScala, 'Machines.scala'),
-                          emitScalaIndex(listOnDiskSpecs(args.outScala, '.scala')), args) && ok;
+                          emitScalaIndex(listOnDiskSpecs(args.outScala, '.scala', 'Machines.scala')), args) && ok;
     }
   }
 
@@ -484,9 +491,11 @@ function main() {
 // index.hpp against an empty one and reported drift that did not exist. Write
 // mode masked it: writing the TS files created the directory before the index
 // read it, so `--all` passed and only `--check` failed (RealityEngine_CI#352).
-function listOnDiskSpecs(outDir, ext) {
+// `indexName` is the aggregate each language writes beside its modules. Scala's
+// is `Machines.scala`, not `index.scala`; treating it as a machine throws on the
+// lookup below. Latent until 2026-09-25, because Scala was never reached.
+function listOnDiskSpecs(outDir, ext, indexName = `index${ext}`) {
   if (!fs.existsSync(outDir)) return [];
-  const indexName = `index${ext}`;
   const slugs = fs.readdirSync(outDir)
     .filter(f => f.endsWith(ext) && f !== indexName)
     .map(f => f.slice(0, -ext.length))

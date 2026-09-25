@@ -3,7 +3,7 @@ info:
   title: RealityEngine Manager API (external)
   version: 1.1.0
   description: Generated from SURFACE_SPEC.md — do not edit by hand.
-  x-generated-from: /Users/johnt/workspace/GitHub/RealityEngine_CI/SURFACE_SPEC.md
+  x-generated-from: RealityEngine_CI/SURFACE_SPEC.md
 servers: []
 tags:
 - name: Configuration

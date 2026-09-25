@@ -801,7 +801,11 @@ def assemble(surface: str, routes: list[tuple[str, str, str]],
             "description": overlay.get("info", {}).get(
                 "description",
                 f"Generated from {Path(spec_path).name} — do not edit by hand."),
-            "x-generated-from": str(Path(spec_path).resolve()),
+            # Repo-qualified, never absolute. An absolute path made the output
+            # a function of the checkout location: every regeneration from a
+            # worktree or a CI runner rewrote this line in all fifteen
+            # documents, and committed a developer's home directory into them.
+            "x-generated-from": "/".join(Path(spec_path).resolve().parts[-2:]),
         },
         "servers": overlay.get("servers", []),
         "tags": [{"name": t} for t in tags],
