@@ -69,12 +69,12 @@ echo "release-manifest generate"
 
 # A green run pins cleanly.
 make_run "$TMP/green" "completed" "$SHA_A" "$SHA_A"
-OUT="$(python3 "$TOOL" generate --run-dir "$TMP/green" --version v9.9.9 --out "$TMP/green.json" 2>&1)"
+OUT="$(python3 "$TOOL" generate --run-dir "$TMP/green" --version release-v9.9.9 --out "$TMP/green.json" 2>&1)"
 assert_contains "$OUT" "2 repos pinned" "green run pins every repo"
 assert_eq "$(python3 -c "import json;print(json.load(open('$TMP/green.json'))['repos'][0]['sha'])")" \
           "$SHA_A" "pins the commit the build used"
 assert_eq "$(python3 -c "import json;print(json.load(open('$TMP/green.json'))['version'])")" \
-          "v9.9.9" "records the release version"
+          "release-v9.9.9" "records the release version"
 assert_eq "$(python3 -c "import json;print('provisional' in json.load(open('$TMP/green.json')))")" \
           "False" "a green manifest is not marked provisional"
 
@@ -82,10 +82,36 @@ assert_eq "$(python3 -c "import json;print('provisional' in json.load(open('$TMP
 assert_eq "$(python3 -c "import json;print(json.load(open('$TMP/green.json'))['certifiedBy']['stages']['mcp-smoke'])")" \
           "failed" "reads per-stage status from the reports"
 
+# D1: application releases are tagged release-vN.M.Z. A component-style vN.M.Z
+# (localHealthkitBridge carries its own v0.1.0) is refused at generation, and
+# `untagged`, the placeholder every regression run uses, is accepted.
+set +e
+OUT="$(python3 "$TOOL" generate --run-dir "$TMP/green" --version v9.9.9 --out "$TMP/semver.json" 2>&1)"
+CODE=$?
+set -e
+assert_eq "$CODE" "2" "refuses a component-style vN.M.Z version"
+assert_contains "$OUT" "release-vN.M.Z" "names the required form"
+assert_eq "$([ -f "$TMP/semver.json" ] && echo exists || echo absent)" "absent" \
+          "writes nothing for a refused version"
+OUT="$(python3 "$TOOL" generate --run-dir "$TMP/green" --version release-v9.9.9-rc2 --out "$TMP/rc.json" 2>&1)"
+assert_contains "$OUT" "repos pinned" "accepts a release candidate, release-vN.M.Z-rcN"
+OUT="$(python3 "$TOOL" generate --run-dir "$TMP/green" --version untagged --out "$TMP/untagged.json" 2>&1)"
+assert_contains "$OUT" "repos pinned" "accepts 'untagged', the regression run's placeholder"
+
+# ...and cut-release.sh refuses a manifest whose version is not an application
+# tag before it looks at, let alone tags, any repository.
+set +e
+OUT="$(bash "$CI_DIR/scripts/cut-release.sh" --manifest "$TMP/untagged.json" 2>&1)"
+CODE=$?
+set -e
+assert_eq "$([ "$CODE" -ne 0 ] && echo refused || echo accepted)" "refused" \
+          "cut-release refuses an untagged manifest"
+assert_contains "$OUT" "not an application release tag" "cut-release says why"
+
 # A failed run is refused rather than pinned silently.
 make_run "$TMP/red" "failed" "$SHA_A" "$SHA_A"
 set +e
-OUT="$(python3 "$TOOL" generate --run-dir "$TMP/red" --version v9.9.9 --out "$TMP/red.json" 2>&1)"
+OUT="$(python3 "$TOOL" generate --run-dir "$TMP/red" --version release-v9.9.9 --out "$TMP/red.json" 2>&1)"
 CODE=$?
 set -e
 assert_eq "$CODE" "2" "refuses to pin from a failed run"
@@ -94,14 +120,14 @@ assert_eq "$([ -f "$TMP/red.json" ] && echo exists || echo absent)" "absent" \
           "writes nothing when it refuses"
 
 # The override is explicit and self-documenting.
-OUT="$(python3 "$TOOL" generate --run-dir "$TMP/red" --version v9.9.9 --out "$TMP/red.json" --allow-unverified 2>&1)"
+OUT="$(python3 "$TOOL" generate --run-dir "$TMP/red" --version release-v9.9.9 --out "$TMP/red.json" --allow-unverified 2>&1)"
 assert_contains "$OUT" "provisional" "override announces the manifest is provisional"
 assert_contains "$(cat "$TMP/red.json")" "\"provisional\"" "records the override in the manifest"
 
 # Building something other than the branch tip must be visible, not averaged away.
 make_run "$TMP/drifted" "completed" "$SHA_A" "cccccccccccccccccccccccccccccccccccccccc"
 set +e
-OUT="$(python3 "$TOOL" generate --run-dir "$TMP/drifted" --version v9.9.9 --out "$TMP/d.json" 2>&1)"
+OUT="$(python3 "$TOOL" generate --run-dir "$TMP/drifted" --version release-v9.9.9 --out "$TMP/d.json" 2>&1)"
 CODE=$?
 set -e
 assert_eq "$CODE" "2" "refuses when the build and the branch tip disagree"
@@ -110,7 +136,7 @@ assert_contains "$OUT" "but origin/main was" "names the disagreement"
 # A status the harness never emits is uncertified, not assumed good.
 make_run "$TMP/odd" "passed" "$SHA_A" "$SHA_A"
 set +e
-OUT="$(python3 "$TOOL" generate --run-dir "$TMP/odd" --version v9.9.9 --out "$TMP/odd.json" 2>&1)"
+OUT="$(python3 "$TOOL" generate --run-dir "$TMP/odd" --version release-v9.9.9 --out "$TMP/odd.json" 2>&1)"
 CODE=$?
 set -e
 assert_eq "$CODE" "2" "an unrecognised run status is refused, not guessed"

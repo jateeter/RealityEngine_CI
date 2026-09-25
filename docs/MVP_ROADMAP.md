@@ -15,7 +15,7 @@ released, and is the place to record gate status as it changes.
 |---|---|---|
 | **G1** | Certification runs and passes on every merge to main | **REGRESSED**. The nightly has been red for 15 nights, 2026-09-11 through 2026-09-25; last green 2026-09-10 (`cac03f01`). Two of the four failing stages share one cause, fixed after the last run; two are open engine disagreements. See *G1 status, 2026-09-25* |
 | **G2** | Versions pinned across repos, reproducibly | **Tooling done; the pin is stale.** `releases/v0.1.0-rc1.json` is from 2026-08-09, covers 8 repos, and predates G4. A run now builds, and so pins, **10**. Re-pin from a green run (release step 7) |
-| **G3** | Release documentation and process | **Done, with one open decision.** `RELEASE.md` and `scripts/cut-release.sh` work. The application tag name collides with `localHealthkitBridge`'s own `v0.1.0` (decision D1) |
+| **G3** | Release documentation and process | **Done.** `RELEASE.md` and `scripts/cut-release.sh`; D1 decided 2026-09-25: application releases are tagged **`release-vN.M.Z`**, enforced by both tools |
 | **G4** | MVP scope: PIM and HealthKit bridge | **Decided**: both in; the SCS POD is authoritative. The mirror seam is still unspecified and **untracked** (decision D2) |
 
 **Release assets are current** as of 2026-09-25: the corpus, oracles, cesgen
@@ -35,30 +35,26 @@ done when that proof exists, not when the work behind it merges.
 | 1 | **Clear the nightly (G1).** Resolve #464 (cpp `wasJustMatched`) and #463 (scala omits MQTT sources at registration). Confirm the empty-MCP-URL fix (#462) clears `service-inventory` and `mcp` | a **scheduled** `regression-tests.yml` run concludes `success`, recorded here by run id and date | open |
 | 2 | **Clear the local lane.** `bash scripts/regression-test.sh --execute --profile local`. The hosted lane does not cover Ollama, OpenClaw, the full corpus or the HealthKit bridge (`RELEASE.md`), so this is the only proof of them | every stage passes, including `openclaw-integration-*` on all three runtimes and `healthkit-bridge` | open: the last run (2026-09-24, `20260924T215111Z`) failed only `openclaw-integration-scala-1` |
 | 3 | **Weekly full-corpus cycle green on schedule.** `full-corpus-cycle.yml`: 1,328 machines validated, loaded identically by all three runtimes, and the 1,323-spec agent corpus rebuilt and matched | a **scheduled** run concludes `success` | branch dispatch green 2026-09-25 (run 36180913113, the first fully green run); first scheduled run is Sunday 2026-09-27 |
-| 4 | **Decide the release tag (D1)** | the decision is recorded here and in `RELEASE.md` *Tag conventions* | **needs a decision** |
+| 4 | **Decide the release tag (D1)** | the decision is recorded here and in `RELEASE.md` *Tag conventions* | **done 2026-09-25**: `release-vN.M.Z` (candidates `release-vN.M.Z-rcN`) |
 | 5 | **Settle the mirror seam for MVP (D2):** either specify it and add the mirror leg, or record it as a stated MVP limitation | an issue exists, and this file says which | **needs a decision** |
 | 6 | **Re-verify release assets at the release commit** (commands under *Release assets*) | every check passes against the commits being pinned | current as of 2026-09-25; repeat at release time |
-| 7 | **Generate the manifest from the green run** of step 1: `scripts/release-manifest.py generate …`. It must be non-provisional and cover all 10 repos | `releases/<version>.json` exists and is committed | open (supersedes `v0.1.0-rc1`) |
-| 8 | **Rehearse the cut:** `scripts/cut-release.sh --manifest releases/<version>.json` (dry run) | no drift, and no tag collision | open; collides today without D1 |
+| 7 | **Generate the manifest from the green run** of step 1: `scripts/release-manifest.py generate … --version release-v0.1.0 --out releases/release-v0.1.0.json`. It must be non-provisional and cover all 10 repos | `releases/release-v0.1.0.json` exists and is committed | open (supersedes `v0.1.0-rc1`) |
+| 8 | **Rehearse the cut:** `scripts/cut-release.sh --manifest releases/release-v0.1.0.json` (dry run) | no drift, and no tag collision | open |
 | 9 | **Tag, then push separately:** `--execute`, then `--execute --push` | tags exist on all 10 remotes | open |
 | 10 | **Release notes:** what certified it, what the hosted lane did not cover, and the known limitations below | notes published with the tag | open |
 | 11 | **Update this file** in the same change: G1–G4 to Done, naming the run | this table reads Done throughout | open |
 
 ### Decisions needed
 
-- **D1: the application release tag.** `RELEASE.md` puts the *same* tag on every
-  repo in a release, and `cut-release.sh` refuses a tag that already exists at a
-  different commit. `localHealthkitBridge` already carries its own `v0.1.0`
-  (`e351651`, 2026-09-24), so an application `v0.1.0` cannot be cut as the
-  process stands. The options:
-  - **(a) Give application releases their own tag namespace** (e.g. `app-v0.1.0`), so
-    component releases keep plain semver. This is a change to `RELEASE.md` and
-    `cut-release.sh`, and the most durable choice, since any component may ship on
-    its own schedule again. **Recommended.**
-  - (b) Number the MVP past every component tag (e.g. `v0.2.0`). It works once and
-    recurs with the next component release.
-  - (c) Leave component-tagged repos out of the application tag. That weakens the
-    "same tag everywhere" guarantee the manifest verification relies on.
+- **D1: the application release tag. Decided 2026-09-25: `release-vN.M.Z`.**
+  `RELEASE.md` puts the *same* tag on every repo in a release, and
+  `cut-release.sh` refuses a tag that already exists at a different commit.
+  `localHealthkitBridge` already carries its own `v0.1.0` (`e351651`), so a plain
+  `v0.1.0` application tag could not be cut. Application releases therefore get
+  their own namespace: `release-vN.M.Z` (candidates `release-vN.M.Z-rcN`).
+  Components keep plain semver on their own schedules. `release-manifest.py
+  generate` and `cut-release.sh` both refuse any other form. **The MVP is
+  `release-v0.1.0`.**
 - **D2: the mirror seam.** G4 decided that the SCS POD is authoritative, but *who
   writes to it, on what trigger, and how `pendingMirror` / `conflict` resolve* is
   still unwritten, and **no issue tracks it**. Either make it MVP-blocking (write
@@ -373,7 +369,7 @@ scope. Release step 7 supersedes it with a pin from the next green run.
 
 ---
 
-## G3 · Release documentation — done, one decision open
+## G3 · Release documentation — done
 
 [`RELEASE.md`](../RELEASE.md) defines a release as *a set of commits across the
 application's repos certified together by one regression run* — there is no
@@ -393,9 +389,10 @@ UTC plus manual dispatch** — the open acceptance criterion of #87.
 corpus, Ollama, OpenClaw or the HealthKit bridge, so the release notes cannot
 imply coverage the lane refuses to provide.
 
-**Open: D1.** The same-tag-everywhere convention collides with component
-releases (`localHealthkitBridge` `v0.1.0`). `cut-release.sh` would refuse the
-cut, correctly.
+**D1, decided 2026-09-25:** application releases are tagged `release-vN.M.Z`,
+so they cannot collide with a component's own `vN.M.Z` (`localHealthkitBridge`
+`v0.1.0`). `release-manifest.py generate` and `cut-release.sh` both refuse any
+other form.
 
 Two gaps closed while writing it:
 
@@ -491,7 +488,6 @@ of a boundary is what produced this gate.
 | Nightly red: scala declares no MQTT sources at registration | CI#463 | **blocks step 1** |
 | `service-inventory` / `mcp` fail on an empty MCP URL | fixed by #462 | confirm on the next scheduled run |
 | Local lane: OpenClaw fails on scala-1, with no failure stage recorded | related to Scala#153 | **blocks step 2** |
-| Application tag collides with `localHealthkitBridge` `v0.1.0` | D1 | **blocks step 8** |
 | Mirror seam unspecified, untracked | D2 | decide: block, or state as a limitation |
 | Stale agent corpus detected weekly, not per run; regression profile 12 of 15 agents | CI#467 | decide whether it blocks |
 | TypeScript 7 in Manager PE backend | Manager#96 | held; state as a limitation |
