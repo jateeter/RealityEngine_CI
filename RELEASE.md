@@ -12,7 +12,8 @@ tracks what remains before an MVP. This file is the process itself.
 
 ## What a release is
 
-**A release is a set of commits across eight repositories, certified together
+**A release is a set of commits across the application's repositories (ten as of
+2026-09-25), certified together
 by one regression run.** It is not a build artifact.
 
 The application is composed at run time from sibling checkouts — `startUniverse.sh`
@@ -26,7 +27,7 @@ That makes the release manifest the release:
 releases/v0.1.0-rc1.json
 ```
 
-It pins all eight repos to the commit the certification run actually built, and
+It pins every repo the certification run built to the commit it built, and
 records which run certified them and which stages passed. Given a manifest, the
 application can be rebuilt exactly.
 
@@ -224,8 +225,14 @@ surface without regenerating fails before merge.
 | `vX.Y.Z` | release |
 
 Every repo in a release carries the *same* tag, pointing at its own commit. The
-tag is the same name across eight repos; the commit differs per repo. The
+tag is the same name across every pinned repo; the commit differs per repo. The
 manifest is what ties them together.
+
+**Open (2026-09-25): component releases collide with this.** A component that
+ships on its own (e.g. `localHealthkitBridge` `v0.1.0` at `e351651`) already
+holds the tag an application release would use, and `cut-release.sh` refuses a
+tag that exists at a different commit. The choice of application tag scheme is
+decision D1 in `docs/MVP_ROADMAP.md`. Resolve it before cutting.
 
 The baseline tags stay unpushed by choice. Do not push them as part of a
 release.
