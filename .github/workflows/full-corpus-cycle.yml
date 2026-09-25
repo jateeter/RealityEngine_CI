@@ -291,6 +291,12 @@ jobs:
         with:
           name: full-corpus-load-parity
           path: RealityEngine_CI/.full-corpus/**
+          # .full-corpus is a dot-directory, and upload-artifact v4.4+ excludes
+          # hidden files by default. The report and every runtime's start log
+          # were silently dropped, so the first hosted parity failure
+          # (2026-09-25: cpp answered no /api/health within 240s) left
+          # nothing to diagnose it with.
+          include-hidden-files: true
           retention-days: 30
 
   # ── Agent corpus: construct all 1,323 specs and verify them ─────────────────
