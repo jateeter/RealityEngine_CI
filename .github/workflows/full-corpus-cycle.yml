@@ -80,6 +80,24 @@ jobs:
           ref: ${{ github.event.inputs.machines_ref || '' }}
           path: RealityEngine_Machines
 
+      # A corpus selection may name machines this repo does not own. The
+      # regression scope draws rag_corrective_cycle, session_rag_context and
+      # session_agent_context from localAIStack, so without it checked out
+      # alongside those three do not resolve, the scope silently shrinks from 21
+      # machines to 18, and build-ces-contract-registry declines to do the full
+      # check rather than report a registry as stale that is not.
+      #
+      # Checked out as a SIBLING of RealityEngine_Machines, because that is how
+      # the script finds it: LOCAL_AI_MACHINES is REPO_ROOT.parent /
+      # "localAIStack" / "data" / "machines". Only the corpus is wanted, but a
+      # sparse checkout would couple this workflow to that repo's layout, so the
+      # whole repo is taken.
+      - name: Checkout localAIStack (corpus root for cross-repo selections)
+        uses: actions/checkout@v7
+        with:
+          repository: jateeter/localAIStack
+          path: localAIStack
+
       - name: Setup Node.js
         uses: actions/setup-node@v7
         with:
@@ -108,6 +126,48 @@ jobs:
             > "$HOME/robot/robot"
           chmod +x "$HOME/robot/robot"
           echo "$HOME/robot" >> "$GITHUB_PATH"
+
+      # validate-corpus.sh reads the QUDT vocabulary from
+      # RealityEngine_Machines/.qudt-cache, which is gitignored — so it is
+      # absent on every fresh checkout and the unit-vocabulary gate skipped on
+      # every scheduled run this workflow has ever made. Installing rdflib above
+      # is necessary and was not sufficient.
+      #
+      # The key carries the pinned version rather than a literal, because
+      # bumping QUDT_VERSION is a contract change: a fixed key would serve the
+      # old vocabulary to a corpus validated against the new one, which is a
+      # stale artifact reading as a fresh one.
+      - name: Resolve the pinned QUDT version
+        id: qudt
+        working-directory: RealityEngine_Machines
+        run: |
+          version="$(sed -n 's/^QUDT_VERSION = "\([^"]*\)".*/\1/p' scripts/extract-qudt-subset.py)"
+          if [ -z "$version" ]; then
+            echo "::error::could not read QUDT_VERSION from scripts/extract-qudt-subset.py"
+            exit 1
+          fi
+          echo "version=$version" >> "$GITHUB_OUTPUT"
+
+      - name: Cache the QUDT vocabulary
+        id: qudt-cache
+        uses: actions/cache@v4
+        with:
+          path: RealityEngine_Machines/.qudt-cache
+          key: qudt-${{ steps.qudt.outputs.version }}
+
+      # --download prints SKIPPED and exits 0 when the fetch fails, which is
+      # right for a laptop and wrong here: it would hand the sweep an empty
+      # cache and the skip would surface one step later as a sweep that covered
+      # less than it claims. So the fetch asserts it actually landed.
+      - name: Fetch the QUDT vocabulary
+        if: steps.qudt-cache.outputs.cache-hit != 'true'
+        working-directory: RealityEngine_Machines
+        run: |
+          bash scripts/extract-qudt-subset.sh --source "$PWD/.qudt-cache" --download --check
+          if [ -z "$(ls -A .qudt-cache 2>/dev/null)" ]; then
+            echo "::error::QUDT fetch produced nothing — the sweep would skip its unit-vocabulary gate"
+            exit 1
+          fi
 
       - name: Full corpus sweep
         id: sweep
@@ -148,7 +208,18 @@ jobs:
     name: Full corpus — per-runtime load count parity
     runs-on: ubuntu-latest
     timeout-minutes: 120
+    # Sequenced after the static sweep so two long jobs do not contend for
+    # runners, but NOT conditional on it. These answer different questions —
+    # "does the corpus still validate" and "does every runtime still load all of
+    # it" — and only the second can catch a runtime silently dropping a machine
+    # shape.
+    #
+    # On 2026-09-16 a missing vocabulary file failed the static sweep and this
+    # job did not run at all, so the sweep that exists to check the whole corpus
+    # answered neither question. The cheaper check must not be able to suppress
+    # the more valuable one.
     needs: corpus-static
+    if: always()
     steps:
       - name: Checkout RealityEngine_CI
         uses: actions/checkout@v7
