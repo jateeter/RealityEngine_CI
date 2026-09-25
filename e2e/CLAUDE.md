@@ -68,16 +68,21 @@ from `RealityEngine_Machines` deliberately. Do not re-add copies there.
 
 | Spec | Multi-engine | Why |
 |---|---|---|
-| `tree-to-pe-manager-equivalence.spec.ts` | ✅ runs | resolves endpoints from the registry |
-| `api.spec.ts` | ⏭ skipped | hardcodes `https://localhost:5001` |
-| `full-integration.spec.ts` | ⏭ skipped | hardcodes `:5001`, `:3001` |
-| `multi-step-output-workflow.spec.ts` | ⏭ skipped | hardcodes `:5001`, `:3004` |
-| `perceptual-space-interconnection.spec.ts` | ⏭ skipped | hardcodes `:3004`, `:3001` |
-| `visualizer-ui.spec.ts` | ⏭ skipped | UI-only, but pinned to the Docker frontend |
+| `tree-to-pe-manager-equivalence.spec.ts` | ✅ runs | resolved endpoints from the instance registry from the start |
+| `visualizer-ui.spec.ts` | ✅ runs | promoted 2026-09-07 after #301 |
+| `api.spec.ts` | ✅ runs | promoted 2026-09-07 after #301; one test skips (#311) |
+| `full-integration.spec.ts` | ✅ runs | promoted 2026-09-07 after #301 |
+| `multi-step-output-workflow.spec.ts` | ⏭ skipped | skips on the regression corpus (see "Corpus dependencies") |
+| `perceptual-space-interconnection.spec.ts` | ⏭ skipped | skips on the regression corpus (see "Corpus dependencies") |
 
-Those endpoints are the **Docker** universe. A native `--engines=` launch binds
-RE/PE at registry-assigned ports over HTTP (scala 5000/5001, cpp 5300/5301,
-lsp 5600/5601), so the pinned specs fail on connection rather than behavior.
+#301 made global-setup and the specs resolve endpoints from the instance
+registry instead of hardcoding the Docker stack's TLS proxy
+(`https://localhost:5001` RE, `:3004` PE). A native `--engines=` launch binds
+RE/PE at instance-registry-assigned ports over HTTP (scala 5000/5001, cpp
+5300/5301, lsp 5600/5601). Each promotion was earned by a measured run on
+`cpp:2,lsp:1,scala:1`, recorded beside the allowlist. The two still excluded
+are no longer pinned; they skip on the regression corpus, so promoting them
+would prove nothing until a corpus exercises them.
 
 Selection lives in `scripts/lib/ci-e2e-specs.sh`; `scripts/run-all-tests.sh`
 reports every skipped spec by name, and deployment mode escalates those skips to
@@ -91,29 +96,36 @@ still pins `:5001` or `:3004`.
 
 ## Which hosted job runs what
 
-| Job | Universe | Specs |
-|---|---|---|
-| `e2e-tests` | single-engine Docker | `ci_e2e_single_engine_specs` — the five Docker-pinned specs; runs independently of `smoke-tests` |
-| `multi-engine-tests` | `--engines=scala:2` + registry | Machines' `multi-instance.spec.ts` only |
-| *(none yet)* | `--engines=cpp:1,lsp:1,scala:1` | `tree-to-pe-manager-equivalence.spec.ts` |
+One job, `multi-engine-and-parity-tests` in `.github/workflows/e2e-tests.yml`,
+boots one shared universe — `--engines=cpp:2,scala:1,lsp:1
+--machine-corpus=regression` — and runs every gate against it:
 
-The `e2e-tests` step sources the library rather than listing specs inline, so
-that split cannot drift between the local runner and hosted CI.
+| Step | Instances | Specs |
+|---|---|---|
+| Run all CI e2e specs against shared core | all | `ci_e2e_specs_for_mode multi-engine` — the four above |
+| Run multi-instance integration tests | `cpp-1` + `cpp-2` | Machines' `tests/integration/multi-instance.spec.ts` |
+| Run cross-runtime contract specs | all | Machines' contract specs |
+| Byte-equivalence parity across runtimes | `cpp-1` + `lsp-1` + `scala-1` | `tree-to-pe-manager-equivalence.spec.ts` |
+| Corpus addressing parity across runtimes | all | Machines' corpus-addressing spec |
+
+The step sources the library rather than listing specs inline, so the split
+cannot drift between the local runner and hosted CI. There is no single-engine
+Docker job any more: the two excluded specs run only locally, via
+`run-all-tests.sh --e2e` against a full-corpus universe.
 
 `tree-to-pe-manager-equivalence` hardcodes `lsp-1`, `scala-1` and `cpp-1`
-because byte equivalence is only meaningful across distinct runtimes —
-`--engines=scala:2` cannot substitute. **No hosted job spawns a tri-runtime
-universe**, so it runs via `run-all-tests.sh --e2e` against a local
-`--engines=cpp:1,lsp:1,scala:1` launch, and would run in the regression suite
-once that is unblocked (#79). It self-skips elsewhere with the missing engine
-ids in the reason.
+because byte equivalence is only meaningful across distinct runtimes; the
+`cpp-1`/`cpp-2` pair cannot substitute. The job fails if the spec does not
+actually execute, rather than trusting a green exit, and it self-skips
+elsewhere with the missing engine ids in the reason.
 
 ## Corpus dependencies
 
 `multi-step-output-workflow` and `perceptual-space-interconnection` drive the
 digital-logic fixtures `MultiStep`, `RS2` and `RSFlipFlop`. Those are **not** in
-`config/standard-deployment-corpus.txt` (12 machines), which is what the hosted
-jobs boot with via `--machine-corpus=standard-deployment`.
+`config/regression-corpus.txt` (21 machines: the standard-deployment twelve
+plus what the parity gates need), which is what the hosted job boots with via
+`--machine-corpus=regression`.
 
 Both specs guard on this through `helpers/require-machines.ts` and skip with a
 reason naming the missing machines. They run for real against a full-corpus
@@ -143,18 +155,18 @@ the best reference for current selectors.
 
 ## Standing rules — authoritative in `../docs/ENGINEERING_CONTRACT.md`
 
-These apply here and are **not** restated in this file. They were previously
-copied into eighteen `CLAUDE.md` files across six repositories, which is the
-duplication problem the rules themselves warn about: copies drift, a rule added
-to one applies only where someone looked, and with no authority a reader cannot
-tell which copy is current.
+These apply here and are **not** restated in this file. The table is an index
+to the contract, not a copy of it: it names every rule so you know what to look
+up, and the contract's wording governs wherever the two differ.
 
 | Rule | In short |
 | --- | --- |
 | Qualify every "registry" | Never the bare word — instance / machine / cesgen / arbitration / domain / semantic-bus / tag. |
+| Regenerate a stale `<name>` registry, don't fail it | Each `<name>` registry is a view of the running system. A gate regenerates it and fails only on a disagreement that survives regeneration. |
 | Verify a merge beyond the hosted checks | A green PR is not a verified PR; the hosted path cannot reach the integration points. Name what you could not exercise, and record what you noticed but did not chase. |
-| Never commit to main | Branch from `origin/main`, PR, verify, squash-merge, clean up. |
 | _CI is the authority | Peripheral repos keep minimal CI that forces local validation; RealityEngine_CI verifies fixes against a live universe. Check its `docs/` before adding CI anywhere else. |
+| Name it `CLAUDE.md` | Uppercase, always. On a case-insensitive filesystem `claude.md` is the same inode; dedupe on `st_ino`, never on a resolved path. |
+| Never commit to main | Branch from `origin/main`, PR, verify, squash-merge, clean up. |
 | Use bash, not zsh | Shell work runs in `/opt/homebrew/bin/bash` (5.x), not zsh or macOS `/bin/bash` 3.2: any loop, unquoted variable, glob or `set --` goes through it with `set -euo pipefail`, and you check the command's exit status, not the pipeline tail. |
 
 Read the contract for the full text, the qualifier table, and the cleanup steps.
