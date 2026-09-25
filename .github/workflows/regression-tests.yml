@@ -491,9 +491,15 @@ jobs:
             --profile "${PROFILE:-hosted}"
             --engines "$engine_spec"
             --retain "$retain"
-            --mcp-url "$mcp_url"
-            --swagger-url "$swagger_url"
           )
+          # Only a named URL is passed. An empty one is not "use the default":
+          # `--mcp-url ""` overwrites the script's default with nothing, and
+          # service-inventory and the MCP smoke then probe `/healthz` with no
+          # host — the first scheduled run to reach the stages since #350
+          # failed on exactly that. Unset, the script probes the service
+          # startUniverse.sh brought up on this runner.
+          [ -n "$mcp_url" ] && args+=(--mcp-url "$mcp_url")
+          [ -n "$swagger_url" ] && args+=(--swagger-url "$swagger_url")
 
           case "$run_mode" in
             plan)
