@@ -134,8 +134,8 @@ From a downloaded artifact:
 gh run download <run-id> -D /tmp/certified
 scripts/release-manifest.py generate \
   --run-dir /tmp/certified/regression-<run>/<run> \
-  --version v0.1.0 \
-  --out releases/v0.1.0.json
+  --version release-v0.1.0 \
+  --out releases/release-v0.1.0.json
 ```
 
 Generating from a run that did not pass is **refused**. `--allow-unverified`
@@ -146,7 +146,7 @@ release name by accident.
 ### 3. Rehearse the cut
 
 ```bash
-scripts/cut-release.sh --manifest releases/v0.1.0.json
+scripts/cut-release.sh --manifest releases/release-v0.1.0.json
 ```
 
 Dry-run by default. It verifies the workspace still matches the pinned set and
@@ -156,8 +156,8 @@ puts the release name on commits that were never certified together.
 ### 4. Tag, then push
 
 ```bash
-scripts/cut-release.sh --manifest releases/v0.1.0.json --execute          # local tags
-scripts/cut-release.sh --manifest releases/v0.1.0.json --execute --push   # publish
+scripts/cut-release.sh --manifest releases/release-v0.1.0.json --execute          # local tags
+scripts/cut-release.sh --manifest releases/release-v0.1.0.json --execute --push   # publish
 ```
 
 Pushing is a separate opt-in because a pushed tag is the hard-to-reverse step.
@@ -165,7 +165,7 @@ Pushing is a separate opt-in because a pushed tag is the hard-to-reverse step.
 ### 5. Commit the manifest
 
 ```bash
-git add releases/v0.1.0.json && git commit -m "release: v0.1.0"
+git add releases/release-v0.1.0.json && git commit -m "release: release-v0.1.0"
 ```
 
 The manifest is the record. Keep it even if the tags are later moved.
@@ -178,7 +178,7 @@ Rebuild a released set from nothing but the manifest:
 
 ```bash
 # Confirm a workspace matches
-scripts/release-manifest.py verify --manifest releases/v0.1.0.json
+scripts/release-manifest.py verify --manifest releases/release-v0.1.0.json
 
 # Then bring it up
 ./startUniverse.sh --engines=cpp:1,lsp:1,scala:1 \
@@ -221,18 +221,23 @@ surface without regenerating fails before merge.
 | Tag | Meaning |
 |---|---|
 | `v0.0.1-baseline` | pre-MVP snapshot. **Local only, deliberately not pushed.** |
-| `vX.Y.Z-rcN` | release candidate cut from a certified run |
-| `vX.Y.Z` | release |
+| `release-vN.M.Z-rcN` | application release candidate cut from a certified run |
+| `release-vN.M.Z` | **application release**: every pinned repo, one certified set |
+| `vN.M.Z` | a **component's** own release, on its own schedule (e.g. `localHealthkitBridge` `v0.1.0`). Never produced by `cut-release.sh` |
 
-Every repo in a release carries the *same* tag, pointing at its own commit. The
-tag is the same name across every pinned repo; the commit differs per repo. The
-manifest is what ties them together.
+Every repo in an application release carries the *same* `release-v…` tag,
+pointing at its own commit. The commit differs per repo; the manifest is what
+ties them together.
 
-**Open (2026-09-25): component releases collide with this.** A component that
-ships on its own (e.g. `localHealthkitBridge` `v0.1.0` at `e351651`) already
-holds the tag an application release would use, and `cut-release.sh` refuses a
-tag that exists at a different commit. The choice of application tag scheme is
-decision D1 in `docs/MVP_ROADMAP.md`. Resolve it before cutting.
+**Why a separate namespace (D1, decided 2026-09-25).** Components ship on their
+own schedules: `localHealthkitBridge` tagged its own `v0.1.0` (`e351651`) on
+2026-09-24. A plain `vN.M.Z` application tag on every pinned repo would collide
+with any such component tag, and `cut-release.sh` refuses a tag that already
+exists at a different commit. `release-vN.M.Z` cannot collide with component
+semver, now or later. Both `release-manifest.py generate --version` and
+`cut-release.sh` refuse any other form, so a component-style name cannot become
+an application tag by mistake. `releases/v0.1.0-rc1.json` predates this; it is a
+historical pin, and `cut-release.sh` will not cut from it.
 
 The baseline tags stay unpushed by choice. Do not push them as part of a
 release.

@@ -21,12 +21,12 @@ Examples
     # Pin from a local regression run
     scripts/release-manifest.py generate \\
         --run-dir .regression-tests/runs/gha-31297685782-1 \\
-        --version v0.1.0 --out release-manifest.json
+        --version release-v0.1.0 --out release-manifest.json
 
     # Pin from a downloaded CI artifact
     scripts/release-manifest.py generate \\
         --manifest ./artifacts/gha-123-1/manifest.json \\
-        --version v0.1.0 --out release-manifest.json
+        --version release-v0.1.0 --out release-manifest.json
 
     # Confirm a workspace matches
     scripts/release-manifest.py verify --manifest release-manifest.json
@@ -36,6 +36,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import re
 import subprocess
 import sys
 from datetime import datetime, timezone
@@ -138,7 +139,21 @@ def repo_entries(run_manifest: dict[str, Any]) -> tuple[list[dict[str, Any]], li
     return entries, problems
 
 
+# Application releases are tagged release-vN.M.Z (release-vN.M.Z-rcN for a
+# candidate): D1 in docs/MVP_ROADMAP.md. A plain vN.M.Z is a component's own
+# release and would collide across repos. `untagged` is the placeholder every
+# regression run uses for the candidate manifest it emits (regression-test.sh);
+# it is accepted here and refused by cut-release.sh, so it can never be cut.
+RELEASE_VERSION_RE = re.compile(r"^release-v\d+\.\d+\.\d+(-rc\d+)?$")
+UNTAGGED = "untagged"
+
+
 def cmd_generate(args: argparse.Namespace) -> int:
+    if args.version != UNTAGGED and not RELEASE_VERSION_RE.match(args.version):
+        print(f"--version {args.version!r} is not an application release tag: expected "
+              "release-vN.M.Z or release-vN.M.Z-rcN (or 'untagged' for a run's candidate). "
+              "See RELEASE.md, Tag conventions.", file=sys.stderr)
+        return 2
     run_dir = Path(args.run_dir).resolve() if args.run_dir else None
     manifest_path = (
         Path(args.manifest).resolve()
@@ -173,7 +188,7 @@ def cmd_generate(args: argparse.Namespace) -> int:
 
     manifest: dict[str, Any] = {
         "schemaVersion": SCHEMA_VERSION,
-        "version": args.version,
+        "version": args.version,  # validated in main(): release-vN.M.Z[-rcN]
         "generatedAt": utc_now(),
         "certifiedBy": {
             "runId": run_manifest.get("runId", ""),
@@ -267,7 +282,8 @@ def main() -> int:
     gen = sub.add_parser("generate", help="build a manifest from a regression run")
     gen.add_argument("--run-dir", help="regression run directory (reads manifest.json and reports/)")
     gen.add_argument("--manifest", help="path to a run manifest.json, if the run dir is unavailable")
-    gen.add_argument("--version", required=True, help="release version, e.g. v0.1.0")
+    gen.add_argument("--version", required=True,
+                     help="application release tag: release-vN.M.Z or release-vN.M.Z-rcN")
     gen.add_argument("--out", default="release-manifest.json")
     gen.add_argument(
         "--allow-unverified",

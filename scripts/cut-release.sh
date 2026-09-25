@@ -55,6 +55,14 @@ RUN_ID=$(python3 -c "import json,sys;print(json.load(open(sys.argv[1]))['certifi
 RUN_STATUS=$(python3 -c "import json,sys;print(json.load(open(sys.argv[1]))['certifiedBy']['status'])" "$MANIFEST")
 PROVISIONAL=$(python3 -c "import json,sys;print('yes' if 'provisional' in json.load(open(sys.argv[1])) else 'no')" "$MANIFEST")
 
+# Application releases are tagged release-vN.M.Z (release-vN.M.Z-rcN for a
+# candidate): D1 in docs/MVP_ROADMAP.md, decided 2026-09-25. Plain vN.M.Z is a
+# component's own release (localHealthkitBridge v0.1.0 already exists), and the
+# same tag on every pinned repo would collide with it. Checked before anything
+# else touches a repository.
+[[ "$VERSION" =~ ^release-v[0-9]+\.[0-9]+\.[0-9]+(-rc[0-9]+)?$ ]] \
+  || die "manifest version '$VERSION' is not an application release tag: expected release-vN.M.Z or release-vN.M.Z-rcN (RELEASE.md, Tag conventions)"
+
 echo "Release  : $VERSION"
 echo "Certified: run $RUN_ID (status: $RUN_STATUS)"
 echo "Workspace: $WORKSPACE"
