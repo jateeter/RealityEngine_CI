@@ -284,8 +284,8 @@ run_ces_contract_drift() {
         skip_suite "$label" "instance registry not reachable at $registry_url"
         return
     fi
-    # The gate half of RealityEngine_CI#327. config/ces-contracts.json is
-    # authoritative and lives in git (shaping decision 4), so drift against the
+    # The gate half of RealityEngine_CI#327. The shards in config/ces-contracts/
+    # are authoritative and live in git (shaping decision 4), so drift against the
     # live runtimes has to fail at the point of change. Its predecessor —
     # contracts.json, replayed through one nominated engine — had a --check mode
     # that nothing invoked, and a snapshot nobody re-takes silently becomes an
@@ -299,7 +299,7 @@ run_ces_contract_drift() {
     else
         warn "$label - FAIL (last 20 lines):"
         tail -20 "$log" | sed 's/^/    /'
-        record FAIL "$label" "config/ces-contracts.json disagrees with the live runtimes — re-record with --record and review the diff"
+        record FAIL "$label" "config/ces-contracts/ disagrees with the live runtimes — re-record with record-ces-contracts.py --only <domain> --write and review the diff"
     fi
     rm -f "$log"
 }

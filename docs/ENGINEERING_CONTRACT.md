@@ -1,6 +1,6 @@
 # Engineering Contract
 
-Last reviewed: 2026-09-14
+Last reviewed: 2026-09-25
 
 **This file is authoritative for the standing rules below.** Every repository's
 `CLAUDE.md` points here rather than restating them, the same way each engine
@@ -9,7 +9,7 @@ build rules.
 
 ## Why this file exists
 
-These four rules were written into eighteen `CLAUDE.md` files across six
+The first four of these rules were written into eighteen `CLAUDE.md` files across six
 repositories, in full, by copy. That is the defect the rules themselves warn
 about, arriving in the guidance rather than in the code:
 

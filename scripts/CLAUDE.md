@@ -28,11 +28,30 @@ written down.
 
 ## The CES contract, and why it has no oracle
 
-`regression-ces-contracts.py` derives `config/ces-contracts.json` from **3-of-3
-agreement** across the cpp, lsp and scala runtimes. It replaces
+`record-ces-contracts.py` derives the shards in `config/ces-contracts/` from
+**3-of-3 agreement** across the cpp, lsp and scala runtimes. It replaced
+`regression-ces-contracts.py` on 2026-09-14 (#376), which in turn replaced
 `cesgen-contracts.mjs`, which replayed the corpus through one nominated engine.
 
-That difference is the point. A contract recorded by replaying through one
+**What changed on 2026-09-14, and why the rest of this section is history.**
+The previous recorder drove one chain at a time through a source it registered
+itself. SURFACE_SPEC.md rules that out: a probe that registers its own source
+measures a synthetic stimulus, not the corpus. Every shard it produced was
+discarded. The current recorder arms the corpus's own interned sources, so one
+push advances every machine together (`ISRESeed(n)`), and projects that single
+drive onto each domain's machines. Its verdicts are `agreed`, `agreed-silent`
+and `disagreement`. `--check` is the drift gate `run-all-tests.sh` runs, and
+it reports a shard recorded under a different stimulus (resident machines,
+seed depth, steps) as incomparable, not as drift. Record a shard with
+`record-ces-contracts.py --only <domain> --write`.
+
+`regression-ces-contracts.py` and `record-ces-contract-shards.sh` are kept on
+purpose, as the fullest statement of the per-chain approach, and refuse to run
+without `CES_ALLOW_RETIRED_RECORDER=1`. The text from here to "Parity stages"
+describes them. Keep it as the rationale for the shard and verdict design, but
+do not take it as a description of what records the contract today.
+
+The oracle argument behind both still holds. A contract recorded by replaying through one
 engine makes that engine **unfalsifiable**: regenerating makes it pass by
 construction, the gate can never find a defect *in* it, and to regenerate you
 must already trust the thing the gate exists to check. Its nominated engine was
@@ -80,7 +99,7 @@ those already current, so an interrupted sweep resumes rather than restarts.
 **A shard says which corpus it describes.** Every artifact carries
 `corpusFingerprint` — per-machine sha256, using the definition in
 `RealityEngine_Machines/scripts/ces_corpus_fingerprint.py`, imported rather than
-restated so the recorder and the registry cannot disagree about what a corpus
+restated so the recorder and the cesgen registry cannot disagree about what a corpus
 change is. `RealityEngine_Machines/domains/ces-contract-registry.json` compares
 that with the corpus as it stands, and
 `tests/contracts/ces_contract_registry_test.py` fails on any shard the corpus
@@ -92,7 +111,7 @@ that something will go wrong partway, so a failed scope is journalled and the
 sweep continues. The journal is a file — `.ces-contracts/journal.json`, written
 after every scope — because marking that dies with the process does not help a
 restart. Restarting is the same command again: recorded-and-current scopes are
-skipped by the registry, failed ones retried, `--skip-failed` steps past them,
+skipped by the cesgen registry, failed ones retried, `--skip-failed` steps past them,
 `--retry-failed-only` comes back for just those. A failed scope leaves no shard,
 since the recorder writes once at the end, so it reads as unrecorded rather than
 as a partial contract that looks whole.
@@ -166,8 +185,9 @@ Domain scopes need `--machine-corpus=full` at boot.
   first iteration — 1342 sequential PATCHes, and only lsp needs them, since its
   reset is the one that deactivates (#163). Inside a step the engine is ~95 ms
   of the ~1.1 s, so the remainder is PE-side assembly over the active sources
-  and wants its own measurement; of the engine's share, 87% is OSRE
-  construction (#256).
+  and wants its own measurement. #256 first put 87% of the engine's share
+  on OSRE construction; its later measurement puts the fold itself at 0.028 ms,
+  so do not repeat the 87% figure.
 
 - `regression-reset-contract.py`: the acceptance stage for
   `RealityEngine_CI#163` and `#166`. Registers the corpus-test integration
@@ -187,11 +207,12 @@ Domain scopes need `--machine-corpus=full` at boot.
   passes as of 2026-09-11 on cpp-1 + lsp-1 + scala-1 in 21s and runs beside the
   other conformance gates.
 
-  One property it records but does not assert: activity *at registration*
-  splits 2-1 (cpp and scala declare 1336 of 1351 active, lsp declares 0), while
-  all three agree at 1336 after the reset. `compare_declared` compares
-  membership only. Whether point 2a governs `test` sources is ambiguous in the
-  settled text; see #358 rather than guessing.
+  One property it records but does not assert: activity *at registration*.
+  `compare_declared` compares membership only. When this was written lsp
+  declared 0 active at registration while cpp and scala declared 1336 of 1351.
+  That split is gone; what remains open is Scala holding 18 test sources
+  inactive although their sequences are non-empty. See #358 for the current
+  state rather than trusting a count here.
 
   What it asserts about `active`, since this is the part that moved twice while
   the issue settled and is easy to re-break:
@@ -213,7 +234,7 @@ Domain scopes need `--machine-corpus=full` at boot.
   to call either way.
 
   The TypeScript PE in `RealityEngine_Manager` is the fourth implementation of
-  this surface and is not in the runtime registry; pass it with
+  this surface and is not in the instance registry; pass it with
   `--extra-runtime ts-1=<re_url>,<pe_url>`.
 
 ## Push response shape
@@ -338,28 +359,34 @@ Notes that bite when changing these:
   has and another does not is stimulus, and the trajectory comparison will
   faithfully report the difference as engine divergence.
 
-## Engine defects these stages are currently blocked by
+## Engine defects these stages were blocked by (resolved)
 
-Measured 2026-08-19 on cpp-1/lsp-1/scala-1, one machine with the interned
-sequence `[[1,0,0,0],[0,1,0,0],[1,0,0,0]]`, pushes with no intervening reads:
-scala walks idx 0→1→2→0 correctly, **cpp stays on idx 0 forever**, and **lsp
-contributes nothing** because its reset discarded the source. Until the first
-two are fixed, a corpus sweep rediscovers this on every iteration and no
-machine-specific parity result can be trusted.
+Measured 2026-08-19 on cpp-1/lsp-1/scala-1: `POST /api/reset` meant three
+different things (cpp kept its sources, lsp discarded them, scala reactivated
+every one), cpp stayed on idx 0 of an interned sequence, and lsp contributed
+nothing after a reset.
 
-- `POST /api/reset` means three different things: cpp keeps its sources, lsp
-  discards them, scala reactivates every one of them.
-- cpp answers `PATCH /api/sources/:id {"active":true}` with 200 and the new
-  value echoed back, then reports the old one on the next GET. Start the PEs
-  with `PE_SOURCE_ACTIVATE_ON_LOAD=true` instead of activating over the API.
-- `GET /api/engine/stats` is listed as uniform in `SURFACE_SPEC.md` but returns
-  different payloads per runtime; use `GET /api/config` for the perceptual
-  space width. The key there is **`eventDimension`** — this file said
-  `vectorDimension`, which no runtime emits, and three call sites read it and
-  got nothing (RealityEngine_CI#422).
+The reset half is settled. #163 fixed the contract and closed on 2026-08-27; a
+comment on it records all three runtimes holding 1340 of 1340 test sources, all
+active, after a reset, and says the three-way description above matches none of
+them. `regression-reset-contract.py` has asserted that contract as a wired gate
+since 2026-09-11 (see above). The loop's remaining post-reset count split was a
+matter of *when* each runtime re-materialises its sources, not what it holds,
+and closed as #253.
 
-`regression-trajectory-parity.py` shares the source-equalisation exposure — it
-seeds one source without checking the others match.
+The cpp idx-0 observation was not re-measured when this section was rewritten.
+The loop's passing iterations above are consistent with it being fixed, but
+re-measure before relying on either reading.
+
+Still true, and worth knowing:
+
+- `GET /api/engine/stats` is not a parity-proven interface. Gates that relied on
+  it are skipped (#311). Read the perceptual space width from `GET /api/config`,
+  key **`eventDimension`**. This file once said `vectorDimension`, which no
+  runtime emits, and three call sites read it and got nothing
+  (RealityEngine_CI#422).
+- `regression-trajectory-parity.py` seeds one source without checking the
+  others match, so it is exposed to unequal stimulus. Equalise sources first.
 
 ## Regression run history is bounded: two runs
 
@@ -375,18 +402,18 @@ old universe, so nothing still mounts what is removed. Change it with
 
 ## Standing rules — authoritative in `../docs/ENGINEERING_CONTRACT.md`
 
-These apply here and are **not** restated in this file. They were previously
-copied into eighteen `CLAUDE.md` files across six repositories, which is the
-duplication problem the rules themselves warn about: copies drift, a rule added
-to one applies only where someone looked, and with no authority a reader cannot
-tell which copy is current.
+These apply here and are **not** restated in this file. The table is an index
+to the contract, not a copy of it: it names every rule so you know what to look
+up, and the contract's wording governs wherever the two differ.
 
 | Rule | In short |
 | --- | --- |
 | Qualify every "registry" | Never the bare word — instance / machine / cesgen / arbitration / domain / semantic-bus / tag. |
+| Regenerate a stale `<name>` registry, don't fail it | Each `<name>` registry is a view of the running system. A gate regenerates it and fails only on a disagreement that survives regeneration. |
 | Verify a merge beyond the hosted checks | A green PR is not a verified PR; the hosted path cannot reach the integration points. Name what you could not exercise, and record what you noticed but did not chase. |
-| Never commit to main | Branch from `origin/main`, PR, verify, squash-merge, clean up. |
 | _CI is the authority | Peripheral repos keep minimal CI that forces local validation; RealityEngine_CI verifies fixes against a live universe. Check its `docs/` before adding CI anywhere else. |
+| Name it `CLAUDE.md` | Uppercase, always. On a case-insensitive filesystem `claude.md` is the same inode; dedupe on `st_ino`, never on a resolved path. |
+| Never commit to main | Branch from `origin/main`, PR, verify, squash-merge, clean up. |
 | Use bash, not zsh | Shell work runs in `/opt/homebrew/bin/bash` (5.x), not zsh or macOS `/bin/bash` 3.2: any loop, unquoted variable, glob or `set --` goes through it with `set -euo pipefail`, and you check the command's exit status, not the pipeline tail. |
 
 Read the contract for the full text, the qualifier table, and the cleanup steps.
