@@ -60,10 +60,32 @@ info "Corpus on disk: $DISK_COUNT machine files"
 [ "$DISK_COUNT" -gt 0 ] || { bad "No machines found under $MACHINES_DIR/machines"; exit 1; }
 
 # ── Start each runtime on the full corpus and ask what it loaded ─────────────
-# Ports are off-band so this can run beside anything already up. Each runtime is
-# started by its own start.sh, which is the same path the deployment lanes use —
-# measuring a bespoke launch would answer a question nobody else asks.
-declare -A RE_PORT=( [scala]=5101 [cpp]=5301 [lsp]=5601 )
+# Each runtime is started by its own start.sh, which is the same path the
+# deployment lanes use — measuring a bespoke launch would answer a question
+# nobody else asks.
+#
+# The ports are the universe's own (scala 5101, cpp 5301, lsp 5601), not
+# off-band as this used to claim, so a local run collides with a running
+# universe. FULL_CORPUS_PORT_OFFSET shifts all three; a hosted runner needs none.
+PORT_OFFSET="${FULL_CORPUS_PORT_OFFSET:-0}"
+declare -A RE_PORT=( [scala]=$((5101 + PORT_OFFSET)) [cpp]=$((5301 + PORT_OFFSET)) [lsp]=$((5601 + PORT_OFFSET)) )
+
+# Per-runtime start.sh arguments. The C++ start.sh refuses to run without the
+# unified Qdrant (it is shared with localAIStack), and this job starts none: a
+# load count needs no vector store. Without the flag start.sh printed "Start
+# localAIStack first" and exited 1 at once, cpp was never launched, and the loop
+# below polled a dead port for 240s and recorded ERROR (#383). Scala and LSP
+# have no such gate.
+declare -A START_ARGS=( [scala]="" [cpp]="--allow-missing-qdrant" [lsp]="" )
+
+engine_dir_for() {
+    case "$1" in
+        scala) echo "$CI_DIR/../RealityEngine_Scala" ;;
+        cpp)   echo "$CI_DIR/../RealityEngine_CPP" ;;
+        lsp)   echo "$CI_DIR/../RealityEngine_LSP" ;;
+    esac
+}
+
 declare -A COUNTS=()
 declare -A DIMS=()
 FAILED=0
@@ -79,11 +101,7 @@ for runtime in scala cpp lsp; do
     port="${RE_PORT[$runtime]}"
     # Each engine's own start.sh, the same entry point the deployment lanes
     # use. REALITY_ENGINE_PORT / MACHINES_DIR is the contract all three share.
-    case "$runtime" in
-        scala) engine_dir="$CI_DIR/../RealityEngine_Scala" ;;
-        cpp)   engine_dir="$CI_DIR/../RealityEngine_CPP" ;;
-        lsp)   engine_dir="$CI_DIR/../RealityEngine_LSP" ;;
-    esac
+    engine_dir="$(engine_dir_for "$runtime")"
     if [ ! -x "$engine_dir/start.sh" ]; then
         bad "$runtime: $engine_dir/start.sh missing or not executable"
         COUNTS[$runtime]="NO_START_SCRIPT"
@@ -92,21 +110,42 @@ for runtime in scala cpp lsp; do
     fi
 
     info "Starting $runtime on :$port with the full corpus..."
+    read -r -a start_args <<<"${START_ARGS[$runtime]}"
+    # Launched as a direct child (the subshell execs start.sh) so its exit
+    # status can be collected. It used to run inside a detached subshell, so a
+    # start.sh that failed was indistinguishable from one still starting.
     (
         cd "$engine_dir" || exit 1
-        REALITY_ENGINE_PORT="$port" \
-        PERCEPTION_ENGINE_PORT="$((port - 1))" \
-        MACHINES_DIR="$MACHINES_DIR/machines" \
-        VECTOR_DIMENSION="$VECTOR_DIMENSION" \
-            nohup ./start.sh > "$REPORT_DIR/$runtime-start.log" 2>&1 &
-        echo $! > "$REPORT_DIR/$runtime.pid"
-    )
+        export REALITY_ENGINE_PORT="$port" PERCEPTION_ENGINE_PORT="$((port - 1))" \
+               MACHINES_DIR="$MACHINES_DIR/machines" VECTOR_DIMENSION="$VECTOR_DIMENSION"
+        exec nohup ./start.sh "${start_args[@]}"
+    ) > "$REPORT_DIR/$runtime-start.log" 2>&1 &
+    start_pid=$!
+    echo "$start_pid" > "$REPORT_DIR/$runtime.pid"
 
+    # Wait for health, but stop waiting the moment start.sh has exited
+    # non-zero. Some start.sh scripts return once their engines are up (cpp),
+    # others stay in the foreground; a clean exit is not a failure, a non-zero
+    # one is, and it is reported with its reason, not as a 240s timeout.
     n=0
+    start_rc=""
     until curl -sk --max-time 5 "https://127.0.0.1:$port/api/health" >/dev/null 2>&1 \
        || curl -s  --max-time 5 "http://127.0.0.1:$port/api/health"  >/dev/null 2>&1; do
+        if [ -z "$start_rc" ] && ! kill -0 "$start_pid" 2>/dev/null; then
+            start_rc=0; wait "$start_pid" || start_rc=$?
+            [ "$start_rc" -ne 0 ] && break
+        fi
         n=$((n+1)); [ "$n" -ge 120 ] && break; sleep 2
     done
+
+    if [ -n "$start_rc" ] && [ "$start_rc" -ne 0 ]; then
+        bad "$runtime: start.sh exited $start_rc before the engine answered. Its log ends:"
+        tail -15 "$REPORT_DIR/$runtime-start.log" | sed 's/\x1b\[[0-9;]*m//g; s/^/    /'
+        COUNTS[$runtime]="START_FAILED(exit $start_rc)"
+        DIMS[$runtime]="?"
+        FAILED=1
+        continue
+    fi
 
     scheme=https
     curl -sk --max-time 5 "https://127.0.0.1:$port/api/health" >/dev/null 2>&1 || scheme=http
@@ -135,6 +174,9 @@ for runtime in scala cpp lsp; do
     got="${COUNTS[$runtime]:-UNMEASURED}"
     if [ "$got" = "$DISK_COUNT" ]; then
         ok "$runtime loaded all $DISK_COUNT machines"
+    elif [[ "$got" == START_FAILED* ]]; then
+        bad "$runtime never started ($got), so no load count exists; see $runtime-start.log"
+        FAILED=1
     else
         bad "$runtime loaded $got, disk has $DISK_COUNT — it did not expand past the $VECTOR_DIMENSION floor"
         FAILED=1
@@ -142,9 +184,14 @@ for runtime in scala cpp lsp; do
 done
 
 # Stop what we started — a scheduled sweep must not leave engines holding ports.
+# Killing the start.sh PID is not enough: cpp's start.sh exits once its engines
+# are up, so that PID is gone and the engines it launched kept running. Each
+# engine's stop.sh stops only the PIDs its own start.sh recorded.
 for runtime in scala cpp lsp; do
     pidfile="$REPORT_DIR/$runtime.pid"
     [ -f "$pidfile" ] && kill "$(cat "$pidfile")" 2>/dev/null || true
+    engine_dir="$(engine_dir_for "$runtime")"
+    [ -x "$engine_dir/stop.sh" ] && (cd "$engine_dir" && ./stop.sh >> "$REPORT_DIR/$runtime-start.log" 2>&1) || true
 done
 
 if [ "$FAILED" -ne 0 ]; then

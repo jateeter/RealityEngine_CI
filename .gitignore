@@ -39,3 +39,7 @@ __pycache__/
 
 # Per-run sweep state, not a shared artifact.
 .ces-contracts/
+# full-corpus-load-parity.sh run output: the report, start logs and PIDs of one
+# run. Committed by accident in #376, where it presented a local run's result
+# as the current one and dirtied every later run's tree.
+.full-corpus/
