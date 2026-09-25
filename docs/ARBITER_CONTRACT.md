@@ -33,7 +33,7 @@ Today nothing does:
 | machine (`OutputArbiter`) | `AND`/`OR`/`PASSTHROUGH` decide *whether* to emit; `combineOutputs` takes **the first** output as the value | selects, does not resolve |
 | universal (merge) | `perceptualArray[offset+i] = value` per machine in list order | **last writer wins** |
 
-All 1323 machines declare `PASSTHROUGH`, so the machine gate is always open. The
+All 1,328 machines declare `PASSTHROUGH` (`arbiterRule`, measured 2026-09-25), so the machine gate is always open. The
 merge order is a `ListBuffer` in machine-iteration order — stable, therefore a
 wrong resolution reproduces perfectly and reads as correct. There is also an
 internal contradiction: one machine with N asserted outputs enqueues N writes to
@@ -455,17 +455,25 @@ contributors, which is the correct outcome rather than a degraded one.
 #### A default substitution destroys the gate
 
 If the transformation substitutes a value when extraction fails, it can never
-fail, and the gate does not exist. This is the corpus's present state:
+fail, and the gate does not exist. **This was the corpus's state when this section
+was written. It no longer is:**
 
-| | |
-|---|--:|
-| agent specs with a `responseMapping` | 1,320 |
-| response fields total | 8,531 |
-| **fields carrying `textFallback.default`** | **8,531 (100%)** |
-| distinct default values | one — `0.5` |
+| | when written | 2026-09-25 |
+|---|--:|--:|
+| agent specs with a `responseMapping` | 1,320 | 1,323 |
+| response fields total | 8,531 | 8,539 |
+| **fields substituting a default** | **8,531 (100%)**, all `0.5` | **0** |
 
-Every field of every agent, without exception, substitutes `0.5` when the JSON
-pointer misses and no phrase matches. An empty, malformed, off-topic or
+jateeter/localOpenClawStack#21 (closed 2026-08-13) removed the default. Every
+field's `extract.textFallback` now declares `onUnresolved: "divert-to-analysis"`
+and carries no `default` at any depth. Measured across the regenerated specs of
+localOpenClawStack#46, which is also the first regeneration since #21 to cover
+the whole corpus. The specs no longer defeat the gate. Whether each PE runtime
+honours `divert-to-analysis` as *no contribution* is a runtime conformance
+question this measurement does not answer.
+
+What the default did, and why it must not come back: every field of every agent
+substituted `0.5` when the JSON pointer missed and no phrase matched. An empty, malformed, off-topic or
 hallucinated response therefore produces a perfectly well-formed contribution
 asserting `0.5` on every axis, indistinguishable from a confident assessment.
 
@@ -876,12 +884,13 @@ Both belong beside the ring in the regression corpus.
 - Whether L1 should become element-wise (`OR`/`MAX`) or keep gate semantics with
   a separate value rule. This document assumes element-wise; the current
   "first representative" behaviour is replaced either way.
-- **The transformation gate is defeated corpus-wide today.** All 8,531 response
-  fields across all 1,320 agent specs carry `textFallback.default: 0.5`, so the
-  transformation cannot fail and §4.3b is unenforceable until those are removed.
-  Tracked as jateeter/localOpenClawStack#21. The contract is written to the
-  intended behaviour; implementers should expect the corpus to violate it until
-  that issue lands.
+- **Resolved in the specs: the transformation gate is no longer defeated.** When
+  written, all 8,531 response fields across 1,320 agent specs carried
+  `textFallback.default: 0.5`. jateeter/localOpenClawStack#21 (closed 2026-08-13)
+  removed it; on 2026-09-25 none of 8,539 fields across 1,323 specs substitutes a
+  default (`onUnresolved: "divert-to-analysis"` instead). Runtime conformance to
+  §4.3b, meaning that a diverted field contributes nothing, is not established by that
+  measurement.
 - **Per-source conformance is unverified across the board.** The source types do
   not share a path — ACP, MCP, MQTT, localAI and sensors each own their own
   transformation — so §4.3b must hold independently in every one of them, and
