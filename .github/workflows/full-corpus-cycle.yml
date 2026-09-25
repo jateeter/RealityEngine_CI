@@ -8,17 +8,21 @@ name: Full Corpus Cycle
 # against a live runtime, so a defect that only a particular machine shape
 # provokes has no scheduled opportunity to surface.
 #
-# Why 5 days rather than weekly: new domains are landing, and a domain arrives
-# with its own generators, its own region allocation and its own ABox. The cost
-# of finding out late scales with how many domains were added since the last
-# sweep. owl-corpus-wide.yml makes the same argument for its Monday run and says
-# to raise the frequency as cross-domain interaction increases — this is that.
+# Weekly, decided 2026-09-25. The regression-test corpus
+# (config/regression-corpus.txt) is the corpus of interest and is gated on every
+# regression run. The full corpus, including the full 1,323-spec OpenClaw agent
+# corpus, is constructed once per week, here (localOpenClawStack CLAUDE.md,
+# "Which agent corpus matters"; #467). This replaces the every-5th-day cron, whose
+# case was that domains were landing fast. A real period also removes the 1-5 day
+# gap `*/5` produced across month boundaries. If domains start arriving faster
+# than weekly again, raise the frequency here, on purpose, and say why.
 #
-# Cron cannot express "every 5 days" directly. `*/5` on day-of-month fires on
-# the 1st, 6th, 11th, 16th, 21st, 26th and 31st, so the interval is 5 days
-# except across a month boundary, where it is 1-5. That is accepted: the sweep
-# is a safety net whose value is in running regularly and unattended, not in
-# landing on an exact period.
+# The agent corpus is constructed here and nowhere else on a schedule. On
+# 2026-09-25 it was found five weeks behind the machine corpus (it predated the
+# RealityEngine_Machines#154 action changes) while every gate passed. The
+# count/join/axis gate cannot see stale actions, and nothing rebuilt the specs to
+# compare. The agent-corpus job below rebuilds them from the current corpus and
+# fails when the committed specs differ.
 #
 # NOT here, deliberately: recording the CES contract across the full corpus.
 # scripts/regression-ces-contracts.py documents why — the full corpus yields
@@ -31,14 +35,17 @@ name: Full Corpus Cycle
 
 on:
   schedule:
-    # 05:00 UTC, every 5th day of the month. Clear of the 07:00 Monday
-    # owl-corpus-wide run and the 09:17 regression cron so three long jobs do
-    # not contend for runners.
-    - cron: '0 5 */5 * *'
+    # 05:00 UTC every Sunday. Clear of the 07:00 Monday owl-corpus-wide run and
+    # the 09:17 regression cron, so three long jobs do not contend for runners.
+    - cron: '0 5 * * 0'
   workflow_dispatch:
     inputs:
       machines_ref:
         description: 'RealityEngine_Machines ref (branch, tag or SHA). Empty = default branch.'
+        required: false
+        default: ''
+      openclaw_ref:
+        description: 'localOpenClawStack ref whose committed agent corpus is checked. Empty = default branch.'
         required: false
         default: ''
       file_issue:
@@ -286,12 +293,102 @@ jobs:
           path: RealityEngine_CI/.full-corpus/**
           retention-days: 30
 
+  # ── Agent corpus: construct all 1,323 specs and verify them ─────────────────
+  # The weekly construction of the full OpenClaw agent corpus. It needs no
+  # runtime and runs beside the other two jobs. Three questions, each able to
+  # fail on its own:
+  #   1. Does the generator still produce a corpus that meets
+  #      CORPUS_EXIT_CRITERIA §3.7? That means 1,323 specs, the five
+  #      arbitration fixtures agent-free, every agent joined, and axis names
+  #      agreeing.
+  #   2. Is the committed corpus the one the current machine corpus derives? A
+  #      difference means the specs in localOpenClawStack are stale. This is the
+  #      check that did not exist while they sat five weeks behind.
+  #   3. Is the regression profile still in step with its source list?
+  agent-corpus:
+    name: Full agent corpus — construct and verify (1,323)
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - name: Checkout RealityEngine_CI
+        uses: actions/checkout@v7
+        with:
+          path: RealityEngine_CI
+
+      - name: Checkout RealityEngine_Machines
+        uses: actions/checkout@v7
+        with:
+          repository: jateeter/RealityEngine_Machines
+          ref: ${{ github.event.inputs.machines_ref || '' }}
+          path: RealityEngine_Machines
+
+      - name: Checkout localOpenClawStack
+        uses: actions/checkout@v7
+        with:
+          repository: jateeter/localOpenClawStack
+          ref: ${{ github.event.inputs.openclaw_ref || '' }}
+          path: localOpenClawStack
+
+      - name: Setup Python
+        uses: actions/setup-python@v7
+        with:
+          python-version: '3.11'
+
+      # --fresh clears generated specs but keeps agents/profiles/. The
+      # generator is deterministic, so any diff against the checkout is the
+      # corpus having moved, not noise.
+      - name: Construct the full agent corpus
+        working-directory: localOpenClawStack/machine-behaviors
+        env:
+          MACHINES_DIR: ${{ github.workspace }}/RealityEngine_Machines/machines
+        run: |
+          set -o pipefail
+          python3 materialize_agents.py --fresh 2>&1 | tee "$GITHUB_WORKSPACE/agent-corpus.log"
+
+      - name: Verify against the corpus exit criteria (§3.7)
+        working-directory: RealityEngine_CI
+        run: |
+          python3 scripts/check-corpus-exit-criteria.py \
+            --machines ../RealityEngine_Machines --openclaw ../localOpenClawStack
+
+      - name: Regression profile is in step with its source list
+        if: always()
+        working-directory: localOpenClawStack
+        run: python3 scripts/generate-regression-profile.py --check
+
+      - name: Committed agent corpus is current
+        if: always()
+        working-directory: localOpenClawStack
+        run: |
+          git add -A -- machine-behaviors/agents
+          changed="$(git diff --cached --name-status -- machine-behaviors/agents)"
+          if [ -n "$changed" ]; then
+            count="$(printf '%s\n' "$changed" | wc -l | tr -d ' ')"
+            echo "::error::the committed agent corpus is stale: $count file(s) differ from what the current machine corpus derives. Regenerate with 'python3 machine-behaviors/materialize_agents.py --fresh' and commit."
+            printf '%s\n' "$changed" | head -40
+            git diff --cached --stat -- machine-behaviors/agents | tail -1
+            git diff --cached -- machine-behaviors/agents > "$GITHUB_WORKSPACE/agent-corpus.diff"
+            exit 1
+          fi
+          echo "Committed agent corpus matches the current machine corpus."
+
+      - name: Upload agent corpus log and diff
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: full-agent-corpus
+          path: |
+            agent-corpus.log
+            agent-corpus.diff
+          if-no-files-found: ignore
+          retention-days: 30
+
   # ── One issue per failing sweep, deduplicated ────────────────────────────
   report:
     name: Report drift
     runs-on: ubuntu-latest
-    needs: [corpus-static, corpus-load-parity]
-    if: always() && (needs.corpus-static.result == 'failure' || needs.corpus-load-parity.result == 'failure')
+    needs: [corpus-static, corpus-load-parity, agent-corpus]
+    if: always() && (needs.corpus-static.result == 'failure' || needs.corpus-load-parity.result == 'failure' || needs.agent-corpus.result == 'failure')
     steps:
       - name: Open or update the drift issue
         uses: actions/github-script@v9
@@ -303,6 +400,7 @@ jobs:
               '',
               `- static sweep: **${{ needs.corpus-static.result }}**`,
               `- load parity:  **${{ needs.corpus-load-parity.result }}**`,
+              `- agent corpus: **${{ needs.agent-corpus.result }}** (all 1,323 specs rebuilt and compared)`,
               '',
               `Run: ${context.serverUrl}/${context.repo.owner}/${context.repo.repo}/actions/runs/${context.runId}`,
               '',
