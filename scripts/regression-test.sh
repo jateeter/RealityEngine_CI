@@ -250,6 +250,12 @@ case "$(printf '%s' "$MQTT_BROKER_URL" | tr '[:upper:]' '[:lower:]')" in
     ;;
 esac
 
+# An empty service URL means the default, not "no host". Passed through as
+# given, every probe becomes a bare path (`/healthz`) and the stage crashes
+# instead of reporting. Normalised here so no caller has to know that.
+[ -n "$MCP_URL" ] || MCP_URL="http://127.0.0.1:7331"
+[ -n "$SWAGGER_URL" ] || SWAGGER_URL="http://127.0.0.1:8088"
+
 # ── Profile resolution ───────────────────────────────────────────────────────
 # An unset knob takes the profile's value; a knob the caller set is checked
 # against the profile and, on the hosted lane, refused. Six independent
