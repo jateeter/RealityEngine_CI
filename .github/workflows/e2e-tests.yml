@@ -438,6 +438,12 @@ jobs:
         working-directory: RealityEngine_CI
         run: bash scripts/tests/test-ces-contracts-quorum.sh
 
+      # A failed deploy is one orchestration finding, not a health failure
+      # filed against every stack it tore down (localOpenClawStack#39).
+      - name: Run deploy-validate agent unit tests
+        working-directory: RealityEngine_CI
+        run: bash scripts/tests/test-deploy-validate-agent.sh
+
       # Which sources each artifact is held against. The gate has been wrong
       # about this twice (#195, #354) and had no test either time; the second
       # bug silently undid the first, because the generated headers were newer
