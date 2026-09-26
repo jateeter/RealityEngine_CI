@@ -621,6 +621,17 @@ phase_restart_matrix() {
     local why="Docker lane blocked by a native universe (orchestration finding)"
     skip reality-engine restart "RE API (Scala container)" "$why"
     skip manager restart "Manager PE+Visualizer containers" "$why"
+  elif [ "$DEPLOY_FAILED" = true ] && [ "$DEPLOY_TORE_DOWN" = true ]; then
+    # restart_compose_service recreates one service with --no-deps and then the
+    # tls-proxy. nginx/tls-proxy.conf names every upstream statically with no
+    # resolver, so nginx refuses to start while any of them is absent
+    # (`host not found in upstream "grafana"`), and after a torn-down, failed
+    # deploy all of them are. Both public endpoints then stay dark and the
+    # failure is filed against the runtime: that is what Scala#119 and
+    # Manager#127 recorded on 2026-09-12/13. The deploy failure is the finding.
+    local why="deploy failed after teardown; the stack a --no-deps restart needs is not up (orchestration finding)"
+    skip reality-engine restart "RE API (Scala container)" "$why"
+    skip manager restart "Manager PE+Visualizer containers" "$why"
   else
     restart_compose_service reality-engine "https://localhost:5001/api/health" "RE API (Scala container)" reality-engine
     restart_compose_service manager "https://localhost:3004/api/health" "Manager PE+Visualizer containers" \

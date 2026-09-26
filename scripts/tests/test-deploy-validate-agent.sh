@@ -22,6 +22,7 @@ extract() { sed -n "/^$1() {/,/^}/p" "$A"; }
 eval "$(extract phase_health)"
 eval "$(extract phase_deploy)"
 eval "$(extract file_issue)"
+eval "$(extract phase_restart_matrix)"
 
 hdr() { :; }; info() { :; }; ok() { :; }; warn() { :; }; _log() { :; }
 FAILS=(); SKIPS=(); PASSES=()
@@ -89,5 +90,21 @@ phase_health
 check "health does not re-file the refusal" '[ ${#FAILS[@]} -eq 1 ]'
 check "health skips the four proxied probes" '[ ${#SKIPS[@]} -eq 4 ]'
 check "stacks the deploy never touched are still probed" 'printf "%s\n" "${PASSES[@]}" | grep -q "^localai:" && printf "%s\n" "${PASSES[@]}" | grep -q "^openclaw:"'
+
+# 7. The containerized restart after a torn-down, failed deploy cannot pass:
+#    the tls-proxy's static upstreams are absent, so nginx will not start.
+#    It is skipped; localAI and OpenClaw, which restart their own whole stacks
+#    via scripts/start.sh, are still exercised.
+RESTARTED=()
+restart_compose_service() { RESTARTED+=("$1"); }
+restart_repo_script() { RESTARTED+=("$1"); }
+DOCKER_LANE_BLOCKERS=""; OPENCLAW=yes; SKIPS=(); FAILS=()
+DEPLOY_FAILED=true; DEPLOY_TORE_DOWN=true
+phase_restart_matrix
+check "failed deploy skips the two compose restarts" '[ ${#SKIPS[@]} -eq 2 ] && [ ${#FAILS[@]} -eq 0 ]'
+check "failed deploy still restarts localAI and OpenClaw" '[ "${RESTARTED[*]}" = "localai openclaw" ]'
+DEPLOY_FAILED=false; RESTARTED=(); SKIPS=()
+phase_restart_matrix
+check "a successful deploy restarts all four units" '[ "${RESTARTED[*]}" = "reality-engine manager localai openclaw" ] && [ ${#SKIPS[@]} -eq 0 ]'
 unset -f rm
 exit $rc
