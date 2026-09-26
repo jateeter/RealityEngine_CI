@@ -2011,6 +2011,49 @@ run_healthkit_bridge() {
     bash "$bridge/scripts/e2e_simulator.sh"
 }
 
+run_pim_mirror() {
+  step "HealthKit → PIM → POD mirror leg"
+  # MIRROR_CONTRACT §8. D2 makes the mirror block the MVP: a skip below is a
+  # recorded reason, not a pass. Only pim-mirror.json with status passed is.
+  if [ "$PROFILE" != "local" ]; then
+    log "SKIP pim-mirror: hosted profile has no Docker CSS or Swift toolchain"
+    write_skip_report "pim-mirror-skipped.json" "hosted profile refuses the PIM mirror leg"
+    return 0
+  fi
+  local pim_repo="OpenCommons-Health---Personal-Information-Management"
+  if ! repo_present "$pim_repo" || ! repo_present localHealthkitBridge; then
+    log "SKIP pim-mirror: PIM or the HealthKit bridge is not checked out"
+    write_skip_report "pim-mirror-skipped.json" "PIM or localHealthkitBridge not checked out"
+    return 0
+  fi
+  local pim bridge
+  pim="$(repo_root "$pim_repo")"
+  bridge="$(repo_root localHealthkitBridge)"
+  # Pinned commits that predate the mirror (PIM#83, localHealthkitBridge#46)
+  # have nothing to run; say which side is missing.
+  if [ ! -d "$pim/src/integrations/healthkit" ]; then
+    log "SKIP pim-mirror: pinned PIM has no HealthKit mirror"
+    write_skip_report "pim-mirror-skipped.json" "pinned PIM predates the HealthKit mirror"
+    return 0
+  fi
+  if [ ! -f "$bridge/Tests/HealthKitBridgeTests/PIMWireTests.swift" ]; then
+    log "SKIP pim-mirror: pinned bridge has no PIMWireTests"
+    write_skip_report "pim-mirror-skipped.json" "pinned localHealthkitBridge predates PIMWireTests"
+    return 0
+  fi
+  local missing=""
+  for tool in docker swift jq openssl; do
+    command -v "$tool" >/dev/null 2>&1 || missing="$missing $tool"
+  done
+  if [ -n "$missing" ]; then
+    log "SKIP pim-mirror: missing toolchain —$missing"
+    write_skip_report "pim-mirror-skipped.json" "missing toolchain:$missing"
+    return 0
+  fi
+  run_cmd "pim-mirror" bash "$(repo_root RealityEngine_CI)/scripts/pim-mirror-leg.sh" \
+    "$pim" "$bridge" "$REPORT_DIR"
+}
+
 run_openclaw() {
   step "OpenClaw async handoff and PE completion return"
   if [ "$OPENCLAW_FLAG" != "--openclaw" ]; then
@@ -2205,6 +2248,8 @@ if [ "$LIVE_TESTS" = true ]; then
   run_stage "localai-machines"  run_localai_machines
   run_stage "local-ai"          run_local_ai
   run_stage "openclaw"          run_openclaw
+  # Independent of the universe: its own CSS and PIM, torn down on exit.
+  run_stage "pim-mirror"        run_pim_mirror
   # Last: it drives a simulator and is the slowest stage, so a failure here
   # should not delay the report on everything before it.
   run_stage "healthkit-bridge"  run_healthkit_bridge

@@ -388,6 +388,19 @@ Still true, and worth knowing:
 - `regression-trajectory-parity.py` seeds one source without checking the
   others match, so it is exposed to unequal stimulus. Equalise sources first.
 
+## The PIM mirror leg
+
+`pim-mirror-leg.sh`, stage `pim-mirror` (local profile only), is the
+HealthKit → PIM → POD leg of `localHealthkitBridge/docs/MIRROR_CONTRACT.md`
+§8. MVP_ROADMAP D2 makes it block the MVP, so its skip report is a recorded
+reason, never a pass. It is independent of the universe: it starts its own
+CSS (compose project `re-ci-pim-mirror-<port>`) and PIM from the pinned
+worktrees, with a per-run account password and bridge token, runs the bridge's
+`PIMWireTests` against PIM's public API, requires `/api/pod/healthkit/status`
+to count what landed, and tears everything down. The run's credentials are
+deleted before the report directory is retained. It never touches an
+operator's PIM stack or `.solid` data.
+
 ## Regression run history is bounded: two runs
 
 `regression-test.sh` keeps the **2** most recent run directories under
