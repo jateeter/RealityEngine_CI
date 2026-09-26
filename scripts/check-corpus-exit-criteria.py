@@ -35,9 +35,10 @@ import re
 import sys
 from pathlib import Path
 
-# corpus-exit-v1.0 counts, revised once: RealityEngine_Machines#180 retired
-# RS Flip Flop (deprecated demo), which had an agent and an openClawProjection
-# but no agentBinding (v1.0: 1328 machines, 1323 agents, 1185 projections).
+# corpus-exit-v2.0 (RealityEngine_Machines CORPUS_EXIT_CRITERIA §3). v2.0 follows
+# #180 retiring RS Flip Flop (deprecated demo), which had an agent and an
+# openClawProjection but no agentBinding (v1.0: 1328 machines, 1323 agents,
+# 1185 projections).
 EXPECTED_MACHINES = 1327
 EXPECTED_DOMAINS = 12
 EXPECTED_AGENTS = 1322

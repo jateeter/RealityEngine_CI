@@ -299,7 +299,7 @@ jobs:
           path: localOpenClawStack
           token: ${{ secrets.REPO_ACCESS_TOKEN || github.token }}
 
-      # corpus-exit-v1.0 §3.7 states what makes a dependent regeneration correct
+      # CORPUS_EXIT_CRITERIA §3.7 states what makes a dependent regeneration correct
       # and nothing checked it. Regenerating the agent corpus produced two
       # regressions the criteria caught by hand and this catches automatically:
       # 1,328 agent specs instead of 1,323 — the arbitration fixtures must stay
