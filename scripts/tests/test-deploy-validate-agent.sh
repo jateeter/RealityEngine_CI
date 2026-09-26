@@ -70,5 +70,24 @@ phase_deploy
 check "phase_deploy marks teardown" '[ "$DEPLOY_TORE_DOWN" = true ]'
 check "phase_deploy marks the failed deploy" '[ "$DEPLOY_FAILED" = true ]'
 check "the deploy failure is filed once, against orchestration" '[ "${FAILS[*]}" = "orchestration:startUniverse.sh exited non-zero" ]'
+
+# 6. RealityEngine_CI#366: a native universe holds the TLS-proxy ports. The
+#    deploy must refuse *before* its teardown (#446), so nothing it would have
+#    stopped is misreported, and the collision is one orchestration finding.
+eval "$(extract refuse_docker_lane)"
+DOCKER_CALLS=0
+docker() { DOCKER_CALLS=$((DOCKER_CALLS+1)); return 0; }
+DOCKER_LANE_BLOCKERS="  :3001  pid 1  node  (/ws/RealityEngine_Manager/visualizer/backend)"
+DOCKER_LANE_REFUSED=false; DEPLOY_FAILED=false; DEPLOY_TORE_DOWN=false; FAILS=(); SKIPS=()
+phase_deploy; deploy_rc=$?
+check "a held proxy port refuses the deploy" '[ "$deploy_rc" -ne 0 ]'
+check "the refusal happens before any teardown" '[ "$DOCKER_CALLS" -eq 0 ] && [ "$DEPLOY_TORE_DOWN" = false ]'
+check "the refusal is filed once, against orchestration" '[ ${#FAILS[@]} -eq 1 ] && [[ "${FAILS[0]}" == orchestration:* ]]'
+# The refused deploy left localAI and OpenClaw running; they answer.
+poll() { return 0; }; curl() { return 0; }; PASSES=()
+phase_health
+check "health does not re-file the refusal" '[ ${#FAILS[@]} -eq 1 ]'
+check "health skips the four proxied probes" '[ ${#SKIPS[@]} -eq 4 ]'
+check "stacks the deploy never touched are still probed" 'printf "%s\n" "${PASSES[@]}" | grep -q "^localai:" && printf "%s\n" "${PASSES[@]}" | grep -q "^openclaw:"'
 unset -f rm
 exit $rc
