@@ -4214,8 +4214,8 @@
           "/rs2-active-output-1-bit",
           "/rs-flip-flop-active-output-0-bit",
           "/rs-flip-flop-active-output-1-bit",
-          "/rs-flip-flop-deprecated-demo-active-output-0-bit",
-          "/rs-flip-flop-deprecated-demo-active-output-1-bit",
+          "/rs-ring-latch-stage-a-active-output-0-bit",
+          "/rs-ring-latch-stage-a-active-output-1-bit",
           "/rs-flipflop-trigger-active-output-0-bit",
           "/rs-flipflop-trigger-active-output-1-bit"
         ]
