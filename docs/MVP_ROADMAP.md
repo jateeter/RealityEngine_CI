@@ -34,7 +34,7 @@ done when that proof exists, not when the work behind it merges.
 |---|---|---|---|
 | 1 | **Clear the nightly (G1).** Resolve #464 (cpp `wasJustMatched`) and #463 (scala omits MQTT sources at registration). Confirm the empty-MCP-URL fix (#462) clears `service-inventory` and `mcp` | a **scheduled** `regression-tests.yml` run concludes `success`, recorded here by run id and date | open |
 | 2 | **Clear the local lane.** `bash scripts/regression-test.sh --execute --profile local`. The hosted lane does not cover Ollama, OpenClaw, the full corpus or the HealthKit bridge (`RELEASE.md`), so this is the only proof of them | every stage passes, including `openclaw-integration-*` on all three runtimes and `healthkit-bridge` | open: the last run (2026-09-24, `20260924T215111Z`) failed only `openclaw-integration-scala-1` |
-| 3 | **Weekly full-corpus cycle green on schedule.** `full-corpus-cycle.yml`: 1,328 machines validated, loaded identically by all three runtimes, and the 1,323-spec agent corpus rebuilt and matched | a **scheduled** run concludes `success` | branch dispatch green 2026-09-25 (run 36180913113, the first fully green run); first scheduled run is Sunday 2026-09-27 |
+| 3 | **Weekly full-corpus cycle green on schedule.** `full-corpus-cycle.yml`: 1,327 machines validated, loaded identically by all three runtimes, and the 1,322-spec agent corpus rebuilt and matched | a **scheduled** run concludes `success` | branch dispatch green 2026-09-25 (run 36180913113, the first fully green run); first scheduled run is Sunday 2026-09-27 |
 | 4 | **Decide the release tag (D1)** | the decision is recorded here and in `RELEASE.md` *Tag conventions* | **done 2026-09-25**: `release-vN.M.Z` (candidates `release-vN.M.Z-rcN`) |
 | 5 | **Build the mirror (D2, MVP-blocking):** bridge → PIM API → POD, per `localHealthkitBridge/docs/MIRROR_CONTRACT.md`: PIM metric catalog, `health-observations` domain, the dynamic approved-metric set, `healthkit/sync/preview` + `apply` with per-batch owner approval; the bridge `PIMClient`; the CI mirror leg | the local-lane **mirror leg is green**, recorded here by run id | **decided 2026-09-25; in progress** (localHealthkitBridge#45) |
 | 6 | **Re-verify release assets at the release commit** (commands under *Release assets*) | every check passes against the commits being pinned | current as of 2026-09-25; repeat at release time |
@@ -87,14 +87,14 @@ against the commits being pinned.
 
 | Asset | State | Check |
 |---|---|---|
-| Machine corpus, 1,328 machines, 12 domains | `corpus-exit-v1.0` criteria hold; every Machines generator current, and **no gate skipped** (ROBOT, SHACL, QUDT all ran) | `bash scripts/validate-corpus.sh` in Machines, with `PYSHACL_PYTHON`/`QUDT_PYTHON` set |
+| Machine corpus, 1,327 machines, 12 domains | `corpus-exit-v2.0` criteria hold; every Machines generator current, and **no gate skipped** (ROBOT, SHACL, QUDT all ran) | `bash scripts/validate-corpus.sh` in Machines, with `PYSHACL_PYTHON`/`QUDT_PYTHON` set |
 | JSON Schema | 1,338 artifacts, 0 invalid | `node scripts/validate-schemas.mjs` (after `npm ci`) |
 | OWL release baselines | ontology **0.5.0**, corpus `1.0.0+corpus.cba104f1972d`; ELK + HermiT consistent | Machines#178; `reason-owl.sh` reports "no axiom changes" |
 | Oracles | 4,966 current | `node scripts/cesgen-oracles.mjs --check` |
 | cesgen bindings | C++ and **Scala** current; Scala had never been checked and was 355 files behind | #466, Scala#161; `node scripts/cesgen.mjs --all --check` |
 | OpenAPI | regenerated from `SURFACE_SPEC`, propagated to CPP/LSP/Manager | #466; `bash scripts/generate-openapi.sh` leaves no diff |
 | CES contract shards | 16 scopes: 15 recorded, 1 unrecorded (tracked gap) | `npm run ces-contracts:status` in Machines |
-| OpenClaw agent corpus | 1,323 specs (the 5 arbitration fixtures are agent-free), `provenance.corpus.digest` = `cba104f1972d` | localOpenClawStack#46; `check-corpus-exit-criteria.py` PASS |
+| OpenClaw agent corpus | 1,322 specs (the 5 arbitration fixtures are agent-free), `provenance.corpus.digest` = `d550be8da2c3`, `conformsTo` `corpus-exit-v2.0` | localOpenClawStack#46; `check-corpus-exit-criteria.py` PASS |
 
 The agent corpus and the OWL baselines carry the **same corpus fingerprint**.
 Comparing it with the corpus as it stands is the staleness check for both.
@@ -313,14 +313,14 @@ which is why D1 exists.
 
 ### G1.7 · Weekly full-corpus cycle — done on branch, first scheduled run 2026-09-27
 
-`full-corpus-cycle.yml` is the only check over all 1,328 machines, which the
+`full-corpus-cycle.yml` is the only check over all 1,327 machines, which the
 per-PR gates and the regression lanes deliberately do not load. Weekly since
 #468 (Sunday 05:00 UTC), it runs three jobs:
 
 - **static sweep:** every generator, schema, OWL reasoning and inventory gate,
   asserting nothing was skipped;
 - **load parity:** each runtime loads the whole corpus from the 7,680 floor and
-  must report 1,328;
+  must report 1,327;
 - **agent corpus:** the full 1,323-spec OpenClaw agent corpus is rebuilt from
   the current machine corpus, and must pass `check-corpus-exit-criteria.py` and
   match the committed specs.

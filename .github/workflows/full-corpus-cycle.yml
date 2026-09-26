@@ -10,7 +10,7 @@ name: Full Corpus Cycle
 #
 # Weekly, decided 2026-09-25. The regression-test corpus
 # (config/regression-corpus.txt) is the corpus of interest and is gated on every
-# regression run. The full corpus, including the full 1,323-spec OpenClaw agent
+# regression run. The full corpus, including the full 1,322-spec OpenClaw agent
 # corpus, is constructed once per week, here (localOpenClawStack CLAUDE.md,
 # "Which agent corpus matters"; #467). This replaces the every-5th-day cron, whose
 # case was that domains were landing fast. A real period also removes the 1-5 day
@@ -63,7 +63,7 @@ permissions:
   issues: write
 
 jobs:
-  # ── Static sweep: every generator, every domain, all 1328 machines ────────
+  # ── Static sweep: every generator, every domain, all 1327 machines ────────
   # No runtime needed. This is validate-corpus.sh over the whole corpus, which
   # since RealityEngine_Machines#(inventory) also runs the generator inventory
   # gate — so a domain that arrives with an unwired generator fails here rather
@@ -299,12 +299,12 @@ jobs:
           include-hidden-files: true
           retention-days: 30
 
-  # ── Agent corpus: construct all 1,323 specs and verify them ─────────────────
+  # ── Agent corpus: construct all 1,322 specs and verify them ─────────────────
   # The weekly construction of the full OpenClaw agent corpus. It needs no
   # runtime and runs beside the other two jobs. Three questions, each able to
   # fail on its own:
   #   1. Does the generator still produce a corpus that meets
-  #      CORPUS_EXIT_CRITERIA §3.7? That means 1,323 specs, the five
+  #      CORPUS_EXIT_CRITERIA §3.7? That means 1,322 specs, the five
   #      arbitration fixtures agent-free, every agent joined, and axis names
   #      agreeing.
   #   2. Is the committed corpus the one the current machine corpus derives? A
@@ -312,7 +312,7 @@ jobs:
   #      check that did not exist while they sat five weeks behind.
   #   3. Is the regression profile still in step with its source list?
   agent-corpus:
-    name: Full agent corpus — construct and verify (1,323)
+    name: Full agent corpus — construct and verify (1,322)
     runs-on: ubuntu-latest
     timeout-minutes: 30
     steps:
@@ -406,12 +406,12 @@ jobs:
               '',
               `- static sweep: **${{ needs.corpus-static.result }}**`,
               `- load parity:  **${{ needs.corpus-load-parity.result }}**`,
-              `- agent corpus: **${{ needs.agent-corpus.result }}** (all 1,323 specs rebuilt and compared)`,
+              `- agent corpus: **${{ needs.agent-corpus.result }}** (all 1,322 specs rebuilt and compared)`,
               '',
               `Run: ${context.serverUrl}/${context.repo.owner}/${context.repo.repo}/actions/runs/${context.runId}`,
               '',
               'The per-PR gates gate the 20-machine regression selection; this sweep is',
-              'the only scheduled check over all 1,328. A failure here is a machine shape',
+              'the only scheduled check over all 1,327. A failure here is a machine shape',
               'or a domain artifact that nothing else looks at.',
             ].join('\n');
             const existing = await github.rest.issues.listForRepo({
