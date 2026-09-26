@@ -444,6 +444,12 @@ jobs:
         working-directory: RealityEngine_CI
         run: bash scripts/tests/test-deploy-validate-agent.sh
 
+      # Lazy multi-series counters are state, not exposition
+      # (RealityEngine_Machines#126); real drift must still fail.
+      - name: Run metrics-parity unit tests
+        working-directory: RealityEngine_CI
+        run: bash scripts/tests/test-metrics-parity.sh
+
       # Which sources each artifact is held against. The gate has been wrong
       # about this twice (#195, #354) and had no test either time; the second
       # bug silently undid the first, because the generated headers were newer
