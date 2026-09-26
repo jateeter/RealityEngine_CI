@@ -15,6 +15,7 @@ TARGETS=(
   "$CI_DIR/scripts/gen-nginx-upstreams.sh"
   "$CI_DIR/scripts/lib/ci-e2e-specs.sh"
   "$CI_DIR/scripts/tests/test-ci-e2e-specs.sh"
+  "$CI_DIR/scripts/pim-mirror-leg.sh"
   "$CI_DIR/../RealityEngine_CPP/start.sh"
   "$CI_DIR/../RealityEngine_CPP/stop.sh"
   "$CI_DIR/../RealityEngine_LSP/start.sh"
