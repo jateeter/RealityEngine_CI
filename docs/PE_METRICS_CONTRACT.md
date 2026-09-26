@@ -117,6 +117,14 @@ lines are still absent for those — a counter with no observed label values
 emits nothing). This keeps the zero state identical across runtimes and is
 what the parity check compares in CI, where engines start empty.
 
+After deployment the engines are not empty, and not equally so: the regression
+lane's HealthKit leg posts to one PE, and an integration that fails on one
+runtime emits nothing there. Which `integration` / `rag` series exist is then
+state. `verify-metrics-parity.sh` therefore compares a multi-series counter only
+for label values every PE has emitted, and names the rest as `STATE`; everything
+else, including HELP/TYPE wording, label sets and order for shared series, stays
+byte-strict. `--with-values` asserts equal state and compares everything.
+
 ## Verification
 
 | Check | Where |

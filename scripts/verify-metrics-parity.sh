@@ -119,6 +119,54 @@ for inst in instances:
     print(f"metrics-parity: {label}: {len(body)} bytes, "
           f"{sum(1 for l in body.splitlines() if l.startswith('# TYPE'))} metric(s)")
 
+# Which multi-series counters exist is state, not exposition. The contract
+# (docs/PE_METRICS_CONTRACT.md, "Zero-state requirement") has a counter with no
+# observed label values emit nothing, so an `integration` or `rag` series appears
+# only once a PE has seen that value. Byte parity is defined at the zero state,
+# but this check runs after deployment, when the engines have taken different
+# traffic: the regression lane's HealthKit leg posts to one PE only. Comparing
+# the raw set then reports drift between engines whose exposition is identical
+# (RealityEngine_Machines#126: cpp carried healthkit/sensor/openclaw series that
+# lsp/scala had not seen; restricted to shared values the three blocks were
+# byte-identical). So, unless --with-values asserts equal state, compare only
+# series whose label value every PE has emitted, and report the rest.
+STATE_LABEL = re.compile(r'(integration|rag)="([^"]*)"')
+
+
+def series_groups(lines):
+    """Split an exposition into HELP/TYPE/sample groups, one per series."""
+    groups, cur = [], []
+    for line in lines:
+        cur.append(line)
+        if not line.startswith("#"):
+            groups.append(cur)
+            cur = []
+    if cur:
+        groups.append(cur)
+    return groups
+
+
+def state_key(group):
+    m = STATE_LABEL.search(group[-1]) if group and not group[-1].startswith("#") else None
+    if not m:
+        return None
+    return (group[-1].split("{", 1)[0], m.group(1), m.group(2))
+
+
+if len(blocks) >= 2 and not with_values:
+    seen = {label: {k for k in map(state_key, series_groups(lines)) if k}
+            for label, lines in blocks.items()}
+    shared = set.intersection(*seen.values())
+    for label in sorted(blocks):
+        extra = sorted(seen[label] - shared)
+        if extra:
+            print(f"metrics-parity: STATE — {label} has series the others have not "
+                  f"emitted yet (compared only where shared): "
+                  + ", ".join(f"{n}{{{k}={v}}}" for n, k, v in extra))
+        blocks[label] = [line for g in series_groups(blocks[label])
+                         if state_key(g) is None or state_key(g) in shared
+                         for line in g]
+
 if len(blocks) >= 2:
     names = sorted(blocks)
     ref = names[0]
