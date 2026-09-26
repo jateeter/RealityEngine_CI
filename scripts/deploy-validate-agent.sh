@@ -301,7 +301,7 @@ EOF
     fi
     if [ -n "$existing" ] && [ "$existing" != "null" ]; then
       gh issue comment -R "$GH_OWNER/$repo" "$existing" \
-        --body "Recurred on $(date -u +%FT%TZ) (cycle phase ${phase}).\n\n${note}" >/dev/null 2>&1 \
+        --body "$(printf 'Recurred on %s (cycle phase %s).\n\n%s' "$(date -u +%FT%TZ)" "$phase" "$note")" >/dev/null 2>&1 \
         && info "Updated existing issue $GH_OWNER/$repo#$existing" \
         || warn "Could not comment on $GH_OWNER/$repo#$existing"
     else
@@ -484,9 +484,14 @@ phase_deploy() {
     ( cd "$OCS_DIR" && docker compose down --remove-orphans ) >>"$RUN_LOG" 2>&1 || true
   fi
   sleep 2
+  # From here on this phase has stopped the CI, localAIStack and OpenClaw
+  # stacks. If it fails before startUniverse.sh finishes, none of them is
+  # running because of that, not because any of them is broken.
+  DEPLOY_TORE_DOWN=true
   if docker info >/dev/null 2>&1; then
     ok "Docker daemon healthy after teardown"
   else
+    DEPLOY_FAILED=true
     fail orchestration deploy "Docker daemon down after compose-down teardown" \
       "Unexpected — compose down should not affect the daemon; investigate Docker Desktop"
     return 1
@@ -505,6 +510,7 @@ phase_deploy() {
   if ( cd "$CI_DIR" && bash ./startUniverse.sh "${args[@]}" ) >>"$RUN_LOG" 2>&1; then
     pass orchestration deploy "startUniverse.sh completed"
   else
+    DEPLOY_FAILED=true
     fail orchestration deploy "startUniverse.sh exited non-zero" "Inspect tail of $RUN_LOG"
     return 1
   fi
@@ -521,6 +527,24 @@ phase_deploy() {
 # =============================================================================
 phase_health() {
   hdr "Phase 2 · Health gate (public Docker endpoints)"
+  # A deploy that tore the stacks down and then failed started nothing, so
+  # every probe below would fail and be filed against the service it names.
+  # That is how localOpenClawStack#39 (gateway :18789) and localAIStack#86
+  # (API :4000, Qdrant :4333) were filed: in all three runs startUniverse.sh
+  # stopped at its port preflight after this agent's own teardown, and the
+  # restart matrix in the same runs brought the gateway back healthy. The one
+  # finding is the deploy failure, already filed against orchestration.
+  if [ "$DEPLOY_FAILED" = true ] && [ "$DEPLOY_TORE_DOWN" = true ]; then
+    local why="deploy failed after teardown; nothing was started (orchestration finding)"
+    skip reality-engine health "RE API (:5001)" "$why"
+    skip manager health "PE API (:3004)" "$why"
+    skip manager health "Visualizer backend (:3001)" "$why"
+    skip manager health "Visualizer UI (:5173)" "$why"
+    skip localai health "localAIStack API (:4000)" "$why"
+    skip localai health "Qdrant (:4333)" "$why"
+    [ "$OPENCLAW" != "no" ] && skip openclaw health "OpenClaw gateway (:18789)" "$why"
+    return 0
+  fi
   # With the Docker lane blocked, the RE/PE/Visualizer probes measure nothing
   # Docker owns: :5001/:3004 go through a proxy that never bound, and
   # :3001/:5173 answer from the native universe's Manager — a pass there would
@@ -820,6 +844,7 @@ run_cycle() {
   # restart matrix all need the same answer, and --restart-only / --no-deploy
   # reach the Docker phases without passing through phase_deploy at all.
   DOCKER_LANE_BLOCKERS=""; DOCKER_LANE_REFUSED=false
+  DEPLOY_FAILED=false; DEPLOY_TORE_DOWN=false
   if [ "$DRY_RUN" = false ] && [ "$FOOTPRINT" != native ]; then
     DOCKER_LANE_BLOCKERS="$(native_proxy_blockers)"
   fi

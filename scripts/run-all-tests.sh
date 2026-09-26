@@ -451,6 +451,7 @@ run_unit() {
     run_corpus_dimension_tests
     run_generator_drift_checks
     run_machine_set_parity_tests
+    run_deploy_validate_agent_tests
     run_export_parity_tests
     run_ces_contract_drift
     run_localai_tests
@@ -502,6 +503,11 @@ run_export_parity_tests() {
 run_machine_set_parity_tests() {
     run_suite "Machine-set parity unit tests" "$CI_DIR" \
         bash scripts/tests/test-machine-set-parity.sh
+}
+
+run_deploy_validate_agent_tests() {
+    run_suite "Deploy-validate agent unit tests" "$CI_DIR" \
+        bash scripts/tests/test-deploy-validate-agent.sh
 }
 
 run_generator_drift_checks() {
