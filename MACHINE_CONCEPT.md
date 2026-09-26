@@ -264,7 +264,12 @@ Because the machine is a DFA, standard DFA-to-regex constructions apply directly
 
 The "branch" row (one vector activating multiple successors) is the key insight: it is **not** non-determinism — it is the DFA tracking multiple simultaneously active positions in the activation pattern, which is precisely the powerset construction expressed directly in the runtime data structure.
 
-### Worked Example — `RSFlipFlopDeprecatedDemo.json`
+### Worked Example — an RS flip-flop with a deprecated RESET sequence
+
+This machine was `RSFlipFlopDeprecatedDemo.json` in the corpus. It was retired
+(RealityEngine_Machines#180) because it sat in the `agent-completion-risk`
+service lane, and it now lives on as the deprecation test's own fixture,
+`RealityEngine_CPP/tests/fixtures/cesgen_deprecation_rs_flipflop.json`.
 
 ```
 SET sequence:   isInitial(s=1,r=0) → output(Q=1)

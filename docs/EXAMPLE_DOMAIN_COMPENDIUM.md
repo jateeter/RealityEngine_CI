@@ -1,16 +1,16 @@
 # Example Machine Compendium
 
-Generated from `RealityEngine_Machines/machines/**/*.json` at 2026-09-06T18:49:56.613Z.
+Generated from `RealityEngine_Machines/machines/**/*.json` at 2026-09-26T20:38:26.859Z.
 
 This page is intentionally indexable and searchable: every active domain, machine name, machine code, trigger, agent, tag, vector range, and interconnection is represented as plain Markdown text.
 
 ## Corpus Summary
 
-- Machines: 1328
+- Machines: 1327
 - Active domains: 14
-- Used perceptual positions: 9472
+- Used perceptual positions: 9468
 - Max dimension: 16944
-- Holes: 7472
+- Holes: 7476
 - Machine-level interconnections: 1429
 - Cross-domain interconnections: 95
 - Cross-domain bridge block: [256:4109] (260 positions, 48 components)
@@ -24,7 +24,7 @@ This page is intentionally indexable and searchable: every active domain, machin
 | built-space | 165 | [316:13758] | 945 | 149 | 149 | built-space, Built Space - WELL Integrative Planning, Integrative Planning, ai-trigger, bsx001, built-space-well-generated, bsx002, bsx003, bsx004, bsx005, bsx006, bsx007 |
 | community-services | 112 | [920:14104]; bridge [3815:3819], [3819:3823], [3827:3831], [3831:3835], [3835:3839], [3839:3843], [3843:3847], [3851:3855], [3863:3867], [3871:3875], [3875:3879], [3879:3883], [3883:3887], [3895:3899], [3899:3903], [3903:3907] | 492 | 75 | 114 | community-services, Community Services — Benefits Eligibility / Qualification, benefits-eligibility, benefits-eligibility-screener, ces-sequences, ces-sequences-3, Community Services - Health And Human Services Intake, Health And Human Services Intake, ai-trigger, ai-triggers, ces-sequences-4, benefits-navigation-agent |
 | data-center | 65 | [1344:14297]; bridge [3919:3923], [4057:4061], [4061:4067], [4067:4071], [4071:4077], [4077:4083], [4083:4087], [4087:4093], [4093:4099], [4099:4103], [4103:4109] | 338 | 58 | 50 | data-center, Data Center — Thermal / Cooling Control, ces-sequences, ces-sequences-2, cooling-control, Data Center — Critical Alert / Latch, critical-alert, Data Center — Critical Alert / Synthesizer, correlation, Data Center — Memory / Alert Latch, alert-latch, Data Center — Memory / Pressure |
-| digital-logic | 70 | [1569:16944]; bridge [3907:3917], [3919:3923], [3971:3979], [3979:3983], [3983:3989], [3989:3993], [3993:3999], [3999:4003], [4003:4009], [4009:4017], [4017:4021], [4021:4027], [4027:4031], [4031:4037], [4037:4041], [4041:4047], [4047:4053], [4053:4057], [4057:4061], [4061:4067], [4067:4071], [4071:4077], [4077:4083], [4083:4087], [4087:4093], [4093:4099], [4099:4103], [4103:4109] | 150 | 15 | 33 | digital-logic, Unspecified, arbitration-fixture, arbitration-provider-peer, ces-sequences, ces-sequences-1, arbitration-provider-target, ces-sequences-2, arbitration-reader, arbitration-writer-a, arbitration-writer-b, Digital Logic - Infrastructure |
+| digital-logic | 69 | [1569:16944]; bridge [3907:3917], [3919:3923], [3971:3979], [3979:3983], [3983:3989], [3989:3993], [3993:3999], [3999:4003], [4003:4009], [4009:4017], [4017:4021], [4021:4027], [4027:4031], [4031:4037], [4037:4041], [4041:4047], [4047:4053], [4053:4057], [4057:4061], [4061:4067], [4067:4071], [4071:4077], [4077:4083], [4083:4087], [4087:4093], [4093:4099], [4099:4103], [4103:4109] | 147 | 15 | 33 | digital-logic, Unspecified, arbitration-fixture, arbitration-provider-peer, ces-sequences, ces-sequences-1, arbitration-provider-target, ces-sequences-2, arbitration-reader, arbitration-writer-a, arbitration-writer-b, Digital Logic - Infrastructure |
 | energy | 187 | [6000:16814] | 732 | 0 | 0 | energy, New Energy - Community Microgrid Cluster, ai-trigger, availability-monitor, battery-storage, ces-average-length-4, ces-sequences, carport-solar-array, battery-container-rack, battery-bms-cell-balance, battery-thermal-management, battery-fire-safety-loop |
 | health-personal | 42 | [1931:16920]; bridge [3811:3815], [3907:3917], [3931:3939] | 129 | 17 | 17 | health-personal, Home Health — Adolescent / Behavioral Health, adolescent, adolescent-mental-health-monitor, behavioral-health, ces-sequences, Personal Health - Published Care Transition Response Bus, assisted-living, bridge, care-transition, care-transition-response-interconnect, Healthcare Operations — Care Level Transition Management |
 | health-services | 220 | [1731:15660]; bridge [3815:3819], [3819:3823], [3827:3831], [3831:3835], [3835:3839], [3839:3843], [3843:3847], [3851:3855] | 860 | 706 | 660 | health-services, Health Services - Evaluability Readiness, ai-trigger, ai-triggers, ces-sequences, ces-sequences-3, care-coordinator-agent, benefits-navigation-agent, capacity-balancer, behavioral-health-crisis-agent, agent-dispatcher, Health Services - Interest Holder Alignment |
@@ -36,10 +36,10 @@ This page is intentionally indexable and searchable: every active domain, machin
 
 ## Tagging Schema
 
-- Structured machine tags: 1198/1328
+- Structured machine tags: 1197/1327
 - Schema versions: 1.0.0, missing
 - Managed by: codex-energy-microgrid-service-layer, codex-scaling-interconnections, generated-energy-domain-corpus, manual-corpus-interconnect, manual-corpus-interconnect-authoring, scripts/manage_machine_tags.mjs, unmanaged
-- Tag groups: domain=2806, capability=5380, workflow=12779, integration=3376, validation=6331
+- Tag groups: domain=2805, capability=5380, workflow=12774, integration=3375, validation=6326
 
 `metadata.tags` remains the backwards-compatible flattened search index. `metadata.tagging` carries the managed tag groups.
 
@@ -680,9 +680,9 @@ Search terms: ces-sequences, ces-sequences-2, cooling-control, data-center, data
 
 ## digital-logic
 
-Machine count: 70
+Machine count: 69
 
-Vector block: [1569:16944] (363 domain-local positions)
+Vector block: [1569:16944] (359 domain-local positions)
 
 Bridge positions: [3907:3917], [3919:3923], [3971:3979], [3979:3983], [3983:3989], [3989:3993], [3993:3999], [3999:4003], [4003:4009], [4009:4017], [4017:4021], [4021:4027], [4027:4031], [4031:4037], [4037:4041], [4041:4047], [4047:4053], [4053:4057], [4057:4061], [4061:4067], [4067:4071], [4071:4077], [4077:4083], [4083:4087], [4087:4093], [4093:4099], [4099:4103], [4103:4109]
 
@@ -697,7 +697,7 @@ Search terms: arbitration-fixture, arbitration-provider-peer, ces-sequences, ces
 | Digital Logic - Digital Logic DLX-031-040 Bus | 1 |
 | Digital Logic - Digital Logic DLX-041-050 Bus | 1 |
 | Digital Logic - Infrastructure | 50 |
-| Unspecified | 14 |
+| Unspecified | 13 |
 
 | Code | Machine | Input | Output | Input Sequences | AI Trigger | Agent | Tag Groups | Tags |
 | --- | --- | ---: | ---: | ---: | --- | --- | --- | --- |
@@ -767,7 +767,6 @@ Search terms: arbitration-fixture, arbitration-provider-peer, ces-sequences, ces
 | domains/digital-logic/OpenClawCompletionE2E | [OpenClaw Completion E2E](RealityEngine_Machines/machines/domains/digital-logic/OpenClawCompletionE2E.json) | [4210:4214] | [4214:4218] | 2 |  | openclaw_e2e_agent | domain:1, capability:4, workflow:3, integration:2, validation:5 | acp, ces-sequences, ces-sequences-2, digital-logic, dispatchable-agent, e2e-fixture, input-sequences, input-sequences-2, open-claw-completion-e2e, openclaw, openclaw-completion-e2e, openclaw-e2e-agent, startup-loadable |
 | domains/digital-logic/RS2 | [RS2](RealityEngine_Machines/machines/domains/digital-logic/RS2.json) | [3910:3912] | [3915:3917] | 3 |  |  | domain:1, capability:0, workflow:4, integration:1, validation:5 | ces-sequences, ces-sequences-2, digital-logic, flip-flop, input-sequences, input-sequences-3, rs2, startup-loadable, stateful, two-step |
 | domains/digital-logic/RSFlipFlop | [RS Flip Flop](RealityEngine_Machines/machines/domains/digital-logic/RSFlipFlop.json) | [3910:3912] | [3913:3915] | 3 |  |  | domain:1, capability:0, workflow:4, integration:1, validation:5 | ces-sequences, ces-sequences-2, digital-logic, flip-flop, immediate-response, input-sequences, input-sequences-3, rs-flip-flop, rsflip-flop, startup-loadable |
-| domains/digital-logic/RSFlipFlopDeprecatedDemo | [RS Flip Flop (deprecated demo)](RealityEngine_Machines/machines/domains/digital-logic/RSFlipFlopDeprecatedDemo.json) | [4200:4202] | [4202:4204] | 3 |  |  | domain:1, capability:0, workflow:5, integration:1, validation:5 | ces-sequences, ces-sequences-2, digital-logic, flip-flop, immediate-response, input-sequences, input-sequences-3, rs-flip-flop, rs-flip-flop-deprecated-demo, rsflip-flop, startup-loadable |
 | domains/digital-logic/RSFlipFlopTrigger | [RS Flipflop Trigger](RealityEngine_Machines/machines/domains/digital-logic/RSFlipFlopTrigger.json) | [3917:3919] | [3919:3921] | 3 |  |  | domain:1, capability:0, workflow:5, integration:1, validation:5 | ces-sequences, ces-sequences-2, digital-logic, flip-flop, input-sequences, input-sequences-3, localai-bridge, rs-flipflop-trigger, rsflip-flop-trigger, startup-loadable, trigger |
 | domains/digital-logic/RSRingLatchStageA | [RS Ring Latch Stage A](RealityEngine_Machines/machines/domains/digital-logic/RSRingLatchStageA.json) | [16920:16922] | [16922:16924] | 3 |  |  | domain:1, capability:0, workflow:6, integration:1, validation:5 | ces-sequences, ces-sequences-2, digital-logic, feedback-ring, flip-flop, immediate-response, input-sequences, input-sequences-3, rs-flip-flop, rs-ring-latch, rs-ring-latch-stage-a, startup-loadable |
 | domains/digital-logic/RSRingLatchStageB | [RS Ring Latch Stage B](RealityEngine_Machines/machines/domains/digital-logic/RSRingLatchStageB.json) | [16922:16924] | [16920:16922] | 3 |  |  | domain:1, capability:0, workflow:6, integration:1, validation:5 | ces-sequences, ces-sequences-2, digital-logic, feedback-ring, flip-flop, immediate-response, input-sequences, input-sequences-3, rs-flip-flop, rs-ring-latch, rs-ring-latch-stage-b, startup-loadable |

@@ -1,8 +1,8 @@
 {
   "corpusFingerprint": {
     "algorithm": "sha256/relfile-sorted-v1",
-    "digest": "sha256:0cd1af845d4157d1338c91e010d1a7eb063d2b32b990f7ded5d9e40b78a5097a",
-    "machineCount": 70,
+    "digest": "sha256:4dcad82bb55d5c0011c42358e08e5327a85bd19238dfa9aa38e385a425c52dba",
+    "machineCount": 69,
     "members": {
       "domains/digital-logic/ArbitrationProviderPeer.json": "e24e7eda87dee0382e431d636a6b5aed40269f4824482ca74c7b5938df0586a0",
       "domains/digital-logic/ArbitrationProviderTarget.json": "d233678997ddbeba757ba0b4003d97504ef9a197261c71c7ea525169ad7eeda3",
@@ -59,7 +59,7 @@
       "domains/digital-logic/DLX048_cdc-stable-two-sample.json": "e4b7aec874ad066055def3118558eb11de7ab3f995ca9b560947582d71fb46e3",
       "domains/digital-logic/DLX049_cdc-toggle-ack.json": "7a02297b594f4bfc74d0714bab513e9bb59f0ff8f8bc80421c3c919a335d03e8",
       "domains/digital-logic/DLX050_metastability-settled.json": "3dd6e0a29518bde9bc47628f5b71c18baefde28f92afa421471f023cfdc2f456",
-      "domains/digital-logic/DigitalLogicCoreInterconnect.json": "ee9749ce5b058ba2b03182867031ff8c155ff5b0f5a8415c8d84b8f21749d12e",
+      "domains/digital-logic/DigitalLogicCoreInterconnect.json": "65653403ede7a74e38fd4ce3339b87144c891fb02a86010662a357e33711ddaf",
       "domains/digital-logic/DigitalLogicDlx001010Interconnect.json": "9ea3101daed4370f011e478be060c0b0bde1f2df57b8d646859dc40963e257d8",
       "domains/digital-logic/DigitalLogicDlx011020Interconnect.json": "15b76d4de4ab6747b5fc7287d7f2319cd7b188728ffb69c4b8c94d3d4b18dfdc",
       "domains/digital-logic/DigitalLogicDlx021030Interconnect.json": "ea9a16fa859d2a5d87346c0bf688fe1ead852d577e8b8a3cbd732d1d5ec548a5",
@@ -70,14 +70,13 @@
       "domains/digital-logic/OpenClawCompletionE2E.json": "3f8015dc63a70b74a8f9fcea884d01266822d906cd4e304c87096cecbf537197",
       "domains/digital-logic/RS2.json": "b79d50d50e533354ad40f623c37d4b4fcae93d6fb58a04e536dc07255575a9cb",
       "domains/digital-logic/RSFlipFlop.json": "0dd5a7d276a713216fbefa16bcaa0be9f6a3b00a619964984fb60638c49ba089",
-      "domains/digital-logic/RSFlipFlopDeprecatedDemo.json": "09ccf98916a093a3b224154af2e8b7eb26212cd29baa24ee3423abb3092e625e",
       "domains/digital-logic/RSFlipFlopTrigger.json": "70028f95f8f3d654b0cd5e6a4b9d8949538fd95e76c7a5786cc15733c658859b",
       "domains/digital-logic/RSRingLatchStageA.json": "56339508c5b28f3f87567f461e135f8ec71adc7ead4695b43fe1583e4ed90361",
       "domains/digital-logic/RSRingLatchStageB.json": "e34096fba65cab332b25594a7cf9ee8c5da3ed0032706d8f668540a4bab51f3e"
     }
   },
   "counts": {
-    "agreed": 68,
+    "agreed": 67,
     "agreed-silent": 2
   },
   "generatedBy": "scripts/record-ces-contracts.py",
@@ -8906,135 +8905,6 @@
       ],
       "verdict": "agreed"
     },
-    "RS Flip Flop (deprecated demo)": {
-      "committed": [
-        [
-          0.0,
-          0.0
-        ],
-        [
-          1,
-          0.0
-        ],
-        [
-          0.0,
-          0.0
-        ],
-        [
-          0.0,
-          1
-        ],
-        [
-          0.0,
-          0.0
-        ],
-        [
-          1,
-          0.0
-        ],
-        [
-          0.0,
-          0.0
-        ],
-        [
-          1,
-          0.0
-        ],
-        [
-          0.0,
-          0.0
-        ],
-        [
-          0.0,
-          1
-        ],
-        [
-          0.0,
-          0.0
-        ],
-        [
-          0.0,
-          1
-        ],
-        [
-          0.0,
-          0.0
-        ],
-        [
-          1,
-          0.0
-        ],
-        [
-          0.0,
-          0.0
-        ],
-        [
-          0.0,
-          1
-        ],
-        [
-          0.0,
-          0.0
-        ],
-        [
-          0.0,
-          0.0
-        ],
-        [
-          1,
-          0.0
-        ],
-        [
-          0.0,
-          0.0
-        ],
-        [
-          0.0,
-          1
-        ],
-        [
-          0.0,
-          0.0
-        ],
-        [
-          1,
-          0.0
-        ],
-        [
-          0.0,
-          0.0
-        ],
-        [
-          1,
-          0.0
-        ],
-        [
-          0.0,
-          0.0
-        ],
-        [
-          0.0,
-          1
-        ],
-        [
-          0.0,
-          0.0
-        ],
-        [
-          0.0,
-          1
-        ],
-        [
-          0.0,
-          0.0
-        ],
-        [
-          1,
-          0.0
-        ]
-      ],
-      "verdict": "agreed"
-    },
     "RS Flipflop Trigger": {
       "committed": [
         [
@@ -9557,21 +9427,22 @@
   "scope": "domain:digital-logic",
   "stimulus": {
     "armed": {
-      "cpp-1": 80,
-      "lsp-1": 80,
-      "scala-1": 80
+      "cpp-1": 79,
+      "lsp-1": 79,
+      "scala-1": 79
     },
     "completionPoint": "none exposed by any runtime (RealityEngine_CI#375)",
     "internedSources": {
-      "cpp-1": 80,
-      "lsp-1": 80,
-      "scala-1": 80
+      "cpp-1": 79,
+      "lsp-1": 79,
+      "scala-1": 79
     },
     "isolated": true,
     "model": "corpus-interned test sources (composed ISRESeed)",
-    "residentMachines": 80,
+    "residentMachines": 79,
     "seedDepth": 31,
     "settleMs": 0,
+    "sourcelessMachines": [],
     "steps": 31
   }
 }

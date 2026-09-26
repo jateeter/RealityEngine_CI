@@ -35,11 +35,14 @@ import re
 import sys
 from pathlib import Path
 
-EXPECTED_MACHINES = 1328
+# corpus-exit-v1.0 counts, revised once: RealityEngine_Machines#180 retired
+# RS Flip Flop (deprecated demo), which had an agent and an openClawProjection
+# but no agentBinding (v1.0: 1328 machines, 1323 agents, 1185 projections).
+EXPECTED_MACHINES = 1327
 EXPECTED_DOMAINS = 12
-EXPECTED_AGENTS = 1323
+EXPECTED_AGENTS = 1322
 EXPECTED_AGENT_BINDINGS = 1058
-EXPECTED_PROJECTIONS = 1185
+EXPECTED_PROJECTIONS = 1184
 # Deliberately agent-free: an agent is a `generated` contributor, which is the
 # non-determinism these fixtures exist to disprove (criteria §3.3).
 EXPECTED_UNCOVERED = {
