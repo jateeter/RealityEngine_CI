@@ -16,7 +16,7 @@ released, and is the place to record gate status as it changes.
 | **G1** | Certification runs and passes on every merge to main | **REGRESSED**. The nightly has been red for 15 nights, 2026-09-11 through 2026-09-25; last green 2026-09-10 (`cac03f01`). Two of the four failing stages share one cause, fixed after the last run; two are open engine disagreements. See *G1 status, 2026-09-25* |
 | **G2** | Versions pinned across repos, reproducibly | **Tooling done; the pin is stale.** `releases/v0.1.0-rc1.json` is from 2026-08-09, covers 8 repos, and predates G4. A run now builds, and so pins, **10**. Re-pin from a green run (release step 7) |
 | **G3** | Release documentation and process | **Done.** `RELEASE.md` and `scripts/cut-release.sh`; D1 decided 2026-09-25: application releases are tagged **`release-vN.M.Z`**, enforced by both tools |
-| **G4** | MVP scope: PIM and HealthKit bridge | **Decided**: both in; the SCS POD is authoritative. The mirror seam is still unspecified and **untracked** (decision D2) |
+| **G4** | MVP scope: PIM and HealthKit bridge | **Decided**: both in; the SCS POD is authoritative. **The mirror blocks the MVP (D2, decided 2026-09-25)**: specified in `localHealthkitBridge/docs/MIRROR_CONTRACT.md`, tracked in localHealthkitBridge#45, **not built** |
 
 **Release assets are current** as of 2026-09-25: the corpus, oracles, cesgen
 bindings, OpenAPI, OWL baselines and the OpenClaw agent corpus were all
@@ -36,7 +36,7 @@ done when that proof exists, not when the work behind it merges.
 | 2 | **Clear the local lane.** `bash scripts/regression-test.sh --execute --profile local`. The hosted lane does not cover Ollama, OpenClaw, the full corpus or the HealthKit bridge (`RELEASE.md`), so this is the only proof of them | every stage passes, including `openclaw-integration-*` on all three runtimes and `healthkit-bridge` | open: the last run (2026-09-24, `20260924T215111Z`) failed only `openclaw-integration-scala-1` |
 | 3 | **Weekly full-corpus cycle green on schedule.** `full-corpus-cycle.yml`: 1,328 machines validated, loaded identically by all three runtimes, and the 1,323-spec agent corpus rebuilt and matched | a **scheduled** run concludes `success` | branch dispatch green 2026-09-25 (run 36180913113, the first fully green run); first scheduled run is Sunday 2026-09-27 |
 | 4 | **Decide the release tag (D1)** | the decision is recorded here and in `RELEASE.md` *Tag conventions* | **done 2026-09-25**: `release-vN.M.Z` (candidates `release-vN.M.Z-rcN`) |
-| 5 | **Settle the mirror seam for MVP (D2):** either specify it and add the mirror leg, or record it as a stated MVP limitation | an issue exists, and this file says which | **needs a decision** |
+| 5 | **Build the mirror (D2, MVP-blocking):** bridge → PIM API → POD, per `localHealthkitBridge/docs/MIRROR_CONTRACT.md`: PIM metric catalog, `health-observations` domain, the dynamic approved-metric set, `healthkit/sync/preview` + `apply` with per-batch owner approval; the bridge `PIMClient`; the CI mirror leg | the local-lane **mirror leg is green**, recorded here by run id | **decided 2026-09-25; in progress** (localHealthkitBridge#45) |
 | 6 | **Re-verify release assets at the release commit** (commands under *Release assets*) | every check passes against the commits being pinned | current as of 2026-09-25; repeat at release time |
 | 7 | **Generate the manifest from the green run** of step 1: `scripts/release-manifest.py generate … --version release-v0.1.0 --out releases/release-v0.1.0.json`. It must be non-provisional and cover all 10 repos | `releases/release-v0.1.0.json` exists and is committed | open (supersedes `v0.1.0-rc1`) |
 | 8 | **Rehearse the cut:** `scripts/cut-release.sh --manifest releases/release-v0.1.0.json` (dry run) | no drift, and no tag collision | open |
@@ -55,11 +55,15 @@ done when that proof exists, not when the work behind it merges.
   Components keep plain semver on their own schedules. `release-manifest.py
   generate` and `cut-release.sh` both refuse any other form. **The MVP is
   `release-v0.1.0`.**
-- **D2: the mirror seam.** G4 decided that the SCS POD is authoritative, but *who
-  writes to it, on what trigger, and how `pendingMirror` / `conflict` resolve* is
-  still unwritten, and **no issue tracks it**. Either make it MVP-blocking (write
-  the contract, add the mirror leg to the local lane), or ship with it recorded as
-  a limitation: "authority is by agreement, not enforced by a test".
+- **D2: the mirror seam. Decided 2026-09-25: it blocks the MVP.** Specified in
+  `localHealthkitBridge/docs/MIRROR_CONTRACT.md` (localHealthkitBridge#44), and
+  tracked in #45. The owner's decisions:
+  - the bridge talks to **PIM's API**, and PIM, which already holds the Solid
+    session and the data workflows, writes the POD;
+  - **D2a:** owner approval **per batch**;
+  - **D2b:** **every health metric** goes to PIM, and the approved set can be
+    **changed at runtime and is honored** everywhere, including PE ingest scope;
+  - the surface is `healthkit/sync/preview` + `apply`.
 - **Whether #467 blocks the MVP.** The OpenClaw regression profile loads 12 agents
   where the regression corpus has 15, and no per-run check detects a stale agent
   corpus. The weekly cycle (step 3) now catches staleness within a week.
@@ -73,7 +77,6 @@ done when that proof exists, not when the work behind it merges.
 - **#375, no step-completion barrier:** observers read after a drive, not at an
   atomic boundary. The CES contract shards record their stimulus for this reason.
 - **#467:** stale-agent detection is weekly, not per run.
-- **D2**, if it is not resolved before the tag.
 
 ---
 
@@ -448,16 +451,16 @@ Both surfaces are already exercised. The bridge leg is green on the local lane
 (G1.6), and PIM already exposes `GET /api/pod/healthkit/status` over the
 pod-side `health-pim/healthkit/observations/` container.
 
-### Follow-on work — D2
+### The mirror seam — D2, decided 2026-09-25: MVP-blocking
 
-- Specify the mirror seam: who writes to the SCS POD, on what trigger, and how
-  `pendingMirror` and `conflict` resolve. The bridge models these states
-  already; the contract between the two sides is not written down.
-- Add a mirror leg to the local lane once that contract exists, so the
-  authority rule is enforced by a test rather than by agreement.
-
-As of 2026-09-25 **no issue tracks either**. D2 decides whether they block the
-MVP or ship as a stated limitation.
+The mechanics are specified once, in `localHealthkitBridge/docs/MIRROR_CONTRACT.md`.
+In short: the bridge sends readings to **PIM's API**, and PIM, which already
+authenticates to the Solid server, validates with ShEx, reconciles and records
+activity, is the only writer to the POD. A conflict leaves the POD record
+unchanged, per the authority rule above. The **mirror leg in the local lane**
+(happy path, a conflict that leaves the POD unchanged, no owner approval → 403)
+enforces the rule by test rather than by agreement. It is release step 5,
+tracked in localHealthkitBridge#45.
 
 This decision is the single source of truth for the boundary. PIM's and the
 bridge's own roadmaps point here rather than restating it, because two copies
@@ -488,7 +491,7 @@ of a boundary is what produced this gate.
 | Nightly red: scala declares no MQTT sources at registration | CI#463 | **blocks step 1** |
 | `service-inventory` / `mcp` fail on an empty MCP URL | fixed by #462 | confirm on the next scheduled run |
 | Local lane: OpenClaw fails on scala-1, with no failure stage recorded | related to Scala#153 | **blocks step 2** |
-| Mirror seam unspecified, untracked | D2 | decide: block, or state as a limitation |
+| Mirror not built: PIM catalog + preview/apply, bridge `PIMClient`, CI mirror leg | localHealthkitBridge#45 | **blocks step 5** (D2: MVP-blocking) |
 | Stale agent corpus detected weekly, not per run; regression profile 12 of 15 agents | CI#467 | decide whether it blocks |
 | TypeScript 7 in Manager PE backend | Manager#96 | held; state as a limitation |
 
