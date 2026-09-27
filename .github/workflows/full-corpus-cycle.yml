@@ -335,6 +335,16 @@ jobs:
           ref: ${{ github.event.inputs.openclaw_ref || '' }}
           path: localOpenClawStack
 
+      # generate-regression-profile.py resolves the regression corpus's bare
+      # localAI entries (rag_corrective_cycle.json and two more) in
+      # localAIStack/data/machines. Without it every one is "machine not found"
+      # and the profile check fails before the agent corpus is looked at.
+      - name: Checkout localAIStack (regression-profile source for localAI machines)
+        uses: actions/checkout@v7
+        with:
+          repository: jateeter/localAIStack
+          path: localAIStack
+
       - name: Setup Python
         uses: actions/setup-python@v7
         with:
