@@ -157,7 +157,7 @@ jobs:
 
       - name: Cache the QUDT vocabulary
         id: qudt-cache
-        uses: actions/cache@v4
+        uses: actions/cache@v6
         with:
           path: RealityEngine_Machines/.qudt-cache
           key: qudt-${{ steps.qudt.outputs.version }}
