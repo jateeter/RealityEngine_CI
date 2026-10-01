@@ -611,6 +611,12 @@ jobs:
         working-directory: RealityEngine_CI
         run: bash scripts/tests/test-regression-comparison.sh
 
+      # Every stage reaches summary.md, so a failure outside the nine named
+      # sections is filed under its own name, not "unspecified" (#350).
+      - name: Run regression stage-results unit tests
+        working-directory: RealityEngine_CI
+        run: bash scripts/tests/test-regression-stage-results.sh
+
       - name: Run trajectory parity unit tests
         working-directory: RealityEngine_CI
         run: bash scripts/tests/test-trajectory-parity.sh
