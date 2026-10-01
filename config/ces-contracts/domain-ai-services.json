@@ -5765,19 +5765,19 @@
   "scope": "domain:ai-services",
   "stimulus": {
     "armed": {
-      "cpp-1": 1336,
-      "lsp-1": 1336,
-      "scala-1": 1336
+      "cpp-1": 1335,
+      "lsp-1": 1335,
+      "scala-1": 1335
     },
     "completionPoint": "none exposed by any runtime (RealityEngine_CI#375)",
     "internedSources": {
-      "cpp-1": 1336,
-      "lsp-1": 1336,
-      "scala-1": 1336
+      "cpp-1": 1335,
+      "lsp-1": 1335,
+      "scala-1": 1335
     },
-    "isolated": true,
+    "isolated": false,
     "model": "corpus-interned test sources (composed ISRESeed)",
-    "residentMachines": 1338,
+    "residentMachines": 1337,
     "seedDepth": 79,
     "settleMs": 0,
     "sourcelessMachines": [
