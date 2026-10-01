@@ -484,6 +484,12 @@ jobs:
         working-directory: RealityEngine_CI
         run: bash scripts/tests/test-deploy-validate-agent.sh
 
+      # An absent Loki plugin used to be read as $'\n'missing and skipped
+      # silently, so services declaring driver: loki failed to create (#362).
+      - name: Run Loki driver probe unit tests
+        working-directory: RealityEngine_CI
+        run: bash scripts/tests/test-loki-driver.sh
+
       # Lazy multi-series counters are state, not exposition
       # (RealityEngine_Machines#126); real drift must still fail.
       - name: Run metrics-parity unit tests

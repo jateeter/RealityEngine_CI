@@ -76,7 +76,9 @@ fi
 
 # ── 4. Loki Docker logging driver ─────────────────────────────────────────
 echo ""
-LOKI_ENABLED=$(docker plugin inspect loki --format '{{.Enabled}}' 2>/dev/null || echo "missing")
+# Exit-status probe; the old capture read an absent plugin as $'\n'missing (#362).
+source "$CI_DIR/scripts/lib/loki-driver.sh"
+LOKI_ENABLED=$(loki_driver_state)
 if [ "$LOKI_ENABLED" = "missing" ]; then
     info "Installing Loki Docker logging driver..."
     docker plugin install grafana/loki-docker-driver:latest \
@@ -85,8 +87,10 @@ if [ "$LOKI_ENABLED" = "missing" ]; then
 elif [ "$LOKI_ENABLED" = "false" ]; then
     docker plugin enable loki 2>/dev/null && ok "Loki driver enabled" || \
         warn "Loki driver could not be enabled"
-else
+elif [ "$LOKI_ENABLED" = "true" ]; then
     ok "Loki Docker logging driver ready"
+else
+    warn "Unrecognised Loki driver state '$LOKI_ENABLED' — run:  bash scripts/setup-loki-driver.sh"
 fi
 
 # ── 5. Sibling repo check ─────────────────────────────────────────────────
