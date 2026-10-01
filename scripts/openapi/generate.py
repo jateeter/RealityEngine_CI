@@ -115,7 +115,7 @@ SUMMARIES: dict[str, str] = {
     # RE — Machine Graph
     "GET:/api/machine-graph":                                  "Machine graph — nodes and overlap edges",
     # RE — Perceptual Simulation
-    "POST:/api/perceptual-simulation/configure/chunk":         "Append vectors and config to staging buffer",
+    "POST:/api/perceptual-simulation/configure/chunk":         "Append Reality Events and config to staging buffer",
     "POST:/api/perceptual-simulation/configure/commit":        "Commit staged simulation vectors",
     "POST:/api/perceptual-simulation/start":                   "Mark simulation running",
     "POST:/api/perceptual-simulation/stop":                    "Stop simulation",
@@ -367,7 +367,7 @@ def re_components() -> dict:
                 "machineResults": {"type": "object", "additionalProperties": True}}},
             "SimulationConfigureChunk": {"type": "object", "properties": {
                 "reset":   {"type": "boolean"},
-                "vectors": {"type": "array", "items": {"$ref": "#/components/schemas/Vector"}},
+                "events":  {"type": "array", "items": {"$ref": "#/components/schemas/Vector"}},
                 "config":  {"type": "object", "additionalProperties": True}}},
             "PerceiveRequest": {"type": "object", "required": ["vector"],
                                 "properties": {

@@ -150,6 +150,38 @@ enumeration.
   of each transition and sets it on a match. A reset that keeps it leaves the
   engine reporting a match from a step its own histories no longer contain.
 
+- **`/api/perceptual-simulation` has one behaviour on every runtime.** Settled
+  by the owner 2026-10-01, resolving RealityEngine_CI#489. These were the four
+  remaining 2-1 splits after RealityEngine_LSP#141 conformed LSP's
+  configured-sequence walk:
+
+  | | Settled |
+  |---|---|
+  | `POST /configure/chunk` | The input sequence's Reality Events are read from `events`. `config.inputRegion`, `config.stepDelayMs` and `config.maxSteps` (or the same fields at top level) are buffered with them, and the response reports `bufferedEvents`. |
+  | `POST /configure/commit` | **400** when no `inputRegion` has been buffered: there is nowhere to write the sequence. Otherwise the buffer becomes the configured sequence, `maxSteps` included, and the runtime resets. |
+  | `POST /step` | Writes the Reality Event at `sequence[currentStep]` to the region and runs the phases. Past the end of the sequence or at `maxSteps` it answers `{done: true, success: true}` and stops the run. |
+  | `POST /start` | **Auto-play.** Steps the committed sequence immediately and then every `stepDelayMs` while `isRunning`, until the walk is done, `stop` is called, or a reset or commit happens. |
+  | `start` / `step`, nothing committed | **400**, `{error: ...}`. It's a caller precondition, not a server fault. |
+
+  Before this was settled, only Scala auto-played; C++ and LSP set `isRunning`
+  and nothing stepped. The Manager MCP tool `perceptual_sim_start` ("Start
+  automatic stepping") and `e2e/tests/multi-step-output-workflow.spec.ts`
+  therefore worked only against Scala. C++ ignored `maxSteps`. An unconfigured
+  `start` answered 500 on C++ and LSP and 400 on Scala; an unconfigured `step`
+  answered 500 everywhere. An empty commit was refused only by Scala.
+
+  The `stepDelayMs` a caller may send in the `start` body is ignored by all
+  three, which use the committed delay. They agree, so that is recorded rather
+  than changed.
+
+  **The chunk carries Reality Events, so its field is `events`** (owner,
+  2026-10-01). C++ and Scala read `vectors`, the OpenAPI schema declared
+  `vectors`, and the rename section below exempted this payload as "numeric
+  vectors". LSP and the e2e specs already used `events`. A Reality Event's
+  representation as numbers is an implementation detail and does not name the
+  field. Only `events` is accepted, as with every other key the rename moved,
+  and the response's `bufferedVectors` is `bufferedEvents` for the same reason.
+
 ---
 
 ## Reality Engine (RE) Surface
@@ -2219,9 +2251,12 @@ every landing.
 
 Language-level data structures — `std::vector`, the C++ `Vector` alias, Scala
 `Vector[Double]`, `vector-push-extend` — are not Reality Events and were never
-touched. Neither were the `/api/vectors` route segments, the numeric vectors
-`POST /api/perceptual-simulation/configure/chunk` accepts, or Qdrant's own
+touched. Neither were the `/api/vectors` route segments or Qdrant's own
 `"vectors": { size, distance }` collection body.
+
+`POST /api/perceptual-simulation/configure/chunk` was once listed here too, as
+"numeric vectors". That exemption was withdrawn on 2026-10-01: the chunk carries
+the input sequence's Reality Events, and its field is `events` (RealityEngine_CI#489).
 
 ## Quorum is 3-of-3
 

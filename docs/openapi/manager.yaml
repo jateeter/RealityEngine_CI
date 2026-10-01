@@ -409,7 +409,7 @@ components:
       properties:
         reset:
           type: boolean
-        vectors:
+        events:
           type: array
           items:
             $ref: '#/components/schemas/Vector'

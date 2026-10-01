@@ -35,7 +35,7 @@ GET  /api/sequences/:id                  → sequence graph with nodes/edges and
 The engine accepts a pre-configured input sequence and steps through it. Used by e2e tests; day-to-day operation uses the Perception Engine push path instead.
 
 ```
-POST /api/perceptual-simulation/configure/chunk   body: { vectors, reset?, inputRegion?, stepDelayMs?, maxSteps? }
+POST /api/perceptual-simulation/configure/chunk   body: { events, reset?, inputRegion?, stepDelayMs?, maxSteps? }
 POST /api/perceptual-simulation/configure/commit  → { success, committed, config }
 POST /api/perceptual-simulation/step              → { success, step: SimulationStep, isComplete }
 POST /api/perceptual-simulation/reset             → { success }

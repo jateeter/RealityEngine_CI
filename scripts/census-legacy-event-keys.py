@@ -130,14 +130,18 @@ def classify(repo: str, rel: str, line: str) -> str:
         return "NOT-OURS: URL segment"
     if "std::vector" in line or "vector<" in low or "vector[double]" in low:
         return "NOT-OURS: language type"
-    # The perceptual-simulation configure/chunk payload is a list of NUMERIC
-    # vectors, not CES events. It is spelled the same and is a different thing.
-    if ("configure/chunk" in low or "to_numbers" in low
-            or "vector[vector[double]]" in low
-            or "simulationconfigurechunk" in low
-            or "chunk" in low                      # CHUNK_BODY, the chunk payload
-            or ("openapi" in p and "vectors" in low)):
-        return "NOT-OURS: numeric universal-input vectors"
+    # The perceptual-simulation configure/chunk payload used to be exempted
+    # here as "numeric vectors". It carries the input sequence's Reality
+    # Events, and its field is `events` (owner ruling 2026-10-01, #489), so a
+    # `vectors` key on that payload is a legacy spelling like any other.
+    #
+    # The retired TypeScript prototype's two hand-maintained documents, which
+    # nothing regenerates and docs/openapi/README.md says to leave alone, had
+    # their chunk schema hidden by that exemption. They are named for what they
+    # are instead.
+    if repo == "RealityEngine_CI" and p in ("docs/openapi/reality-engine.yaml",
+                                            "docs/openapi/perception-engine.yaml"):
+        return "NOT-OURS: retired TypeScript prototype (docs/openapi/README.md)"
 
     # Human-readable text that happens to contain the word.
     if PROSE_SINK_RE.search(line) and QUOTED_KEY_RE.search(line) is None:
