@@ -17,14 +17,14 @@ Do not "fix" a failure here by relaxing an assertion; the assertions are the
 contract. A failure means a runtime regressed against #163/#166, which is the
 whole point of wiring it.
 
-**Known gap, deliberately not asserted here:** activity *at registration*
-diverges — cpp and scala declare 1336 of 1351 sources active, lsp declares 0 —
-while every runtime agrees at 1336 after the reset. `compare_declared` compares
-membership, and `ingress_violations` only examines `sensor` sources, so nothing
-fails on it. Whether contract point 2a's "declares ... inactive" governs `test`
-sources or only integration sources is genuinely ambiguous in the settled text,
-and three runtimes should not be changed on an ambiguous reading. Tracked in
-RealityEngine_CI#358.
+**Activity at registration is asserted (RealityEngine_CI#358).** It used to
+diverge — cpp and scala declared 1336 of 1351 sources active, lsp 0 — while
+every runtime agreed after the reset, and nothing failed: `compare_declared`
+compares membership and `ingress_violations` only examines `sensor` sources.
+The owner settled it on 2026-09-12 (SURFACE_SPEC.md, "Already-settled
+instances"): the point-3 rules are evaluated wherever activity is computed,
+including at registration. All three runtimes moved, and
+`registration_activity_violations` plus `compare_activity` now hold them there.
 
 ## The contract being asserted
 
@@ -162,9 +162,7 @@ registry, so pass it explicitly:
         --machines 8 \
         --out /tmp/reset-contract
 
-Not wired into `regression-test.sh`. It fails by design, and a harness stage
-that always fails is a harness stage everyone learns to ignore. Wire it in when
-the contract lands.
+Wired into `regression-test.sh` as the reset/source contract stage.
 """
 
 from __future__ import annotations
@@ -343,6 +341,71 @@ def validation_violations(runtime: str, entries: dict[str, dict[str, Any]],
             f"{kind} rule validates active={want} (point 3: reset recomputes from the "
             f"rules alone and never carries the prior flag forward)")
     return failures
+
+
+# The kinds whose activity rule reads nothing a runtime receives, so all three
+# must reach the same answer from the same declaration. Sensors are excluded on
+# purpose: their activity is earned by ingress (point 2b), and ingress is not
+# equal across runtimes on any lane with a live bridge — the hosted run that
+# quiesced at cpp-1 2 pushes, lsp-1 6, scala-1 2 is representative. Sensor
+# activity stays covered by `ingress_violations` at every observation point and
+# by the TTL leg; what this gives up is a cross-runtime comparison of sensor
+# activity, which would be measuring the bridges rather than the rule.
+REGISTRATION_EVALUATED_KINDS = ("test", "simulated")
+
+
+def registration_activity_violations(runtime: str,
+                                     entries: dict[str, dict[str, Any]]) -> list[str]:
+    """Sources whose `active` at registration disagrees with the rule for their kind.
+
+    RealityEngine_CI#358, settled 2026-09-12: the point-3 rules are *the*
+    activity rules, evaluated wherever activity is computed. A test source's
+    rule — interned sequence non-empty — is answerable the moment the source is
+    declared, so registration must already give the answer the reset would.
+    """
+    wrong = []
+    for key, entry in sorted(entries.items()):
+        kind = entry["declared"].get("type")
+        if kind not in REGISTRATION_EVALUATED_KINDS:
+            continue
+        # Neither kind consults the clock, so no clock read or margin applies.
+        want = expected_active(entry, 0.0, 0)
+        if want is not None and entry["active"] != want:
+            wrong.append(f"{key!r} active={entry['active']}, {kind} rule says {want}")
+    if not wrong:
+        return []
+    failures = [f"{runtime}: {len(wrong)} source(s) declared with activity the rule for "
+                f"their kind does not give (#358: rules are evaluated at registration)"]
+    failures.extend(f"{runtime}:   {item}" for item in wrong[:10])
+    if len(wrong) > 10:
+        failures.append(f"{runtime}:   ... and {len(wrong) - 10} more")
+    return failures
+
+
+def compare_activity(sets: dict[str, dict[str, dict[str, Any]]]) -> list[str]:
+    """Cross-runtime activity parity for the registration-evaluated kinds.
+
+    The companion to `compare_declared`, which deliberately leaves `active` out
+    of the identity. Only sources every runtime holds are compared — a source
+    one runtime lacks is a membership finding, already reported there. No
+    baseline: each split is reported as the clusters it forms (#138).
+    """
+    if len(sets) < 2:
+        return []
+    shared = set.intersection(*(set(entries) for entries in sets.values()))
+    splits = []
+    for key in sorted(shared):
+        sample = next(iter(sets.values()))[key]
+        if sample["declared"].get("type") not in REGISTRATION_EVALUATED_KINDS:
+            continue
+        values = {name: entries[key]["active"] for name, entries in sets.items()}
+        if len(set(values.values())) > 1:
+            shape = " | ".join(
+                f"{'+'.join(members)}={values[members[0]]}" for members in TP.cluster(values))
+            splits.append(f"source {key!r} activity differs across runtimes: {shape}")
+    if len(splits) > 10:
+        return splits[:10] + [f"... and {len(splits) - 10} further activity disagreement(s)"]
+    return splits
 
 
 def ingress_violations(runtime: str, entries: dict[str, dict[str, Any]],
@@ -830,6 +893,63 @@ def parse_extra_runtime(spec: str) -> dict[str, Any]:
     return {"id": ident.strip(), "re": re_url.strip().rstrip("/"), "pe": pe_url.strip().rstrip("/")}
 
 
+def observe_boot(instances: list[dict[str, Any]], summary: dict[str, Any],
+                 summary_path: Path) -> int:
+    """The registration the boot performed, read before anything can repair it.
+
+    The full stage cannot see this observation point. Its availability probe
+    resets every PE, and in `regression-test.sh` it runs after stages that reset
+    and push, so by the time it reads, every reset has already re-evaluated the
+    rules. That is how scala-1 could boot with 0 of 21 corpus test sources armed
+    — the store's cached flag applied over the registration rule — while cpp-1
+    and lsp-1 armed 21, and every stage still passed (#358).
+
+    No reset, no registration, no push: one `GET /api/sources` per runtime.
+    """
+    print(f"Source declaration at boot — {len(instances)} runtime(s): "
+          f"{', '.join(i['id'] for i in instances)}")
+    failures: list[str] = []
+    at_boot: dict[str, dict[str, dict[str, Any]]] = {}
+    for instance in instances:
+        entries, err = read_sources(instance)
+        if err:
+            failures.append(err)
+            continue
+        at_boot[instance["id"]] = entries
+    if len(at_boot) < len(instances):
+        failures.append("not every runtime answered; parity at boot not demonstrated")
+
+    failures.extend(f"at boot: {f}" for f in compare_declared(at_boot))
+    failures.extend(f"at boot: {f}" for f in compare_activity(at_boot))
+    for name, entries in at_boot.items():
+        failures.extend(registration_activity_violations(name, entries))
+        failures.extend(ingress_violations(name, entries, "at boot"))
+
+    counts = {name: {"count": len(e),
+                     "active": sum(1 for v in e.values() if v["active"]),
+                     "testActive": sum(1 for v in e.values()
+                                       if v["active"] and v["declared"].get("type") == "test"),
+                     "test": sum(1 for v in e.values() if v["declared"].get("type") == "test")}
+              for name, e in at_boot.items()}
+    summary["contractParity"]["declared"] = {"atBoot": counts}
+    summary["contractParity"]["failures"] = failures
+    summary["contractParity"]["ok"] = not failures
+    summary_path.write_text(json.dumps(summary, indent=2, sort_keys=True), encoding="utf-8")
+
+    for name, c in sorted(counts.items()):
+        print(f"  {name}: {c['count']} source(s), {c['active']} active; "
+              f"test {c['testActive']} of {c['test']} active")
+    for item in failures:
+        print(f"FAIL contractParity: {item}", file=sys.stderr)
+    print(summary_path)
+    if failures:
+        print("\nFAIL the runtimes declared different sources or activity at boot",
+              file=sys.stderr)
+        return 1
+    print("\nPASS every runtime declared the same sources, with the same activity, at boot")
+    return 0
+
+
 def main() -> int:
     parser = argparse.ArgumentParser(
         description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
@@ -857,6 +977,12 @@ def main() -> int:
     parser.add_argument("--extra-runtime", action="append", default=[],
                         help="id=re_url,pe_url for a runtime absent from the registry — "
                              "notably the TypeScript PE. Repeatable")
+    parser.add_argument("--at-boot", action="store_true",
+                        help="observe the registration the boot performed and stop: read "
+                             "every runtime's sources with no reset and no registration in "
+                             "between, and assert membership and activity parity there. Run "
+                             "before any stage that resets, or the reset repairs what this "
+                             "is looking for (#358)")
     parser.add_argument("--skip-trajectory", action="store_true",
                         help="stop after the contract phases. Useful while the contract is "
                              "still failing, since a trajectory result taken over unequal "
@@ -883,6 +1009,9 @@ def main() -> int:
         "trajectoryParity": {"ok": None, "skipped": args.skip_trajectory,
                              "trajectories": {}, "failures": []},
     }
+
+    if args.at_boot:
+        return observe_boot(instances, summary, summary_path)
 
     print(f"Reset/source contract — {len(instances)} runtime(s): "
           f"{', '.join(i['id'] for i in instances)}")
@@ -935,6 +1064,13 @@ def main() -> int:
     }
     for failure in compare_declared(declared_at_registration):
         contract_failures.append(f"at registration: {failure}")
+    # #358: activity at registration, across runtimes and against the rule. The
+    # first reports a split as clusters, with no runtime as the reference; the
+    # second says which runtimes the settled rule disagrees with.
+    for failure in compare_activity(declared_at_registration):
+        contract_failures.append(f"at registration: {failure}")
+    for name, entries in declared_at_registration.items():
+        contract_failures.extend(registration_activity_violations(name, entries))
     # Ingress is checked here first because the paths that violate it are
     # registration paths: an integration constructing its source active on first
     # value never passes through the declared-inactive state at all.

@@ -474,6 +474,10 @@ jobs:
         working-directory: RealityEngine_CI
         run: bash scripts/tests/test-reset-contract.sh
 
+      - name: Run reset contract activity unit tests
+        working-directory: RealityEngine_CI
+        run: bash scripts/tests/test-reset-contract-activity.sh
+
       - name: Run push shape probe unit tests
         working-directory: RealityEngine_CI
         run: bash scripts/tests/test-push-shape-probe.sh

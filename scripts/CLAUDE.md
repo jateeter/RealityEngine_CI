@@ -207,12 +207,19 @@ Domain scopes need `--machine-corpus=full` at boot.
   passes as of 2026-09-11 on cpp-1 + lsp-1 + scala-1 in 21s and runs beside the
   other conformance gates.
 
-  One property it records but does not assert: activity *at registration*.
-  `compare_declared` compares membership only. When this was written lsp
-  declared 0 active at registration while cpp and scala declared 1336 of 1351.
-  That split is gone; what remains open is Scala holding 18 test sources
-  inactive although their sequences are non-empty. See #358 for the current
-  state rather than trusting a count here.
+  Activity *at registration* is asserted (#358): `compare_activity` across
+  runtimes and `registration_activity_violations` against the rule, for `test`
+  and `simulated` sources. Sensors are left to `ingress_violations`, because
+  their activity follows ingress, and ingress is not equal across runtimes on
+  a lane with a live bridge.
+
+  `--at-boot` is the same assertion taken at the one observation point the
+  full stage cannot reach: the registration the boot itself performed, read
+  with no reset first. Wired as `boot-source-declaration`, the first
+  measurement after `service-inventory`, because every later stage may reset
+  and a reset re-evaluates the rules. The full stage passed while scala-1 booted
+  with 0 of 21 corpus test sources armed against 21 on cpp-1 and lsp-1: its
+  store's cached flag was applied over the registration rule.
 
   What it asserts about `active`, since this is the part that moved twice while
   the issue settled and is easy to re-break:

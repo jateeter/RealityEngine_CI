@@ -1657,6 +1657,23 @@ run_arbiter_rule_sweep() {
   return 0
 }
 
+# The registration the boot performed, observed before any stage resets. The
+# reset-contract stage below cannot see it: it resets every PE in its own
+# availability probe and runs after stages that reset and push, and a reset
+# re-evaluates the activity rules, repairing exactly what this looks for. scala-1
+# booted with 0 of 21 corpus test sources armed against 21 on cpp-1 and lsp-1,
+# and every stage passed (#358).
+run_boot_source_declaration() {
+  step "Source declaration at boot (#163 point 6, #358)"
+  local ci
+  ci="$(repo_root RealityEngine_CI)"
+  run_cmd "boot-source-declaration" python3 "$ci/scripts/regression-reset-contract.py" \
+    --registry /tmp/re-registry/re-registry.json \
+    --run-id "$RUN_ID" \
+    --at-boot \
+    --out "$RUN_DIR/responses/boot-source-declaration"
+}
+
 run_reset_contract() {
   step "Reset/source contract (#163, #166)"
   local ci
@@ -2208,6 +2225,9 @@ if [ "$LIVE_TESTS" = true ]; then
   # re-mutes when it is done (#307).
   mqtt_bridges mute
   run_stage "service-inventory" run_service_inventory
+  # First of the measurements: every later stage may reset, and a reset repairs
+  # a registration-time disagreement before anything can see it (#358).
+  run_stage "boot-source-declaration" run_boot_source_declaration
   # Before pe-step-contract and every parity stage: those compare behaviour, and
   # comparing behaviour across runtimes holding different corpora compares
   # stimulus instead.
