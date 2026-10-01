@@ -55,7 +55,7 @@ async function configureSim(
   // Send all vectors in a single chunk with reset:true to initialise the buffer
   const chunkResp = await page.request.post(`${PERCEPTUAL_API_URL}/api/perceptual-simulation/configure/chunk`, {
     data: {
-      events: inputSequence,
+      vectors: inputSequence,
       reset: true,
       inputRegion: { offset: 0, length: 3 },
       stepDelayMs,
