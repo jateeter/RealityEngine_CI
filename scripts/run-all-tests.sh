@@ -516,12 +516,23 @@ run_deploy_validate_agent_tests() {
         bash scripts/tests/test-deploy-validate-agent.sh
 }
 
+# cesgen, cesgen-oracles and the C++ e2e read MACHINES_DIR as the corpus's
+# machines/ directory. This script, and deploy-validate-agent.sh (which exports
+# it for compose), mean the corpus *repo*. Inherited unscoped, cesgen walked the
+# whole repo — node_modules, schemas, configs — and reported settings.hpp,
+# tsconfig.hpp and uri-js-parse.hpp as "drift"; cesgen-oracles called
+# oracles.json stale; and the C++ e2e looked for its schema at
+# RealityEngine_Machines/../schemas and then parsed a non-machine JSON list
+# (deploy-validate run 20261001T212856Z; RealityEngine_Machines#126). Same
+# collision as run_localai_tests below, scoped per command for the same reason.
+MACHINES_CORPUS_DIR="$MACHINES_DIR/machines"
+
 run_generator_drift_checks() {
     require_node "Generator drift checks" "25.5.0" || return
     run_suite "cesgen drift check" "$CI_DIR" \
-        node scripts/cesgen.mjs --all --check
+        env MACHINES_DIR="$MACHINES_CORPUS_DIR" node scripts/cesgen.mjs --all --check
     run_suite "cesgen-oracles drift check" "$CI_DIR" \
-        node scripts/cesgen-oracles.mjs --check
+        env MACHINES_DIR="$MACHINES_CORPUS_DIR" node scripts/cesgen-oracles.mjs --check
     run_suite "semantic-guardrails dashboard drift check" "$CI_DIR" \
         python3 scripts/build-semantic-guardrails-dashboard.py --check
 }
@@ -649,7 +660,7 @@ run_e2e() {
 
     if repo_present "C++ e2e" "$CPP_DIR"; then
         if have make && { have c++ || have g++ || have clang++; }; then
-            run_suite "C++ (make e2e)" "$CPP_DIR" make e2e
+            run_suite "C++ (make e2e)" "$CPP_DIR" env MACHINES_DIR="$MACHINES_CORPUS_DIR" make e2e
         else
             skip_suite "C++ e2e" "make or C++ compiler not found"
         fi
