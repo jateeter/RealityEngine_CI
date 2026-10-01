@@ -310,6 +310,14 @@ jobs:
             --machines RealityEngine_Machines \
             --openclaw localOpenClawStack
 
+      # The two agent-corpus staleness gates (#467): the regression stage's
+      # wiring, and §3.7(4) failing on a missing provenance or a stale digest.
+      - name: Agent-corpus staleness gate tests
+        env:
+          MACHINES: RealityEngine_Machines
+          OPENCLAW: localOpenClawStack
+        run: bash scripts/tests/test-agent-corpus-gates.sh
+
       # OWL semantics parity gates: regeneration determinism, vocabulary
       # closure, sequence/trigger parity, life-safety typing, RED ⇒ escalation.
       - name: Corpus contract tests
