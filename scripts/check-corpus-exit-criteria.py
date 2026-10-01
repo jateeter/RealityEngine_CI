@@ -19,12 +19,22 @@ Checks, in the order §3 states them:
   §3.3  the counts reconcile, and the 5 uncovered are the arbitration fixtures
   §3.4  observe-mode bindings are egress-only
   §3.7  axis names agree between corpus and sidecar
+  §3.7(4) the agent index records its provenance, and (with
+        --require-current-digest) that provenance names the corpus as it is now
 
 Skips cleanly when localOpenClawStack is absent, so it can run in a job that has
 only the corpus checked out — it then verifies the corpus-side facts alone.
 
 Usage:
   check-corpus-exit-criteria.py --machines <dir> [--openclaw <dir>]
+                                [--index <INDEX.json>] [--require-current-digest]
+
+--require-current-digest compares `provenance.corpus.digest` with the corpus
+fingerprint (RealityEngine_Machines/scripts/ces_corpus_fingerprint.py, the same
+definition the materializer stamps). It belongs to the weekly full build, run
+against the *committed* index saved before regeneration (--index); per-run
+staleness of the regression agents is `materialize_agents.py --check`'s job
+(RealityEngine_CI#467).
 """
 
 from __future__ import annotations
@@ -64,10 +74,35 @@ def load_machine(path: Path) -> dict:
     return document.get("machine", document)
 
 
+def corpus_digest(machines_repo: Path) -> str | None:
+    """The corpus fingerprint, by the corpus repo's own definition.
+
+    Imported rather than restated, over the same file set the materializer
+    stamps (every *.json under machines/), so the two cannot disagree about
+    what "the corpus changed" means.
+    """
+    scripts = machines_repo / "scripts"
+    sys.path.insert(0, str(scripts))
+    try:
+        import ces_corpus_fingerprint as fp  # type: ignore[import-not-found]
+    except ImportError as exc:
+        print(f"  FAIL corpus fingerprint unavailable: {exc}", file=sys.stderr)
+        return None
+    finally:
+        sys.path.remove(str(scripts))
+    mdir = machines_repo / "machines"
+    return fp.fingerprint_paths(sorted(mdir.rglob("*.json")), mdir)["digest"]
+
+
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--machines", required=True, type=Path)
     parser.add_argument("--openclaw", type=Path, default=None)
+    parser.add_argument("--index", type=Path, default=None,
+                        help="agent INDEX.json to read provenance from "
+                             "(default: <openclaw>/machine-behaviors/agents/INDEX.json)")
+    parser.add_argument("--require-current-digest", action="store_true",
+                        help="fail unless provenance.corpus.digest is the corpus's current fingerprint")
     args = parser.parse_args()
 
     domains_dir = args.machines / "machines" / "domains"
@@ -158,6 +193,23 @@ def main() -> int:
                       if key in corpus_axes and corpus_axes[key] != names]
         check(not mismatched, "§3.7 axis names match the corpus exactly",
               f"{len(mismatched)} mismatched")
+
+        # §3.7 item 4: the regeneration records what it was derived from. No
+        # index ever recorded it and nothing checked it, so the agent corpus
+        # sat five weeks behind the machine corpus with every gate green
+        # (RealityEngine_CI#467). localOpenClawStack#46 added the record.
+        index_path = args.index or agents_dir / "INDEX.json"
+        index = json.loads(index_path.read_text(encoding="utf-8")) if index_path.is_file() else {}
+        provenance = index.get("provenance") or {}
+        recorded = (provenance.get("corpus") or {}).get("digest")
+        check(bool(provenance.get("conformsTo")) and bool(recorded),
+              "§3.7(4) agent index records its provenance",
+              f"{index_path.name}: conformsTo={provenance.get('conformsTo')!r} digest={recorded!r}")
+        if args.require_current_digest:
+            current = corpus_digest(args.machines)
+            check(recorded is not None and recorded == current,
+                  "§3.7(4) provenance names the current corpus",
+                  f"recorded {recorded}, corpus is {current}")
 
     print()
     if failures:

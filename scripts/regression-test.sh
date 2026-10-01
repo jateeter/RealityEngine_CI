@@ -1933,6 +1933,27 @@ run_pe_step_contract() {
     --out "$REPORT_DIR/pe-step-contract.json"
 }
 
+# The OpenClaw agents for the regression corpus must be current on every run
+# (RealityEngine_CI#467 item 2). agents/ once sat five weeks behind the machine
+# corpus with every gate green, and the analyst was handed pre-#154 actions.
+# Derives the 15 regression agents in memory and compares them byte for byte
+# with the committed specs; needs no live universe, so it runs on both lanes
+# and under --build-only.
+run_agent_corpus_current() {
+  step "OpenClaw regression agents are current against the corpus"
+  if ! repo_present localOpenClawStack; then
+    log "SKIP agent corpus: localOpenClawStack not present"
+    write_skip_report "agent-corpus-current-skipped.json" "localOpenClawStack repo absent"
+    return 0
+  fi
+  local ocs machines
+  ocs="$(repo_root localOpenClawStack)"
+  machines="$(repo_root RealityEngine_Machines)"
+  run_cmd "agent-corpus-current" env MACHINES_DIR="$machines/machines" \
+    python3 "$ocs/machine-behaviors/materialize_agents.py" --check \
+      --manifest "$(repo_root RealityEngine_CI)/config/regression-corpus.txt"
+}
+
 run_localai_machines() {
   step "localAI machine definitions against the canonical schema"
   if [ "$LOCAL_AI" != true ]; then
@@ -2214,6 +2235,8 @@ prepare_docker
 prune_run_history
 create_worktrees
 build_repos
+# Not a live stage: it reads the corpus and the committed agents only.
+run_stage "agent-corpus-current" run_agent_corpus_current
 if [ "$LIVE_TESTS" = true ]; then
   resolve_mqtt_mappings
   prepare_runtime_config

@@ -350,6 +350,11 @@ jobs:
         with:
           python-version: '3.11'
 
+      # Kept before --fresh rewrites it: the committed index is the one whose
+      # provenance must name the current corpus (#467 item 3).
+      - name: Save the committed agent index
+        run: cp localOpenClawStack/machine-behaviors/agents/INDEX.json "$RUNNER_TEMP/committed-INDEX.json"
+
       # --fresh clears generated specs but keeps agents/profiles/. The
       # generator is deterministic, so any diff against the checkout is the
       # corpus having moved, not noise.
@@ -366,6 +371,17 @@ jobs:
         run: |
           python3 scripts/check-corpus-exit-criteria.py \
             --machines ../RealityEngine_Machines --openclaw ../localOpenClawStack
+
+      # §3.7(4): the committed index records the corpus it was derived from,
+      # and that corpus is today's. A digest that names an older corpus is a
+      # stale agent corpus even when every count gate passes (#467 item 3).
+      - name: Committed agent index names the current corpus (§3.7(4))
+        if: always()
+        working-directory: RealityEngine_CI
+        run: |
+          python3 scripts/check-corpus-exit-criteria.py \
+            --machines ../RealityEngine_Machines --openclaw ../localOpenClawStack \
+            --index "$RUNNER_TEMP/committed-INDEX.json" --require-current-digest
 
       - name: Regression profile is in step with its source list
         if: always()
