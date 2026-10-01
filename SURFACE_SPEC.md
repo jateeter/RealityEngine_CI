@@ -132,6 +132,24 @@ enumeration.
   A booted universe therefore assembles without waiting for a reset, which is
   what `PE_SOURCE_ACTIVATE_ON_LOAD` exists to force and no longer needs to.
 
+- **RE reset returns every Reality Event to its loaded state, `wasJustMatched`
+  included.** Settled by the owner 2026-10-01, resolving the reset half of
+  RealityEngine_CI#464. `POST /api/engine/reset` sets each event's `isActive`
+  from `isInitial`, as it already did on every runtime, and clears
+  `wasJustMatched`. A reset engine therefore exports what a freshly loaded one
+  exports: `GET /api/machines/:id/export` immediately after a reset is
+  identical on every runtime, whatever each was driven with before.
+
+  Observed before this was settled, on cpp-1 + lsp-1 + scala-1 with the
+  regression corpus: after a full RE+PE reset, 20 of 21 machines exported
+  differently, every difference a `wasJustMatched` that C++ and Scala kept
+  from the last step and LSP cleared. LSP (`reset-reality-event`) is
+  conformant; C++ and Scala `CriticalEventSequence::reset` change.
+
+  `wasJustMatched` is per-step run state: every runtime clears it at the start
+  of each transition and sets it on a match. A reset that keeps it leaves the
+  engine reporting a match from a step its own histories no longer contain.
+
 ---
 
 ## Reality Engine (RE) Surface

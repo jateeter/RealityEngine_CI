@@ -25,13 +25,24 @@ bad() { printf "  \033[31m✗\033[0m %s\n" "$1"; FAIL=$((FAIL + 1)); }
 
 # A stub engine serving /api/machines and /api/machines/:id/export, with the
 # export body supplied per runtime so a case can perturb exactly one field.
-start_stub() {  # start_stub <port> <machine-json-file>
-  python3 - "$1" "$2" <<'PY' &
+#
+# It also answers the two resets the stage issues before exporting (#464). The
+# optional third file is what the export becomes after `POST /api/engine/reset`
+# — a runtime that was driven before the stage and returns to its loaded state.
+# A fourth argument of `fail` makes the RE reset answer 500.
+start_stub() {  # start_stub <port> <machine-json-file> [<after-reset-json-file>] [fail]
+  python3 - "$1" "$2" "${3:-}" "${4:-}" <<'PY' &
 import json, sys
 from http.server import BaseHTTPRequestHandler, HTTPServer
-port, path = int(sys.argv[1]), sys.argv[2]
+port, path, after, mode = int(sys.argv[1]), sys.argv[2], sys.argv[3], sys.argv[4]
 machine = json.load(open(path))
 class H(BaseHTTPRequestHandler):
+    def reply(self, status, body):
+        raw = json.dumps(body).encode()
+        self.send_response(status)
+        self.send_header("Content-Type", "application/json")
+        self.send_header("Content-Length", str(len(raw)))
+        self.end_headers(); self.wfile.write(raw)
     def do_GET(self):
         if self.path == "/api/machines":
             body = {"machines": [{"id": f"machine-{port}", "name": machine["name"]}]}
@@ -39,11 +50,19 @@ class H(BaseHTTPRequestHandler):
             body = {"version": "1.0.0", "machine": dict(machine, id=f"machine-{port}")}
         else:
             self.send_response(404); self.end_headers(); return
-        raw = json.dumps(body).encode()
-        self.send_response(200)
-        self.send_header("Content-Type", "application/json")
-        self.send_header("Content-Length", str(len(raw)))
-        self.end_headers(); self.wfile.write(raw)
+        self.reply(200, body)
+    def do_POST(self):
+        global machine
+        self.rfile.read(int(self.headers.get("Content-Length") or 0))
+        if self.path == "/api/engine/reset":
+            if mode == "fail":
+                return self.reply(500, {"error": "reset refused"})
+            if after:
+                machine = json.load(open(after))
+            return self.reply(200, {"success": True})
+        if self.path == "/api/reset":
+            return self.reply(200, {"success": True})
+        self.send_response(404); self.end_headers()
     def log_message(self, *a): pass
 HTTPServer(("127.0.0.1", port), H).serve_forever()
 PY
@@ -174,6 +193,57 @@ else
     ok "an unreachable runtime refuses the comparison rather than reporting parity"
   else
     bad "failed, but not as a quorum refusal"; sed 's/^/        /' "$TMP/out"
+  fi
+fi
+
+# ── 0 and 0.0 are the same number ────────────────────────────────────────────
+# Scala serialises doubles as 0.0 where C++ and LSP write 0. Comparing the
+# serialised form instead of the value reported every machine as differing.
+machine_json "$TMP/floaty.json" "m['sequences'][0]['events'][0]['elements'][0]['value'] = 1"
+start_stub 5913 "$TMP/floaty.json" || { echo "stub failed"; exit 1; }
+registry 5901 5902 5913
+if run_stage; then ok "an integer and the equal float are not a difference"
+else bad "1 and 1.0 were reported as differing"; sed 's/^/        /' "$TMP/out"; fi
+
+# ── run state is compared after a reset, not before (#464) ───────────────────
+# The hosted bridges drive the runtimes unequally before they are muted, so one
+# arrives with a match the others never saw. The stage resets first, and a
+# runtime whose reset returns the event to its loaded state agrees.
+machine_json "$TMP/driven.json" "m['sequences'][0]['events'][0]['wasJustMatched'] = True"
+machine_json "$TMP/loaded.json" "m['sequences'][0]['events'][0]['wasJustMatched'] = False"
+start_stub 5908 "$TMP/loaded.json" || { echo "stub failed"; exit 1; }
+start_stub 5909 "$TMP/loaded.json" || { echo "stub failed"; exit 1; }
+start_stub 5910 "$TMP/driven.json" "$TMP/loaded.json" || { echo "stub failed"; exit 1; }
+registry 5908 5909 5910
+if run_stage; then ok "a runtime driven before the stage agrees once reset"
+else bad "the stage compared drive history instead of resetting first"; sed 's/^/        /' "$TMP/out"; fi
+
+# ── a reset that keeps the match is caught, with every runtime's value ───────
+# SURFACE_SPEC: reset clears wasJustMatched. A runtime that keeps it is the
+# finding, and the report carries all three values — no runtime is the baseline
+# the others are diffed against, so the agreeing pair is named too.
+start_stub 5911 "$TMP/driven.json" || { echo "stub failed"; exit 1; }
+registry 5908 5909 5911
+if run_stage; then
+  bad "a reset that kept wasJustMatched was not caught"
+else
+  if grep -q "wasJustMatched: cpp-1='False', lsp-1='False', scala-1='True'" "$TMP/out"; then
+    ok "a kept match is caught and every runtime's value is reported"
+  else
+    bad "caught, but not reported with all three values"; sed 's/^/        /' "$TMP/out"
+  fi
+fi
+
+# ── a runtime that will not reset is not compared ────────────────────────────
+start_stub 5912 "$TMP/base.json" "" fail || { echo "stub failed"; exit 1; }
+registry 5901 5902 5912
+if run_stage; then
+  bad "a failed reset was compared anyway"
+else
+  if grep -q "NOT COMPARED" "$TMP/out"; then
+    ok "a runtime that did not reset refuses the comparison"
+  else
+    bad "failed, but not as a reset refusal"; sed 's/^/        /' "$TMP/out"
   fi
 fi
 
