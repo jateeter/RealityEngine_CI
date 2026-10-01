@@ -196,6 +196,15 @@ else
   fi
 fi
 
+# ── 0 and 0.0 are the same number ────────────────────────────────────────────
+# Scala serialises doubles as 0.0 where C++ and LSP write 0. Comparing the
+# serialised form instead of the value reported every machine as differing.
+machine_json "$TMP/floaty.json" "m['sequences'][0]['events'][0]['elements'][0]['value'] = 1"
+start_stub 5913 "$TMP/floaty.json" || { echo "stub failed"; exit 1; }
+registry 5901 5902 5913
+if run_stage; then ok "an integer and the equal float are not a difference"
+else bad "1 and 1.0 were reported as differing"; sed 's/^/        /' "$TMP/out"; fi
+
 # ── run state is compared after a reset, not before (#464) ───────────────────
 # The hosted bridges drive the runtimes unequally before they are muted, so one
 # arrives with a match the others never saw. The stage resets first, and a

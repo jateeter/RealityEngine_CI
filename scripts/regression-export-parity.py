@@ -261,7 +261,10 @@ def main() -> int:
         diffs: dict[str, dict[str, Any]] = {}
         for path in sorted(set().union(*flats.values())):
             values = {rid: flat.get(path, "<absent>") for rid, flat in sorted(flats.items())}
-            if len({json.dumps(v, sort_keys=True) for v in values.values()}) > 1:
+            # Value equality, not serialised equality: Scala writes 0.0 where
+            # C++ and LSP write 0, and those are the same number.
+            first = next(iter(values.values()))
+            if any(v != first for v in values.values()):
                 diffs[path] = values
         report["compared"].append({"machine": name, "differences": len(diffs)})
         if diffs:
