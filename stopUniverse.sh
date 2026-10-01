@@ -239,10 +239,25 @@ stop_all_engines() {
   ok "All native instances stopped"
 }
 
+# A worktree is the same compose project as the main checkout, so `compose down`
+# here would stop the operator's stack when it runs from somewhere else (#479).
+# Stopping should not fail on that, so it skips by name instead of refusing.
+source "$CI_DIR/scripts/lib/stack-owner.sh"
+foreign_stack() {
+  local label="$1" here="$2" pattern="$3" there
+  [ "${RE_TAKE_OVER_STACKS:-0}" = 1 ] && return 1
+  there=$(stack_foreign_owner "$here" "$pattern")
+  [ -n "$there" ] || return 1
+  warn "$label: running from $there, not $here — left running (RE_TAKE_OVER_STACKS=1 stops it anyway)"
+  return 0
+}
+
 stop_openclaw_stack() {
   local stamp="${1:-auto}" native_unloaded="${2:-false}"
   if [ "$stamp" = "no" ]; then
     info "OpenClaw: was not started — skipping"
+  elif [ "$STOP_DOCKER" = true ] && foreign_stack "OpenClaw" "$OCS_DIR" "$STACK_OWNER_OPENCLAW_PATTERN"; then
+    :
   elif [ "$STOP_DOCKER" = true ] && [ -d "$OCS_DIR" ] && [ -f "$OCS_DIR/docker-compose.yml" ]; then
     info "Stopping OpenClaw stack..."
     if (cd "$OCS_DIR" && docker compose down 2>&1); then
@@ -327,8 +342,10 @@ stop_ai_stack() {
       fi
     fi
 
-    info "Stopping localAIStack..."
-    if [ -d "$LAS_DIR" ] && [ -f "$LAS_DIR/docker-compose.yml" ]; then
+    if foreign_stack "localAIStack" "$LAS_DIR" "$STACK_OWNER_LOCALAI_PATTERN"; then
+      :
+    elif [ -d "$LAS_DIR" ] && [ -f "$LAS_DIR/docker-compose.yml" ]; then
+      info "Stopping localAIStack..."
       (cd "$LAS_DIR" && docker compose down 2>/dev/null) || warn "localAIStack compose down returned non-zero"
       ok "localAIStack stopped"
     fi
