@@ -1,4 +1,7 @@
 #!/usr/bin/env bash
+# The STACK_OWNER_*_PATTERN values at the end are read by the scripts that
+# source this file.
+# shellcheck disable=SC2034
 # stack-owner.sh — is a support stack running from a different checkout?
 #
 # Docker Compose names a project after its directory (or the file's `name:`),
@@ -43,7 +46,5 @@ stack_foreign_owner() {
 }
 
 # The container names each stack runs under, as startUniverse.sh removes them.
-# Read by the scripts that source this file.
-# shellcheck disable=SC2034
 STACK_OWNER_LOCALAI_PATTERN='^localai_'
 STACK_OWNER_OPENCLAW_PATTERN='^(openclaw-gateway|open-webui|browser)$'
