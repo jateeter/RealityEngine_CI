@@ -16,7 +16,11 @@ import sys
 from collections import defaultdict
 from pathlib import Path
 
-ROOT = Path("/Users/johnt/workspace/GitHub")
+# The directory holding the sibling checkouts: the one containing this
+# repository, wherever that is. It was hardcoded to one developer's workspace,
+# so on the hosted runner every repository read as missing and the census
+# passed having scanned nothing (RealityEngine_CI#491). `--root` overrides it.
+ROOT = Path(__file__).resolve().parents[2]
 
 REPOS = [
     "RealityEngine_CI", "RealityEngine_Manager", "RealityEngine_Machines",
@@ -184,12 +188,15 @@ def main(argv: list[str] | None = None) -> int:
     json_path = None
     if "--json" in argv:
         json_path = argv[argv.index("--json") + 1]
+    root = Path(argv[argv.index("--root") + 1]).resolve() if "--root" in argv else ROOT
 
     rows = []
+    missing: list[str] = []
     for repo in REPOS:
-        base = ROOT / repo
+        base = root / repo
         if not base.is_dir():
-            print(f"(missing repo: {repo})", file=sys.stderr)
+            print(f"(missing repo: {repo} at {base})", file=sys.stderr)
+            missing.append(repo)
             continue
         for path in base.rglob("*"):
             if not path.is_file() or path.suffix not in CODE_EXT:
@@ -247,6 +254,15 @@ def main(argv: list[str] | None = None) -> int:
     # looking for a moved key gets an empty default and reports success, so the
     # failure is silent and nothing else in the suite would notice a regression.
     # An unenforced census is a claim; an enforced one is a fact.
+    # A repository that was not scanned is not a clean repository. Skipping it
+    # with a note is how this passed on the hosted runner with nothing read:
+    # absence is not agreement (QUORUM_CONTRACT.md §2, applied to a gate).
+    if missing and not report_only:
+        print(f"\nFAIL: {len(missing)} repositor{'y' if len(missing) == 1 else 'ies'} not "
+              f"scanned under {root}: {', '.join(missing)}. Check them out beside "
+              f"RealityEngine_CI, or pass --root.", file=sys.stderr)
+        return 1
+
     active = sum(len(v) for k, v in by_class.items() if k.startswith("ACTIVE"))
     if active and not report_only:
         print(f"\nFAIL: {active} site(s) still read or write a legacy Reality Event key.",
@@ -254,7 +270,8 @@ def main(argv: list[str] | None = None) -> int:
         print("Each one breaks when the corpus is renamed. Convert it, or — if it is "
               "not ours — give it a verdict in `classify`.", file=sys.stderr)
         return 1
-    print(f"\nOK: 0 active sites. {len(rows)} occurrence(s), all accounted for.")
+    print(f"\nOK: 0 active sites across {len(REPOS) - len(missing)} repositories. "
+          f"{len(rows)} occurrence(s), all accounted for.")
     return 0
 
 
