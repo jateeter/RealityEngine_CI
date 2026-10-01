@@ -1487,6 +1487,29 @@ if [ "$MULTI_ENGINE_MODE" = true ]; then
 fi
 
 # ── Orphan container cleanup ──────────────────────────────────────────────
+# Refuse before removing anything if localAI or OpenClaw is running from a
+# different checkout. A worktree is the same compose project as the main
+# checkout, so the cleanup below would tear down the operator's stacks and
+# recreate localAI from here (RealityEngine_CI#479). RE_TAKE_OVER_STACKS=1
+# accepts that explicitly. Checked in dry-run too, since that is the cheap way
+# to find out.
+source "$CI_DIR/scripts/lib/stack-owner.sh"
+_refuse_foreign_stack() {
+    local label="$1" here="$2" pattern="$3" there
+    there=$(stack_foreign_owner "$here" "$pattern")
+    [ -n "$there" ] || return 0
+    if [ "${RE_TAKE_OVER_STACKS:-0}" = 1 ]; then
+        warn "$label is running from $there; taking it over for $here (RE_TAKE_OVER_STACKS=1)"
+    elif [ "$DRY_RUN" = true ]; then
+        add_warn "Dry-run: $label is running from $there, not $here — a real start would refuse"
+    else
+        die "$label is running from a different checkout:\n    running: $there\n    this run: $here\n  Stop it there, or set RE_TAKE_OVER_STACKS=1 to replace it with this checkout's stack"
+    fi
+}
+_refuse_foreign_stack "localAIStack" "$LAS_DIR" "$STACK_OWNER_LOCALAI_PATTERN"
+[ "$OPENCLAW" = "no" ] || \
+    _refuse_foreign_stack "localOpenClawStack" "$OCS_DIR" "$STACK_OWNER_OPENCLAW_PATTERN"
+
 if [ "$DRY_RUN" = false ]; then
 info "Checking for orphaned containers..."
 # Use `rm -sf` (stop + remove) rather than `down` so stale compose state
@@ -1532,7 +1555,13 @@ LAS_REMAINING=$(docker ps -a --format "{{.Names}}" 2>/dev/null | grep -c "^local
 [ "$LAS_REMAINING" -gt 0 ] && add_warn "$LAS_REMAINING localai_* container(s) still present" \
     || ok "localAIStack container state clean"
 
-# OpenClaw cleanup
+# OpenClaw cleanup. --no-openclaw means "do not start it", not "tear it down":
+# a running gateway, its WebUI and a launchd-managed native gateway are left
+# alone (#479). stopUniverse.sh already keys its OpenClaw stop on the stamped
+# OPENCLAW value, so the stop side matches.
+if [ "$OPENCLAW" = "no" ]; then
+    info "OpenClaw: left as is (--no-openclaw)"
+else
 if [ -d "$OCS_DIR" ] && [ -f "$OCS_DIR/docker-compose.yml" ]; then
     (cd "$OCS_DIR" && docker compose down 2>/dev/null) || true
     docker rm -f openclaw-gateway open-webui browser > /dev/null 2>&1 || true
@@ -1556,6 +1585,7 @@ else
     _ocs_port_pid=$(lsof -ti TCP:"$_ocs_gw_port" -sTCP:LISTEN 2>/dev/null | head -1 || true)
     [ -n "$_ocs_port_pid" ] && { kill "$_ocs_port_pid" 2>/dev/null || true; sleep 1; }
 fi
+fi  # OPENCLAW != no
 
 sleep 2
 fi

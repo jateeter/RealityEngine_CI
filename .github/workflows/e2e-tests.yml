@@ -490,6 +490,12 @@ jobs:
         working-directory: RealityEngine_CI
         run: bash scripts/tests/test-loki-driver.sh
 
+      # A worktree is the same compose project as the main checkout; a universe
+      # must not tear down a stack another checkout is running (#479).
+      - name: Run stack-owner unit tests
+        working-directory: RealityEngine_CI
+        run: bash scripts/tests/test-stack-owner.sh
+
       # Lazy multi-series counters are state, not exposition
       # (RealityEngine_Machines#126); real drift must still fail.
       - name: Run metrics-parity unit tests
