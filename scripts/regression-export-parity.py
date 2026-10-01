@@ -39,12 +39,33 @@ So the exclusions are path-shaped:
 Everything else is compared, including every corpus-declared id and every
 region offset.
 
+## The export is the running machine, so every runtime is reset first
+
+An export carries run state — each event's `isActive`, `state` and
+`wasJustMatched` — because it is the machine as it is running, not as it was
+registered (RealityEngine_CPP#140). Two runtimes driven differently therefore
+export differently, and that says nothing about the export surface.
+
+On the hosted lane they are always driven differently. Its MQTT bridges push
+into every engine until they are muted, and they do not push equally: run
+36888552388 quiesced at cpp-1 2 pushes, lsp-1 6, scala-1 2, and this stage then
+reported 15 of 21 machines differing on exactly those three fields (#464). The
+local lane has no broker, which is why it passed.
+
+So the stage resets RE and PE on every runtime before the first export
+(`lib/reset_contract.py`), and compares the defined starting state. That is
+exact rather than tolerant because SURFACE_SPEC.md settles what a reset leaves:
+every event back to its loaded state, `wasJustMatched` included (owner,
+2026-10-01). A runtime whose reset keeps a match from before is reported here,
+by path, which is how that rule was found missing.
+
 ## Quorum
 
 3-of-3 (`docs/QUORUM_CONTRACT.md`). A runtime that will not answer is not
 agreement; a machine absent from one runtime is reported as such rather than
 silently dropped from the comparison. Machines are matched by corpus **name**,
-never by id.
+never by id. A differing path is reported with every runtime's value — there is
+no reference runtime that the others are diffed against.
 
 Usage:
   python3 scripts/regression-export-parity.py
@@ -62,6 +83,9 @@ import sys
 from pathlib import Path
 from typing import Any
 from urllib import error, request
+
+sys.path.insert(0, str(Path(__file__).resolve().parent / "lib"))
+from reset_contract import reset_instances  # noqa: E402
 
 # Load timestamps. Stamped when the machine is ingested, so two engines started
 # at different times report different values for the same corpus machine — an
@@ -90,6 +114,19 @@ def get_json(url: str) -> tuple[Any, str | None]:
         return None, f"HTTP {exc.code}"
     except (error.URLError, OSError, ValueError) as exc:
         return None, f"{type(exc).__name__}: {exc}"
+
+
+def post_json(url: str, body: Any) -> tuple[int, Any]:
+    req = request.Request(url, data=json.dumps(body).encode("utf-8"), method="POST",
+                          headers={"Content-Type": "application/json"})
+    try:
+        with request.urlopen(req, timeout=300) as response:
+            raw = response.read().decode("utf-8")
+            return response.status, json.loads(raw) if raw else None
+    except error.HTTPError as exc:
+        return exc.code, None
+    except (error.URLError, OSError, ValueError) as exc:
+        return 0, f"{type(exc).__name__}: {exc}"
 
 
 def leaves(node: Any, path: str = "") -> dict[str, Any]:
@@ -185,6 +222,19 @@ def main() -> int:
     ]
     print(f"comparing {len(selected)} of {len(shared)} shared machines")
 
+    # The defined starting state, on both halves of every runtime (#464). See
+    # the module docstring: an export is the running machine, and runtimes
+    # driven differently export differently.
+    reset_failures = reset_instances(post_json, instances, re_key="re_url", pe_key="pe_url")
+    if reset_failures:
+        report["failures"].extend(reset_failures)
+        for item in reset_failures:
+            print(f"  ✗ {item}")
+        print("\nNOT COMPARED — a runtime that did not reset would be compared on its "
+              "drive history, not on its export")
+        _write(args.out, report)
+        return 1
+
     failures = 0
     for name in selected:
         flats: dict[str, dict[str, Any]] = {}
@@ -203,15 +253,16 @@ def main() -> int:
             failures += 1
             continue
 
-        ids = sorted(flats)
-        base_id, base = ids[0], flats[ids[0]]
+        # Every path, every runtime's value. Diffing against one runtime named
+        # only the pairs that disagreed with it, so a split where scala-1 sided
+        # with the first runtime printed as a two-runtime disagreement and its
+        # value never appeared (#464) — the designated-baseline shape §6 of the
+        # quorum contract forbids.
         diffs: dict[str, dict[str, Any]] = {}
-        for rid in ids[1:]:
-            other = flats[rid]
-            for path in sorted(set(base) | set(other)):
-                if base.get(path) != other.get(path):
-                    diffs.setdefault(path, {})[rid] = other.get(path, "<absent>")
-                    diffs[path][base_id] = base.get(path, "<absent>")
+        for path in sorted(set().union(*flats.values())):
+            values = {rid: flat.get(path, "<absent>") for rid, flat in sorted(flats.items())}
+            if len({json.dumps(v, sort_keys=True) for v in values.values()}) > 1:
+                diffs[path] = values
         report["compared"].append({"machine": name, "differences": len(diffs)})
         if diffs:
             failures += 1

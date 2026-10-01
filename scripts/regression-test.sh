@@ -1261,8 +1261,12 @@ start_universe() {
 # dropped outputMergeTransformation, so a machine came back with a different
 # fold and a training variable was retuned without anyone asking.
 #
-# Runs beside machine-set parity and for the same reason: one GET per runtime,
-# no PE, no reset, no seeded source.
+# Runs beside machine-set parity: one GET per runtime per machine, no seeded
+# source, no push. It does reset RE and PE on every runtime first, because an
+# export is the running machine and the bridges drive the runtimes unequally
+# before they are muted — 15 of 21 machines differed on run state alone on the
+# hosted lane (#464). A reset neither registers nor pushes, so trajectory-parity
+# below still starts from a universe nothing has driven.
 run_export_parity() {
   step "Export-shape parity across runtimes"
   local ci
