@@ -390,6 +390,46 @@ jobs:
           repository: jateeter/RealityEngine_CPP
           path: RealityEngine_CPP
 
+      # The legacy Reality Event key census scans every repository in the focus
+      # set and fails on one it cannot read. This job checked out three of nine,
+      # and the census looked for them under one developer's workspace path, so
+      # it passed here having scanned nothing (#491). All nine are public.
+      - name: Checkout RealityEngine_Manager
+        uses: actions/checkout@v7
+        with:
+          repository: jateeter/RealityEngine_Manager
+          path: RealityEngine_Manager
+
+      - name: Checkout RealityEngine_LSP
+        uses: actions/checkout@v7
+        with:
+          repository: jateeter/RealityEngine_LSP
+          path: RealityEngine_LSP
+
+      - name: Checkout RealityEngine_Scala
+        uses: actions/checkout@v7
+        with:
+          repository: jateeter/RealityEngine_Scala
+          path: RealityEngine_Scala
+
+      - name: Checkout localAIStack
+        uses: actions/checkout@v7
+        with:
+          repository: jateeter/localAIStack
+          path: localAIStack
+
+      - name: Checkout localOpenClawStack
+        uses: actions/checkout@v7
+        with:
+          repository: jateeter/localOpenClawStack
+          path: localOpenClawStack
+
+      - name: Checkout localHealthkitBridge
+        uses: actions/checkout@v7
+        with:
+          repository: jateeter/localHealthkitBridge
+          path: localHealthkitBridge
+
       # The parity-surface test imports the TypeScript module the e2e spec uses,
       # which needs the type stripping Node enables by default from 23. Pinned to
       # the same 26.8 the other jobs use rather than trusting the runner default.
@@ -469,6 +509,10 @@ jobs:
       - name: Legacy Reality Event key census
         working-directory: RealityEngine_CI
         run: python3 scripts/census-legacy-event-keys.py
+
+      - name: Run census root unit tests
+        working-directory: RealityEngine_CI
+        run: bash scripts/tests/test-census-root.sh
 
       - name: Run reset contract unit tests
         working-directory: RealityEngine_CI
