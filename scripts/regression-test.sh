@@ -2165,11 +2165,20 @@ retain_history() {
 # produced nothing at all — so a suite with five stages surfaced its problems
 # strictly one per run, and each run costs about half an hour. The suite still
 # fails; it just reports everything it learned before doing so.
+#
+# Every stage's outcome is also written to reports/stage-results.tsv. The report
+# used to know only nine fixed sections, so a run that failed in a stage outside
+# them (export-parity, reset-contract) produced a summary in which every listed
+# section passed, and the issue filer could only call it "unspecified" — #350
+# was red every night for three weeks with nothing in it naming why.
 STAGE_FAILURES=()
 run_stage() {
   local name="$1"; shift
   local status=0
   "$@" || status=$?
+  mkdir -p "$RUN_DIR/reports"
+  printf '%s\t%s\t%s\n' "$name" "$([ "$status" -eq 0 ] && echo passed || echo failed)" "$status" \
+    >> "$RUN_DIR/reports/stage-results.tsv"
   if [ "$status" -ne 0 ]; then
     STAGE_FAILURES+=("$name")
     log ""

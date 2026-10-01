@@ -30,6 +30,36 @@ def status_word(value: Any) -> str:
     return str(value or "not-run")
 
 
+# Stages whose result the summary already reports under a named section. The
+# section keeps its label so existing failure signatures (and the issues keyed
+# on them) are unchanged; every other stage gets a line of its own.
+STAGE_SECTIONS = {
+    "service-inventory": "serviceInventory",
+    "trajectory-parity": "trajectoryParity",
+    "universal-vectors": "universalVectors",
+    "mqtt-yuma": "mqtt",
+    "mcp": "mcp",
+    "arbiter": "arbiter",
+    "openclaw": "openclaw",
+}
+
+
+def load_stage_results(path: Path) -> dict[str, dict[str, Any]]:
+    """Every run_stage outcome, in run order (#350). Absent for older runs."""
+    stages: dict[str, dict[str, Any]] = {}
+    try:
+        lines = path.read_text(encoding="utf-8").splitlines()
+    except OSError:
+        return stages
+    for line in lines:
+        parts = line.split("\t")
+        if len(parts) < 2 or not parts[0]:
+            continue
+        exit_code = int(parts[2]) if len(parts) > 2 and parts[2].lstrip("-").isdigit() else None
+        stages[parts[0]] = {"status": parts[1], "exit": exit_code}
+    return stages
+
+
 def collect_report_statuses(run_dir: Path) -> dict[str, Any]:
     reports = run_dir / "reports"
     responses = run_dir / "responses"
@@ -47,7 +77,7 @@ def collect_report_statuses(run_dir: Path) -> dict[str, Any]:
     mqtt_reports = sorted(reports.glob("mqtt-yuma*.json"))
     openclaw_reports = sorted(reports.glob("openclaw*.json"))
 
-    return {
+    statuses = {
         "manifest": manifest,
         "build": build_status(manifest),
         "serviceInventory": section_status(service),
@@ -68,6 +98,22 @@ def collect_report_statuses(run_dir: Path) -> dict[str, Any]:
             "openclaw": [rel(run_dir, path) for path in openclaw_reports],
         },
     }
+    stages = load_stage_results(reports / "stage-results.tsv")
+    statuses["stages"] = stages
+    # A stage that exited non-zero failed, whatever its section's report says:
+    # the exit status is what failed the run, and the summary must agree with it.
+    for stage, key in STAGE_SECTIONS.items():
+        if stages.get(stage, {}).get("status") == "failed" and status_word(statuses.get(key)) != "failed":
+            section = dict(statuses.get(key) or {})
+            section["status"] = "failed"
+            section["stageExit"] = stages[stage].get("exit")
+            statuses[key] = section
+    return statuses
+
+
+def unsectioned_stages(stages: dict[str, dict[str, Any]]) -> list[tuple[str, str]]:
+    return [(name, str(block.get("status", "not-run")))
+            for name, block in stages.items() if name not in STAGE_SECTIONS]
 
 
 def rel(root: Path, path: Path) -> str:
@@ -222,6 +268,16 @@ def compare_runs(current: dict[str, Any], previous: dict[str, Any] | None, previ
             new_failures.append({"section": section, "failure": cur_failures[key]})
         for key in sorted(set(prev_failures) - set(cur_failures)):
             resolved_failures.append({"section": section, "failure": prev_failures[key]})
+    cur_stages = dict(unsectioned_stages(current.get("stages") or {}))
+    prev_stages = dict(unsectioned_stages(previous.get("stages") or {}))
+    for name in sorted(set(cur_stages) | set(prev_stages)):
+        cur_status, prev_status = cur_stages.get(name, "not-run"), prev_stages.get(name, "not-run")
+        if cur_status != prev_status:
+            changes.append({"section": f"stage:{name}", "previous": prev_status, "current": cur_status})
+        if cur_status == "failed" and prev_status != "failed":
+            new_failures.append({"section": "stages", "failure": name})
+        if prev_status == "failed" and cur_status != "failed":
+            resolved_failures.append({"section": "stages", "failure": name})
     return {
         "status": "compared",
         "previousRunId": previous_id or "",
@@ -261,6 +317,10 @@ def summary_markdown(run_dir: Path, status: dict[str, Any], comparison: dict[str
         failures = section.get("failures", [])
         if failures:
             lines.append(f"  - Failures: {len(failures)}")
+    # Same "- <label>: `<status>`" shape, inside ## Results, so the issue filer
+    # keys a failure here on the stage's own name rather than "unspecified".
+    for name, stage_status in unsectioned_stages(status.get("stages") or {}):
+        lines.append(f"- {name}: `{stage_status}`")
     lines.extend([
         "",
         "## Comparison",
@@ -317,8 +377,11 @@ def main() -> int:
     status_doc = dict(current)
     status_doc["runId"] = manifest.get("runId", args.run_dir.name)
     status_doc["failingSections"] = sorted(
-        name for name, block in current.items()
-        if isinstance(block, dict) and block.get("status") == "failed"
+        # The manifest carries the run's overall status, not a section's, so a
+        # failed run listed "manifest" as one of its failing sections.
+        [name for name, block in current.items()
+         if name != "manifest" and isinstance(block, dict) and block.get("status") == "failed"]
+        + [name for name, st in unsectioned_stages(current.get("stages") or {}) if st == "failed"]
     )
     write_json(args.run_dir / "reports" / "regression-status.json", status_doc)
 
