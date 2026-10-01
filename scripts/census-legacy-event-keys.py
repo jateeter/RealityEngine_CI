@@ -126,6 +126,10 @@ def classify(repo: str, rel: str, line: str) -> str:
     # diagnostic counting its own definition of what it looks for.
     if "rename-corpus-event-keys" in p or "census-legacy-event-keys" in p:
         return "MIGRATION TOOL: the mapping itself"
+    # The census's own unit test writes a legacy key on purpose, to prove the
+    # census still catches one. Its first hosted run flagged it (#491).
+    if p == "scripts/tests/test-census-root.sh" and repo == "RealityEngine_CI":
+        return "MIGRATION TOOL: the census's own test"
 
     # Things that are not ours, in any spelling.
     if "qdrant" in low or "vectorstore" in p or ('"vectors"' in line and "distance" in low):
