@@ -371,6 +371,15 @@ phase_preflight() {
   [ -z "$missing" ] \
     && pass orchestration preflight "TLS certs present" \
     || fail orchestration preflight "Missing TLS certs:$missing" "Run certs/generate-dev-certs.sh"
+  # Six CI compose services and four localAIStack services declare
+  # `driver: loki`. Without it they fail to create, and that used to surface as
+  # eleven health findings filed against six repos (RealityEngine_CI#362).
+  local loki
+  loki=$(loki_driver_state)
+  [ "$loki" = true ] \
+    && pass orchestration preflight "Loki Docker logging driver enabled" \
+    || fail orchestration preflight "Loki Docker logging driver not ready ($loki)" \
+            "sudo bash scripts/setup-loki-driver.sh"
   for d in "$SCALA_DIR:scala" "$MGR_DIR:manager" "$MACHINES_DIR:machines" "$LAS_DIR:localai"; do
     local p="${d%%:*}" k="${d##*:}"
     [ -d "$p" ] && pass "$k" preflight "Sibling repo present: ${p##*/}" \
@@ -672,6 +681,7 @@ DV_INST="dv"   # validation instance id — keeps PID files off the canonical ba
 
 # shellcheck source=scripts/allocate-ports.sh
 source "$CI_DIR/scripts/allocate-ports.sh"
+source "$CI_DIR/scripts/lib/loki-driver.sh"
 
 # native_runtime <unit> <repo-dir> <prereq-fn> <label>
 native_runtime() {

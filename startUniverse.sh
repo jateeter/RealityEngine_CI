@@ -1365,8 +1365,11 @@ if [ "${KEYSTORE_PASSWORD:-realityengine}" = "realityengine" ]; then
     warn "KEYSTORE_PASSWORD is set to the default dev value — set a strong password in .env before sharing this environment"
 fi
 
-# Loki Docker logging driver
-LOKI_ENABLED=$(docker plugin inspect loki --format '{{.Enabled}}' 2>/dev/null || echo "missing")
+# Loki Docker logging driver. The state comes from loki_driver_state, which
+# reads the probe's exit status: the absent-plugin case used to be captured as
+# $'\n'missing, matched no branch, and was skipped silently (#362).
+source "$CI_DIR/scripts/lib/loki-driver.sh"
+LOKI_ENABLED=$(loki_driver_state)
 LOKI_READY=false
 if [ "$LOKI_ENABLED" = "missing" ]; then
     if [ "$DRY_RUN" = true ]; then
@@ -1393,6 +1396,8 @@ elif [ "$LOKI_ENABLED" = "false" ]; then
     fi
 elif [ "$LOKI_ENABLED" = "true" ]; then
     LOKI_READY=true
+else
+    die "Unrecognised Loki driver state '$LOKI_ENABLED' from 'docker plugin inspect loki' — refusing to guess"
 fi
 if [ "$LOKI_READY" = true ]; then
     ok "Loki Docker logging driver ready"
