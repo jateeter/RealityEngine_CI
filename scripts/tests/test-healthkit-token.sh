@@ -12,7 +12,9 @@ source "$CI_DIR/scripts/lib/healthkit-token.sh"
 
 PASS=0; FAIL=0
 check() { if [ "$1" = "$2" ]; then echo "  PASS: $3"; PASS=$((PASS+1)); else echo "  FAIL: $3 (expected '$2', got '$1')"; FAIL=$((FAIL+1)); fi; }
-mode() { stat -f '%Lp' "$1" 2>/dev/null || stat -c '%a' "$1"; }
+# GNU stat first: on Linux `stat -f` is filesystem status and *succeeds*,
+# so trying the BSD form first returned filesystem details instead of a mode.
+mode() { stat -c '%a' "$1" 2>/dev/null || stat -f '%Lp' "$1"; }
 
 echo "healthkit-token.sh"
 
