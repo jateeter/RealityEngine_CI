@@ -643,6 +643,10 @@ add_warn() { WARNS+=("$*"); }
 
 source "$CI_DIR/scripts/lib/fresh-start.sh"
 source "$CI_DIR/scripts/lib/corpus-dimension.sh"
+# The Manager, MCP and the bridge exporter run on Node: establish it rather than
+# inherit the terminal's (RealityEngine_Machines#126).
+source "$CI_DIR/scripts/lib/node-env.sh"
+establish_node || add_warn "Node ${RE_NODE_MAJOR} could not be established via nvm; using $(command -v node || echo none)"
 
 
 poll_http() {

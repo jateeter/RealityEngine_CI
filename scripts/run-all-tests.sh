@@ -75,6 +75,10 @@ version_at_least() {
     [ "$a_patch" -ge "$r_patch" ]
 }
 
+# Node is established here, never inherited from the terminal (#126).
+# shellcheck source=lib/node-env.sh
+. "$SCRIPT_DIR/lib/node-env.sh"
+establish_node || warn "Node ${RE_NODE_MAJOR} could not be established; Node suites will report what they find"
 NODE_VERSION=""
 if have node; then NODE_VERSION="$(node -v 2>/dev/null | sed -E 's/^v//')"; fi
 node_at_least() {
@@ -574,14 +578,27 @@ run_deploy_validate_agent_tests() {
 # RealityEngine_Machines/../schemas and then parsed a non-machine JSON list
 # (deploy-validate run 20261001T212856Z; RealityEngine_Machines#126). Same
 # collision as run_localai_tests below, scoped per command for the same reason.
-MACHINES_CORPUS_DIR="$MACHINES_DIR/machines"
+FULL_CORPUS_DIR="$MACHINES_DIR/machines"
+
+# The corpus the universe actually booted (startUniverse.sh stamps it), for the
+# suites that compare an engine's listing with its corpus. machine-json-listing
+# compared against the full repo tree and failed on every narrower deployment;
+# the hosted job already passes this (RealityEngine_Machines#126).
+# A corpus ROOT (the directory containing machines/), which is what the spec
+# expects: it appends machines/ itself. Default: the repo corpus.
+booted_corpus_dir() {
+    local stamp="$CI_DIR/.universe-engine-selection" dir=""
+    [ -f "$stamp" ] && dir="$(sed -n 's/^MACHINE_CORPUS_ACTIVE_DIR=//p' "$stamp" | tail -1)"
+    if [ -n "$dir" ] && [ -d "$dir/machines" ]; then printf '%s' "$dir"
+    else printf '%s' "$MACHINES_DIR"; fi
+}
 
 run_generator_drift_checks() {
     require_node "Generator drift checks" "25.5.0" || return
     run_suite "cesgen drift check" "$CI_DIR" \
-        env MACHINES_DIR="$MACHINES_CORPUS_DIR" node scripts/cesgen.mjs --all --check
+        env MACHINES_DIR="$FULL_CORPUS_DIR" node scripts/cesgen.mjs --all --check
     run_suite "cesgen-oracles drift check" "$CI_DIR" \
-        env MACHINES_DIR="$MACHINES_CORPUS_DIR" node scripts/cesgen-oracles.mjs --check
+        env MACHINES_DIR="$FULL_CORPUS_DIR" node scripts/cesgen-oracles.mjs --check
     run_suite "semantic-guardrails dashboard drift check" "$CI_DIR" \
         python3 scripts/build-semantic-guardrails-dashboard.py --check
 }
@@ -709,7 +726,7 @@ run_e2e() {
 
     if repo_present "C++ e2e" "$CPP_DIR"; then
         if have make && { have c++ || have g++ || have clang++; }; then
-            run_suite "C++ (make e2e)" "$CPP_DIR" env MACHINES_DIR="$MACHINES_CORPUS_DIR" make e2e
+            run_suite "C++ (make e2e)" "$CPP_DIR" env MACHINES_DIR="$FULL_CORPUS_DIR" make e2e
         else
             skip_suite "C++ e2e" "make or C++ compiler not found"
         fi
@@ -776,7 +793,9 @@ run_playwright_e2e() {
             local _skipped
             while IFS= read -r _skipped; do
                 [ -n "$_skipped" ] || continue
-                skip_suite "CI e2e: $(basename "$_skipped")" "$CI_E2E_SINGLE_ENGINE_REASON"
+                # Not run because this corpus does not exercise it — not a
+                # failure of the deployment, so not scored as one (#126).
+                skip_not_applicable "CI e2e: $(basename "$_skipped")" "$CI_E2E_SINGLE_ENGINE_REASON"
             done <<EOF
 $(ci_e2e_single_engine_specs)
 EOF
@@ -794,13 +813,13 @@ EOF
             # resolve themselves (tests/support/deployed-endpoints.ts). Literal
             # *_BASE_URL values here would override it, since an explicit env
             # value wins there, so none is passed (RealityEngine_Machines#126).
-            machines_env="REUSE_SERVICES=true RE_REGISTRY_URL='$registry_url' HEALTHKIT_BRIDGE_TOKEN='$BRIDGE_TOKEN_FOR_TESTS' SKIP_GLOBAL_SETUP=true CI=true"
+            machines_env="REUSE_SERVICES=true RE_REGISTRY_URL='$registry_url' HEALTHKIT_BRIDGE_TOKEN='$BRIDGE_TOKEN_FOR_TESTS' MACHINES_CORPUS_DIR='$(booted_corpus_dir)' SKIP_GLOBAL_SETUP=true CI=true"
             run_shell_suite "Machines smoke (Playwright)" "$MACHINES_DIR" "$machines_env npm run test:smoke -- --project=chromium --workers=1"
             run_shell_suite "Machines integration (Playwright)" "$MACHINES_DIR" "$machines_env npm run test:integration -- --project=chromium --workers=1"
             run_shell_suite "Machines e2e (Playwright)" "$MACHINES_DIR" "$machines_env npm run test:e2e -- --project=chromium --workers=1"
         else
             run_suite "Machines smoke (Playwright)" "$MACHINES_DIR" npm run test:smoke
-            run_suite "Machines integration (Playwright)" "$MACHINES_DIR" env HEALTHKIT_BRIDGE_TOKEN="$BRIDGE_TOKEN_FOR_TESTS" npm run test:integration
+            run_suite "Machines integration (Playwright)" "$MACHINES_DIR" env HEALTHKIT_BRIDGE_TOKEN="$BRIDGE_TOKEN_FOR_TESTS" MACHINES_CORPUS_DIR="$(booted_corpus_dir)" npm run test:integration
             run_suite "Machines e2e (Playwright)" "$MACHINES_DIR" npm run test:e2e
         fi
     else
