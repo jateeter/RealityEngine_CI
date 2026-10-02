@@ -539,6 +539,18 @@ cell; cells remain independent, so parallelism across cells is unaffected.
 Runtimes that cannot guarantee this ordering MUST reject `MEAN` at load time
 rather than approximate it.
 
+### 4.4a The seed is not a contributor
+
+`PRECEDENCE`, `SEVERITY` and the other rules arbitrate **contributions**: machine
+outputs folded in from OSRE, and provider inputs. A machine's interned test
+source is neither. It is `ISRESeed(n)`, the replayed stimulus every contribution
+folds over. On a cell where any live source contends, the seed takes no part in
+arbitration and the live input wins (owner decision, 2026-10-02;
+RealityEngine_CPP#146; SURFACE_SPEC "Sources & Sensors"). The C++, LSP and Scala
+PEs get this by composing the seed tier first. The TypeScript PE removes seed
+contributions from a contended cell before resolving it. A cell only the seed
+writes resolves as before.
+
 ### 4.5 Uncontended cells
 
 A cell with exactly one contributing machine resolves to that contribution
