@@ -510,6 +510,11 @@ jobs:
         working-directory: RealityEngine_CI
         run: bash scripts/tests/test-healthkit-token.sh
 
+      # Node is established (nvm use 26), never inherited from the terminal (#126).
+      - name: Run node-env unit tests
+        working-directory: RealityEngine_CI
+        run: bash scripts/tests/test-node-env.sh
+
       # Lazy multi-series counters are state, not exposition
       # (RealityEngine_Machines#126); real drift must still fail.
       - name: Run metrics-parity unit tests
