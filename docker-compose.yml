@@ -158,6 +158,12 @@ services:
     container_name: reality-engine-visualizer-backend
     environment:
       - VIZ_PORT=3001
+      # The Load Machines modal's catalog (GET /api/corpus/tree). Unset, the
+      # backend fell back to a sibling-repo path that does not exist in the
+      # image, answered 200 with an empty tree, and the modal rendered no rows
+      # in the Docker lane only (RealityEngine_Machines#126). The full corpus,
+      # as natively: the catalog is what can be loaded, marked against what is.
+      - MACHINES_DIR=/app/corpus
       - REALITY_ENGINE_URL=https://reality-engine:3000
       - PERCEPTION_ENGINE_URL=https://perception-engine-backend:3004
       - TLS_CERT_PATH=/etc/certs/server.crt
@@ -187,6 +193,7 @@ services:
       - reality-network
     volumes:
       - ./certs:/etc/certs:ro
+      - ${MACHINES_DIR:?MACHINES_DIR must be set — run via startUniverse.sh}/machines:/app/corpus/machines:ro
     logging:
       driver: loki
       options:
