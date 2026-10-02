@@ -6,6 +6,8 @@
 nginx/conf.d/
 config/integrations.json
 config/.healthkit-bridge-token
+# Local secrets (HealthKit bridge token, …): mode 0700, never committed.
+.secrets/
 config/.openclaw-regression-token
 
 # Editor autosaves of .env. `.env` itself is ignored above, but emacs writes

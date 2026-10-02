@@ -322,9 +322,10 @@ configure_openclaw_acp_defaults() {
 # HealthKit ingest auth is enabled by default so the on-device iOS bridge (and
 # the M5 device leg) authenticate via `Authorization: Bearer <token>`.
 # Precedence: a preset HEALTHKIT_BRIDGE_TOKEN (shell/.env) wins; otherwise a
-# stable token is generated once and persisted to config/.healthkit-bridge-token
-# (gitignored) so the value survives restarts — the paired device must be
-# provisioned with the same token. `--no-healthkit-token` opts out (dev mode:
+# stable token is generated once and persisted to .secrets/healthkit-bridge-token
+# (0600, gitignored) so the value survives restarts — the paired device must be
+# provisioned with the same token. scripts/lib/healthkit-token.sh owns the path,
+# and moves a token still at config/.healthkit-bridge-token without changing it. `--no-healthkit-token` opts out (dev mode:
 # the PE accepts unauthenticated ingest and /status reports auth "none").
 configure_healthkit_bridge_token() {
     if [ "$HEALTHKIT_TOKEN_ENABLED" = false ]; then
@@ -333,15 +334,12 @@ configure_healthkit_bridge_token() {
         return
     fi
     if [ -z "${HEALTHKIT_BRIDGE_TOKEN:-}" ]; then
-        local token_file="$CI_DIR/config/.healthkit-bridge-token"
-        if [ ! -s "$token_file" ]; then
-            ( umask 177; printf 'hk-%s\n' "$(openssl rand -hex 16)" > "$token_file" )
-            info "Generated a stable HealthKit bridge token at config/.healthkit-bridge-token"
-        fi
-        HEALTHKIT_BRIDGE_TOKEN="$(cat "$token_file")"
+        source "$CI_DIR/scripts/lib/healthkit-token.sh"
+        healthkit_token_ensure "$CI_DIR"
+        HEALTHKIT_BRIDGE_TOKEN="$(healthkit_token_read "$CI_DIR")"
     fi
     export HEALTHKIT_BRIDGE_TOKEN
-    ok "HealthKit ingest auth enabled (Authorization: Bearer / bridgeToken) — token in config/.healthkit-bridge-token"
+    ok "HealthKit ingest auth enabled (Authorization: Bearer / bridgeToken) — token in .secrets/healthkit-bridge-token"
 }
 
 ensure_ci_integrations_config() {

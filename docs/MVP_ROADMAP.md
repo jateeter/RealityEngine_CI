@@ -296,7 +296,8 @@ PASS: 3 healthkit sensor sources live on the PE
 
 The first run failed with 0 sensors. The cause was authentication, not the
 bridge: `startUniverse` enables HealthKit ingest auth by default, generating a
-stable token into `config/.healthkit-bridge-token` and handing it to the PE.
+stable token into `.secrets/healthkit-bridge-token` (0600, gitignored; owned by
+`scripts/lib/healthkit-token.sh`) and handing it to the PE.
 The stage launched the app without it, so every ingest was rejected 401.
 
 That failure was badly legible, which is the part worth keeping in mind. The

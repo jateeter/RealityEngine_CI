@@ -2035,10 +2035,10 @@ run_healthkit_bridge() {
   # Reading $CI_DIR sent a different token to every cold-start universe and
   # failed this stage exactly as described above (run 20260924T165353Z).
   local token="${HEALTHKIT_BRIDGE_TOKEN:-}"
-  local token_file
-  token_file="$(repo_root RealityEngine_CI)/config/.healthkit-bridge-token"
-  if [ -z "$token" ] && [ -s "$token_file" ]; then
-    token="$(cat "$token_file")"
+  if [ -z "$token" ]; then
+    # shellcheck source=lib/healthkit-token.sh
+    source "$CI_DIR/scripts/lib/healthkit-token.sh"
+    token="$(healthkit_token_read "$(repo_root RealityEngine_CI)")"
   fi
   if [ -z "$token" ]; then
     # --no-healthkit-token is a legitimate configuration; the PE then accepts

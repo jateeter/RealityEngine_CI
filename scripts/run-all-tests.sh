@@ -33,6 +33,15 @@ OPENCLAW_DIR="$WS/localOpenClawStack"
 # header for why multi-engine runs a subset.
 # shellcheck source=lib/ci-e2e-specs.sh
 . "$SCRIPT_DIR/lib/ci-e2e-specs.sh"
+# The PE HealthKit ingest token, for the suites that authenticate as the bridge
+# (Machines healthkit-ingest-contract). This script never passed it on, so that
+# spec sent no token and every PE answered 401 (RealityEngine_Machines#126).
+# shellcheck source=lib/healthkit-token.sh
+. "$SCRIPT_DIR/lib/healthkit-token.sh"
+if [ -z "${HEALTHKIT_BRIDGE_TOKEN:-}" ]; then
+    HEALTHKIT_BRIDGE_TOKEN="$(healthkit_token_read "$CI_DIR")"
+fi
+[ -n "${HEALTHKIT_BRIDGE_TOKEN:-}" ] && export HEALTHKIT_BRIDGE_TOKEN
 
 # -- Logging ---------------------------------------------------------------
 GREEN='\033[0;32m'; YELLOW='\033[1;33m'; RED='\033[0;31m'

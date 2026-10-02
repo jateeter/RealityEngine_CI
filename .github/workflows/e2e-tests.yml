@@ -504,6 +504,12 @@ jobs:
         working-directory: RealityEngine_CI
         run: bash scripts/tests/test-stack-owner.sh
 
+      # The HealthKit bridge token's one home (.secrets/) and the move from
+      # config/: same value, 0600, gitignored (RealityEngine_Machines#126).
+      - name: Run HealthKit token unit tests
+        working-directory: RealityEngine_CI
+        run: bash scripts/tests/test-healthkit-token.sh
+
       # Lazy multi-series counters are state, not exposition
       # (RealityEngine_Machines#126); real drift must still fail.
       - name: Run metrics-parity unit tests
@@ -1104,13 +1110,14 @@ jobs:
           export MACHINES_CORPUS_DIR
           echo "Active corpus: ${MACHINES_CORPUS_DIR:-<repo default>}"
 
-          token_file="${{ github.workspace }}/RealityEngine_CI/config/.healthkit-bridge-token"
-          if [ -s "$token_file" ]; then
-            HEALTHKIT_BRIDGE_TOKEN="$(tr -d '\r\n' < "$token_file")"
+          # .secrets/healthkit-bridge-token, via the one helper that owns it.
+          . "${{ github.workspace }}/RealityEngine_CI/scripts/lib/healthkit-token.sh"
+          HEALTHKIT_BRIDGE_TOKEN="$(healthkit_token_read "${{ github.workspace }}/RealityEngine_CI")"
+          if [ -n "$HEALTHKIT_BRIDGE_TOKEN" ]; then
             export HEALTHKIT_BRIDGE_TOKEN
             echo "HealthKit ingest auth: token loaded (${#HEALTHKIT_BRIDGE_TOKEN} chars)"
           else
-            echo "HealthKit ingest auth: no token file — auth arm will self-skip"
+            echo "HealthKit ingest auth: no token — auth arm will self-skip"
           fi
 
           pw_exit=0
