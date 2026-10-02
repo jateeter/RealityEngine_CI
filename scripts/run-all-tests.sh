@@ -34,14 +34,15 @@ OPENCLAW_DIR="$WS/localOpenClawStack"
 # shellcheck source=lib/ci-e2e-specs.sh
 . "$SCRIPT_DIR/lib/ci-e2e-specs.sh"
 # The PE HealthKit ingest token, for the suites that authenticate as the bridge
-# (Machines healthkit-ingest-contract). This script never passed it on, so that
-# spec sent no token and every PE answered 401 (RealityEngine_Machines#126).
+# (Machines healthkit-ingest-contract), which otherwise sent none and got 401
+# (RealityEngine_Machines#126). Resolved here and handed to those suites only —
+# never exported. Exported, it reached every child, and RealityEngine_CPP's
+# e2e_services starts its own PE expecting unauthenticated ingest: that PE
+# inherited the token and rejected the suite's own ingest. Same collision as
+# MACHINES_DIR (#497), same remedy: scope it to the command.
 # shellcheck source=lib/healthkit-token.sh
 . "$SCRIPT_DIR/lib/healthkit-token.sh"
-if [ -z "${HEALTHKIT_BRIDGE_TOKEN:-}" ]; then
-    HEALTHKIT_BRIDGE_TOKEN="$(healthkit_token_read "$CI_DIR")"
-fi
-[ -n "${HEALTHKIT_BRIDGE_TOKEN:-}" ] && export HEALTHKIT_BRIDGE_TOKEN
+BRIDGE_TOKEN_FOR_TESTS="${HEALTHKIT_BRIDGE_TOKEN:-$(healthkit_token_read "$CI_DIR")}"
 
 # -- Logging ---------------------------------------------------------------
 GREEN='\033[0;32m'; YELLOW='\033[1;33m'; RED='\033[0;31m'
@@ -788,32 +789,18 @@ EOF
 
     if [ -d "$MACHINES_DIR/node_modules" ]; then
         if [ "$multi_engine" = "true" ]; then
-            local machines_env first_re_url first_pe_url
-            first_re_url="$(python3 - "$registry_file" <<'PYEOF' 2>/dev/null || true
-import json
-import sys
-
-with open(sys.argv[1]) as f:
-    instances = json.load(f).get("instances", [])
-print(instances[0].get("re_url", "") if instances else "")
-PYEOF
-)"
-            first_pe_url="$(python3 - "$registry_file" <<'PYEOF' 2>/dev/null || true
-import json
-import sys
-
-with open(sys.argv[1]) as f:
-    instances = json.load(f).get("instances", [])
-print(instances[0].get("pe_url", "") if instances else "")
-PYEOF
-)"
-            machines_env="REUSE_SERVICES=true RE_REGISTRY_URL='$registry_url' RE_BASE_URL='${first_re_url:-http://localhost:5001}' PE_BASE_URL='${first_pe_url:-http://localhost:5000}' VIZ_BASE_URL='http://localhost:3001' VIZ_FRONTEND_URL='http://localhost:5173' LAS_BASE_URL='http://localhost:4000' QD_BASE_URL='http://localhost:4333' SKIP_GLOBAL_SETUP=true CI=true"
+            local machines_env
+            # Every endpoint comes from the instance registry, which the specs
+            # resolve themselves (tests/support/deployed-endpoints.ts). Literal
+            # *_BASE_URL values here would override it, since an explicit env
+            # value wins there, so none is passed (RealityEngine_Machines#126).
+            machines_env="REUSE_SERVICES=true RE_REGISTRY_URL='$registry_url' HEALTHKIT_BRIDGE_TOKEN='$BRIDGE_TOKEN_FOR_TESTS' SKIP_GLOBAL_SETUP=true CI=true"
             run_shell_suite "Machines smoke (Playwright)" "$MACHINES_DIR" "$machines_env npm run test:smoke -- --project=chromium --workers=1"
             run_shell_suite "Machines integration (Playwright)" "$MACHINES_DIR" "$machines_env npm run test:integration -- --project=chromium --workers=1"
             run_shell_suite "Machines e2e (Playwright)" "$MACHINES_DIR" "$machines_env npm run test:e2e -- --project=chromium --workers=1"
         else
             run_suite "Machines smoke (Playwright)" "$MACHINES_DIR" npm run test:smoke
-            run_suite "Machines integration (Playwright)" "$MACHINES_DIR" npm run test:integration
+            run_suite "Machines integration (Playwright)" "$MACHINES_DIR" env HEALTHKIT_BRIDGE_TOKEN="$BRIDGE_TOKEN_FOR_TESTS" npm run test:integration
             run_suite "Machines e2e (Playwright)" "$MACHINES_DIR" npm run test:e2e
         fi
     else
