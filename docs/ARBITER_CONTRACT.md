@@ -551,6 +551,72 @@ PEs get this by composing the seed tier first. The TypeScript PE removes seed
 contributions from a contended cell before resolving it. A cell only the seed
 writes resolves as before.
 
+### 4.4b Two sources on one cell — the single transition time (STT) rule
+
+A cell takes **one** transition per step. Two PE sources writing the same cell
+in the same transition violate the single transition time (STT) constraint, at
+least in part, and a resolution that hides the second writer makes that worse
+over time. Name-order last-writer-wins and a per-cell value blend both did. So
+the contention is **resolved by a fixed rule and kept visible**, never absorbed
+(owner decision, 2026-10-02).
+
+Resolution between sources, identical in all four runtimes:
+
+1. **Tier.** Live inputs win over the seed (§4.4a). Tiers never contend with
+   each other on value.
+2. **First available — the incumbent writer.** Within a tier, the source that
+   has held the cell longest keeps it. A newcomer on a cell that already has a
+   writer is the STT violation, and it loses. *Held longest* is measured by the
+   **activation instant**: the PE's transition counter (`globalStep`) at the
+   moment the source last became active. That covers registration while active,
+   a `PATCH` from inactive to active, and a sensor earning activity from a
+   value. Becoming inactive gives up the claim, and a source that comes back is
+   a newcomer.
+3. **Same instant — canonical order.** Sources activated in the same transition
+   tie, which is the case for every seed interned at boot (instant 0). The first
+   in canonical `(name, id)` order keeps the cell. That is derived from corpus
+   names, so the four runtimes agree without any new state.
+
+No value-level combinator is applied between sources. A per-cell rule declared
+in the arbitration registry does not override this between two sources, because
+the STT violation is in having two writers, not in how their values combine.
+
+**Source against the OSRE fold** is a different question, and incumbency does
+not apply to it: the OSRE term (`arbiter(OSRE(n-1))`) is the base every source
+folds over, not an activated writer. Where the arbitration registry declares a
+join operator for the cell (an entry naming a machine writer and the source's
+provider, typically `PRECEDENCE` per §4.3a, with its `withinRank`), that
+operator resolves the OSRE value against the winning source, and it is
+controllable per cell in the registry. Where no operator is declared, the
+**source wins** over the OSRE term. *Status: the source-wins default is what
+every runtime does today. Resolving through a declared operator requires the
+native PEs to see the registry, and is not implemented yet.*
+
+**Observability.** Every cell with more than one active source writer in a
+transition produces an STT contention record, and every source carries
+cumulative counters. Both are served by `GET /api/sources/contention`
+(SURFACE_SPEC, "Sources & Sensors"), in the same shape from all four runtimes:
+
+```
+SttContention := {
+  transition : int,                       // globalStep of the assembly recorded
+  cells      : [ { cell, resolution: "incumbent" | "live-over-seed",
+                   winner: SourceRef, suppressed: [SourceRef] } ],   // ascending cell
+  counters   : [ { id, name, contended, suppressed } ]               // (name, id) order
+}
+SourceRef := { id, name, kind, activatedAt }
+```
+
+`contended` counts the transitions in which the source shared a cell with
+another writer, and `suppressed` counts those in which it lost at least one
+cell. Records and counters come only from the push assembly. A read of
+`/api/state` assembles a vector and must not count. `POST /api/reset` clears
+both and re-stamps every active source to instant 0, as a boot would.
+
+Contention is not a gate failure. The record and the counters are how an STT
+violation is found and corrected in the corpus or in an integration's region
+mapping. Failing a deployment on it would only push it out of sight again.
+
 ### 4.5 Uncontended cells
 
 A cell with exactly one contributing machine resolves to that contribution

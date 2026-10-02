@@ -1822,6 +1822,7 @@ restating it.
 | PATCH | `/api/sources/:id` | ✓ | ✓ | ✓ |
 | DELETE | `/api/sources/:id` | ✓ | ✓ | ✓ |
 | POST | `/api/sources/bootstrap-from-machines` | ✓ | ✓ | ✓ |
+| GET | `/api/sources/contention` | ✓ | ✓ | ✓ |
 | POST | `/api/sensors/:sensorId` | ✓ | ✓ | ✓ |
 
 Sources are declared by integrations, and declaration is never a side effect of
@@ -1906,13 +1907,44 @@ source writes its machine's input region, and when that region is a service lane
 as the OSRE→ISRE fold, so the live input wins, always. It does not matter how the
 names sort, what values each holds, or which registered first (owner decision,
 2026-10-02; RealityEngine_CPP#146). Assembly therefore composes in two tiers,
-**seed (test sources) first, then live sources**, each tier in canonical
-`(name, id)` order, so that last-writer-wins lands the live value. C++, LSP and
-Scala do exactly that. The TypeScript PE arbitrates per cell instead, and drops
-seed contributions from any cell a live source contends before resolving it.
-Between live sources, and between machine outputs and providers,
-`ARBITER_CONTRACT.md` §4.3a `PRECEDENCE` is unchanged. Listing endpoints keep
-plain `(name, id)` order.
+**seed (test sources) first, then live sources**, so that the live value lands.
+Listing endpoints keep plain `(name, id)` order.
+
+**Within a tier, the incumbent writer keeps the cell** (`ARBITER_CONTRACT.md`
+§4.4b, the single transition time rule). Two sources on one cell in one
+transition is an STT violation. The source that has held the cell longest wins,
+measured by its *activation instant*: the `globalStep` at which it last became
+active. Sources activated in the same transition, such as every seed interned at
+boot, fall back to canonical `(name, id)` order, and the first in that order
+keeps the cell. C++, LSP and Scala get this from write order: each tier is
+written newest first, then descending `(name, id)`, so the incumbent is the last
+writer. The TypeScript PE resolves each contended cell by the same rule and
+drops the other writers before arbitration. Until 2026-10-02 the winner within a
+tier was the *last* source in `(name, id)` order (the 2026-08-19 parity rule):
+deterministic, but it let a newcomer displace a writer silently. AGX032 and
+AGX054, which both map `[228:232]`, change winner under the new rule, in every
+runtime alike.
+
+**Contention is recorded, not absorbed.** `GET /api/sources/contention` serves
+the STT records from the most recent push assembly and cumulative per-source
+counters:
+
+```json
+{ "transition": 12,
+  "cells": [ { "cell": 4210, "resolution": "incumbent",
+               "winner":     { "id": "…", "name": "…", "kind": "test", "activatedAt": 0 },
+               "suppressed": [ { "id": "…", "name": "…", "kind": "test", "activatedAt": 7 } ] } ],
+  "counters": [ { "id": "…", "name": "…", "contended": 3, "suppressed": 1 } ] }
+```
+
+`cells` is in ascending cell order. `resolution` is `live-over-seed` where the
+tier decided and `incumbent` where activation (or the canonical tie-break) did.
+`counters` lists, in `(name, id)` order, every registered source that has been
+in a contended cell since boot or the last `POST /api/reset`; deleting a source
+drops its counters. Only the push assembly
+records or counts; `GET /api/state`, which assembles a vector for display, does
+neither. `POST /api/reset` empties both and re-stamps active sources to instant
+0. Contention never fails a request or a gate.
 
 Before this rule the winner was decided by name. "HealthKit Vitals Monitor /
 2 sequences" sorted after "HealthKit Blood Pressure" and replayed `[0,0,0,0]`
