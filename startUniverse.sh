@@ -2437,6 +2437,24 @@ else
     fi
 fi
 
+# Publish the support services this universe deployed, beside the engines, so a
+# live test resolves every endpoint from the instance registry instead of
+# hard-coding Docker-lane ports. Machines specs used https://localhost:5001,
+# :3004, :4000 and :4333 as fallbacks, and against a native universe (engines on
+# 53xx/56xx/51xx) they hit nothing (RealityEngine_Machines#126). Only what is
+# actually up is published: a consumer that needs an absent service should find
+# no entry, not a guessed address.
+if [ "$DRY_RUN" = false ] && [ -f "$REGISTRY_FILE" ]; then
+    _publish_if_up() {  # <name> <url-to-publish> <probe-url>
+        curl -sf --max-time 3 "$3" >/dev/null 2>&1 && registry_set_service "$1" "$2"
+        return 0
+    }
+    _publish_if_up "localai_api"      "http://localhost:4000"  "http://localhost:4000/health"
+    _publish_if_up "qdrant"           "http://localhost:4333"  "http://localhost:4333/collections"
+    [ "$OPENCLAW" != "no" ] && \
+        _publish_if_up "openclaw_gateway" "http://localhost:${_ocs_gw_port:-18789}" "http://localhost:${_ocs_gw_port:-18789}/healthz"
+fi
+
 # =============================================================================
 hdr "5.6 · MCP + OpenAPI Service Surfaces"
 # =============================================================================
