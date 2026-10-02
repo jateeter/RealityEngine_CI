@@ -571,6 +571,8 @@ run_metrics_parity_unit_tests() {
 run_deploy_validate_agent_tests() {
     run_suite "Deploy-validate agent unit tests" "$CI_DIR" \
         bash scripts/tests/test-deploy-validate-agent.sh
+    run_suite "E2E instance-registry resolver unit tests" "$CI_DIR" \
+        node scripts/tests/test-e2e-registry.mjs
 }
 
 # cesgen, cesgen-oracles and the C++ e2e read MACHINES_DIR as the corpus's
@@ -790,8 +792,19 @@ run_playwright_e2e() {
 
     if [ -d "$CI_DIR/node_modules" ]; then
         if [ "$multi_engine" = "true" ]; then
+            # The single-RE specs (api, full-integration) address one named
+            # instance. With several registered and none named they used to fall
+            # back to the Docker stack's https://localhost:5001, which nothing
+            # listens on in a native universe — 16 ECONNREFUSED failures. The
+            # first instance in registry order stands in for "the RE", exactly as
+            # the hosted job does (.github/workflows/e2e-tests.yml).
+            local e2e_instance="${RE_E2E_INSTANCE:-}"
+            if [ -z "$e2e_instance" ]; then
+                e2e_instance="$(RE_REGISTRY_FILE="$registry_file" bash -c \
+                    '. "$1"; registry_instance_ids' _ "$CI_DIR/scripts/lib/resolve-endpoint.sh" 2>/dev/null | head -1)"
+            fi
             run_shell_suite "CI e2e (Playwright, multi-engine)" "$CI_DIR" \
-                "REUSE_SERVICES=true MULTI_ENGINE_E2E=true PLAYWRIGHT_BASE_URL='${PLAYWRIGHT_BASE_URL:-http://localhost:5173}' CI=true npx playwright test $CI_E2E_MULTI_ENGINE_SPECS --project=chromium --workers=1"
+                "REUSE_SERVICES=true MULTI_ENGINE_E2E=true RE_E2E_INSTANCE='$e2e_instance' PLAYWRIGHT_BASE_URL='${PLAYWRIGHT_BASE_URL:-http://localhost:5173}' CI=true npx playwright test $CI_E2E_MULTI_ENGINE_SPECS --project=chromium --workers=1"
             # Everything else in e2e/tests/ is single-engine only. Report each
             # one rather than letting the narrowed run imply full coverage.
             local _skipped

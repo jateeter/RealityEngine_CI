@@ -30,9 +30,42 @@ interface CapturedResponse {
   byteLength: number;
 }
 
+/** One source as the engine reports it and as the PE Manager renders it. */
+interface SourceState {
+  id: string;
+  name: string;
+  type: string;
+  active: boolean;
+  /** Present for sensors: when the engine last received a value. */
+  lastUpdated: number | null;
+}
+
+/**
+ * What "All On" should leave, derived from the engine rather than assumed.
+ *
+ * Not every source can be turned on. A sensor is active iff it holds a value
+ * inside its TTL, and ingress is the only thing that activates it (SURFACE_SPEC
+ * "Sources & Sensors"; the PE Manager's own toggle-all relies on it,
+ * RealityEngine_Manager#151). So a localAI sensor that has not reported stays
+ * off on every runtime, and asserting zero "Enable source" buttons failed
+ * whenever localAI had not fed its sensors — a property of the stack's timing,
+ * not of the engines.
+ */
+interface SourceAccounting {
+  total: number;
+  active: number;
+  /** Sensors with no live value: off because activation is earned, as it must be. */
+  awaitingIngress: SourceState[];
+  /** Anything else still off after All On: the PE refused a source it should have armed. */
+  refused: SourceState[];
+  /** Cards the PE Manager rendered, by toggle state. */
+  ui: { on: number; off: number; cards: { name: string; title: string }[] };
+}
+
 interface EngineRun {
   engine: EngineTarget;
   captures: CapturedResponse[];
+  accounting: SourceAccounting | null;
   sourceCountText: string;
   activeCountText: string;
   treeRowCount: number;
@@ -178,12 +211,62 @@ async function importSources(page: Page): Promise<void> {
   await expect(importButton).toContainText('Import', { timeout: 60_000 });
 }
 
-async function forceAllSourcesOn(page: Page): Promise<void> {
+async function engineSources(request: APIRequestContext): Promise<SourceState[]> {
+  const res = await request.get('/api/pe/sources', { headers: NO_CACHE_HEADERS });
+  expect(res.ok(), `GET /api/pe/sources failed: ${res.status()}`).toBeTruthy();
+  const body = await res.json() as { sources?: any[] } | any[];
+  const list = Array.isArray(body) ? body : body.sources ?? [];
+  return list.map((s: any) => ({
+    id: String(s.id ?? ''),
+    name: String(s.name ?? ''),
+    type: String(s.type ?? ''),
+    active: s.active === true,
+    lastUpdated: typeof s.lastUpdated === 'number' ? s.lastUpdated : null,
+  }));
+}
+
+async function renderedCards(page: Page): Promise<{ name: string; title: string }[]> {
+  return page.$$eval('button[title="Enable source"], button[title="Disable source"]', (buttons) =>
+    buttons.map((b) => ({
+      title: b.getAttribute('title') ?? '',
+      // The card is the toggle's row; its text starts with the source name.
+      name: ((b.parentElement as HTMLElement | null)?.innerText ?? '').split('\n')[0].trim(),
+    })));
+}
+
+/**
+ * Turn every source on, then account for what the engine actually holds.
+ *
+ * Settles on agreement: polls until the PE Manager's rendered toggles match the
+ * engine's own source list (the view reconciles with the engine after its
+ * writes), rather than on an assumed count.
+ */
+async function forceAllSourcesOn(page: Page, request: APIRequestContext): Promise<SourceAccounting> {
   const toggleAll = page.getByRole('button', { name: /^(All Off|Mixed)$/ });
   if (await toggleAll.count() && await toggleAll.first().isEnabled()) {
     await toggleAll.first().click();
   }
-  await expect(page.getByTitle('Enable source')).toHaveCount(0, { timeout: 15_000 });
+  let accounting: SourceAccounting | null = null;
+  const deadline = Date.now() + 20_000;
+  do {
+    const sources = await engineSources(request);
+    const cards = await renderedCards(page);
+    const off = sources.filter((s) => !s.active);
+    accounting = {
+      total: sources.length,
+      active: sources.length - off.length,
+      awaitingIngress: off.filter((s) => s.type === 'sensor'),
+      refused: off.filter((s) => s.type !== 'sensor'),
+      ui: {
+        on: cards.filter((c) => c.title === 'Disable source').length,
+        off: cards.filter((c) => c.title === 'Enable source').length,
+        cards,
+      },
+    };
+    if (accounting.ui.on === accounting.active && accounting.ui.off === off.length) break;
+    await page.waitForTimeout(500);
+  } while (Date.now() < deadline);
+  return accounting!;
 }
 
 async function returnToTree(page: Page): Promise<{ rowCount: number; loadedOk: boolean }> {
@@ -225,6 +308,7 @@ async function captureEngineFlow(page: Page, engine: EngineTarget): Promise<Engi
     await importSources(page);
 
     let sourcePresentationOk = true;
+    let accounting: SourceAccounting | null = null;
     try {
       // `\\(` — the backslash must survive the string literal to reach the regex.
       // Written as '\\(' in a single-quoted TS string, JS drops the backslash and
@@ -233,7 +317,7 @@ async function captureEngineFlow(page: Page, engine: EngineTarget): Promise<Engi
       // header of this file warns about the same class of bug in the spec it
       // replaced; this is it in the opposite direction (under-escaped).
       await expect(page.locator('text=/^Sources \\([1-9]/').first()).toBeVisible({ timeout: 15_000 });
-      await forceAllSourcesOn(page);
+      accounting = await forceAllSourcesOn(page, page.request);
       await expect(page.getByTitle('Disable source').first()).toBeVisible({ timeout: 15_000 });
     } catch (error: any) {
       sourcePresentationOk = false;
@@ -253,6 +337,7 @@ async function captureEngineFlow(page: Page, engine: EngineTarget): Promise<Engi
     return {
       engine,
       captures,
+      accounting,
       sourceCountText,
       activeCountText,
       treeRowCount: Math.max(tree.rowCount, returnedTree.rowCount),
@@ -276,12 +361,105 @@ function latestComparableBySignature(run: EngineRun): Map<string, CapturedRespon
   return out;
 }
 
-function asSurfaceCapture(capture: CapturedResponse): SurfaceCapture {
+function asSurfaceCapture(capture: CapturedResponse, minted: MintedId[] = []): SurfaceCapture {
+  let body = Buffer.from(capture.bodyBase64, 'base64');
+  if (minted.length) {
+    let text = body.toString('utf8');
+    for (const m of minted) text = text.split(m.id).join(m.token);
+    // A runtime orders entries by its own minted ids, so once those ids are
+    // normalised the order of the entries they keyed is an artifact too. Only a
+    // body that actually names a minted entry is put in canonical form; every
+    // other body stays byte for byte.
+    if (text.includes('minted:')) {
+      try {
+        text = JSON.stringify(canonicalJson(JSON.parse(text)));
+      } catch {
+        /* not JSON: compared as substituted text */
+      }
+    }
+    body = Buffer.from(text, 'utf8');
+  }
   return {
     status: capture.status,
-    body: Buffer.from(capture.bodyBase64, 'base64'),
-    sha256: capture.sha256,
+    body,
+    sha256: minted.length ? sha256(body) : capture.sha256,
   };
+}
+
+/** Keys sorted; arrays of machine-keyed entries ordered by their (normalised) identity. */
+function canonicalJson(value: unknown): unknown {
+  if (Array.isArray(value)) {
+    const items = value.map(canonicalJson);
+    const keyed = items.length > 1 && items.every(
+      (v) => v !== null && typeof v === 'object' && !Array.isArray(v) && typeof (v as any).machineId === 'string');
+    if (!keyed) return items;
+    const key = (v: any) => JSON.stringify([v.machineId, v.sequenceId ?? '', v.vector?.id ?? v.id ?? '']);
+    return [...items].sort((a: any, b: any) => (key(a) < key(b) ? -1 : key(a) > key(b) ? 1 : 0));
+  }
+  if (value !== null && typeof value === 'object') {
+    return Object.fromEntries(
+      Object.keys(value as object).sort().map((k) => [k, canonicalJson((value as any)[k])]));
+  }
+  return value;
+}
+
+/**
+ * Identity a runtime minted for itself — the one thing compared here that is
+ * allowed to differ.
+ *
+ * Corpus machines carry corpus-derived ids (`machine-arbitrationreader`), equal
+ * on every runtime, which is why identity is otherwise not filtered (see
+ * e2e/CLAUDE.md). Entries an integration registers at runtime do not: localAI
+ * imports its machines and declares its sensors over the API, and each loader
+ * mints its own id for them — three runtimes, three id formats
+ * (`machine-1U5HAGL-…`, `machine-1790983605546-…`, `source-1790…`), and every
+ * surface that names them differs by bytes while saying the same thing. Against
+ * a stack with localAI running, that failed every compared surface.
+ *
+ * The rule is narrow and stated by evidence, not by name prefix: an entry
+ * present on all three runtimes under one name, whose id differs between them.
+ * Its id becomes `minted:<kind>:<name>` in every body of that runtime before the
+ * comparison; everything else, including every corpus id, is still compared
+ * byte for byte. The substitutions are reported, so the allowance is auditable.
+ */
+interface MintedId {
+  kind: 'machine' | 'source';
+  name: string;
+  id: string;
+  token: string;
+}
+
+function latestBody(run: EngineRun, path: string): any | null {
+  const hit = [...run.captures].reverse().find(c => c.method === 'GET' && c.path === path && c.ok);
+  if (!hit) return null;
+  try {
+    return JSON.parse(Buffer.from(hit.bodyBase64, 'base64').toString('utf8'));
+  } catch {
+    return null;
+  }
+}
+
+function mintedIds(runs: EngineRun[]): Record<Runtime, MintedId[]> {
+  const listed = (run: EngineRun, path: string, key: string): Map<string, string> => {
+    const body = latestBody(run, path);
+    const list: any[] = Array.isArray(body) ? body : body?.[key] ?? [];
+    const out = new Map<string, string>();
+    for (const e of list) if (typeof e?.name === 'string' && typeof e?.id === 'string') out.set(e.name, e.id);
+    return out;
+  };
+  const result = Object.fromEntries(runs.map(r => [r.engine.runtime, [] as MintedId[]])) as Record<Runtime, MintedId[]>;
+  for (const [kind, path, key] of [['machine', '/api/machines', 'machines'], ['source', '/api/pe/sources', 'sources']] as const) {
+    const maps = runs.map(r => listed(r, path, key));
+    for (const name of maps[0]?.keys() ?? []) {
+      const ids = maps.map(m => m.get(name));
+      if (ids.some(id => id === undefined) || new Set(ids).size === 1) continue;
+      runs.forEach((r, i) => result[r.engine.runtime].push({ kind, name, id: ids[i]!, token: `minted:${kind}:${name}` }));
+    }
+  }
+  // Longest first, so an id that contains another (a test source's
+  // `test-<machineId>`) is replaced whole before its machine id is.
+  for (const list of Object.values(result)) list.sort((a, b) => b.id.length - a.id.length);
+  return result;
 }
 
 /**
@@ -318,13 +496,14 @@ function compareRuns(runs: EngineRun[]) {
       absentFrom: runtimes.filter(r => !byRuntime[r].has(sig)),
     }));
 
+  const minted = mintedIds(runs);
   const findings: SurfaceFinding[] = [];
   const noRuntimeImplements: ReturnType<typeof unanimousSilence>[] = [];
   for (const signature of signatures) {
     const captures = {
-      lsp: asSurfaceCapture(byRuntime.lsp.get(signature)!),
-      scala: asSurfaceCapture(byRuntime.scala.get(signature)!),
-      cpp: asSurfaceCapture(byRuntime.cpp.get(signature)!),
+      lsp: asSurfaceCapture(byRuntime.lsp.get(signature)!, minted.lsp),
+      scala: asSurfaceCapture(byRuntime.scala.get(signature)!, minted.scala),
+      cpp: asSurfaceCapture(byRuntime.cpp.get(signature)!, minted.cpp),
     };
     // Checked before the comparison: all three refusing identically agrees,
     // and `compareSurface` will say so by returning null. What that agreement
@@ -357,6 +536,8 @@ function compareRuns(runs: EngineRun[]) {
       };
     }),
     findings,
+    // The minted-identity allowance, entry by entry (see mintedIds).
+    mintedIdentity: (minted.lsp ?? []).map(m => ({ kind: m.kind, name: m.name })),
     skippedManagerControlCalls: runs.map(run => ({
       runtime: run.engine.runtime,
       count: run.captures.filter(c => !comparable(c.method, c.path)).length,
@@ -458,6 +639,7 @@ test('tree view to PE Manager verifies all sources on and compares captured API 
       activeCountText: run.activeCountText,
       disableSourceCount: run.disableSourceCount,
       enableSourceCount: run.enableSourceCount,
+      sourceAccounting: run.accounting,
       sourcePresentationOk: run.sourcePresentationOk,
       errors: run.errors,
       capturedApiResponses: run.captures.length,
@@ -469,6 +651,7 @@ test('tree view to PE Manager verifies all sources on and compares captured API 
       signaturesOutsideQuorum: comparison.signaturesOutsideQuorum,
       noRuntimeImplements: comparison.noRuntimeImplements,
       surfaceRules: comparison.surfaceRules,
+      mintedIdentity: comparison.mintedIdentity,
       findingCount: comparison.findings.length,
       findings: comparison.findings,
       skippedManagerControlCalls: comparison.skippedManagerControlCalls,
@@ -488,7 +671,31 @@ test('tree view to PE Manager verifies all sources on and compares captured API 
     expect(run.treeRowCount, `${run.engine.runtime} tree should contain rows`).toBeGreaterThan(0);
     expect(run.sourcePresentationOk, `${run.engine.runtime} should present imported active sources: ${run.errors.join('; ')}`).toBe(true);
     expect(run.disableSourceCount, `${run.engine.runtime} should present active source toggles`).toBeGreaterThan(0);
-    expect(run.enableSourceCount, `${run.engine.runtime} should have all visible sources ON`).toBe(0);
+    const a = run.accounting;
+    expect(a, `${run.engine.runtime} source accounting was not taken: ${run.errors.join('; ')}`).toBeTruthy();
+    // Every source the engine allows to be on is on. A sensor awaiting its
+    // first (or next) value is not a failure; any other inactive source is.
+    expect(a!.refused.map((s) => `${s.type} ${s.name}`),
+      `${run.engine.runtime} left sources off that All On should arm`).toEqual([]);
+    // The PE Manager shows the engine's state: one toggle per source, on where
+    // the engine is active and off where it is not.
+    expect({ on: a!.ui.on, off: a!.ui.off },
+      `${run.engine.runtime} PE Manager toggles disagree with the engine ` +
+        `(${a!.active} active, ${a!.awaitingIngress.length} awaiting ingress, ${a!.total} total)`)
+      .toEqual({ on: a!.active, off: a!.total - a!.active });
+    console.log(
+      `  ${run.engine.runtime}: ${a!.active}/${a!.total} sources on; ` +
+        `${a!.awaitingIngress.length} sensor(s) awaiting ingress` +
+        (a!.awaitingIngress.length ? ` (${a!.awaitingIngress.map((s) => s.name).join(', ')})` : ''),
+    );
+  }
+
+  if (comparison.mintedIdentity.length) {
+    console.log(
+      `  runtime-minted identity normalised for ${comparison.mintedIdentity.length} entr` +
+        `${comparison.mintedIdentity.length === 1 ? 'y' : 'ies'}: ` +
+        comparison.mintedIdentity.map(m => `${m.kind} ${m.name}`).join(', '),
+    );
   }
 
   // Enumerated on stdout, not only in the attached manifest. Both of these

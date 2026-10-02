@@ -119,15 +119,7 @@ export function endpointOr(service: string, fallback: string, path?: string): st
  * something other than what the test claimed.
  */
 export function reEndpointOr(fallback: string, path?: string): string {
-  try {
-    const named = process.env.RE_E2E_INSTANCE;
-    if (named) return reEndpoint(named, path);
-    const ids = instanceIds(path);
-    if (ids.length === 1) return reEndpoint(ids[0], path);
-    return fallback;
-  } catch {
-    return fallback;
-  }
+  return instanceEndpointOr('re', fallback, path);
 }
 
 /**
@@ -139,13 +131,35 @@ export function reEndpointOr(fallback: string, path?: string): string {
  * reason the specs naming it could not run multi-engine.
  */
 export function peEndpointOr(fallback: string, path?: string): string {
+  return instanceEndpointOr('pe', fallback, path);
+}
+
+/**
+ * The literal is the answer only when there is no instance registry to ask.
+ *
+ * A registry holding several instances with none named is a question the
+ * caller has to answer, not a case for the literal: the Docker stack's
+ * `https://localhost:5001` / `:3004` do not exist in a native universe, so
+ * falling back there turned "which engine?" into 16 ECONNREFUSED failures that
+ * looked like a dead RE. Same rule as `singleEngineRe` in global-setup.ts.
+ */
+export class AmbiguousInstanceError extends Error {}
+
+function instanceEndpointOr(surface: 're' | 'pe', fallback: string, path?: string): string {
+  const named = process.env.RE_E2E_INSTANCE;
+  if (named) return surface === 're' ? reEndpoint(named, path) : peEndpoint(named, path);
+  let ids: string[];
   try {
-    const named = process.env.RE_E2E_INSTANCE;
-    if (named) return peEndpoint(named, path);
-    const ids = instanceIds(path);
-    if (ids.length === 1) return peEndpoint(ids[0], path);
-    return fallback;
+    ids = instanceIds(path);
   } catch {
-    return fallback;
+    return fallback; // no readable instance registry: the pre-registry literal stands
   }
+  if (ids.length === 1) return surface === 're' ? reEndpoint(ids[0], path) : peEndpoint(ids[0], path);
+  if (ids.length > 1) {
+    throw new AmbiguousInstanceError(
+      `registry lists ${ids.length} instances (${ids.join(', ')}); ` +
+        'set RE_E2E_INSTANCE to name the one this spec addresses',
+    );
+  }
+  return fallback;
 }
