@@ -1899,6 +1899,26 @@ an external integration to register: they arrive with the machines. Every other
 kind — MQTT, ACP, MCP, HealthKit, localAI — is external and registers on its
 own terms, per the paragraph above.
 
+**Live inputs win over the seed on a shared lane.** A machine's interned test
+source writes its machine's input region, and when that region is a service lane
+(HealthKit, CareKit, a completion lane…) a live source writes it too. The seed is
+`ISRESeed(n)`, the base every live input folds over, which is the same direction
+as the OSRE→ISRE fold, so the live input wins, always. It does not matter how the
+names sort, what values each holds, or which registered first (owner decision,
+2026-10-02; RealityEngine_CPP#146). Assembly therefore composes in two tiers,
+**seed (test sources) first, then live sources**, each tier in canonical
+`(name, id)` order, so that last-writer-wins lands the live value. C++, LSP and
+Scala do exactly that. The TypeScript PE arbitrates per cell instead, and drops
+seed contributions from any cell a live source contends before resolving it.
+Between live sources, and between machine outputs and providers,
+`ARBITER_CONTRACT.md` §4.3a `PRECEDENCE` is unchanged. Listing endpoints keep
+plain `(name, id)` order.
+
+Before this rule the winner was decided by name. "HealthKit Vitals Monitor /
+2 sequences" sorted after "HealthKit Blood Pressure" and replayed `[0,0,0,0]`
+over a live reading on `[4320:4324]`, and a live integration stayed silently
+ineffective for as long as the seed queue lasted.
+
 Activity is earned, and only by ingress. A sensor source is active iff it holds
 a value inside its TTL: registration declares it inactive whatever flag the
 caller asks for, the first value makes it active, and the TTL lapsing —
