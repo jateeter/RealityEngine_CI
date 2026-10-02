@@ -24,6 +24,8 @@ eval "$(extract phase_deploy)"
 eval "$(extract file_issue)"
 eval "$(extract phase_restart_matrix)"
 eval "$(extract stamped_agent_profile)"
+eval "$(extract compose_passthrough_names)"
+eval "$(extract deployed_passthrough_env)"
 
 hdr() { :; }; info() { :; }; ok() { :; }; warn() { :; }; _log() { :; }
 FAILS=(); SKIPS=(); PASSES=()
@@ -126,5 +128,32 @@ OC_ARGS="unset"; phase_restart_matrix
 check "with nothing stamped, start.sh gets no profile flag" '[ -z "$OC_ARGS" ]'
 check "startUniverse.sh stamps the resolved profile" 'command grep -qF "AGENT_PROFILE=\$AGENT_PROFILE" "$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)/startUniverse.sh"'
 CI_DIR="$REAL_CI_DIR"; command rm -rf "$STAMP_DIR"
+
+# 9. A containerized restart keeps what the deployment gave each service.
+#    startUniverse.sh exports TRIGGERS_ENABLED and the ACP_* defaults in its own
+#    shell; the recreate ran without them and brought the PE back with trigger
+#    dispatch off, so Phase 4's dispatch suites failed against a PE that could
+#    not dispatch (RealityEngine_Machines#126).
+# CI_DIR was pointed at scratch directories above; resolve the repo from here.
+REPO_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
+names="$(compose_passthrough_names perception-engine-backend "$REPO_DIR/docker-compose.yml")"
+check "the PE's pass-through names include trigger dispatch" 'printf "%s\n" "$names" | command grep -qx TRIGGERS_ENABLED'
+check "the PE's pass-through names include the ACP gateway" 'printf "%s\n" "$names" | command grep -qx ACP_GATEWAY_URL'
+check "values the file sets are not pass-through" '! printf "%s\n" "$names" | command grep -qx INTEGRATIONS_CONFIG'
+check "another service's variables are not the PE's" '! printf "%s\n" "$names" | command grep -qx VIZ_PORT'
+docker() {
+  case "$1 $2" in
+    "compose ps") echo cid-pe ;;
+    "inspect cid-pe") printf 'TRIGGERS_ENABLED=true\nACP_GATEWAY_URL=ws://127.0.0.1:18789\nINTEGRATIONS_CONFIG=/app/config/integrations.json\nPATH=/usr/bin\n' ;;
+  esac
+}
+SAVED_CI_DIR="$CI_DIR"; CI_DIR="$REPO_DIR"
+carried="$(deployed_passthrough_env perception-engine-backend)"
+check "a restart carries the deployed trigger switch" 'printf "%s\n" "$carried" | command grep -qx TRIGGERS_ENABLED=true'
+check "a restart carries the deployed ACP gateway" 'printf "%s\n" "$carried" | command grep -qx "ACP_GATEWAY_URL=ws://127.0.0.1:18789"'
+check "a restart carries nothing the file or image sets" '! printf "%s\n" "$carried" | command grep -qE "^(INTEGRATIONS_CONFIG|PATH)="'
+docker() { return 1; }
+check "a service with no container carries nothing" '[ -z "$(deployed_passthrough_env perception-engine-backend)" ]'
+CI_DIR="$SAVED_CI_DIR"; unset -f docker
 unset -f rm
 exit $rc
