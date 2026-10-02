@@ -23,6 +23,7 @@ eval "$(extract phase_health)"
 eval "$(extract phase_deploy)"
 eval "$(extract file_issue)"
 eval "$(extract phase_restart_matrix)"
+eval "$(extract stamped_agent_profile)"
 
 hdr() { :; }; info() { :; }; ok() { :; }; warn() { :; }; _log() { :; }
 FAILS=(); SKIPS=(); PASSES=()
@@ -106,5 +107,24 @@ check "failed deploy still restarts localAI and OpenClaw" '[ "${RESTARTED[*]}" =
 DEPLOY_FAILED=false; RESTARTED=(); SKIPS=()
 phase_restart_matrix
 check "a successful deploy restarts all four units" '[ "${RESTARTED[*]}" = "reality-engine manager localai openclaw" ] && [ ${#SKIPS[@]} -eq 0 ]'
+
+# 8. OpenClaw restarts with the agent profile the deploy resolved. A bare
+#    start.sh defaults to `full`, so a regression deploy (15 agents) came back
+#    with 1,322 and its security audit outran the budget (localOpenClawStack#51).
+STAMP_DIR="$(mktemp -d)"; REAL_CI_DIR="$CI_DIR"; CI_DIR="$STAMP_DIR"
+OC_ARGS="unset"
+restart_repo_script() { [ "$1" = openclaw ] && OC_ARGS="${*:5}"; return 0; }
+printf 'MACHINE_CORPUS=regression\nAGENT_PROFILE=regression\n' > "$STAMP_DIR/.universe-engine-selection"
+DEPLOY_FAILED=false; DEPLOY_TORE_DOWN=false; SKIPS=(); FAILS=()
+phase_restart_matrix
+check "OpenClaw restarts with the stamped agent profile" '[ "$OC_ARGS" = "--agent-profile=regression" ]'
+printf 'MACHINE_CORPUS=full\nAGENT_PROFILE=full\n' > "$STAMP_DIR/.universe-engine-selection"
+OC_ARGS="unset"; phase_restart_matrix
+check "a full-corpus deploy restarts OpenClaw with the full profile" '[ "$OC_ARGS" = "--agent-profile=full" ]'
+command rm -f "$STAMP_DIR/.universe-engine-selection"
+OC_ARGS="unset"; phase_restart_matrix
+check "with nothing stamped, start.sh gets no profile flag" '[ -z "$OC_ARGS" ]'
+check "startUniverse.sh stamps the resolved profile" 'command grep -qF "AGENT_PROFILE=\$AGENT_PROFILE" "$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)/startUniverse.sh"'
+CI_DIR="$REAL_CI_DIR"; command rm -rf "$STAMP_DIR"
 unset -f rm
 exit $rc

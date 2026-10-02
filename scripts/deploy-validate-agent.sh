@@ -117,6 +117,17 @@ corpus_dir() {
   fi
 }
 
+# The OpenClaw agent profile the deploy resolved from its machine corpus. The
+# restart matrix used to run `scripts/start.sh` bare, which defaults to `full`,
+# so a regression deploy (21 machines, 15 agents) came back from its restart
+# carrying all 1,322 agents. The security audit then needed ~120s against a 45s
+# budget and the restart was failed (localOpenClawStack#51). Same shape as
+# corpus_dir() above: the deploy's choice has to survive the restart.
+stamped_agent_profile() {
+  local sel="$CI_DIR/.universe-engine-selection"
+  [ -f "$sel" ] && sed -n 's/^AGENT_PROFILE=//p' "$sel" | tail -1
+}
+
 STATE_DIR="$CI_DIR/.deploy-validate"
 ISSUE_DIR="$STATE_DIR/issues"
 RUN_TS="$(date -u +%Y%m%dT%H%M%SZ)"
@@ -606,14 +617,14 @@ restart_compose_service() {  # <unit> <health-url> <label> <svc...>
                                   || fail "$unit" restart "$label did not return healthy after restart" "$url"
 }
 
-restart_repo_script() {  # <unit> <health-url> <label> <repo-dir>
-  local unit="$1" url="$2" label="$3" dir="$4"
+restart_repo_script() {  # <unit> <health-url> <label> <repo-dir> [start.sh args...]
+  local unit="$1" url="$2" label="$3" dir="$4"; shift 4
   if [ ! -x "$dir/scripts/start.sh" ]; then
     skip "$unit" restart "$label" "$dir/scripts/start.sh not found"; return 0
   fi
   info "Restarting $label via ${dir##*/}/scripts/start.sh..."
   [ -x "$dir/scripts/stop.sh" ] && ( cd "$dir" && bash scripts/stop.sh ) >>"$RUN_LOG" 2>&1 || true
-  if ( cd "$dir" && bash scripts/start.sh ) >>"$RUN_LOG" 2>&1; then
+  if ( cd "$dir" && bash scripts/start.sh "$@" ) >>"$RUN_LOG" 2>&1; then
     poll "$url" "$label back up" 30 && pass "$unit" restart "$label restarted cleanly" \
                                     || fail "$unit" restart "$label unhealthy after start.sh" "$url"
   else
@@ -648,7 +659,15 @@ phase_restart_matrix() {
   fi
   restart_repo_script localai "http://localhost:4000/health" "localAIStack" "$LAS_DIR"
   if [ "$OPENCLAW" = "yes" ] || { [ "$OPENCLAW" = "auto" ] && curl -sf --max-time 3 http://localhost:18789/healthz >/dev/null 2>&1; }; then
-    restart_repo_script openclaw "http://localhost:18789/healthz" "OpenClaw gateway" "$OCS_DIR"
+    local profile; profile="$(stamped_agent_profile)"
+    if [ -z "$profile" ]; then
+      warn "No AGENT_PROFILE stamped by startUniverse.sh; restarting OpenClaw with its default"
+      restart_repo_script openclaw "http://localhost:18789/healthz" "OpenClaw gateway" "$OCS_DIR"
+    else
+      info "OpenClaw restarts with the deploy's agent profile: $profile"
+      restart_repo_script openclaw "http://localhost:18789/healthz" "OpenClaw gateway" "$OCS_DIR" \
+        "--agent-profile=$profile"
+    fi
   else
     skip openclaw restart "OpenClaw restart" "gateway not active"
   fi
