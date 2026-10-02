@@ -25,6 +25,13 @@ REPORT_JSON=""
 REPORT_WRITTEN=false
 RESULT_STATUS="failed"
 FAILURE_STAGE=""
+# The stage in progress. An inline check that exits without naming itself is
+# reported as this, so a failure never leaves failureStage blank — it did on the
+# Docker lane, where the ACP status check failed under set -e and the report
+# said only "failed" (RealityEngine_Machines#126).
+CURRENT_STAGE="startup"
+# Sources deactivated to give the dispatch seed its lane; reactivated afterwards.
+QUIESCED_IDS=()
 
 usage() {
   cat <<'USAGE'
@@ -129,9 +136,11 @@ NODE
 cleanup() {
   local exit_code=$?
   if [ "$RESULT_STATUS" != "passed" ]; then
+    [ -n "$FAILURE_STAGE" ] || FAILURE_STAGE="$CURRENT_STAGE"
     write_report "failed"
   fi
   curl -sk --max-time 5 -X DELETE "$PE_URL/api/sources/$SEED_SOURCE_ID" >/dev/null 2>&1 || true
+  restore_lane
   if [ -n "$COMPLETION_SOURCE_ID" ]; then
     curl -sk --max-time 5 -X DELETE "$PE_URL/api/sources/$COMPLETION_SOURCE_ID" >/dev/null 2>&1 || true
   fi
@@ -195,12 +204,53 @@ if (records[0]?.id) process.stdout.write(records[0].id);
 NODE
 }
 
+# Deactivate every other active source on the seed's lane [4210:4214].
+#
+# The corpus interns OpenClawCompletionE2E's own test source there, looping its
+# dispatch and completion vectors. Seed-vs-seed composition is not settled
+# across runtimes — C++, LSP and Scala compose the seed tier last-writer-wins in
+# name order, the TypeScript PE resolves it per cell through the arbiter — so on
+# the TS PE the two blended into a vector that matched neither branch and the
+# fixture never dispatched (RealityEngine_Machines#126). The seed owns its lane
+# for its one push instead of relying on either rule.
+quiesce_lane() {
+  local ids id code
+  code="$(curl_json GET "$PE_URL/api/sources")"
+  assert_2xx "$code" "sources on the seed lane"
+  ids="$(node - "$TMP_DIR/response.json" <<'NODE'
+const fs = require('fs');
+const body = JSON.parse(fs.readFileSync(process.argv[2], 'utf8'));
+const sources = Array.isArray(body) ? body : (body.sources || []);
+for (const s of sources) {
+  const o = Number(s.region?.offset ?? -1), l = Number(s.region?.length ?? 0);
+  if (s.id && s.active === true && o < 4214 && o + l > 4210) console.log(s.id);
+}
+NODE
+)"
+  while IFS= read -r id; do
+    [ -n "$id" ] || continue
+    code="$(curl_json PATCH "$PE_URL/api/sources/$id" '{"active":false}')"
+    assert_2xx "$code" "quiesce seed lane source $id"
+    QUIESCED_IDS+=("$id")
+  done <<< "$ids"
+}
+
+restore_lane() {
+  local id
+  for id in "${QUIESCED_IDS[@]+"${QUIESCED_IDS[@]}"}"; do
+    curl -sk --max-time 5 -o /dev/null -X PATCH "$PE_URL/api/sources/$id" \
+      -H "content-type: application/json" --data '{"active":true}' || true
+  done
+  QUIESCED_IDS=()
+}
+
 printf '[info] PE URL: %s\n' "$PE_URL"
 printf '[info] OpenClaw e2e run: %s\n' "$RUN_ID"
 
 code="$(curl_json GET "$PE_URL/api/integrations/acp/status")"
 assert_2xx "$code" "ACP status endpoint"
 cp "$TMP_DIR/response.json" "$TMP_DIR/acp-status.json"
+CURRENT_STAGE="ACP status contract"
 node - "$TMP_DIR/response.json" "$SOURCE_MAPPING_ID" <<'NODE'
 const fs = require('fs');
 const status = JSON.parse(fs.readFileSync(process.argv[2], 'utf8'));
@@ -225,6 +275,7 @@ code="$(curl_json GET "$PE_URL/api/dispatch/ledger")"
 assert_2xx "$code" "dispatch ledger baseline"
 cp "$TMP_DIR/response.json" "$TMP_DIR/ledger-before.json"
 
+quiesce_lane
 seed_body=$(printf '{"id":"%s","type":"test","name":"OpenClaw E2E Dispatch Seed","active":true,"region":{"offset":4210,"length":4},"inputs":[[0,1,0,1]],"loop":false}' "$SEED_SOURCE_ID")
 code="$(curl_json POST "$PE_URL/api/sources" "$seed_body")"
 assert_2xx "$code" "OpenClaw dispatch seed source registration"
@@ -234,12 +285,14 @@ assert_2xx "$code" "OpenClaw dispatch seed push"
 
 code="$(curl_json DELETE "$PE_URL/api/sources/$SEED_SOURCE_ID")"
 assert_2xx "$code" "OpenClaw dispatch seed source cleanup"
+restore_lane
 
 code="$(curl_json GET "$PE_URL/api/dispatch/ledger")"
 assert_2xx "$code" "dispatch ledger after seed"
 cp "$TMP_DIR/response.json" "$TMP_DIR/ledger-after.json"
 DISPATCH_ID="$(find_new_dispatch_id "$TMP_DIR/ledger-after.json" "$TMP_DIR/ledger-before.json")"
 if [ -z "$DISPATCH_ID" ]; then
+  FAILURE_STAGE="fixture dispatch record"
   printf '[fail] fixture sequence %s did not create a dispatch record\n' "$FIXTURE_SEQUENCE_ID" >&2
   printf '  Confirm OpenClawCompletionE2E.json is loaded and TRIGGERS_ENABLED=true.\n' >&2
   exit 1
@@ -251,6 +304,7 @@ code="$(curl_json POST "$PE_URL/api/integrations/acp/dispatch" "$dispatch_body")
 assert_code "$code" "202" "ACP dispatch handoff accepted"
 cp "$TMP_DIR/response.json" "$TMP_DIR/acp-handoff.json"
 
+CURRENT_STAGE="ACP handoff contract"
 node - "$TMP_DIR/acp-handoff.json" "$DISPATCH_ID" "$AGENT_ID" "$SOURCE_MAPPING_ID" <<'NODE'
 const fs = require('fs');
 const response = JSON.parse(fs.readFileSync(process.argv[2], 'utf8'));
@@ -285,6 +339,7 @@ NODE
 code="$(curl_json GET "$PE_URL/api/dispatch/records/$DISPATCH_ID")"
 assert_2xx "$code" "dispatch record after ACP acceptance"
 cp "$TMP_DIR/response.json" "$TMP_DIR/dispatch-record-after-acceptance.json"
+CURRENT_STAGE="dispatch record after ACP acceptance contract"
 node - "$TMP_DIR/response.json" "$DISPATCH_ID" "$ENVELOPE_ID" "$CORRELATION_ID" <<'NODE'
 const fs = require('fs');
 const record = JSON.parse(fs.readFileSync(process.argv[2], 'utf8')).record || {};
@@ -305,6 +360,7 @@ if (failures.length) {
 console.log('[pass] dispatch ledger records the accepted OpenClaw handoff');
 NODE
 
+CURRENT_STAGE="OpenClaw hello agent completion"
 node "$CI_DIR/scripts/examples/openclaw-hello-agent.mjs" \
   --pe-url "$PE_URL" \
   --agent "$AGENT_ID" \
@@ -338,6 +394,7 @@ code="$(curl_json GET "$PE_URL/api/sources")"
 assert_2xx "$code" "sources endpoint after completion"
 cp "$TMP_DIR/response.json" "$TMP_DIR/sources-after-completion.json"
 
+CURRENT_STAGE="OpenClaw completion source mapping"
 COMPLETION_SOURCE_ID="$(node - "$TMP_DIR/response.json" "$SENSOR_ID" <<'NODE'
 const fs = require('fs');
 const payload = JSON.parse(fs.readFileSync(process.argv[2], 'utf8'));
