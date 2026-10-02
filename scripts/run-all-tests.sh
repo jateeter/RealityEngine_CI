@@ -142,6 +142,41 @@ skip_suite() {
     fi
 }
 
+# A suite that cannot run in this deployment's footprint is not applicable, so
+# it is not scored as a failure, even in deployment mode. That is the
+# distinction skip_suite cannot make: skip_suite means "this should have run and
+# could not", which deployment mode correctly treats as a failure. Universes are
+# routinely started with one, two, three or more engines. A cross-engine parity
+# gate on a one-engine deployment has nothing to compare, so it is skipped and
+# the run continues (RealityEngine_Machines#126). Short term: the suite still
+# says, by name, what it would need.
+skip_not_applicable() {
+    warn "SKIP (not applicable): $1 - $2"
+    record SKIP "$1" "not applicable: $2"
+}
+
+# Instances the instance registry lists; 0 when it cannot be read.
+deployed_engine_count() {
+    curl -sf --max-time 5 "${1:-${RE_REGISTRY_URL:-http://127.0.0.1:5999/re-registry.json}}" 2>/dev/null \
+        | python3 -c 'import json,sys; print(len(json.load(sys.stdin).get("instances") or []))' 2>/dev/null \
+        || echo 0
+}
+
+# require_engines <label> <min> [exact]: true when the footprint can run the
+# suite; otherwise records it not applicable and returns 1.
+require_engines() {
+    local label="$1" need="$2" exact="${3:-}" have
+    have="$(deployed_engine_count)"
+    if [ "$exact" = exact ] && [ "$have" -ne "$need" ]; then
+        skip_not_applicable "$label" "needs exactly $need engines; the instance registry lists $have"
+        return 1
+    fi
+    if [ "$have" -lt "$need" ]; then
+        skip_not_applicable "$label" "needs at least $need engines to compare; the instance registry lists $have"
+        return 1
+    fi
+}
+
 repo_present() {
     local label="$1" dir="$2"
     if [ ! -d "$dir" ]; then
@@ -260,6 +295,7 @@ run_semantic_parity_smoke() {
         skip_suite "$label" "registry not reachable at $registry_url"
         return
     fi
+    require_engines "$label" 2 || return 0
     local log; log="$(mktemp -t re-semantic-parity.XXXXXX)"
     info "Running: $label"
     if "$CI_DIR/scripts/verify-semantic-parity.sh" >"$log" 2>&1; then
@@ -284,6 +320,8 @@ run_ces_contract_drift() {
         skip_suite "$label" "instance registry not reachable at $registry_url"
         return
     fi
+    # The quorum is three runtimes, no more and no fewer (record-ces-contracts.py).
+    require_engines "$label" 3 exact || return 0
     # The gate half of RealityEngine_CI#327. The shards in config/ces-contracts/
     # are authoritative and live in git (shaping decision 4), so drift against the
     # live runtimes has to fail at the point of change. Its predecessor —
@@ -315,6 +353,7 @@ run_metrics_parity_smoke() {
         skip_suite "$label" "registry not reachable at $registry_url"
         return
     fi
+    require_engines "$label" 2 || return 0
     local log; log="$(mktemp -t re-metrics-parity.XXXXXX)"
     info "Running: $label"
     if "$CI_DIR/scripts/verify-metrics-parity.sh" >"$log" 2>&1; then
@@ -794,7 +833,7 @@ summary() {
     done
     echo -e "\n${BOLD}Totals:${NC} ${GREEN}$pass passed${NC}, ${RED}$fail failed${NC}, ${YELLOW}$skip skipped${NC}"
     if [ "$DEPLOYMENT_MODE" = "true" ]; then
-        echo -e "${BOLD}Deployment mode:${NC} skipped suites are recorded as failures"
+        echo -e "${BOLD}Deployment mode:${NC} skipped suites are recorded as failures, except those not applicable to this footprint"
     fi
     [ "$fail" -eq 0 ]
 }
