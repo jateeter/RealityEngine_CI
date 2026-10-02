@@ -524,6 +524,10 @@ run_regression_issue_filer_tests() {
 run_openapi_validator_tests() {
     run_suite "OpenAPI validator unit tests" "$CI_DIR" \
         bash scripts/tests/test-openapi-validate.sh
+    # The Swagger portal's proxy must reach an https engine through the dev CA
+    # and refuse one it cannot verify.
+    run_suite "Swagger portal proxy unit tests" "$CI_DIR" \
+        bash scripts/tests/test-serve-openapi.sh
 }
 
 # The rule that sizes the perceptual space from the corpus. An undersized space

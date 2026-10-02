@@ -567,6 +567,13 @@ jobs:
         working-directory: RealityEngine_CI
         run: bash scripts/tests/test-openapi-validate.sh
 
+      # The Swagger portal proxies "Try it out" to the engines, which serve TLS
+      # from the dev CA. A real https stand-in engine proves the proxy verifies
+      # against that CA and refuses a certificate it cannot verify.
+      - name: Run Swagger portal proxy unit tests
+        working-directory: RealityEngine_CI
+        run: bash scripts/tests/test-serve-openapi.sh
+
       # The export-parity gate's own comparison. Every export defect so far was
       # found by hand-diffing, so a gate that cannot fail would leave the
       # surface as unguarded as it was.

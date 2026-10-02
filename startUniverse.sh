@@ -883,17 +883,27 @@ PYEOF
 
     if [ "$OPENAPI_SWAGGER_ENABLED" = "true" ]; then
         local swagger_url="http://${OPENAPI_SWAGGER_HOST}:${OPENAPI_SWAGGER_PORT}"
+        # Fetch, then match. `curl | grep -q` under pipefail failed whenever grep
+        # matched early and exited: curl took SIGPIPE writing the rest of a
+        # ~49 KB spec and the pipeline reported failure. `^openapi:` is line 1,
+        # so a portal serving every spec warned "unavailable or invalid" on
+        # roughly one probe in twenty (both specs in run 20261002T203945Z).
+        swagger_serves() {  # <path> <extended-regex>
+            local body
+            body="$(curl -sf --max-time 5 "$swagger_url/$1")" || return 1
+            grep -qE "$2" <<< "$body"
+        }
         if curl -sf --max-time 5 "$swagger_url/" >/dev/null 2>&1; then
             ok "Swagger portal available: $swagger_url/"
         else
             add_warn "Swagger portal unavailable at $swagger_url/"
         fi
-        if curl -sf --max-time 5 "$swagger_url/cpp-re.yaml" | grep -q '^openapi:'; then
+        if swagger_serves cpp-re.yaml '^openapi:'; then
             ok "Swagger raw OpenAPI spec available: cpp-re.yaml"
         else
             add_warn "Swagger raw OpenAPI spec unavailable or invalid at $swagger_url/cpp-re.yaml"
         fi
-        if curl -sf --max-time 5 "$swagger_url/scala-pe.yaml" | grep -q '^openapi:'; then
+        if swagger_serves scala-pe.yaml '^openapi:'; then
             ok "Swagger PE OpenAPI spec available: scala-pe.yaml"
         else
             add_warn "Swagger PE OpenAPI spec unavailable or invalid at $swagger_url/scala-pe.yaml"
@@ -914,12 +924,12 @@ for instance in registry.get("instances", []):
 PYEOF
 )"
         if [ -n "$swagger_runtime" ]; then
-            if curl -sf --max-time 5 "$swagger_url/${swagger_runtime}-re.yaml" | grep -q "url: ${swagger_url}/proxy/${swagger_runtime}/re"; then
+            if swagger_serves "${swagger_runtime}-re.yaml" "url: ${swagger_url}/proxy/${swagger_runtime}/re"; then
                 ok "Swagger RE spec uses same-origin proxy for ${swagger_runtime}"
             else
                 add_warn "Swagger RE spec for ${swagger_runtime} does not expose same-origin proxy server"
             fi
-            if curl -sf --max-time 5 "$swagger_url/${swagger_runtime}-pe.yaml" | grep -q "url: ${swagger_url}/proxy/${swagger_runtime}/pe"; then
+            if swagger_serves "${swagger_runtime}-pe.yaml" "url: ${swagger_url}/proxy/${swagger_runtime}/pe"; then
                 ok "Swagger PE spec uses same-origin proxy for ${swagger_runtime}"
             else
                 add_warn "Swagger PE spec for ${swagger_runtime} does not expose same-origin proxy server"

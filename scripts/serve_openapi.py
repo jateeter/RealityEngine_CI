@@ -17,10 +17,14 @@ from pathlib import Path
 import posixpath
 import re
 from socketserver import ThreadingMixIn
+import sys
 from typing import Optional
 from urllib.parse import unquote, urlparse
 from http.server import BaseHTTPRequestHandler, HTTPServer
 
+
+sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), "lib"))
+from re_tls import tls_context  # noqa: E402
 
 RUNTIMES = {"cpp", "lsp", "scala"}
 SURFACES = {"re", "pe"}
@@ -66,6 +70,22 @@ def target_for(registry_path: Path, runtime: str, surface: str) -> Optional[str]
         if fallback:
             return fallback.rstrip("/")
     return None
+
+
+def connection_for(scheme: str, host: str, port: Optional[int], timeout: float = 30):
+    """An http.client connection to a proxy target.
+
+    The engines serve TLS with certificates from the dev CA in certs/ca.crt,
+    which the system trust store does not hold. A default HTTPSConnection
+    therefore failed every proxied request to an https engine, and in the
+    Docker lane — where the registry lists https://localhost:5001 / :3004 —
+    Swagger's "Try it out" could reach nothing ("Swagger RE/PE proxy execution
+    failed"). re_tls trusts the dev CA, the same decision every other
+    verification stage makes.
+    """
+    if scheme == "https":
+        return http.client.HTTPSConnection(host, port, timeout=timeout, context=tls_context())
+    return http.client.HTTPConnection(host, port, timeout=timeout)
 
 
 def rewrite_servers(spec_text: str, runtime: str, surface: str, request_prefix: str) -> str:
@@ -204,9 +224,7 @@ class Handler(BaseHTTPRequestHandler):
         query = f"?{parsed.query}" if parsed.query else ""
         target = urlparse(f"{target_base}{suffix}{query}")
         body = self.rfile.read(int(self.headers.get("Content-Length", "0") or "0"))
-        conn_cls = http.client.HTTPSConnection if target.scheme == "https" else http.client.HTTPConnection
-        port = target.port
-        conn = conn_cls(target.hostname, port, timeout=30)
+        conn = connection_for(target.scheme, target.hostname, target.port)
         try:
             headers = self._forward_headers(target.netloc)
             target_path = target.path or "/"
