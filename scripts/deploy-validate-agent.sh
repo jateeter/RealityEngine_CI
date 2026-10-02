@@ -128,6 +128,15 @@ stamped_agent_profile() {
   [ -f "$sel" ] && sed -n 's/^AGENT_PROFILE=//p' "$sel" | tail -1
 }
 
+# The HealthKit bridge token the deploy enabled, unless it ran with
+# --no-healthkit-token (then empty, and the PE stays unauthenticated as deployed).
+deploy_healthkit_token() {
+  [ -n "${HEALTHKIT_BRIDGE_TOKEN:-}" ] && { printf '%s' "$HEALTHKIT_BRIDGE_TOKEN"; return; }
+  # shellcheck source=lib/healthkit-token.sh
+  . "$CI_DIR/scripts/lib/healthkit-token.sh"
+  healthkit_token_read "$CI_DIR"
+}
+
 STATE_DIR="$CI_DIR/.deploy-validate"
 ISSUE_DIR="$STATE_DIR/issues"
 RUN_TS="$(date -u +%Y%m%dT%H%M%SZ)"
@@ -605,7 +614,13 @@ restart_compose_service() {  # <unit> <health-url> <label> <svc...>
   local svcs=( "$@" ) build=()
   [ "$FRESH" = true ] && build=( --build )
   info "Restarting $label (compose: ${svcs[*]})..."
-  ( cd "$CI_DIR" && MACHINE_CORPUS_DIR="$(corpus_dir)" docker compose up -d --force-recreate --no-deps ${build[@]+"${build[@]}"} "${svcs[@]}" ) >>"$RUN_LOG" 2>&1 \
+  # The PE container takes HEALTHKIT_BRIDGE_TOKEN from the caller's environment
+  # (docker-compose.yml). startUniverse.sh resolved it at deploy; this shell
+  # never had it, so a recreated PE came back with ingest auth off and accepted
+  # any token (run 20261002T133256Z: tokenConfigured=false after the restart).
+  # Passed on this command only — exported, it would reach Phase 4's suites.
+  ( cd "$CI_DIR" && MACHINE_CORPUS_DIR="$(corpus_dir)" HEALTHKIT_BRIDGE_TOKEN="$(deploy_healthkit_token)" \
+      docker compose up -d --force-recreate --no-deps ${build[@]+"${build[@]}"} "${svcs[@]}" ) >>"$RUN_LOG" 2>&1 \
     || { fail "$unit" restart "$label recreate failed" "docker compose up ${svcs[*]}"; return 1; }
   # Recreating a backend gives it a NEW container IP, but the nginx tls-proxy
   # resolves upstream hostnames once and caches the IP — so the public endpoint
