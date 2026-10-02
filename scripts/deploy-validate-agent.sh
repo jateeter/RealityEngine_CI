@@ -609,17 +609,86 @@ phase_health() {
 # Docker footprint: RE/Manager restart via compose service recreate; the
 # localAIStack and OpenClaw repos restart via their own scripts/start.sh.
 # =============================================================================
+# The bare `- NAME` entries in a compose service's environment list: values the
+# service takes from the shell that runs `docker compose`, not from the file.
+compose_passthrough_names() {  # <service> [compose-file]
+  python3 - "$1" "${2:-$CI_DIR/docker-compose.yml}" <<'PYEOF'
+import re
+import sys
+
+svc, path = sys.argv[1], sys.argv[2]
+in_services = in_svc = in_env = False
+svc_indent = env_indent = -1
+for raw in open(path, encoding="utf-8"):
+    line = raw.rstrip("\n")
+    body = line.strip()
+    if not body or body.startswith("#"):
+        continue
+    indent = len(line) - len(line.lstrip(" "))
+    if indent == 0:
+        in_services, in_svc, in_env = body == "services:", False, False
+        continue
+    if not in_services:
+        continue
+    if in_svc and indent <= svc_indent:
+        in_svc = in_env = False
+    if not in_svc:
+        if body == f"{svc}:":
+            in_svc, svc_indent = True, indent
+        continue
+    if in_env and indent <= env_indent:
+        in_env = False
+    if not in_env:
+        if body == "environment:":
+            in_env, env_indent = True, indent
+        continue
+    m = re.match(r"-\s*([A-Za-z_][A-Za-z0-9_]*)\s*$", body)
+    if m:
+        print(m.group(1))
+PYEOF
+}
+
+# NAME=VALUE for each pass-through variable of <svc...>, read from the running
+# container — what the deployment actually gave it.
+#
+# startUniverse.sh exports these (TRIGGERS_ENABLED, TRIGGER_DISPATCH_MODE, the
+# ACP_* defaults, HEALTHKIT_BRIDGE_TOKEN) in its own shell. This one never had
+# them, so a recreate brought the PE back with compose's empty values: trigger
+# dispatch off, and every Phase 4 suite that dispatches failed against a PE that
+# could not ("the seed produced no envelopes", RealityEngine_Machines#126).
+# Carrying them from the container keeps a restart a restart, whatever the
+# deployment chose, and follows the compose file instead of a copied list.
+deployed_passthrough_env() {  # <svc...>
+  local svc cid name names env_dump
+  for svc in "$@"; do
+    cid="$(cd "$CI_DIR" && docker compose ps -q "$svc" 2>/dev/null | head -1)"
+    [ -n "$cid" ] || continue
+    names="$(compose_passthrough_names "$svc")"
+    [ -n "$names" ] || continue
+    env_dump="$(docker inspect "$cid" --format '{{range .Config.Env}}{{println .}}{{end}}' 2>/dev/null)" || continue
+    while IFS= read -r name; do
+      [ -n "$name" ] || continue
+      printf '%s\n' "$env_dump" | grep -m1 "^${name}=" || true
+    done <<< "$names"
+  done
+}
+
 restart_compose_service() {  # <unit> <health-url> <label> <svc...>
   local unit="$1" url="$2" label="$3"; shift 3
-  local svcs=( "$@" ) build=()
+  local svcs=( "$@" ) build=() carried=() kv
   [ "$FRESH" = true ] && build=( --build )
   info "Restarting $label (compose: ${svcs[*]})..."
+  while IFS= read -r kv; do
+    [ -n "$kv" ] && carried+=( "$kv" )
+  done < <(deployed_passthrough_env "${svcs[@]}")
   # The PE container takes HEALTHKIT_BRIDGE_TOKEN from the caller's environment
   # (docker-compose.yml). startUniverse.sh resolved it at deploy; this shell
   # never had it, so a recreated PE came back with ingest auth off and accepted
   # any token (run 20261002T133256Z: tokenConfigured=false after the restart).
-  # Passed on this command only — exported, it would reach Phase 4's suites.
-  ( cd "$CI_DIR" && MACHINE_CORPUS_DIR="$(corpus_dir)" HEALTHKIT_BRIDGE_TOKEN="$(deploy_healthkit_token)" \
+  # Passed on this command only — exported, it would reach Phase 4's suites —
+  # and after the carried values, so the resolved token is the one that holds.
+  ( cd "$CI_DIR" && env ${carried[@]+"${carried[@]}"} \
+      MACHINE_CORPUS_DIR="$(corpus_dir)" HEALTHKIT_BRIDGE_TOKEN="$(deploy_healthkit_token)" \
       docker compose up -d --force-recreate --no-deps ${build[@]+"${build[@]}"} "${svcs[@]}" ) >>"$RUN_LOG" 2>&1 \
     || { fail "$unit" restart "$label recreate failed" "docker compose up ${svcs[*]}"; return 1; }
   # Recreating a backend gives it a NEW container IP, but the nginx tls-proxy
