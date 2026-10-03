@@ -90,6 +90,7 @@ SUMMARIES: dict[str, str] = {
     "GET:/api/engine/history":                                 "Audit trail of POST /api/engine/process calls",
     "GET:/api/engine/osre-history":                            "OSRE-History — output reality event vector per step",
     "GET:/api/engine/isre-history":                            "ISRE-History — input space reality event vector per step",
+    "GET:/api/engine/steps/{n}/pair":                          "The (ISRE, OSRE) pair for step n, waiting up to timeoutMs at its completion point",
     "POST:/api/engine/process":                                "Process input vector across all machines",
     "POST:/api/engine/reset":                                  "Reset machine, engine, and perception state",
     # RE — Machines
@@ -215,6 +216,10 @@ PATH_PARAMS: dict[str, list[dict]] = {
     "{control}": [{"name": "control", "in": "path", "required": True,
                     "schema": {"type": "string"},
                     "description": "Control name, as declared in SURFACE_SPEC"}],
+    # GET /api/engine/steps/{n}/pair — the step completion point (#375).
+    "{n}": [{"name": "n", "in": "path", "required": True,
+              "schema": {"type": "integer", "minimum": 0},
+              "description": "Step number; steps are numbered from 0 on every runtime"}],
 }
 
 # ---------------------------------------------------------------------------
