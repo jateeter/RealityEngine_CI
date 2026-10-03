@@ -373,13 +373,75 @@ PYEOF
     ok "Integration registry ready: $CI_INTEGRATIONS_CONFIG"
 }
 
+# localAIStack must reach every engine the instance registry lists, and reach
+# them alike: engines in parity (same corpus, same progress) have to be given the
+# same localAI machines and sensors, or every cross-engine comparison downstream
+# reports localAI's asymmetry as an engine disagreement (RealityEngine_CI#363).
+# Runs in both lanes; a registry-less deployment has nothing to compare.
+verify_localai_reach() {
+    [ "$LOCAL_AI_ENABLED" = true ] || return 0
+    [ -s "$REGISTRY_FILE" ] || return 0
+    local ids; ids=$(registry_ids 2>/dev/null || true)
+    [ -n "$ids" ] || return 0
+    info "localAIStack reach — every registered engine, compared across engines..."
+    local id entry re pe sig sigs="" n=0 engines
+    while IFS= read -r id; do
+        entry=$(registry_get "$id" 2>/dev/null || true)
+        re=$(echo "$entry" | python3 -c "import json,sys; print(json.load(sys.stdin).get('re_url',''))" 2>/dev/null || true)
+        pe=$(echo "$entry" | python3 -c "import json,sys; print(json.load(sys.stdin).get('pe_url',''))" 2>/dev/null || true)
+        # The localAI-owned slice of each engine: machines named localai/*, and
+        # sensor sources named localai/* with their regions.
+        sig=$(python3 - "$re" "$pe" <<'PYEOF' 2>/dev/null || echo "unreadable"
+import json, sys, urllib.request
+def get(url):
+    with urllib.request.urlopen(url, timeout=5) as r:
+        return json.loads(r.read().decode())
+re_url, pe_url = sys.argv[1:]
+machines = sorted(m.get("name", "") for m in get(f"{re_url}/api/machines").get("machines", [])
+                  if str(m.get("name", "")).startswith("localai/"))
+sources = sorted(f"{s.get('name')}@{(s.get('region') or {}).get('offset')}"
+                 for s in get(f"{pe_url}/api/sources").get("sources", [])
+                 if s.get("type") == "sensor" and str(s.get("name", "")).startswith("localai/"))
+print(f"{len(machines)} machines, {len(sources)} sensors | " + ",".join(machines) + " | " + ",".join(sources))
+PYEOF
+)
+        if [ "$sig" = "unreadable" ]; then
+            add_warn "localAIStack reach: $id unreadable"; warn "$id: localAI slice unreadable"
+            continue
+        fi
+        case "$sig" in
+            "0 machines, 0 sensors"*) add_warn "localAIStack did not reach $id"; warn "$id: no localAI machines or sensors" ;;
+            *) ok "$id: ${sig%% |*} from localAIStack" ;;
+        esac
+        sigs+="$sig"$'\n'; n=$((n + 1))
+    done < <(echo "$ids")
+    if [ "$n" -gt 1 ]; then
+        if [ "$(printf '%s' "$sigs" | sort -u | grep -c .)" -eq 1 ]; then
+            ok "localAIStack slice identical on all $n engines"
+        else
+            add_warn "localAIStack slice differs across engines (RealityEngine_CI#363)"
+            warn "localAIStack machines/sensors differ across engines:"
+            printf '%s' "$sigs" | sed 's/ | .*//; s/^/    /'
+        fi
+    fi
+    engines=$(curl -sf --max-time 10 http://localhost:4000/health 2>/dev/null \
+        | python3 -c "import json,sys; print(' '.join(sorted(json.load(sys.stdin).get('bridge_engines') or [])))" 2>/dev/null || true)
+    if [ "$engines" = "$(echo "$ids" | sort | tr '\n' ' ' | sed 's/ $//')" ]; then
+        ok "localAIStack addresses: $engines"
+    else
+        add_warn "localAIStack addresses '${engines:-?}', instance registry lists '$(echo "$ids" | tr '\n' ' ')'"
+        warn "localAIStack bridge_engines does not match the instance registry"
+    fi
+}
+
 configure_localai_bridge_targets() {
-    # Both lanes bridge localAIStack to the instance registry's first engine:
-    # the native lane's first spawn, the Docker lane's scala-1 (engine-scala-*).
-    # The Docker lane used to fall through to the TLS pair, whose TypeScript PE
-    # is not an engine instance, so the engine the tests resolve first carried
-    # no RAG sensors.
-    if [ "$MULTI_ENGINE_MODE" = true ] || [ -s "$REGISTRY_FILE" ]; then
+    # RE_URL/PE_URL are localAIStack's fallback only. Whenever the instance
+    # registry lists engines, localAI reads it through RE_REGISTRY_URL and
+    # addresses every one of them, holding engines in parity to agree
+    # (localAIStack core/engine_fanout.py, RealityEngine_CI#363); a live
+    # RE_URL/PE_URL no longer wins over the registry. verify_localai_reach
+    # checks the result after localAI starts.
+    if [ "$MULTI_ENGINE_MODE" = true ]; then
         _localai_bridge_urls=$(python3 - "$REGISTRY_FILE" <<'PYEOF'
 import json
 import sys
@@ -2604,6 +2666,10 @@ else
   fi
   set -e
 fi
+
+set +e
+verify_localai_reach
+set -e
 
 # =============================================================================
 hdr "7 · Operability  (smoke tests)"
