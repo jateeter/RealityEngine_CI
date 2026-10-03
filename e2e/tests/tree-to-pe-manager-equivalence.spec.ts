@@ -13,7 +13,7 @@ import {
   type SurfaceFinding,
 } from '../lib/parity-surface';
 import { slotRegionsOf, withoutLiveTimes, withoutMintedIds, withoutNamed, withoutSlots, type Region } from '../lib/unscheduled';
-import { serviceEndpoint } from '../lib/registry';
+import { reEndpoint, serviceEndpoint } from '../lib/registry';
 
 interface EngineTarget {
   id: string;
@@ -165,6 +165,24 @@ async function switchEngine(request: APIRequestContext, engine: EngineTarget): P
   const capture = await captureRequestResponse(engine, 'POST', res);
   expect(res.ok(), `engine switch to ${engine.id} failed: ${res.status()}`).toBeTruthy();
   return capture;
+}
+
+/**
+ * A defined starting point is two calls (scripts/lib/reset_contract.py, #211):
+ * `POST /api/pe/reset` is layer-local and leaves the RE's CES activation, its
+ * histories and its step counter as earlier traffic left them. This spec reset
+ * only the PE, so `GET /api/engine/active` compared each RE's accumulated
+ * history — in the deployment gate, whatever the suites before this one had
+ * pushed — and reported it as divergence (#518). The RE is reset first, at the
+ * `re_url` the instance registry lists (Manager does not proxy it), then the PE.
+ */
+async function resetEngine(request: APIRequestContext, engine: EngineTarget): Promise<CapturedResponse> {
+  const re = await request.post(`${reEndpoint(engine.id)}/api/engine/reset`, {
+    data: {},
+    headers: { 'Content-Type': 'application/json' },
+  });
+  expect(re.ok(), `RE reset on ${engine.id} failed: ${re.status()}`).toBeTruthy();
+  return resetPE(request, engine);
 }
 
 async function resetPE(request: APIRequestContext, engine: EngineTarget): Promise<CapturedResponse> {
@@ -723,7 +741,7 @@ test('tree view to PE Manager verifies all sources on and compares captured API 
   for (const engine of ENGINES) {
     const setupCaptures = [
       await switchEngine(request, engine),
-      await resetPE(request, engine),
+      await resetEngine(request, engine),
     ];
     retrievals[engine.id] = await retrieveOnce(request, engine);
     const run = await captureEngineFlow(page, engine);
