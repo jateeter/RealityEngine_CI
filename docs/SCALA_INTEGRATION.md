@@ -171,11 +171,12 @@ curl http://127.0.0.1:5999/re-registry.json | python3 -m json.tool
   sources live on Scala that are inert elsewhere. The settled contract is
   `RealityEngine_CI#163`/`#166`, which no runtime implements yet; the acceptance
   stage is `scripts/regression-reset-contract.py` and it fails by design.
-- **Interned sequences advance correctly here, and this is the reference
-  behaviour.** Measured 2026-08-19: Scala walks a three-vector interned sequence
-  `0→1→2→0` as specified, while cpp freezes at index 0. When Scala and another
-  runtime disagree about sequence advance, Scala is the one to trust until those
-  defects close.
+- **Interned sequences advance as specified here.** Measured 2026-08-19: Scala
+  walked a three-vector interned sequence `0→1→2→0` as `SURFACE_SPEC.md`
+  specifies, while cpp froze at index 0. That makes Scala conformant on this
+  point, not a reference: a disagreement is settled against the specification
+  and the 3-of-3 rule (`docs/QUORUM_CONTRACT.md`), never by trusting one
+  runtime.
 - **This engine's two artifacts go stale independently**, and Scala is the
   runtime where that has actually happened. Because the RE and PE come from two
   separate builds, one can be current while the other is hours behind: on

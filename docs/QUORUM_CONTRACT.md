@@ -113,7 +113,7 @@ Not merely "they differ". A disagreement carries:
 - **which rule** it was held to, and what that rule already allows;
 - enough that a reader need not re-run to know what happened.
 
-`e2e/lib/parity-surface.ts` is the reference implementation: it records the rule
+`e2e/lib/parity-surface.ts` implements this for the browser-captured surface: it records the rule
 each compared signature resolved to **whether or not it agreed**, because a gate
 that reports only its failures cannot be audited for what it stopped checking.
 

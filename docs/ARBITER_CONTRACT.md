@@ -850,7 +850,7 @@ Two things follow for anyone touching §7:
   not.
 
 Whether it should be brought onto the same structure, or deliberately kept as a
-simple non-parallel reference implementation whose value *is* its difference, is
+simple non-parallel implementation whose value *is* its difference, is
 an open question. Both are defensible. What is not defensible is leaving it
 unstated and reading today's agreement as evidence of tomorrow's.
 
