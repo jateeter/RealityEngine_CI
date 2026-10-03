@@ -4,18 +4,18 @@ Read `CLAUDE.md` for the current codebase map and integration context.
 
 ## Role
 
-This repo is the operational control plane. It owns universe startup/teardown, registry generation, integration config, and full-stack e2e verification.
+This repo is the operational control plane. It owns universe startup/teardown, instance registry generation, integration config, and full-stack e2e verification.
 
 ## Development Rules
 
-- Treat `startUniverse.sh`, `stopUniverse.sh`, registry shape, and generated integration config as cross-repo contracts.
+- Treat `startUniverse.sh`, `stopUniverse.sh`, the instance registry shape, and generated integration config as cross-repo contracts.
 - Preserve both native multi-engine and legacy Docker paths unless the user explicitly narrows the scope.
 - Pass CI-generated `config/integrations.json` through `INTEGRATIONS_CONFIG` when PE services need adapters.
 - Prefer `RE_REGISTRY_URL` for multi-engine tests; use `RE_BASE_URL` and `PE_BASE_URL` only for single-engine fallback.
 
 ## Bug Triage
 
-- Start with the launched universe manifest and live registry.
+- Start with the launched universe manifest and the live instance registry.
 - Verify health endpoints before debugging payload behavior.
 - Keep OpenClaw/localAI failures separate from engine parity failures.
 - For byte-equivalence failures, capture identity-key differences before comparing serialized bodies.
