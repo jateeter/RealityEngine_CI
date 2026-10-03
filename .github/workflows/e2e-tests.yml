@@ -654,6 +654,10 @@ jobs:
         working-directory: RealityEngine_CI
         run: bash scripts/tests/test-trajectory-parity.sh
 
+      - name: Run step observer unit tests
+        working-directory: RealityEngine_CI
+        run: bash scripts/tests/test-step-observer.sh
+
       - name: Run MQTT broker URL opt-out unit tests
         working-directory: RealityEngine_CI
         run: bash scripts/tests/test-mqtt-broker-url-opt-out.sh

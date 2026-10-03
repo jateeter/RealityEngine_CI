@@ -26,7 +26,8 @@
 #   --start-index N         Skip the first N corpus entries (sorted order)
 #   --steps N               Pushes per iteration (default: 0 = walk the longest
 #                           interned sequence right through)
-#   --settle-ms N           Delay after each push (default: 250)
+#   --step-window-ms N      Wait up to N ms for each step's (ISRE, OSRE) pair at its
+#                           completion point (default: 5000; RealityEngine_CI#375)
 #   --stop-on-fail          Halt at the first machine that breaks parity
 #   --resume                Reuse the running universe and append to existing
 #                           results, skipping iterations already recorded
@@ -87,7 +88,7 @@ MODE="cumulative"
 LIMIT=0
 START_INDEX=0
 STEPS=0
-SETTLE_MS=250
+STEP_WINDOW_MS=5000
 STOP_ON_FAIL=false
 RESUME=false
 SKIP_START=false
@@ -109,8 +110,8 @@ while [[ $# -gt 0 ]]; do
     --start-index)     START_INDEX="$2"; shift 2 ;;
     --steps=*)         STEPS="${1#*=}"; shift ;;
     --steps)           STEPS="$2"; shift 2 ;;
-    --settle-ms=*)     SETTLE_MS="${1#*=}"; shift ;;
-    --settle-ms)       SETTLE_MS="$2"; shift 2 ;;
+    --step-window-ms=*) STEP_WINDOW_MS="${1#*=}"; shift ;;
+    --step-window-ms)  STEP_WINDOW_MS="$2"; shift 2 ;;
     --stop-on-fail)    STOP_ON_FAIL=true; shift ;;
     --resume)          RESUME=true; SKIP_START=true; shift ;;
     --skip-start)      SKIP_START=true; shift ;;
@@ -336,7 +337,7 @@ python3 "$CI_DIR/scripts/regression-corpus-parity-loop.py" \
   --run-id "$RUN_ID-baseline" \
   --mode isolated \
   --steps "$STEPS" \
-  --settle-ms "$SETTLE_MS" \
+  --step-window-ms "$STEP_WINDOW_MS" \
   --limit 1 \
   --start-index "$(python3 - "$MACHINES_DIR/machines" "$SEED_MACHINE" <<'PY'
 import pathlib, sys
@@ -367,7 +368,7 @@ LOOP_ARGS=(
   --run-id "$RUN_ID"
   --mode "$MODE"
   --steps "$STEPS"
-  --settle-ms "$SETTLE_MS"
+  --step-window-ms "$STEP_WINDOW_MS"
   --start-index "$START_INDEX"
   --limit "$LIMIT"
   --skip "$SEED_MACHINE"
