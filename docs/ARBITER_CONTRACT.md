@@ -583,14 +583,39 @@ the STT violation is in having two writers, not in how their values combine.
 
 **Source against the OSRE fold** is a different question, and incumbency does
 not apply to it: the OSRE term (`arbiter(OSRE(n-1))`) is the base every source
-folds over, not an activated writer. Where the arbitration registry declares a
-join operator for the cell (an entry naming a machine writer and the source's
-provider, typically `PRECEDENCE` per §4.3a, with its `withinRank`), that
-operator resolves the OSRE value against the winning source, and it is
-controllable per cell in the registry. Where no operator is declared, the
-**source wins** over the OSRE term. *Status: the source-wins default is what
-every runtime does today. Resolving through a declared operator requires the
-native PEs to see the registry, and is not implemented yet.*
+folds over, not an activated writer. It is resolved by **the operator the fold
+already applies** — the writing machine's declared `outputMergeTransformation`
+(FOLD_PLACEMENT.md §5a, default `or`), the same combinator its outputs were
+folded with into the OSRE (owner decision, 2026-10-02). The PE integrates with
+LLM providers whose values range over `[0..1]` and are stored that way (Qdrant),
+so the operator is applied in its **multi-valued form over `[0..1]`**, the
+chain top being 1; a Boolean gate's first-order form would collapse a graded
+value to 0 or 1.
+
+A cell is an **OSRE cell** at transition `n` when the output region of a
+`mergeBatch` operation of the push that produced `OSRE(n-1)` covers it. Where a
+source (after the tier and incumbency above) and that OSRE term both hold the
+cell, its value is `T_M(s, o)`, with `s` the source's value, `o` the OSRE value
+and `T_M` the writing machine's operator:
+
+| declared | `T_M(s, o)` over `[0..1]` |
+|---|---|
+| `or`, `join` | `max(s, o)` |
+| `and`, `meet` | `min(s, o)` |
+| `strong-disjunction` | `min(1, s + o)` |
+| `strong-conjunction` | `max(0, s + o - 1)` |
+| `discrete-median` | `min(s, o)` — the lower median of two |
+| `xor` | `max(min(s, 1 - o), min(1 - s, o))` |
+| `nor` | `1 - max(s, o)` |
+| `nand` | `1 - min(s, o)` |
+
+Where more than one machine's output region covers the cell — the RE has
+already arbitrated their values into `o` — the operator is that of the first
+such machine in **name** order (machine ids are minted per runtime, so id order
+would differ between them). A cell only a source writes takes the source's
+value; a cell only the OSRE writes keeps the OSRE value. The operator is
+controllable per machine, through `outputMergeTransformation` and
+`PUT /api/machines/:id/output-merge`.
 
 **Observability.** Every cell with more than one active source writer in a
 transition produces an STT contention record, and every source carries

@@ -1946,6 +1946,15 @@ records or counts; `GET /api/state`, which assembles a vector for display, does
 neither. `POST /api/reset` empties both and re-stamps active sources to instant
 0. Contention never fails a request or a gate.
 
+**A source on an OSRE cell is folded, not substituted.** Where the last push's
+`mergeBatch` wrote a machine output to a cell that a source also writes, the
+assembled value is the writing machine's `outputMergeTransformation` applied
+over `[0..1]` to the source value and the OSRE value — `max` for the default
+`or` (`ARBITER_CONTRACT.md` §4.4b gives the table). The same operator folds that
+machine's outputs into the OSRE, so a source and the machine's output combine
+the way the machine's own outputs do. Until 2026-10-02 the source simply
+overwrote the OSRE value.
+
 Before this rule the winner was decided by name. "HealthKit Vitals Monitor /
 2 sequences" sorted after "HealthKit Blood Pressure" and replayed `[0,0,0,0]`
 over a live reading on `[4320:4324]`, and a live integration stayed silently
