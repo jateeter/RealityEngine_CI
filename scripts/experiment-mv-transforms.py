@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Multi-valued output merge transformations — reference implementations and proofs.
+"""Multi-valued output merge transformations — executable definitions and proofs.
 
 The Boolean gates the Reality Engine folds with today are defined over {0,1}. A
 multi-valued machine's cells range over an ordered chain, and folding those with

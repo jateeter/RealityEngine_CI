@@ -14,7 +14,7 @@ for a full integrated deployment.
 | --- | --- | --- |
 | `RealityEngine_CI` | Deployment orchestrator, Docker public endpoints, native runtime registry, full-system gates, primary wiki gitlink | `wiki/Deployable-System-Documentation.md`, `DEPLOYMENT_CONTRACT.md`, this file |
 | `RealityEngine_CPP` | Native C++ RE/PE runtime and adapter CLI | `SURFACE_SPEC.md`, `README.md`, `docs/INTEGRATION_ARCHITECTURE.md` |
-| `RealityEngine_Scala` | Scala RE/PE runtime and active reference implementation | `SURFACE_SPEC.md`, `README.md`, `perception-engine/docs/HEALTHKIT_SPEZI_BRIDGE.md` |
+| `RealityEngine_Scala` | Scala/Akka RE/PE runtime | `SURFACE_SPEC.md`, `README.md`, `perception-engine/docs/HEALTHKIT_SPEZI_BRIDGE.md` |
 | `RealityEngine_LSP` | Common Lisp RE/PE runtime | `SURFACE_SPEC.md`, `README.md`, `docs/CONFIGURATION_EQUIVALENCE.md` |
 | `RealityEngine_Manager` | Visualizer, operator controls, registry-aware runtime switching | `SURFACE_SPEC.md`, `README.md` |
 | `RealityEngine_Machines` | Authoritative machine corpus, domain policy, trigger contracts, machine validation | `README.md`, `docs/REALITY_PERCEPTION_OPERATIONS.md`, `docs/ARCHITECTURE_AUDIT.md` |

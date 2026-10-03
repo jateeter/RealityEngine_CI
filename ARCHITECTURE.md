@@ -1,8 +1,10 @@
 # RealityEngine Architecture
 
-RealityEngine_CPP is the reference implementation for the Reality Engine
-universe: Scala/Akka for the core engine, Node/React for perception and
-visualization, and localAIStack for shared AI infrastructure.
+The Reality Engine universe runs three engine runtimes — C++, Common Lisp and
+Scala/Akka — with Node/React for perception and visualization and localAIStack
+for shared AI infrastructure. No runtime is a reference implementation: each is
+held to `SURFACE_SPEC.md` and to 3-of-3 agreement at every observation point
+(`docs/QUORUM_CONTRACT.md`).
 
 ## System Map
 
