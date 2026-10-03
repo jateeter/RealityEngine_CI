@@ -692,6 +692,15 @@ deployed_passthrough_env() {  # <svc...>
   done
 }
 
+# The host address the deploy registered under, read back from the instance
+# registry startUniverse.sh wrote. visualizer-backend's ALLOWED_ORIGINS is built
+# from it, and this shell never had it: a recreate without it would come back
+# allowing localhost only.
+deployed_host_ip() {
+  python3 -c 'import json,sys; print(json.load(open(sys.argv[1])).get("host",""))' \
+    "${RE_REGISTRY_FILE:-/tmp/re-registry/re-registry.json}" 2>/dev/null || true
+}
+
 restart_compose_service() {  # <unit> <health-url> <label> <svc...>
   local unit="$1" url="$2" label="$3"; shift 3
   local svcs=( "$@" ) build=() carried=() kv
@@ -708,6 +717,7 @@ restart_compose_service() {  # <unit> <health-url> <label> <svc...>
   # and after the carried values, so the resolved token is the one that holds.
   ( cd "$CI_DIR" && env ${carried[@]+"${carried[@]}"} \
       MACHINE_CORPUS_DIR="$(corpus_dir)" HEALTHKIT_BRIDGE_TOKEN="$(deploy_healthkit_token)" \
+      HOST_IP="$(deployed_host_ip)" \
       docker compose up -d --force-recreate --no-deps ${build[@]+"${build[@]}"} "${svcs[@]}" ) >>"$RUN_LOG" 2>&1 \
     || { fail "$unit" restart "$label recreate failed" "docker compose up ${svcs[*]}"; return 1; }
   # Recreating a backend gives it a NEW container IP, but the nginx tls-proxy

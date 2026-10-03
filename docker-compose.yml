@@ -41,28 +41,6 @@ x-engine-re-env: &engine-re-env
   QDRANT_URL: http://host.docker.internal:4333
   SEMANTICS_MANIFEST: /app/semantics/abox-manifest.json
 
-x-engine-pe-env: &engine-pe-env
-  MACHINES_DIR: /app/machines
-  VECTOR_DIMENSION: ${VECTOR_DIMENSION:-7680}
-  QDRANT_URL: http://host.docker.internal:4333
-  SEMANTICS_MANIFEST: /app/semantics/abox-manifest.json
-  LOCAL_AI_API_URL: http://host.docker.internal:4000
-  LOCAL_AI_MACHINES_DIR: /app/localai-machines
-  INTEGRATIONS_CONFIG: /app/config/integrations.json
-  # Propagated from the host shell, as for perception-engine-backend.
-  ACP_ENABLED: ${ACP_ENABLED:-}
-  ACP_PLATFORM: ${ACP_PLATFORM:-}
-  ACP_SURFACE: ${ACP_SURFACE:-}
-  ACP_GATEWAY_URL: ${ACP_GATEWAY_URL:-}
-  OPENCLAW_GATEWAY_URL: ${OPENCLAW_GATEWAY_URL:-}
-  ACP_SESSION_KEY: ${ACP_SESSION_KEY:-}
-  OPENCLAW_ACP_SESSION: ${OPENCLAW_ACP_SESSION:-}
-  ACP_TARGET_AGENT: ${ACP_TARGET_AGENT:-}
-  ACP_COMPLETION_SOURCE_MAPPING_ID: ${ACP_COMPLETION_SOURCE_MAPPING_ID:-}
-  TRIGGERS_ENABLED: ${TRIGGERS_ENABLED:-}
-  TRIGGER_DISPATCH_MODE: ${TRIGGER_DISPATCH_MODE:-}
-  TRIGGER_GRAPHQL_URL: ${TRIGGER_GRAPHQL_URL:-}
-
 x-engine-pe-volumes: &engine-pe-volumes
   - ${MACHINE_CORPUS_DIR:-${MACHINES_DIR:?MACHINES_DIR must be set — run via startUniverse.sh}}/machines:/app/machines:ro
   - ${MACHINE_CORPUS_DIR:-${MACHINES_DIR:?MACHINES_DIR must be set — run via startUniverse.sh}}/semantics:/app/semantics:ro
@@ -249,13 +227,36 @@ services:
       dockerfile: ../../RealityEngine_CI/docker/scala-perception-engine/Dockerfile
     container_name: re-engine-scala-pe
     environment:
-      <<: *engine-pe-env
-      PORT: "3004"
-      PERCEPTION_ENGINE_PORT: "3004"
-      REALITY_ENGINE_URL: http://engine-scala-re:3000
-      DATA_PATH: /app/data
-      FRESH_START: "true"
-      JAVA_TOOL_OPTIONS: ${ENGINE_SCALA_PE_JAVA_OPTS:--Xmx2g}
+      - PORT=3004
+      - PERCEPTION_ENGINE_PORT=3004
+      - REALITY_ENGINE_URL=http://engine-scala-re:3000
+      - DATA_PATH=/app/data
+      - FRESH_START=true
+      - JAVA_TOOL_OPTIONS=${ENGINE_SCALA_PE_JAVA_OPTS:--Xmx2g}
+      - MACHINES_DIR=/app/machines
+      - VECTOR_DIMENSION=${VECTOR_DIMENSION:-7680}
+      - QDRANT_URL=http://host.docker.internal:4333
+      - SEMANTICS_MANIFEST=/app/semantics/abox-manifest.json
+      - LOCAL_AI_API_URL=http://host.docker.internal:4000
+      - LOCAL_AI_MACHINES_DIR=/app/localai-machines
+      - INTEGRATIONS_CONFIG=/app/config/integrations.json
+      # Pass-through from the host shell, as for perception-engine-backend.
+      # Bare names on purpose: deploy-validate's restart reads these names
+      # back from the running container (compose_passthrough_names), and a
+      # value interpolated here would come back empty on a recreate.
+      - ACP_ENABLED
+      - ACP_PLATFORM
+      - ACP_SURFACE
+      - ACP_GATEWAY_URL
+      - OPENCLAW_GATEWAY_URL
+      - ACP_SESSION_KEY
+      - OPENCLAW_ACP_SESSION
+      - ACP_TARGET_AGENT
+      - ACP_COMPLETION_SOURCE_MAPPING_ID
+      - HEALTHKIT_BRIDGE_TOKEN
+      - TRIGGERS_ENABLED
+      - TRIGGER_DISPATCH_MODE
+      - TRIGGER_GRAPHQL_URL
     volumes: *engine-pe-volumes
     ports:
       - "6100:3004"
@@ -297,7 +298,31 @@ services:
       context: ../RealityEngine_CPP
       dockerfile: ../RealityEngine_CI/docker/cpp/Dockerfile
     container_name: re-engine-cpp-pe
-    environment: *engine-pe-env
+    environment:
+      - MACHINES_DIR=/app/machines
+      - VECTOR_DIMENSION=${VECTOR_DIMENSION:-7680}
+      - QDRANT_URL=http://host.docker.internal:4333
+      - SEMANTICS_MANIFEST=/app/semantics/abox-manifest.json
+      - LOCAL_AI_API_URL=http://host.docker.internal:4000
+      - LOCAL_AI_MACHINES_DIR=/app/localai-machines
+      - INTEGRATIONS_CONFIG=/app/config/integrations.json
+      # Pass-through from the host shell, as for perception-engine-backend.
+      # Bare names on purpose: deploy-validate's restart reads these names
+      # back from the running container (compose_passthrough_names), and a
+      # value interpolated here would come back empty on a recreate.
+      - ACP_ENABLED
+      - ACP_PLATFORM
+      - ACP_SURFACE
+      - ACP_GATEWAY_URL
+      - OPENCLAW_GATEWAY_URL
+      - ACP_SESSION_KEY
+      - OPENCLAW_ACP_SESSION
+      - ACP_TARGET_AGENT
+      - ACP_COMPLETION_SOURCE_MAPPING_ID
+      - HEALTHKIT_BRIDGE_TOKEN
+      - TRIGGERS_ENABLED
+      - TRIGGER_DISPATCH_MODE
+      - TRIGGER_GRAPHQL_URL
     command: ["/app/bin/perception_engine_server", "3004", "http://engine-cpp-re:3000",
               "http://host.docker.internal:4000", "/app/localai-machines", "${VECTOR_DIMENSION:-7680}"]
     volumes: *engine-pe-volumes
@@ -343,9 +368,32 @@ services:
       dockerfile: ../RealityEngine_CI/docker/lsp/Dockerfile
     container_name: re-engine-lsp-pe
     environment:
-      <<: *engine-pe-env
-      PERCEPTION_ENGINE_PORT: "3004"
-      REALITY_ENGINE_URL: http://engine-lsp-re:3000
+      - PERCEPTION_ENGINE_PORT=3004
+      - REALITY_ENGINE_URL=http://engine-lsp-re:3000
+      - MACHINES_DIR=/app/machines
+      - VECTOR_DIMENSION=${VECTOR_DIMENSION:-7680}
+      - QDRANT_URL=http://host.docker.internal:4333
+      - SEMANTICS_MANIFEST=/app/semantics/abox-manifest.json
+      - LOCAL_AI_API_URL=http://host.docker.internal:4000
+      - LOCAL_AI_MACHINES_DIR=/app/localai-machines
+      - INTEGRATIONS_CONFIG=/app/config/integrations.json
+      # Pass-through from the host shell, as for perception-engine-backend.
+      # Bare names on purpose: deploy-validate's restart reads these names
+      # back from the running container (compose_passthrough_names), and a
+      # value interpolated here would come back empty on a recreate.
+      - ACP_ENABLED
+      - ACP_PLATFORM
+      - ACP_SURFACE
+      - ACP_GATEWAY_URL
+      - OPENCLAW_GATEWAY_URL
+      - ACP_SESSION_KEY
+      - OPENCLAW_ACP_SESSION
+      - ACP_TARGET_AGENT
+      - ACP_COMPLETION_SOURCE_MAPPING_ID
+      - HEALTHKIT_BRIDGE_TOKEN
+      - TRIGGERS_ENABLED
+      - TRIGGER_DISPATCH_MODE
+      - TRIGGER_GRAPHQL_URL
     command: ["perception"]
     volumes: *engine-pe-volumes
     ports:
@@ -377,10 +425,18 @@ services:
       - MACHINES_DIR=/app/corpus
       - REALITY_ENGINE_URL=https://reality-engine:3000
       - PERCEPTION_ENGINE_URL=https://perception-engine-backend:3004
+      # The instance registry startUniverse.sh serves on the host (0.0.0.0).
+      # Without it Manager knew only the pair above and could not switch to the
+      # engine-* instances the registry lists (#363). Manager polls it, so it
+      # need not exist yet when this container starts.
+      - RE_REGISTRY_URL=http://host.docker.internal:${REGISTRY_PORT:-5999}/re-registry.json
       - TLS_CERT_PATH=/etc/certs/server.crt
       - TLS_KEY_PATH=/etc/certs/server.key
       - NODE_EXTRA_CA_CERTS=/etc/certs/ca.crt
-      - ALLOWED_ORIGINS=https://localhost:5173,https://localhost:3001
+      # The instance registry publishes the frontend at $HOST_IP (startUniverse.sh
+      # exports it before `compose up`), and tests that open the page there send
+      # that origin. localhost alone rejected every switch with a CORS 500 (#363).
+      - ALLOWED_ORIGINS=https://localhost:5173,https://localhost:3001,https://${HOST_IP:-localhost}:5173,https://${HOST_IP:-localhost}:3001
       - AUDIT_LOG_ENABLED=true
       - AUDIT_LOG_LEVEL=2
       - AUDIT_LOG_SERVICE=visualizer-backend

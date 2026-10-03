@@ -374,7 +374,12 @@ PYEOF
 }
 
 configure_localai_bridge_targets() {
-    if [ "$MULTI_ENGINE_MODE" = true ]; then
+    # Both lanes bridge localAIStack to the instance registry's first engine:
+    # the native lane's first spawn, the Docker lane's scala-1 (engine-scala-*).
+    # The Docker lane used to fall through to the TLS pair, whose TypeScript PE
+    # is not an engine instance, so the engine the tests resolve first carried
+    # no RAG sensors.
+    if [ "$MULTI_ENGINE_MODE" = true ] || [ -s "$REGISTRY_FILE" ]; then
         _localai_bridge_urls=$(python3 - "$REGISTRY_FILE" <<'PYEOF'
 import json
 import sys
@@ -2277,9 +2282,11 @@ ok "RE baseline: $RE_MACHINE_COUNT machines, $PE_SRC_COUNT PE sources"
 # engine instance.
 if [ "$MULTI_ENGINE_MODE" != true ] && [ "$DRY_RUN" = false ]; then
     instance_registry_start
-    registry_add "scala-1" "scala" "http://localhost:6101" "http://localhost:6100" "" ""
-    registry_add "cpp-1"   "cpp"   "http://localhost:6301" "http://localhost:6300" "" ""
-    registry_add "lsp-1"   "lsp"   "http://localhost:6601" "http://localhost:6600" "" ""
+    # $HOST_IP, as the native lane registers, not localhost: Manager's
+    # Visualizer backend runs in a container here, and its localhost is itself.
+    registry_add "scala-1" "scala" "http://$HOST_IP:6101" "http://$HOST_IP:6100" "" ""
+    registry_add "cpp-1"   "cpp"   "http://$HOST_IP:6301" "http://$HOST_IP:6300" "" ""
+    registry_add "lsp-1"   "lsp"   "http://$HOST_IP:6601" "http://$HOST_IP:6600" "" ""
     _publish_service "registry"         "${REGISTRY_PORT}" "/re-registry.json"
     _publish_service "manager_backend"  3001 "/health"  https
     _publish_service "manager_frontend" 5173 "/"        https
@@ -2287,7 +2294,7 @@ if [ "$MULTI_ENGINE_MODE" != true ] && [ "$DRY_RUN" = false ]; then
     [ -n "${MCP_URL:-}" ]         && registry_set_service "mcp" "$MCP_URL"
     [ -n "${SWAGGER_URL:-}" ]     && registry_set_service "swagger" "$SWAGGER_URL"
     export RE_REGISTRY_URL="${RE_REGISTRY_URL:-http://$HOST_IP:${REGISTRY_PORT}/re-registry.json}"
-    ok "Instance registry: scala-1 :6101/:6100, cpp-1 :6301/:6300, lsp-1 :6601/:6600 (RE/PE)"
+    ok "Instance registry: scala-1 :6101/:6100, cpp-1 :6301/:6300, lsp-1 :6601/:6600 (RE/PE) on $HOST_IP"
 fi
 
 # ── Corpus load phase (Docker RE) ─────────────────────────────────────────
