@@ -297,6 +297,25 @@ to count what landed, and tears everything down. The run's credentials are
 deleted before the report directory is retained. It never touches an
 operator's PIM stack or `.solid` data.
 
+## MQTT in regression runs: the live Yuma broker, every lane
+
+`regression-test.sh` defaults `--mqtt-broker-url` to
+`mqtt://yuma.lateraledge.cloud:1883` on every profile, hosted and local (owner
+decision, 2026-10-03). It replaced the hosted lane's seeded local mosquitto and
+the local lane's default of no broker; the retained-fixture republish (#304)
+and `seed-mqtt-fixtures.py` went with the seeded broker. `none`/`off`/`skip` is
+the explicit opt-out (#311). Mappings default to
+`RealityEngine_CPP/config/mqtt-mappings.yuma.json`. The bridges are live from
+boot and muted before the first measurement stage; `run_mqtt_yuma` enables the
+bridge it tests and re-mutes on the way out (#307).
+
+**If the broker is there, test it; if it does not respond in 10s, skip with the
+reason** (owner decision). `probe_mqtt_broker` decides once, before the universe
+starts, with a 10s TCP connect: an absent broker is not handed to the engines
+(no bridge spends the run retrying it) and `run_mqtt_yuma` records the skip and
+its reason in `reports/mqtt-yuma-skipped.json`. A third-party broker's absence
+says nothing about the engines.
+
 ## Regression run history is bounded: two runs
 
 `regression-test.sh` keeps the **2** most recent run directories under

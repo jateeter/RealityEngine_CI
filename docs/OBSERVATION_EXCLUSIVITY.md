@@ -138,7 +138,10 @@ suspecting the current run.**
    time. `wait_for_mqtt_quiescence` polls every running PE's own
    `GET /api/mqtt/status` until `messagesReceived` stops changing, bounded by a
    timeout that logs a warning and proceeds rather than hanging the run
-   (#311).
+   (#311). Both the republish and that wait were retired on 2026-10-03, when
+   regression MQTT testing moved to the live Yuma broker on every lane: there
+   is no seeded broker left to republish into, and the bridges are muted
+   before the first measurement stage. The principle stands.
 6. **A baseline a caller intends to rely on must be recorded, not just used.**
    `regression-trajectory-parity.py` reads each instance's pre-drive
    `isre-history` length as the exclusivity baseline, but a reset call

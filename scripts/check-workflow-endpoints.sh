@@ -31,8 +31,6 @@ ALLOWED=(
   "swagger_url="                    # declaration fallback for the above
   "SCHEDULE_MCP_URL"                # declaration fallback, scheduled runs
   "SCHEDULE_SWAGGER_URL"            # declaration fallback, scheduled runs
-  "HOSTED_MQTT_BROKER_URL"          # declaration: the broker this run starts
-  "mqtt://127.0.0.1:1883"          # declaration: the broker this run seeds
   "service_endpoint "               # the resolver's own fallback argument
   "PLAYWRIGHT_BASE_URL: 'https://"  # TLS-fronted Docker deployment; the registry
                                     # publishes native endpoints only, so this
