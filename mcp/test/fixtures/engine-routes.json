@@ -102,6 +102,7 @@
     "GET /api/mqtt/status",
     "GET /api/push/:id",
     "GET /api/sources",
+    "GET /api/sources/contention",
     "GET /api/state",
     "GET /api/triggers/status",
     "PATCH /api/config",
