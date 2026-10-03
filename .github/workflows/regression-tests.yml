@@ -33,11 +33,10 @@ on:
           - standard-deployment-plus-ring
       mqtt_broker_url:
         description: >-
-          MQTT broker URL for the Yuma stream. Empty does NOT skip MQTT: on a
-          hosted runner it falls through to the broker this job seeds at
-          mqtt://127.0.0.1:1883, whose bridges push into the engines during
-          every stage (self-hosted runs skip only because they set no
-          fallback). Use none/off/skip to explicitly disable MQTT checks.
+          MQTT broker URL for the Yuma stream. Empty means the live Yuma broker,
+          mqtt://yuma.lateraledge.cloud:1883, on every lane (the default in
+          scripts/regression-test.sh). Use none/off/skip to explicitly disable
+          MQTT checks.
         required: false
         default: ''
       mqtt_mappings:
@@ -292,58 +291,6 @@ jobs:
           docker plugin install grafana/loki-docker-driver:latest --alias loki --grant-all-permissions || \
             docker plugin enable loki
 
-      # The MQTT stage waits for the PE to auto-create sensor sources, which
-      # only happens once messages arrive on the mapped topics — a reachable
-      # broker is not enough, it has to be carrying traffic. The live Yuma
-      # broker carries it, but a certification run should not go red because a
-      # third party was down. A local broker seeded from the same mapping
-      # registry the engines are configured with is deterministic and offline.
-      #
-      # Published retained, which is what makes this reliable rather than a
-      # race: the mappings set acceptRetained, so an engine subscribing after
-      # the publish still receives the last value immediately.
-      - name: Start MQTT broker and seed retained readings
-        if: runner.environment == 'github-hosted'
-        run: |
-          set -euo pipefail
-          # Config mounted read-only rather than written inside the container:
-          # the image runs as an unprivileged user, so an in-container write to
-          # /mosquitto/config depends on image-specific ownership. A mount does
-          # not, and it leaves the image's own entrypoint and command in place.
-          mkdir -p "$RUNNER_TEMP/mosquitto"
-          mqtt_port="$(python3 -c 'import socket; s=socket.socket(); s.bind(("", 0)); print(s.getsockname()[1]); s.close()')"
-          printf 'listener %s 0.0.0.0\nallow_anonymous true\n' "$mqtt_port" > "$RUNNER_TEMP/mosquitto/mosquitto.conf"
-          docker run -d --name regression-mqtt -p "$mqtt_port:$mqtt_port" \
-            -v "$RUNNER_TEMP/mosquitto/mosquitto.conf:/mosquitto/config/mosquitto.conf:ro" \
-            eclipse-mosquitto:2
-          echo "HOSTED_MQTT_BROKER_URL=mqtt://127.0.0.1:$mqtt_port" >> "$GITHUB_ENV"
-
-          for i in $(seq 1 30); do
-            if docker exec regression-mqtt mosquitto_pub -h 127.0.0.1 -p "$mqtt_port" -t healthz -m up 2>/dev/null; then
-              echo "broker ready after ${i}s"; break
-            fi
-            [ "$i" = "30" ] && { echo "::error::MQTT broker did not become ready"; docker logs regression-mqtt; exit 1; }
-            sleep 1
-          done
-
-          # -p is not optional. The config above declares one listener, on the
-          # port allocated for this run, so mosquitto_pub's default 1883 reaches
-          # nothing and reports `Error: Bad file descriptor` (CI#350). The
-          # readiness probe passed the port and this loop did not, which is why
-          # the step could report `broker ready` and then die on the first
-          # publish.
-          published=0
-          while IFS="$(printf '\t')" read -r topic payload; do
-            [ -n "$topic" ] || continue
-            docker exec regression-mqtt mosquitto_pub -h 127.0.0.1 -p "$mqtt_port" -r -t "$topic" -m "$payload"
-            echo "  retained $topic"
-            published=$((published + 1))
-          done < <(python3 RealityEngine_CI/scripts/seed-mqtt-fixtures.py \
-                     RealityEngine_CPP/config/mqtt-mappings.yuma.json)
-
-          [ "$published" -gt 0 ] || { echo "::error::no MQTT fixtures published"; exit 1; }
-          echo "::notice::MQTT broker seeded with $published retained topic(s)"
-
       # The run-over-run comparison had no baseline on this lane and reported
       # `not-compared` on every scheduled run since it was written, which made
       # the "New failures: 0 / Resolved failures: 0" line in every auto-filed
@@ -448,43 +395,15 @@ jobs:
             archive_artifacts="${SCHEDULE_ARCHIVE_ARTIFACTS:-true}"
           fi
 
-          # `none` is the explicit opt-out. It exists because this input was
-          # documented as "empty skips MQTT live checks" while empty in fact fell
-          # through to the seeded broker below — so a run dispatched to be
-          # MQTT-free came up fully bridged, and those bridges pushed into the
-          # engines mid-stage (RealityEngine_CI#307). The fallback itself is
-          # deliberate and kept; what was missing was any way to say the other
-          # thing, and a description that told the truth about the default.
-          # Detected here only so the log line below can say which of the two
-          # silences this is. The value is deliberately NOT blanked: blanking it
-          # is indistinguishable from an empty input, which falls through to the
-          # seeded broker two lines down and is exactly the bug both #307 and
-          # #311 were fixing. scripts/regression-test.sh does the normalising,
-          # once, after the fallback can no longer apply.
-          mqtt_opt_out=false
+          # Empty passes through: scripts/regression-test.sh resolves it to the
+          # live Yuma broker on every lane (2026-10-03), which replaced the
+          # broker this job used to start and seed. `none`/`off`/`skip` is the
+          # explicit opt-out (#311), normalised there, once.
           case "$(printf '%s' "$mqtt_broker_url" | tr '[:upper:]' '[:lower:]')" in
-            none|off|skip) mqtt_opt_out=true ;;
+            none|off|skip) echo "mqtt: opted out via '$mqtt_broker_url' — no broker, bridges stay unconfigured" ;;
+            '') echo "mqtt: Yuma broker (regression-test.sh default) — bridges live until the measurement stages mute them" ;;
+            *) echo "mqtt: broker $mqtt_broker_url — bridges live until the measurement stages mute them" ;;
           esac
-
-          # Neither the input nor the schedule variable named a broker, so use
-          # the one this job started. Without a broker the stage writes a skip
-          # report and passes, which is indistinguishable from coverage — that is
-          # why empty falls back instead of skipping.
-          #
-          # An explicit opt-out (none/off/skip, #311) is deliberately NOT
-          # empty here, so it never reaches this fallback — it is passed
-          # through verbatim to scripts/regression-test.sh, which normalises
-          # it to "" itself and skips MQTT without ever consulting
-          # HOSTED_MQTT_BROKER_URL. Only a truly empty input falls through.
-          if [ -z "$mqtt_broker_url" ]; then
-            mqtt_broker_url="${HOSTED_MQTT_BROKER_URL:-}"
-          fi
-
-          if [ "$mqtt_opt_out" = true ]; then
-            echo "mqtt: opted out via '$mqtt_broker_url' — no broker, bridges stay unconfigured"
-          elif [ -n "$mqtt_broker_url" ]; then
-            echo "mqtt: broker $mqtt_broker_url — bridges are live during every stage"
-          fi
 
           args=(
             --run-id "$run_id"
@@ -610,13 +529,6 @@ jobs:
         continue-on-error: true
         working-directory: RealityEngine_CI
         run: ./stopUniverse.sh
-
-      - name: Stop MQTT broker
-        if: always()
-        continue-on-error: true
-        run: |
-          docker logs regression-mqtt 2>&1 | tail -30 || true
-          docker rm -f regression-mqtt || true
 
       - name: Create or update regression failure issue
         if: ${{ failure() && (github.event_name == 'schedule' || github.event.inputs.create_issue_on_failure == 'true') }}

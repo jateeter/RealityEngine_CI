@@ -16,14 +16,21 @@ assert_eq() {
 }
 
 resolved_broker() {
-  bash "$CI_DIR/scripts/regression-test.sh" --profile hosted "$@" 2>&1 \
+  bash "$CI_DIR/scripts/regression-test.sh" --profile "${PROFILE:-hosted}" "$@" 2>&1 \
     | sed -n 's/^mqtt broker:  *//p' | head -n1
 }
 
-echo "== --mqtt-broker-url opt-out =="
+YUMA="mqtt://yuma.lateraledge.cloud:1883"
 
-assert_eq "$(resolved_broker)" "<not configured>" \
-  "no flag at all leaves MQTT unconfigured in the plan"
+echo "== --mqtt-broker-url default and opt-out =="
+
+# Regression MQTT testing uses the live Yuma broker on every lane (2026-10-03).
+assert_eq "$(PROFILE=hosted resolved_broker)" "$YUMA" \
+  "no flag on the hosted lane resolves to the Yuma broker"
+assert_eq "$(PROFILE=local resolved_broker)" "$YUMA" \
+  "no flag on the local lane resolves to the Yuma broker"
+assert_eq "$(resolved_broker --mqtt-broker-url '')" "$YUMA" \
+  "an empty flag is the default, not an opt-out"
 
 assert_eq "$(resolved_broker --mqtt-broker-url none)" "<not configured>" \
   "'none' is normalised to unconfigured"

@@ -85,6 +85,11 @@ MACHINE_CORPUS_SET=false
 MACHINE_CORPUS_WORK_DIR="${MACHINE_CORPUS_WORK_DIR:-/tmp/realityengine-standard-deployment-corpus}"
 
 MQTT_BROKER_URL="${MQTT_BROKER_URL:-}"
+# Regression MQTT testing runs against the live Yuma broker on every lane (owner
+# decision 2026-10-03). It replaced the hosted lane's seeded local mosquitto and
+# the local lane's default of no broker; `--mqtt-broker-url none|off|skip` is
+# still the explicit opt-out.
+YUMA_MQTT_BROKER_URL="mqtt://yuma.lateraledge.cloud:1883"
 MQTT_MAPPINGS="${MQTT_MAPPINGS:-}"
 MCP_URL="${MCP_URL:-http://127.0.0.1:7331}"
 SWAGGER_URL="${SWAGGER_URL:-http://127.0.0.1:8088}"
@@ -153,10 +158,10 @@ Options:
   --build-only              Create worktrees and build only; skip start/live tests.
                             Requires --execute, like every other run-shaping flag.
   --engines SPEC            Engine spec. Default: cpp:1,lsp:1,scala:1
-  --mqtt-broker-url URL     Yuma MQTT broker URL. 'none'/'off'/'skip' (any case)
-                            is an explicit opt-out: MQTT checks are skipped and
-                            no caller-side fallback (e.g. the workflow's seeded
-                            hosted broker) is applied over it.
+  --mqtt-broker-url URL     MQTT broker URL. Default on every lane: the live Yuma
+                            broker, mqtt://yuma.lateraledge.cloud:1883.
+                            'none'/'off'/'skip' (any case) is the explicit
+                            opt-out: MQTT checks are skipped.
   --mqtt-mappings PATH      Yuma MQTT mappings file.
   --mcp-url URL             MCP HTTP base URL. Default: http://127.0.0.1:7331
   --swagger-url URL         OpenAPI Swagger base URL. Default: http://127.0.0.1:8088
@@ -244,6 +249,9 @@ done
 # disable MQTT on a hosted run short of pointing it at a broker guaranteed to
 # fail. 'none'/'off'/'skip' say so unambiguously and are handled here, once,
 # rather than by every caller re-deriving "empty vs. disabled" for itself.
+# No broker named means the Yuma broker, on every profile. Applied before the
+# opt-out below, so none/off/skip still wins.
+[ -n "$MQTT_BROKER_URL" ] || MQTT_BROKER_URL="$YUMA_MQTT_BROKER_URL"
 case "$(printf '%s' "$MQTT_BROKER_URL" | tr '[:upper:]' '[:lower:]')" in
   none|off|skip)
     MQTT_BROKER_URL=""
@@ -1328,186 +1336,6 @@ active_machines_dir() {
 # which nothing in the comparison strips. That is why it reports "no majority"
 # on every event regardless of what the engines did. It stays for the contract
 # checks it does perform; it is not the parity result.
-# Re-publish the retained MQTT fixtures once every engine is up.
-#
-# RealityEngine_CI#304. The workflow seeds the broker with retained topics
-# *before* the universe starts, so each engine's MQTT bridge receives them when
-# it subscribes — that is, at its own boot time. Engines boot sequentially and
-# not at the same speed: on run 34069594600 the spread between the first and
-# last `lastUpdated` was 65,059 ms against a 60,000 ms sensor TTL.
-#
-# The consequence is that by the time a parity stage reads them, the engines
-# that booted early have stale sensors contributing nothing, and the one that
-# booted last is still inside its window and contributing 0.5 to 13 cells. Same
-# rule on every runtime, different clocks — reported three times as an engine
-# divergence, against three different runtimes, and closed twice as not
-# reproducible.
-#
-# Retained topics redeliver on publish, so one republish after the whole
-# universe is up lands on every subscribed bridge within milliseconds and gives
-# every sensor a timestamp from the same window. This does not lengthen the TTL
-# or exclude sensors from comparison; it makes the comparison contemporaneous,
-# which is what it was always assumed to be.
-
-refresh_mqtt_fixtures() {
-  [ "$LIVE_TESTS" = true ] || return 0
-  local container="${REGRESSION_MQTT_CONTAINER:-regression-mqtt}"
-  local mappings="${MQTT_MAPPINGS:-}"
-
-  if [ -z "$mappings" ] || [ ! -f "$mappings" ]; then
-    log "SKIP mqtt refresh: no mappings resolved; sensors keep their boot-time stamps"
-    return 0
-  fi
-  if ! docker ps --format '{{.Names}}' 2>/dev/null | grep -qx "$container"; then
-    log "SKIP mqtt refresh: no '$container' container; sensors keep their boot-time stamps"
-    return 0
-  fi
-
-  step "Refresh retained MQTT fixtures (contemporaneous sensor stamps)"
-
-  # The broker listens only on the port MQTT_BROKER_URL names. The hosted lane
-  # allocates a free one per run, so mosquitto_pub's default 1883 reaches
-  # nothing — the same defect that kept the workflow's seeding loop red from
-  # 2026-09-11 (CI#350). It presents differently here, and worse: the publish
-  # error was discarded, so every topic would have been skipped, `published`
-  # would have stayed 0, and this function would have logged "no fixtures
-  # republished" as though the fixtures were missing rather than undeliverable.
-  # A failed publish is now counted and reported.
-  local broker_port="${MQTT_BROKER_URL##*:}"
-  case "$broker_port" in ''|*[!0-9]*) broker_port=1883 ;; esac
-
-  local published=0 failed=0 topic payload
-  while IFS="$(printf '\t')" read -r topic payload; do
-    [ -n "$topic" ] || continue
-    if docker exec "$container" mosquitto_pub -h 127.0.0.1 -p "$broker_port" \
-         -r -t "$topic" -m "$payload" 2>/dev/null; then
-      published=$((published + 1))
-    else
-      failed=$((failed + 1))
-    fi
-  done < <(python3 "$(repo_root RealityEngine_CI)/scripts/seed-mqtt-fixtures.py" "$mappings" 2>/dev/null || true)
-
-  [ "$failed" -eq 0 ] || \
-    log "  WARN $failed retained topic(s) failed to publish to 127.0.0.1:$broker_port"
-
-  if [ "$published" -gt 0 ]; then
-    log "  republished $published retained topic(s) after boot"
-    # Wait for delivery to be observed rather than assumed (#311).
-    wait_for_mqtt_quiescence "${MQTT_QUIESCE_TIMEOUT:-45}" "${MQTT_QUIESCE_INTERVAL:-1}"
-  else
-    log "  no fixtures republished; sensors keep their boot-time stamps"
-  fi
-}
-
-# Block until every MQTT bridge has stopped acting on the fixtures just
-# republished — RealityEngine_CI#307.
-#
-# This was `sleep 3`, which is a hope rather than a guarantee. Retained messages
-# are delivered to subscribers the moment they are published, each mapped
-# message can trigger a PE push, and the bridges drain at different rates: on
-# hosted run 34154771062 lsp-1 mapped 91 messages and triggered 7 pushes while
-# cpp-1 and scala-1 triggered 2 each. Whichever bridge is still working when the
-# sleep expires pushes into the next stage's measurement.
-#
-# The cost was three years of misattribution in miniature: the trajectory stage
-# reset to zero, a late bridge push landed on lsp-1 before the baseline read, and
-# the stage reported "lsp recorded 9 entries for 8 pushes" as an engine
-# divergence. It never reproduced locally because the bridge is disabled there
-# (`/api/mqtt/status` returns {"enabled": false}), so the interfering app
-# instance simply does not exist on a developer machine.
-#
-# So wait for the counters to actually stop moving. An instance with the bridge
-# disabled is quiet by definition and needs no wait.
-#
-# #311 arrived at the same fix independently and landed first, polling
-# `messagesReceived` until two consecutive reads matched. This keeps that
-# principle — treat "settled" as an observed fact, not an assumed duration —
-# and tightens it in three ways the trajectory stage needs:
-#
-#   * three consecutive stable reads, not two, because two reads one second
-#     apart match routinely mid-drain;
-#   * `messagesMapped` and `pushesTriggered` as well as `messagesReceived`, since
-#     a bridge that has received everything and is still mapping and pushing is
-#     precisely the one that lands in the next stage's measurement;
-#   * an unreadable PE counted as unstable rather than as a value. Under #311 an
-#     unreachable `/api/mqtt/status` read `?` on every poll, two `?`s matched,
-#     and the wait returned "quiescent" after one interval — a silent skip of
-#     the check, which is the failure mode #307 exists to remove.
-#
-# Bounded, not indefinite: a bridge that never settles gets a logged warning and
-# the run proceeds. The fixtures were still published, so the worst case is the
-# race the fixed sleep already tolerated, not a new failure mode.
-wait_for_mqtt_quiescence() {
-  # Bounds are arguments so a caller can tighten them (#311); the defaults are
-  # this function's own, not that caller's.
-  local max_wait="${1:-45}" interval="${2:-1}"
-  local stable_needed=3 waited=0
-  local prev="" cur="" stable=0
-
-  while [ "$waited" -lt "$max_wait" ]; do
-    cur="$(python3 - /tmp/re-registry/re-registry.json <<'PYEOF'
-import json, sys, urllib.request
-
-try:
-    registry = json.load(open(sys.argv[1]))
-except Exception:
-    print("unreadable")
-    raise SystemExit(0)
-
-parts = []
-for item in registry.get("instances", []):
-    if item.get("status") != "running":
-        continue
-    pe_url = item.get("pe_url")
-    if not pe_url:
-        continue
-    try:
-        with urllib.request.urlopen(f"{pe_url}/api/mqtt/status", timeout=10) as resp:
-            status = json.loads(resp.read().decode())
-    except Exception:
-        # An unreadable bridge is not a quiet bridge; keep it in the fingerprint
-        # as an unstable value so the wait does not conclude early.
-        parts.append(f"{item.get('id')}:unknown")
-        continue
-    if not status.get("enabled", False):
-        parts.append(f"{item.get('id')}:disabled")
-        continue
-    bridge = status.get("bridge", status)
-    parts.append("{}:{}/{}/{}".format(
-        item.get("id"),
-        bridge.get("messagesReceived"),
-        bridge.get("messagesMapped"),
-        bridge.get("pushesTriggered")))
-print(" ".join(parts) if parts else "none")
-PYEOF
-)"
-    if [ "$cur" = "$prev" ] && [ -n "$cur" ] && [ "$cur" != "unreadable" ]; then
-      stable=$((stable + 1))
-      [ "$stable" -ge "$stable_needed" ] && break
-    else
-      stable=0
-    fi
-    prev="$cur"
-    sleep "$interval"
-    waited=$((waited + interval))
-  done
-
-  case "$cur" in
-    *disabled*|none)
-      log "  mqtt bridges quiet after ${waited}s ($cur)" ;;
-    *)
-      if [ "$stable" -ge "$stable_needed" ]; then
-        log "  mqtt bridges quiesced after ${waited}s ($cur)"
-      else
-        # Not fatal: the stages still run, but say so, because a bridge still
-        # pushing is exactly the condition that invalidates the next
-        # measurement rather than merely delaying it.
-        log "  WARN mqtt bridges still active after ${max_wait}s ($cur) — a late"
-        log "       push may land inside the next stage (see #307)"
-      fi ;;
-  esac
-}
-
 # Mute or restore every MQTT bridge — RealityEngine_CI#307.
 #
 # Measurement stages need exclusivity, and a live bridge cannot provide it. The
@@ -1747,8 +1575,8 @@ PYEOF
 run_mqtt_yuma() {
   step "MQTT Yuma stream"
   if [ -z "$MQTT_BROKER_URL" ]; then
-    log "SKIP MQTT: --mqtt-broker-url not provided"
-    write_mqtt_skip_report "--mqtt-broker-url not provided"
+    log "SKIP MQTT: opted out (--mqtt-broker-url none/off/skip)"
+    write_mqtt_skip_report "opted out via --mqtt-broker-url none/off/skip"
     return 0
   fi
   local ci
@@ -2252,13 +2080,9 @@ if [ "$LIVE_TESTS" = true ]; then
   # start_universe stays fatal: with no universe the later stages have nothing
   # to measure, and their failures would say nothing about the runtimes.
   start_universe
-  # Before any stage reads a source: give every engine's sensors a timestamp
-  # from the same window, so a TTL cannot expire on one runtime and not another
-  # between boot and comparison (#304).
-  refresh_mqtt_fixtures
-  # Fixtures have landed and the bridges have settled; from here every stage is a
-  # measurement and gets exclusivity. run_mqtt_yuma restores its own bridge and
-  # re-mutes when it is done (#307).
+  # From here every stage is a measurement and gets exclusivity: the bridges,
+  # live against the Yuma broker since boot, are muted, and run_mqtt_yuma
+  # restores its own bridge and re-mutes when it is done (#307).
   mqtt_bridges mute
   run_stage "service-inventory" run_service_inventory
   # First of the measurements: every later stage may reset, and a reset repairs
