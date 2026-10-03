@@ -2,7 +2,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 
-import { isSlotName, slotRegionsOf, withoutMintedIds, withoutSlots } from '../../e2e/lib/unscheduled.ts';
+import { isSlotName, slotRegionsOf, withoutLiveTimes, withoutMintedIds, withoutNamed, withoutSlots } from '../../e2e/lib/unscheduled.ts';
 
 const U1 = '0f4ef7ec-8dde-4922-b5ae-7c75f1b14861';
 const U2 = '37de874f-f960-4992-898c-63279e4a89e1';
@@ -60,4 +60,19 @@ test('slot cells of a perceptual vector are zeroed, its length kept', () => {
 test('with no slots nothing changes', () => {
   const v = { a: [1, 2, 3], b: [{ name: 'x', region: { offset: 0, length: 1 } }] };
   assert.deepEqual(withoutSlots(v, []), v);
+});
+
+test('live-source wall-clock times are set aside; never-updated stays null', () => {
+  const a = { sources: [{ name: 's', lastUpdated: 1791035771089 }, { name: 't', lastUpdated: null }] };
+  const b = { sources: [{ name: 's', lastUpdated: 1791035771047 }, { name: 't', lastUpdated: null }] };
+  assert.deepEqual(withoutLiveTimes(a), withoutLiveTimes(b));
+  assert.equal(withoutLiveTimes(a).sources[1].lastUpdated, null);
+  const c = { sources: [{ name: 't', lastUpdated: 1 }] };
+  assert.notDeepEqual(withoutLiveTimes({ sources: [{ name: 't', lastUpdated: null }] }), withoutLiveTimes(c));
+});
+
+test('entries an integration removed on its own schedule are set aside by name', () => {
+  const v = { sources: [{ name: 'keep' }, { name: 'localai/personal_health_baseline / 5 sequences' }] };
+  assert.deepEqual(withoutNamed(v, new Set(['localai/personal_health_baseline / 5 sequences'])), { sources: [{ name: 'keep' }] });
+  assert.deepEqual(withoutNamed(v, new Set()), v);
 });
