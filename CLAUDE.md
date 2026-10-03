@@ -30,6 +30,22 @@ npm run test:deployment
 - Prefer `RE_REGISTRY_URL` for Manager, Machines, and CI e2e tests.
 - Pass CI-generated `config/integrations.json` to PE services with `INTEGRATIONS_CONFIG`.
 - Keep OpenClaw defaults aligned with `ACP_ENABLED=true`, `ACP_GATEWAY_URL` or `OPENCLAW_GATEWAY_URL`, `ACP_SESSION_KEY`, `ACP_TARGET_AGENT`, and `ACP_COMPLETION_SOURCE_MAPPING_ID=acp-openclaw-completion`.
+- **Instance identity (#296).** A UUID belongs to an instance, never an engine
+  type or image, and no two instances of any engine type may share one.
+  - `scripts/lib/instance_uuids.py` allocates a v7 UUID per `<lane>/<id>`
+    (`native/cpp-1`, `docker/cpp-1` — the lanes are different instance sets) in
+    `$RE_INSTANCE_STATE_DIR/instance-uuids.json` (default `~/.reality-engine/`),
+    durably, so an instance keeps its UUID and its Lamport clock across
+    universes. A table holding a duplicate is refused, never repaired.
+  - Native spawns pass `INSTANCE_UUID` and `INSTANCE_CLOCK_DIR`
+    (`<state>/clock`); the Docker REs load `<state>/docker/<id>.env` through
+    `env_file`, so a container recreated by any tool keeps its UUID, and keep
+    their clocks on the `<state>/clock-docker` bind mount.
+  - `registry_add` records `instance_uuid` and refuses a UUID another instance
+    holds; `instance_uuids.py check-registry` checks a whole instance registry.
+  - The engine enforces it too: an instance holding an allocated UUID takes an
+    exclusive lock for its life, so a second live process with the same UUID
+    refuses to boot.
 - The Docker path (no `--engines`) runs the same engine set as
   `--engines=cpp:1,lsp:1,scala:1`: compose services `engine-{scala,cpp,lsp}-{re,pe}`
   (images in `docker/scala`, `docker/scala-perception-engine`, `docker/cpp`,

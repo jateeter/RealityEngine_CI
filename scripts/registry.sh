@@ -2,7 +2,10 @@
 # Instance registry helpers — CRUD for /tmp/re-registry.json
 #
 # Source this file, then call:
-#   registry_add   <id> <runtime> <re_url> <pe_url> <pid_re> <pid_pe>
+#   registry_add   <id> <runtime> <re_url> <pe_url> <pid_re> <pid_pe> [instance_uuid]
+#   instance_uuid_allocate <lane> <id>  — the instance's durable UUID (#296)
+#   instance_uuid_docker_env <id>  — the same for a Docker-lane instance, as an env file
+#   instance_clock_dir     — where allocated instances keep their Lamport clock
 #   registry_remove <id>
 #   registry_list          — prints full JSON to stdout
 #   registry_get    <id>   — prints single instance JSON; exits 1 if not found
@@ -154,15 +157,42 @@ with open(sys.argv[1]) as f:
 EOF
 }
 
+# A UUID identifies an instance, never an engine type or image, and no two
+# instances of any engine type may share one (RealityEngine_CI#296). The
+# allocation is durable -- an instance id keeps its UUID across universes, so its
+# Lamport clock carries on -- and lives in scripts/lib/instance_uuids.py.
+# <lane> is native or docker: different instance sets that reuse the same ids.
+instance_uuid_allocate() {
+    python3 "$(dirname "${BASH_SOURCE[0]}")/lib/instance_uuids.py" allocate "$1" "$2"
+}
+
+# Docker lane: allocate docker/<id> and write the env file its compose service
+# loads. Prints the UUID.
+instance_uuid_docker_env() {
+    python3 "$(dirname "${BASH_SOURCE[0]}")/lib/instance_uuids.py" docker-env "$1"
+}
+
+instance_clock_dir() {
+    python3 "$(dirname "${BASH_SOURCE[0]}")/lib/instance_uuids.py" clock-dir
+}
+
+# The optional seventh argument is the instance's UUID. A UUID another instance
+# in this registry already holds is refused (exit 1), never overwritten: two
+# instances sharing one would share a Lamport clock.
 registry_add() {
-    local id="$1" runtime="$2" re_url="$3" pe_url="$4" pid_re="${5:-}" pid_pe="${6:-}"
+    local id="$1" runtime="$2" re_url="$3" pe_url="$4" pid_re="${5:-}" pid_pe="${6:-}" instance_uuid="${7:-}"
     _registry_init
-    python3 - "$REGISTRY_FILE" "$id" "$runtime" "$re_url" "$pe_url" "$pid_re" "$pid_pe" <<'EOF'
+    python3 - "$REGISTRY_FILE" "$id" "$runtime" "$re_url" "$pe_url" "$pid_re" "$pid_pe" "$instance_uuid" <<'EOF'
 import json, sys, datetime
-path, iid, runtime, re_url, pe_url, pid_re, pid_pe = sys.argv[1:]
+path, iid, runtime, re_url, pe_url, pid_re, pid_pe, instance_uuid = sys.argv[1:]
 with open(path) as f:
     reg = json.load(f)
 reg['instances'] = [i for i in reg['instances'] if i['id'] != iid]
+if instance_uuid:
+    holders = [i['id'] for i in reg['instances'] if i.get('instance_uuid') == instance_uuid]
+    if holders:
+        sys.exit(f"registry_add {iid}: instance UUID {instance_uuid} is already held by "
+                 f"{', '.join(holders)}; two instances may not share a UUID")
 def _port(url):
     try: return int(url.rsplit(':', 1)[-1])
     except: return 0
@@ -172,6 +202,7 @@ entry = {
     're_port': _port(re_url), 'pe_port': _port(pe_url),
     'pid_re': int(pid_re) if pid_re else None,
     'pid_pe': int(pid_pe) if pid_pe else None,
+    'instance_uuid': instance_uuid or None,
     'started_at': datetime.datetime.utcnow().strftime('%Y-%m-%dT%H:%M:%SZ'),
     'status': 'running'
 }
