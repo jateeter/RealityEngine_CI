@@ -61,6 +61,22 @@ corpus-derived ones (`machine-arbitrationreader`), so the same filter would drop
 real content. `scripts/tests/parity-surface.test.mjs` fixes the rules against
 the actual #321 payloads.
 
+The one identity that is normalised is identity a runtime **minted**: an entry
+present on all three runtimes under one name whose id differs between them —
+what an integration registers at runtime (localAI's machines and sensors, and
+the test sources interned from them). Each such id becomes
+`minted:<kind>:<name>`, a body naming one is compared in canonical form (keys
+sorted, machine-keyed arrays ordered by the normalised id, since each runtime
+ordered them by its own), and every substitution is listed in the report under
+`mintedIdentity`. A universe without integration-registered entries — the hosted
+job — has none, and is byte-compared exactly as before.
+
+"All on" is accounted, not assumed: a sensor is active iff it holds a value
+inside its TTL, so a localAI sensor that has not reported stays off on every
+runtime. The spec reads each engine's own source list after "All On", fails on
+any non-sensor left off, and requires the PE Manager's toggles to match the
+engine; sensors awaiting ingress are reported by name.
+
 ## Which specs run in which universe shape
 
 `tests/` is the canonical home of the app-level specs — they were deduped here

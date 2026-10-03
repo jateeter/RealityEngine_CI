@@ -628,6 +628,13 @@ jobs:
         working-directory: RealityEngine_CI
         run: bash scripts/tests/test-resolve-endpoint.sh
 
+      # The TypeScript half: with several instances registered and none named,
+      # reEndpointOr/peEndpointOr refuse rather than fall back to the Docker
+      # literal, which nothing listens on in a native universe.
+      - name: Run e2e instance-registry resolver unit tests
+        working-directory: RealityEngine_CI
+        run: node scripts/tests/test-e2e-registry.mjs
+
       - name: No literal endpoint locates a service
         working-directory: RealityEngine_CI
         run: bash scripts/check-workflow-endpoints.sh
