@@ -2170,7 +2170,8 @@ ok "Using default (docker-driver) builder — images load into the engine store"
 # realityengine_ci-<svc>:latest`. Serializing remove→build→verify per image
 # keeps each replacement atomic and ordered, so every image is present before
 # `up`.
-RE_BUILD_SERVICES="reality-engine visualizer-backend visualizer-frontend perception-engine-backend perception-engine-frontend"
+RE_BUILD_SERVICES="reality-engine visualizer-backend visualizer-frontend perception-engine-backend perception-engine-frontend
+    engine-scala-re engine-scala-pe engine-cpp-re engine-cpp-pe engine-lsp-re engine-lsp-pe"
 if [ "$FRESH_START" = true ]; then
     # Reclaim build cache first. A --fresh build is --no-cache, so accumulated
     # build cache is dead weight that fills the Docker VM disk. Under disk
@@ -2260,16 +2261,25 @@ RE_MACHINE_COUNT=$(curl -sk https://localhost:5001/api/machines 2>/dev/null \
 set -e
 ok "RE baseline: $RE_MACHINE_COUNT machines, $PE_SRC_COUNT PE sources"
 
-# ── Instance registry, single-engine lane (RealityEngine_CI#363) ──────────
-# The Docker footprint runs exactly one RE/PE pair, and until now published no
-# instance registry at all, so everything that resolves endpoints from it read
-# nothing here. Register the pair by name — never by position, since #274 is the
-# standing example of `instances[0]` passing while addressing something other
-# than what the caller claimed — using the public TLS endpoints the rest of this
-# phase just proved answer.
+# ── Instance registry, Docker lane (RealityEngine_CI#363) ──────────────────
+# The Docker footprint runs the same engine set as
+# `--engines=cpp:1,lsp:1,scala:1`: the engine-{scala,cpp,lsp}-{re,pe} services
+# in docker-compose.yml, each RE paired with its own runtime's PE, plain HTTP
+# on the 6100/6300/6600 band. Registering one pair was not enough — the
+# cross-engine suites in run-all-tests.sh (semantic, metrics and CES-contract
+# parity, the audit chain) compare runtimes, so a one-entry instance registry
+# made them skip, and a skip is a failure in --deployment.
+#
+# Registered by name, never by position (#274). `docker compose up --wait`
+# above already proved every engine healthy, so nothing here is speculative.
+# The reality-engine / perception-engine-backend pair behind the TLS proxy
+# stays what it was — Manager's RE and the TypeScript PE — and is not an
+# engine instance.
 if [ "$MULTI_ENGINE_MODE" != true ] && [ "$DRY_RUN" = false ]; then
     instance_registry_start
-    registry_add "scala-1" "scala" "https://localhost:5001" "https://localhost:3004" "" ""
+    registry_add "scala-1" "scala" "http://localhost:6101" "http://localhost:6100" "" ""
+    registry_add "cpp-1"   "cpp"   "http://localhost:6301" "http://localhost:6300" "" ""
+    registry_add "lsp-1"   "lsp"   "http://localhost:6601" "http://localhost:6600" "" ""
     _publish_service "registry"         "${REGISTRY_PORT}" "/re-registry.json"
     _publish_service "manager_backend"  3001 "/health"  https
     _publish_service "manager_frontend" 5173 "/"        https
@@ -2277,7 +2287,7 @@ if [ "$MULTI_ENGINE_MODE" != true ] && [ "$DRY_RUN" = false ]; then
     [ -n "${MCP_URL:-}" ]         && registry_set_service "mcp" "$MCP_URL"
     [ -n "${SWAGGER_URL:-}" ]     && registry_set_service "swagger" "$SWAGGER_URL"
     export RE_REGISTRY_URL="${RE_REGISTRY_URL:-http://$HOST_IP:${REGISTRY_PORT}/re-registry.json}"
-    ok "Instance registry: scala-1 → https://localhost:5001 (RE) / https://localhost:3004 (PE)"
+    ok "Instance registry: scala-1 :6101/:6100, cpp-1 :6301/:6300, lsp-1 :6601/:6600 (RE/PE)"
 fi
 
 # ── Corpus load phase (Docker RE) ─────────────────────────────────────────
