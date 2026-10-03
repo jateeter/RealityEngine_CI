@@ -8,17 +8,6 @@ See `/Users/johnt/workspace/GitHub/CLAUDE.md` for the integrated application map
 
 This repo is the integration and operations control plane for the RealityEngine universe. It owns native/Docker stack lifecycle, instance registry generation, CI integration config, and full-stack e2e entrypoints.
 
-## Codebase Map
-
-- `startUniverse.sh`: canonical multi-engine launcher for C++, LSP, Scala, Manager, localAIStack, and OpenClaw options.
-- `stopUniverse.sh`: canonical teardown path.
-- `config/`: shared config, dashboards, corpus manifests (`*-corpus.txt`), CES contract shards (`ces-contracts/`), and `integrations.json`.
-- `docker/`: image contexts for Manager, Scala RE/PE, and related services.
-- `e2e/`: Playwright and shell e2e suites, including OpenClaw and Manager parity coverage.
-- `scripts/`: universe helpers, OpenAPI generation, tests, and visualizer utilities.
-- `docs/`: integration architecture and operational docs.
-- `nginx/`: reverse proxy configuration for composed deployments.
-
 ## Key Commands
 
 ```bash
@@ -62,13 +51,6 @@ npm run test:deployment
     worktrees, so a stale main-repo artifact survives a "rebuilt everything"
     run. The resulting three-engine divergence was investigated and filed as an
     engine defect before the build skew was found.
-
-## LSP Support
-
-- TypeScript: `typescript-language-server` for Playwright specs and Node scripts.
-- Bash: `bash-language-server` for launcher scripts.
-- Docker/YAML/JSON: Docker, Compose, YAML, and JSON schema language servers.
-- Markdown: markdown LSP for docs and this file.
 
 ## Editing Rules
 
