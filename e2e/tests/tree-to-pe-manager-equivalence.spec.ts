@@ -12,6 +12,7 @@ import {
   type SurfaceCapture,
   type SurfaceFinding,
 } from '../lib/parity-surface';
+import { slotRegionsOf, withoutMintedIds, withoutSlots, type Region } from '../lib/unscheduled';
 
 interface EngineTarget {
   id: string;
@@ -361,29 +362,67 @@ function latestComparableBySignature(run: EngineRun): Map<string, CapturedRespon
   return out;
 }
 
-function asSurfaceCapture(capture: CapturedResponse, minted: MintedId[] = []): SurfaceCapture {
-  let body = Buffer.from(capture.bodyBase64, 'base64');
-  if (minted.length) {
-    let text = body.toString('utf8');
-    for (const m of minted) text = text.split(m.id).join(m.token);
-    // A runtime orders entries by its own minted ids, so once those ids are
-    // normalised the order of the entries they keyed is an artifact too. Only a
-    // body that actually names a minted entry is put in canonical form; every
-    // other body stays byte for byte.
-    if (text.includes('minted:')) {
-      try {
-        text = JSON.stringify(canonicalJson(JSON.parse(text)));
-      } catch {
-        /* not JSON: compared as substituted text */
+function asSurfaceCapture(
+  capture: CapturedResponse,
+  minted: MintedId[] = [],
+  slots: readonly Region[] = [],
+): SurfaceCapture {
+  const raw = Buffer.from(capture.bodyBase64, 'base64');
+  let text = raw.toString('utf8');
+  for (const m of minted) text = text.split(m.id).join(m.token);
+  // Every runtime mints `<kind>-<uuid>`, so identity the name match above could
+  // not pair (an id no listing names, a field such as a source's machineId) is
+  // still recognisable by shape (e2e/lib/unscheduled.ts, #518).
+  text = withoutMintedIds(text);
+  let changed = text !== raw.toString('utf8');
+  if (slots.length) {
+    // Slots appear on their own schedule, not the engines' (#518): set aside
+    // wherever they are, so a slot one engine has and another does not yet
+    // have is not reported as divergence.
+    try {
+      const parsed = JSON.parse(text);
+      const kept = withoutSlots(parsed, slots);
+      if (JSON.stringify(kept) !== JSON.stringify(parsed)) {
+        text = JSON.stringify(kept);
+        changed = true;
       }
+    } catch {
+      /* not JSON: nothing to set aside */
     }
-    body = Buffer.from(text, 'utf8');
   }
+  // A runtime orders entries by its own minted ids, so once those ids are
+  // normalised the order of the entries they keyed is an artifact too. Only a
+  // body something was taken out of is put in canonical form; every other body
+  // stays byte for byte.
+  if (changed) {
+    try {
+      text = JSON.stringify(canonicalJson(JSON.parse(text)));
+    } catch {
+      /* not JSON: compared as substituted text */
+    }
+  }
+  const body = changed ? Buffer.from(text, 'utf8') : raw;
   return {
     status: capture.status,
     body,
-    sha256: minted.length ? sha256(body) : capture.sha256,
+    sha256: changed ? sha256(body) : capture.sha256,
   };
+}
+
+/** Every slot region any engine reported, so each is set aside on all three. */
+function slotRegions(runs: EngineRun[]): Region[] {
+  const regions: Region[] = [];
+  for (const run of runs) {
+    for (const c of run.captures) {
+      try {
+        slotRegionsOf(JSON.parse(Buffer.from(c.bodyBase64, 'base64').toString('utf8')), regions);
+      } catch {
+        /* not JSON */
+      }
+    }
+  }
+  const seen = new Set<string>();
+  return regions.filter(r => !seen.has(`${r[0]}:${r[1]}`) && !!seen.add(`${r[0]}:${r[1]}`));
 }
 
 /** Keys sorted; arrays of machine-keyed entries ordered by their (normalised) identity. */
@@ -393,7 +432,10 @@ function canonicalJson(value: unknown): unknown {
     const keyed = items.length > 1 && items.every(
       (v) => v !== null && typeof v === 'object' && !Array.isArray(v) && typeof (v as any).machineId === 'string');
     if (!keyed) return items;
-    const key = (v: any) => JSON.stringify([v.machineId, v.sequenceId ?? '', v.vector?.id ?? v.id ?? '']);
+    // The whole entry breaks ties: once minted ids become `minted:<kind>`,
+    // several entries share a key, and their engine-specific order must not
+    // survive into the comparison.
+    const key = (v: any) => JSON.stringify([v.machineId, v.sequenceId ?? '', v.vector?.id ?? v.id ?? '', JSON.stringify(v)]);
     return [...items].sort((a: any, b: any) => (key(a) < key(b) ? -1 : key(a) > key(b) ? 1 : 0));
   }
   if (value !== null && typeof value === 'object') {
@@ -497,13 +539,14 @@ function compareRuns(runs: EngineRun[]) {
     }));
 
   const minted = mintedIds(runs);
+  const slots = slotRegions(runs);
   const findings: SurfaceFinding[] = [];
   const noRuntimeImplements: ReturnType<typeof unanimousSilence>[] = [];
   for (const signature of signatures) {
     const captures = {
-      lsp: asSurfaceCapture(byRuntime.lsp.get(signature)!, minted.lsp),
-      scala: asSurfaceCapture(byRuntime.scala.get(signature)!, minted.scala),
-      cpp: asSurfaceCapture(byRuntime.cpp.get(signature)!, minted.cpp),
+      lsp: asSurfaceCapture(byRuntime.lsp.get(signature)!, minted.lsp, slots),
+      scala: asSurfaceCapture(byRuntime.scala.get(signature)!, minted.scala, slots),
+      cpp: asSurfaceCapture(byRuntime.cpp.get(signature)!, minted.cpp, slots),
     };
     // Checked before the comparison: all three refusing identically agrees,
     // and `compareSurface` will say so by returning null. What that agreement
@@ -536,6 +579,8 @@ function compareRuns(runs: EngineRun[]) {
       };
     }),
     findings,
+    // Slot regions set aside on every engine (e2e/lib/unscheduled.ts).
+    unscheduledSlots: slots.map(([offset, length]) => ({ offset, length })),
     // The minted-identity allowance, entry by entry (see mintedIds).
     mintedIdentity: (minted.lsp ?? []).map(m => ({ kind: m.kind, name: m.name })),
     skippedManagerControlCalls: runs.map(run => ({

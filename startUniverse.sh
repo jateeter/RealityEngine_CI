@@ -390,9 +390,11 @@ verify_localai_reach() {
         re=$(echo "$entry" | python3 -c "import json,sys; print(json.load(sys.stdin).get('re_url',''))" 2>/dev/null || true)
         pe=$(echo "$entry" | python3 -c "import json,sys; print(json.load(sys.stdin).get('pe_url',''))" 2>/dev/null || true)
         # The localAI-owned slice of each engine: machines named localai/*, and
-        # sensor sources named localai/* with their regions.
+        # sensor sources named localai/* with their regions. Slot sources (a
+        # `slot` name segment, e.g. localai/health/slot/pulse) appear on their
+        # own schedule and are left out, as in every byte comparison (#518).
         sig=$(python3 - "$re" "$pe" <<'PYEOF' 2>/dev/null || echo "unreadable"
-import json, sys, urllib.request
+import json, re, sys, urllib.request
 def get(url):
     with urllib.request.urlopen(url, timeout=5) as r:
         return json.loads(r.read().decode())
@@ -401,7 +403,8 @@ machines = sorted(m.get("name", "") for m in get(f"{re_url}/api/machines").get("
                   if str(m.get("name", "")).startswith("localai/"))
 sources = sorted(f"{s.get('name')}@{(s.get('region') or {}).get('offset')}"
                  for s in get(f"{pe_url}/api/sources").get("sources", [])
-                 if s.get("type") == "sensor" and str(s.get("name", "")).startswith("localai/"))
+                 if s.get("type") == "sensor" and str(s.get("name", "")).startswith("localai/")
+                 and not re.search(r"(^|/)slot(/|$)", str(s.get("name", ""))))
 print(f"{len(machines)} machines, {len(sources)} sensors | " + ",".join(machines) + " | " + ",".join(sources))
 PYEOF
 )
