@@ -307,8 +307,14 @@ and `seed-mqtt-fixtures.py` went with the seeded broker. `none`/`off`/`skip` is
 the explicit opt-out (#311). Mappings default to
 `RealityEngine_CPP/config/mqtt-mappings.yuma.json`. The bridges are live from
 boot and muted before the first measurement stage; `run_mqtt_yuma` enables the
-bridge it tests and re-mutes on the way out (#307). A Yuma outage now fails the
-MQTT stage rather than being masked.
+bridge it tests and re-mutes on the way out (#307).
+
+**If the broker is there, test it; if it does not respond in 10s, skip with the
+reason** (owner decision). `probe_mqtt_broker` decides once, before the universe
+starts, with a 10s TCP connect: an absent broker is not handed to the engines
+(no bridge spends the run retrying it) and `run_mqtt_yuma` records the skip and
+its reason in `reports/mqtt-yuma-skipped.json`. A third-party broker's absence
+says nothing about the engines.
 
 ## Regression run history is bounded: two runs
 

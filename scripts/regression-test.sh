@@ -1572,8 +1572,59 @@ Path(path).write_text(json.dumps({
 PYEOF
 }
 
+# mqtt_broker_reachable URL SECONDS — exit 0 when a TCP connect to the broker's
+# host:port succeeds within SECONDS; otherwise print why and exit 1. A connect,
+# not an MQTT handshake: it answers "is the broker there", which is all the
+# skip decision needs, and the stage itself proves the protocol.
+mqtt_broker_reachable() {
+  python3 - "$1" "$2" <<'PYEOF'
+import socket, sys, urllib.parse
+url, timeout = sys.argv[1], float(sys.argv[2])
+u = urllib.parse.urlparse(url if "://" in url else f"mqtt://{url}")
+host = u.hostname
+port = u.port or (8883 if u.scheme in ("mqtts", "ssl", "tls") else 1883)
+if not host:
+    print(f"no host in {url!r}")
+    sys.exit(1)
+try:
+    socket.create_connection((host, port), timeout=timeout).close()
+except Exception as exc:
+    print(f"{host}:{port}: {exc.__class__.__name__}: {exc}" if str(exc) else f"{host}:{port}: {exc.__class__.__name__}")
+    sys.exit(1)
+PYEOF
+}
+
+# Test the broker if it is there; skip, with the reason, if it does not answer a
+# TCP connect within 10s (owner decision 2026-10-03). Decided once, before the
+# universe starts: an absent broker is not passed to the engines, so no bridge
+# spends the run retrying it, and the MQTT stage reports the skip. Yuma is a
+# third-party broker; its absence says nothing about the engines.
+MQTT_SKIP_REASON=""
+MQTT_PROBED_URL=""
+probe_mqtt_broker() {
+  [ -n "$MQTT_BROKER_URL" ] || return 0
+  MQTT_PROBED_URL="$MQTT_BROKER_URL"
+  local probe
+  if probe="$(mqtt_broker_reachable "$MQTT_BROKER_URL" 10)"; then
+    log "mqtt broker $MQTT_BROKER_URL reachable"
+    return 0
+  fi
+  MQTT_SKIP_REASON="broker $MQTT_BROKER_URL not responding within 10s ($probe)"
+  log "WARN: $MQTT_SKIP_REASON — booting without a broker; the MQTT stage will skip"
+  MQTT_BROKER_URL=""
+  MQTT_MAPPINGS=""
+}
+
 run_mqtt_yuma() {
   step "MQTT Yuma stream"
+  # The broker was probed before the universe started (probe_mqtt_broker): one
+  # that did not answer was never handed to the engines, and the stage skips
+  # with the reason recorded then. Checked first — the probe cleared the URL.
+  if [ -n "$MQTT_SKIP_REASON" ]; then
+    log "SKIP MQTT: $MQTT_SKIP_REASON"
+    MQTT_BROKER_URL="$MQTT_PROBED_URL" write_mqtt_skip_report "$MQTT_SKIP_REASON"
+    return 0
+  fi
   if [ -z "$MQTT_BROKER_URL" ]; then
     log "SKIP MQTT: opted out (--mqtt-broker-url none/off/skip)"
     write_mqtt_skip_report "opted out via --mqtt-broker-url none/off/skip"
@@ -2075,6 +2126,7 @@ build_repos
 # Not a live stage: it reads the corpus and the committed agents only.
 run_stage "agent-corpus-current" run_agent_corpus_current
 if [ "$LIVE_TESTS" = true ]; then
+  probe_mqtt_broker
   resolve_mqtt_mappings
   prepare_runtime_config
   # start_universe stays fatal: with no universe the later stages have nothing
