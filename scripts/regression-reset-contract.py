@@ -723,7 +723,7 @@ def membership_delta(before: dict[str, dict[str, Any]],
 
 
 def run_trajectory(instances: list[dict[str, Any]], steps: int,
-                   settle_ms: int) -> tuple[dict[str, Any], list[str]]:
+                   window_ms: int) -> tuple[dict[str, Any], list[str]]:
     """Push and compare ISRE/OSRE, with no bootstrap and no PATCH in the path.
 
     The interned test sources carry the stimulus and advance themselves one
@@ -732,7 +732,7 @@ def run_trajectory(instances: list[dict[str, Any]], steps: int,
     """
     failures: list[str] = []
     for instance in instances:
-        failures.extend(CL.push(instance, steps, settle_ms))
+        failures.extend(CL.push(instance, steps, window_ms))
 
     record: dict[str, Any] = {}
     for kind in TP.TRAJECTORIES:
@@ -964,7 +964,9 @@ def main() -> int:
     parser.add_argument("--steps", type=int, default=0,
                         help="pushes for the trajectory leg; 0 (default) walks the longest "
                              "interned sequence right through")
-    parser.add_argument("--settle-ms", type=int, default=250)
+    parser.add_argument("--step-window-ms", type=int, default=5000,
+                        help="how long to wait for each step's (ISRE, OSRE) pair at its "
+                             "completion point (RealityEngine_CI#375)")
     parser.add_argument("--probe-offset", type=int, default=12,
                         help="region for the TTL probe. The probe is never pushed, so the "
                              "region only has to exist")
@@ -1173,7 +1175,7 @@ def main() -> int:
     else:
         steps = args.steps if args.steps > 0 else max(CL.longest_sequence(instances), 1)
         summary["trajectoryParity"]["steps"] = steps
-        record, failures = run_trajectory(instances, steps, args.settle_ms)
+        record, failures = run_trajectory(instances, steps, args.step_window_ms)
         summary["trajectoryParity"]["trajectories"] = record
         summary["trajectoryParity"]["failures"] = failures
         summary["trajectoryParity"]["ok"] = not failures

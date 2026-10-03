@@ -45,10 +45,11 @@ value is unambiguous. Two consequences worth stating:
     killed two runtimes' heaps mid-sweep. The histories carry the same
     information, sparsely, and are read once at the end.
 
-**Open dependency.** Nothing here can establish that a step is fully realized
-before it is read. The runtimes join their own futures internally (#254) but
-expose no completion point, so `settle_ms` remains a wall-clock guess — the same
-one `regression-trajectory-parity.py` makes. See RealityEngine_CI#375.
+**Step completion.** Every step is read at its completion point: each runtime
+joins every composer before OSRE resolves, publishes the committed (ISRE, OSRE)
+pair through its own synchronisation primitive, and `drive` waits for each
+step's pair (`GET /api/engine/steps/:n/pair`, via `step_observer.StepObserver`)
+rather than sleeping. RealityEngine_CI#375.
 """
 
 from __future__ import annotations
@@ -56,6 +57,8 @@ from __future__ import annotations
 import json
 import time
 from typing import Any, Callable, Iterable
+
+from step_observer import DEFAULT_WINDOW_MS, StepNotResolved, StepNotRetained, StepObserver
 
 Json = dict[str, Any]
 
@@ -333,27 +336,33 @@ def seed_depth(sources: Iterable[Json]) -> int:
 # ── driving ─────────────────────────────────────────────────────────────────
 
 def drive(post: Callable[[str, Json], tuple[int, Any]], pe_url: str, steps: int,
-          settle_ms: int = 0) -> tuple[int, list[str]]:
-    """Push `steps` times, advancing every armed source's cursor together.
+          get: Callable[[str], tuple[int, Any]], re_url: str,
+          window_ms: int = DEFAULT_WINDOW_MS) -> tuple[int, list[str]]:
+    """Push `steps` times, advancing every armed source's cursor together, and
+    read each step at its completion point (RealityEngine_CI#375).
 
-    `settle_ms` is a wall-clock stand-in for the completion point the runtimes
-    do not expose (#375). It is not an approximation of a barrier — it is a
-    guess that is silently wrong under load, and when it is wrong the caller
-    reads a half-written step. Kept at 0 by default so the cost of not having
-    the barrier stays visible rather than being tuned away.
+    The push names the RE step it produced; StepObserver waits for that step's
+    (ISRE, OSRE) pair on the engine's own synchronisation primitive, so nothing
+    after this reads a half-written step. The wall-clock `settle_ms` this
+    replaced was a guess at that boundary, silently wrong under load.
     """
     failures: list[str] = []
+    observer = StepObserver(get, re_url, window_ms)
     driven = 0
     for index in range(steps):
-        status, _ = post(f"{pe_url}/api/push", {"compact": True,
-                                                "includePerceptualSpace": False,
-                                                "includeActiveRegions": False})
+        status, payload = post(f"{pe_url}/api/push", {"compact": True,
+                                                      "includePerceptualSpace": False,
+                                                      "includeActiveRegions": False})
         if status != 200:
             failures.append(f"push {index} returned {status}")
             break
         driven += 1
-        if settle_ms:
-            time.sleep(settle_ms / 1000.0)
+        try:
+            observer.observe_push(payload)
+        except (StepNotResolved, StepNotRetained, RuntimeError) as exc:
+            failures.append(f"push {index}: {exc}")
+            break
+    failures.extend(observer.violations)
     return driven, failures
 
 

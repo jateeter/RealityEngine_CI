@@ -67,6 +67,12 @@ from urllib import error, request
 
 sys.path.insert(0, str(Path(__file__).resolve().parent / "lib"))
 from reset_contract import reset_instances  # noqa: E402
+from step_observer import (  # noqa: E402
+    DEFAULT_WINDOW_MS,
+    StepNotResolved,
+    StepNotRetained,
+    StepObserver,
+)
 
 TRAJECTORIES = ("isre", "osre")
 
@@ -242,7 +248,8 @@ def longest_interned_sequence(instance: dict[str, Any]) -> int:
     return longest
 
 
-def run_seed_sequence(instance: dict[str, Any], steps: int, settle_ms: int,
+def run_seed_sequence(instance: dict[str, Any], steps: int,
+                      window_ms: int = DEFAULT_WINDOW_MS,
                       baseline: int | None = None,
                       violations: set[str] | None = None,
                       reset_expected: bool = False) -> list[str]:
@@ -309,15 +316,27 @@ def run_seed_sequence(instance: dict[str, Any], steps: int, settle_ms: int,
     # the first version of this check missed an induced interloper entirely.
     before = baseline if baseline is not None else history_length(instance, "isre")
 
+    # Each push is read at its completion point, never after a sleep
+    # (RealityEngine_CI#375): the push names the RE step it produced, and the
+    # observer waits for that step's (ISRE, OSRE) pair on the engine's own
+    # synchronisation primitive. `--settle-ms` was a guess at that boundary.
+    observer = StepObserver(get_json, instance["re"], window_ms)
     driven = 0
     for index in range(steps):
-        status, _ = post_json(f"{pe}/api/push", {"compact": True})
+        status, payload = post_json(f"{pe}/api/push", {"compact": True})
         if status != 200:
             failures.append(f"{instance['id']}: push {index} failed (status {status})")
             break
         driven += 1
-        if settle_ms:
-            time.sleep(settle_ms / 1000.0)
+        try:
+            observer.observe_push(payload)
+        except (StepNotResolved, StepNotRetained, RuntimeError) as exc:
+            failures.append(f"{instance['id']}: push {index}: {exc}")
+            break
+    if observer.violations:
+        if violations is not None:
+            violations.add(instance["id"])
+        failures.extend(f"{instance['id']}: {v}" for v in observer.violations)
 
     after = history_length(instance, "isre")
     if before is None or after is None:
@@ -494,7 +513,9 @@ def main() -> int:
     parser.add_argument("--run-id", default=time.strftime("%Y%m%dT%H%M%SZ", time.gmtime()))
     parser.add_argument("--steps", type=int, default=0,
                         help="push count; 0 (default) walks the longest interned sequence")
-    parser.add_argument("--settle-ms", type=int, default=250)
+    parser.add_argument("--step-window-ms", type=int, default=DEFAULT_WINDOW_MS,
+                        help="how long to wait for each step's (ISRE, OSRE) pair at its "
+                             "completion point (RealityEngine_CI#375)")
     parser.add_argument("--arbiter-rule", default=None,
                         help="label recorded in the summary when the harness has "
                              "forced a rule via ARBITRATION_REGISTRY; reporting only, "
@@ -598,7 +619,7 @@ def main() -> int:
     exclusivity_violations: set[str] = set()
     for instance in instances:
         failures.extend(
-            run_seed_sequence(instance, steps, args.settle_ms,
+            run_seed_sequence(instance, steps, args.step_window_ms,
                               baseline=baselines.get(instance["id"]),
                               violations=exclusivity_violations,
                               reset_expected=reset_clean)

@@ -853,6 +853,7 @@ the drift this issue exists to prevent visible on the first run.
 | GET | `/api/engine/history` | ✓ | ✓ | ✓ |
 | GET | `/api/engine/osre-history` | ✓ | ✓ | ✓ |
 | GET | `/api/engine/isre-history` | ✓ | ✓ | ✓ |
+| GET | `/api/engine/steps/:n/pair` | ✓ | ✓ | ✓ |
 | POST | `/api/engine/process` | ✓ | ✓ | ✓ |
 | POST | `/api/engine/reset` | ✓ | ✓ | ✓ |
 
@@ -908,14 +909,17 @@ cannot interleave. Both now fan out, so both had to earn it: C++ places results
 by index rather than appending on completion, and LSP's `pmap` returns in
 snapshot order over a list sorted by machine id.
 
-**What is joined internally is not yet observable.** The runtimes join their own
-futures, but nothing on the surface lets a caller wait for a step to be fully
-realized, so every harness substitutes elapsed time — `--settle-ms` in
-`scripts/regression-trajectory-parity.py`, and nothing at all in
-`scripts/regression-ces-contracts.py`. A wall-clock settle is a guess that is
+**What is joined internally is observable at the step's completion point.**
+This table is the `/api/engine/process` route. The step itself — a perceive or a
+simulation step — composes its machines the same way on every runtime: in
+parallel, joined before OSRE(n) resolves, with the committed (ISRE, OSRE) pair
+published through a synchronisation primitive and served by
+`GET /api/engine/steps/:n/pair` (see "Step completion" under "Trajectory
+histories", RealityEngine_CI#375). Until #375 the LSP and Scala steps composed
+machine after machine, and harnesses substituted elapsed time (`--settle-ms`)
+for a completion point nothing exposed; a wall-clock settle is a guess that is
 silently wrong under load, and a reader that catches a half-written step reports
-it as engine divergence. Tracked as RealityEngine_CI#375, which is a hard
-dependency of any per-step comparison.
+it as engine divergence.
 
 ##### The input may be universal or machine-space, and length says which
 
@@ -1185,6 +1189,57 @@ entries and cleared by `POST /api/reset`.
 Regions are not compared. They are an abstraction laid across the input space
 Reality Event: it is the vector that must be equivalent, and region
 equivalence follows from it.
+
+#### Step completion
+
+An observer reads a step at its **completion point**, never after an elapsed
+time (RealityEngine_CI#375). No runtime is a reference implementation: each
+conforms to this section, and the route below is held to 3-of-3 byte
+equivalence like every other.
+
+**Composition is parallel, and OSRE waits for all of it.** Every runtime reaches
+both observation points through the parallelism and synchronisation primitives
+of its implementing language:
+
+1. **ISRE(n)** is captured at its atomic point, before any machine reads its
+   input.
+2. Every mapped machine **composes** its Reality Event from ISRE(n), in
+   parallel. The composition is joined by a synchronisation primitive — a
+   future's `get`, a parallel map's return, `Future.sequence` awaited — and
+   nothing that resolves OSRE begins until **every composer has completed**.
+3. The results are folded in canonical order and **OSRE(n) is resolved
+   atomically**, then committed together with ISRE(n) in one action.
+4. The committed **(ISRE(n), OSRE(n)) pair** is published through a
+   synchronisation primitive (a condition variable, a monitor), waking every
+   observer waiting for step n.
+
+Steps are numbered from 0 on every runtime.
+
+**`GET /api/engine/steps/:n/pair?timeoutMs=W`** returns step n's pair, waiting
+up to W ms on the primitive in (4) — not polling — for it to be committed. The
+wait releases the step's lock, so the step being waited for can run.
+
+| Status | Body | When |
+|--------|------|------|
+| 200 | `{"stepNumber": n, "isre": <entry>, "osre": <entry>}` | step n's pair is committed — at once if it already was |
+| 408 | `{"error": "step n not resolved within W ms"}` | step n did not resolve within the window |
+| 410 | `{"error": "step n is no longer retained"}` | step n resolved and has left the history (capacity 1024, or a reset) |
+| 400 | `{"error": "step must be a non-negative integer"}` or `{"error": "timeoutMs must be an integer in [0, 60000]"}` | malformed request |
+
+`<entry>` is the trajectory entry shape above (`stepNumber`, `length`,
+`nonZero`). `timeoutMs` defaults to 5000 and may not exceed 60000. A reset
+restarts step numbering, so a waiter for step n waits for the new step n.
+
+The two history routes read under the same lock the step commits under, so
+neither can return half of a step.
+
+**Observing.** A push names the step it produced in `step.stepNumber`; the
+observer waits for that step's pair and keeps the pairs keyed by step number.
+A step number it did not cause between two of its own is another app instance
+stepping the engine, and is reported as an exclusivity violation by number
+(docs/OBSERVATION_EXCLUSIVITY.md) — never as an engine divergence.
+`scripts/lib/step_observer.py` implements this for the parity stages, which no
+longer take `--settle-ms`.
 
 ### Machines
 

@@ -499,20 +499,26 @@ def longest_sequence(instances: list[dict[str, Any]]) -> int:
     return longest
 
 
-def push(instance: dict[str, Any], steps: int, settle_ms: int) -> list[str]:
-    """Advance every active source `steps` times.
+def push(instance: dict[str, Any], steps: int, window_ms: int) -> list[str]:
+    """Advance every active source `steps` times, reading each step at its
+    completion point (RealityEngine_CI#375).
 
     No sensor writes: the interned test sources carry the stimulus and advance
     themselves one vector per push, so a push is the whole step.
     """
     failures = []
+    observer = TP.StepObserver(TP.get_json, instance["re"], window_ms)
     for index in range(steps):
-        status, _ = TP.post_json(f"{instance['pe']}/api/push", {"compact": True})
+        status, payload = TP.post_json(f"{instance['pe']}/api/push", {"compact": True})
         if status != 200:
             failures.append(f"{instance['id']}: push {index} failed (status {status})")
             break
-        if settle_ms:
-            time.sleep(settle_ms / 1000.0)
+        try:
+            observer.observe_push(payload)
+        except (TP.StepNotResolved, TP.StepNotRetained, RuntimeError) as exc:
+            failures.append(f"{instance['id']}: push {index}: {exc}")
+            break
+    failures.extend(f"{instance['id']}: {v}" for v in observer.violations)
     return failures
 
 
@@ -723,7 +729,7 @@ def run_iteration(instances: list[dict[str, Any]], machines_root: Path, rel: str
     record["steps"] = steps
     _t0 = time.time()
     for instance in instances:
-        record["health"]["failures"].extend(push(instance, steps, args.settle_ms))
+        record["health"]["failures"].extend(push(instance, steps, args.step_window_ms))
     _elapsed = time.time() - _t0
     record["timings"]["stepCycle"] = round(_elapsed, 2)
     # Per step per runtime — the number that stays comparable as the step count
@@ -817,7 +823,9 @@ def main() -> int:
     parser.add_argument("--steps", type=int, default=0,
                         help="pushes per iteration; 0 (default) walks the longest interned "
                              "sequence right through")
-    parser.add_argument("--settle-ms", type=int, default=250)
+    parser.add_argument("--step-window-ms", type=int, default=TP.DEFAULT_WINDOW_MS,
+                        help="how long to wait for each step's (ISRE, OSRE) pair "
+                             "(RealityEngine_CI#375)")
     parser.add_argument("--start-index", type=int, default=0)
     parser.add_argument("--limit", type=int, default=0, help="0 runs the whole corpus")
     parser.add_argument("--skip", action="append", default=[],

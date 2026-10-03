@@ -162,6 +162,22 @@ notes are in `docs/CES_CONTRACT_RETIRED_RECORDER.md`.
   this surface and is not in the instance registry; pass it with
   `--extra-runtime ts-1=<re_url>,<pe_url>`.
 
+## Steps are read at their completion point (#375)
+
+No stage sleeps to let a step settle. Every driver that pushes and then reads a
+step — `regression-trajectory-parity.py`, `record-ces-contracts.py` (through
+`lib/ces_seed_drive.drive`), `regression-corpus-parity-loop.py`,
+`regression-reset-contract.py` — takes the step number from the push response
+(`step.stepNumber`) and waits for that step's (ISRE, OSRE) pair with
+`lib/step_observer.StepObserver`, which calls
+`GET /api/engine/steps/:n/pair?timeoutMs=` (SURFACE_SPEC.md, "Step completion").
+The window is `--step-window-ms` (default 5000); `--settle-ms` is gone. A step the
+observer did not cause between two of its own is reported by number as an
+exclusivity violation. Still on elapsed time, and not step boundaries: the
+post-reset waits in `regression-universal-vectors.py`,
+`regression-pe-step-contract.py` and `regression-arbiter.py`, and the arbiter's
+fixture reads, which race because `/api/arbitration` serves only the latest step.
+
 ## Push response shape
 
 `regression-pe-step-contract.py` probes the push response at three levels, not

@@ -39,10 +39,13 @@ write set for the step, which is the one surface where the value is unambiguous.
 ## What a shard asserts, and what it does not
 
 It asserts that under a stated stimulus the three runtimes committed the same
-cells. It does not assert the step was read at a settled point — no runtime
-exposes a completion barrier (#375), so the read is taken after the drive rather
-than at a guaranteed boundary. The stimulus fingerprint is recorded in the shard
-so a later reader can tell what conditions produced it, rather than assuming.
+cells, each step read at its completion point: the drive waits for every step's
+(ISRE, OSRE) pair on the engine's own synchronisation primitive
+(`GET /api/engine/steps/:n/pair`, #375) rather than after a wall-clock settle.
+The stimulus fingerprint is recorded in the shard so a later reader can tell
+what conditions produced it, rather than assuming. Shards recorded before #375
+carry `settleMs: 0` and `completionPoint: "none exposed"`; they stay comparable,
+because comparability is resident machines, seed depth and steps.
 """
 
 from __future__ import annotations
@@ -168,7 +171,7 @@ def instances_from_registry(url: str) -> list[Json]:
     return out
 
 
-def drive_corpus(instances: list[Json], steps: int | None, settle_ms: int) -> Json:
+def drive_corpus(instances: list[Json], steps: int | None, window_ms: int) -> Json:
     """Reset, arm, verify the stimulus matches across the quorum, then drive."""
     report: Json = {"failures": [], "instances": [i["id"] for i in instances]}
 
@@ -214,7 +217,7 @@ def drive_corpus(instances: list[Json], steps: int | None, settle_ms: int) -> Js
     report["steps"] = steps
 
     for inst in instances:
-        driven, failures = seed.drive(post_json, inst["pe"], steps, settle_ms)
+        driven, failures = seed.drive(post_json, inst["pe"], steps, get_json, inst["re"], window_ms)
         report["failures"].extend(f"{inst['id']}: {f}" for f in failures)
         if driven != steps:
             report["failures"].append(f"{inst['id']}: drove {driven} of {steps} steps")
@@ -291,10 +294,9 @@ def main() -> int:
     ap.add_argument("--registry", default="http://127.0.0.1:5999/re-registry.json")
     ap.add_argument("--steps", type=int, default=None,
                     help="pushes to drive; default is the full interned seed depth")
-    ap.add_argument("--settle-ms", type=int, default=0,
-                    help="wall-clock wait after each push. A stand-in for the "
-                         "completion point no runtime exposes (#375); left at 0 "
-                         "so the cost of that gap stays visible")
+    ap.add_argument("--step-window-ms", type=int, default=seed.DEFAULT_WINDOW_MS,
+                    help="how long to wait for each step's (ISRE, OSRE) pair at its "
+                         "completion point (RealityEngine_CI#375)")
     ap.add_argument("--write", action="store_true", help="write shards to config/ces-contracts/")
     ap.add_argument("--check", action="store_true",
                     help="record, compare against the shards on disk, write nothing. "
@@ -322,7 +324,7 @@ def main() -> int:
         return 1
     order = sorted(i["id"] for i in instances)
 
-    report = drive_corpus(instances, args.steps, args.settle_ms)
+    report = drive_corpus(instances, args.steps, args.step_window_ms)
     if report["failures"]:
         print("FAIL the run could not be made comparable:")
         for line in report["failures"][:12]:
@@ -468,9 +470,9 @@ def main() -> int:
                 "model": "corpus-interned test sources (composed ISRESeed)",
                 "internedSources": report["internedSources"], "armed": report["armed"],
                 "seedDepth": report["seedDepth"], "steps": report["steps"],
-                "settleMs": args.settle_ms, "residentMachines": len(resident),
+                "stepWindowMs": args.step_window_ms, "residentMachines": len(resident),
                 "isolated": True,
-                "completionPoint": "none exposed by any runtime (RealityEngine_CI#375)",
+                "completionPoint": "GET /api/engine/steps/:n/pair (RealityEngine_CI#375)",
             },
             "corpusFingerprint": corpus_fingerprint(
                 [scope_files[n] for n in machines if n in scope_files]),
@@ -496,11 +498,11 @@ def main() -> int:
                     "armed": report["armed"],
                     "seedDepth": report["seedDepth"],
                     "steps": report["steps"],
-                    "settleMs": args.settle_ms,
+                    "stepWindowMs": args.step_window_ms,
                     "residentMachines": len(resident),
                     "sourcelessMachines": report.get("sourcelessMachines", {}).get(order[0], []),
                     "isolated": bool(args.only),
-                    "completionPoint": "none exposed by any runtime (RealityEngine_CI#375)",
+                    "completionPoint": "GET /api/engine/steps/:n/pair (RealityEngine_CI#375)",
                 },
                 "corpusFingerprint": corpus_fingerprint(
                     [scope_files[n] for n in shard["machines"] if n in scope_files]),
