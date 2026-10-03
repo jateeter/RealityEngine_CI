@@ -159,6 +159,22 @@ out.append(("uniform payloads yield no violations",
 counts = pi.machine_domains(["core/a.json", "domains/energy/b.json", "domains/energy/c.json"])
 out.append(("domain counts derived by path", counts == {"core": 1, "energy": 2}))
 
+# Unscheduled slots (#518): set aside wherever they appear.
+src = {"sources": [
+    {"name": "localai/health/rollup", "region": {"offset": 7574, "length": 4}},
+    {"name": "localai/health/slot/pulse", "region": {"offset": 7600, "length": 1}},
+]}
+out.append(("slot regions are found by name", pi.slot_regions_of(src) == [(7600, 1)]))
+kept = pi.without_slots({**src, "activeRegions": [{"offset": 7574, "length": 4}, {"offset": 7600, "length": 1}]})
+out.append(("slot sources and entries over slot regions are dropped",
+            kept == {"sources": [src["sources"][0]], "activeRegions": [{"offset": 7574, "length": 4}]}))
+vec = pi.without_slots({"v": [1] * 7605}, [(7600, 2)])["v"]
+out.append(("slot cells are zeroed, length kept", len(vec) == 7605 and vec[7599:7603] == [1, 0, 0, 1]))
+a = {"mergeBatch": [{"sourceName": "localai/health/slot/sleep", "offset": 7601, "length": 1, "values": [1]}], "x": 1}
+b = {"mergeBatch": [], "x": 1}
+out.append(("a slot one engine has is not a parity difference",
+            pi.parity_signature(a) == pi.parity_signature(b)))
+out.append(("no slots: nothing changes", pi.without_slots({"a": [1, 2], "b": [{"name": "x"}]}) == {"a": [1, 2], "b": [{"name": "x"}]}))
 print(json.dumps(out))
 PYEOF
 }

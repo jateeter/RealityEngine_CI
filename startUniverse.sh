@@ -373,7 +373,77 @@ PYEOF
     ok "Integration registry ready: $CI_INTEGRATIONS_CONFIG"
 }
 
+# localAIStack must reach every engine the instance registry lists, and reach
+# them alike: engines in parity (same corpus, same progress) have to be given the
+# same localAI machines and sensors, or every cross-engine comparison downstream
+# reports localAI's asymmetry as an engine disagreement (RealityEngine_CI#363).
+# Runs in both lanes; a registry-less deployment has nothing to compare.
+verify_localai_reach() {
+    [ "$LOCAL_AI_ENABLED" = true ] || return 0
+    [ -s "$REGISTRY_FILE" ] || return 0
+    local ids; ids=$(registry_ids 2>/dev/null || true)
+    [ -n "$ids" ] || return 0
+    info "localAIStack reach — every registered engine, compared across engines..."
+    local id entry re pe sig sigs="" n=0 engines
+    while IFS= read -r id; do
+        entry=$(registry_get "$id" 2>/dev/null || true)
+        re=$(echo "$entry" | python3 -c "import json,sys; print(json.load(sys.stdin).get('re_url',''))" 2>/dev/null || true)
+        pe=$(echo "$entry" | python3 -c "import json,sys; print(json.load(sys.stdin).get('pe_url',''))" 2>/dev/null || true)
+        # The localAI-owned slice of each engine: machines named localai/*, and
+        # sensor sources named localai/* with their regions. Slot sources (a
+        # `slot` name segment, e.g. localai/health/slot/pulse) appear on their
+        # own schedule and are left out, as in every byte comparison (#518).
+        sig=$(python3 - "$re" "$pe" <<'PYEOF' 2>/dev/null || echo "unreadable"
+import json, re, sys, urllib.request
+def get(url):
+    with urllib.request.urlopen(url, timeout=5) as r:
+        return json.loads(r.read().decode())
+re_url, pe_url = sys.argv[1:]
+machines = sorted(m.get("name", "") for m in get(f"{re_url}/api/machines").get("machines", [])
+                  if str(m.get("name", "")).startswith("localai/"))
+sources = sorted(f"{s.get('name')}@{(s.get('region') or {}).get('offset')}"
+                 for s in get(f"{pe_url}/api/sources").get("sources", [])
+                 if s.get("type") == "sensor" and str(s.get("name", "")).startswith("localai/")
+                 and not re.search(r"(^|/)slot(/|$)", str(s.get("name", ""))))
+print(f"{len(machines)} machines, {len(sources)} sensors | " + ",".join(machines) + " | " + ",".join(sources))
+PYEOF
+)
+        if [ "$sig" = "unreadable" ]; then
+            add_warn "localAIStack reach: $id unreadable"; warn "$id: localAI slice unreadable"
+            continue
+        fi
+        case "$sig" in
+            "0 machines, 0 sensors"*) add_warn "localAIStack did not reach $id"; warn "$id: no localAI machines or sensors" ;;
+            *) ok "$id: ${sig%% |*} from localAIStack" ;;
+        esac
+        sigs+="$sig"$'\n'; n=$((n + 1))
+    done < <(echo "$ids")
+    if [ "$n" -gt 1 ]; then
+        if [ "$(printf '%s' "$sigs" | sort -u | grep -c .)" -eq 1 ]; then
+            ok "localAIStack slice identical on all $n engines"
+        else
+            add_warn "localAIStack slice differs across engines (RealityEngine_CI#363)"
+            warn "localAIStack machines/sensors differ across engines:"
+            printf '%s' "$sigs" | sed 's/ | .*//; s/^/    /'
+        fi
+    fi
+    engines=$(curl -sf --max-time 10 http://localhost:4000/health 2>/dev/null \
+        | python3 -c "import json,sys; print(' '.join(sorted(json.load(sys.stdin).get('bridge_engines') or [])))" 2>/dev/null || true)
+    if [ "$engines" = "$(echo "$ids" | sort | tr '\n' ' ' | sed 's/ $//')" ]; then
+        ok "localAIStack addresses: $engines"
+    else
+        add_warn "localAIStack addresses '${engines:-?}', instance registry lists '$(echo "$ids" | tr '\n' ' ')'"
+        warn "localAIStack bridge_engines does not match the instance registry"
+    fi
+}
+
 configure_localai_bridge_targets() {
+    # RE_URL/PE_URL are localAIStack's fallback only. Whenever the instance
+    # registry lists engines, localAI reads it through RE_REGISTRY_URL and
+    # addresses every one of them, holding engines in parity to agree
+    # (localAIStack core/engine_fanout.py, RealityEngine_CI#363); a live
+    # RE_URL/PE_URL no longer wins over the registry. verify_localai_reach
+    # checks the result after localAI starts.
     if [ "$MULTI_ENGINE_MODE" = true ]; then
         _localai_bridge_urls=$(python3 - "$REGISTRY_FILE" <<'PYEOF'
 import json
@@ -2170,7 +2240,8 @@ ok "Using default (docker-driver) builder — images load into the engine store"
 # realityengine_ci-<svc>:latest`. Serializing remove→build→verify per image
 # keeps each replacement atomic and ordered, so every image is present before
 # `up`.
-RE_BUILD_SERVICES="reality-engine visualizer-backend visualizer-frontend perception-engine-backend perception-engine-frontend"
+RE_BUILD_SERVICES="reality-engine visualizer-backend visualizer-frontend perception-engine-backend perception-engine-frontend
+    engine-scala-re engine-scala-pe engine-cpp-re engine-cpp-pe engine-lsp-re engine-lsp-pe"
 if [ "$FRESH_START" = true ]; then
     # Reclaim build cache first. A --fresh build is --no-cache, so accumulated
     # build cache is dead weight that fills the Docker VM disk. Under disk
@@ -2260,16 +2331,27 @@ RE_MACHINE_COUNT=$(curl -sk https://localhost:5001/api/machines 2>/dev/null \
 set -e
 ok "RE baseline: $RE_MACHINE_COUNT machines, $PE_SRC_COUNT PE sources"
 
-# ── Instance registry, single-engine lane (RealityEngine_CI#363) ──────────
-# The Docker footprint runs exactly one RE/PE pair, and until now published no
-# instance registry at all, so everything that resolves endpoints from it read
-# nothing here. Register the pair by name — never by position, since #274 is the
-# standing example of `instances[0]` passing while addressing something other
-# than what the caller claimed — using the public TLS endpoints the rest of this
-# phase just proved answer.
+# ── Instance registry, Docker lane (RealityEngine_CI#363) ──────────────────
+# The Docker footprint runs the same engine set as
+# `--engines=cpp:1,lsp:1,scala:1`: the engine-{scala,cpp,lsp}-{re,pe} services
+# in docker-compose.yml, each RE paired with its own runtime's PE, plain HTTP
+# on the 6100/6300/6600 band. Registering one pair was not enough — the
+# cross-engine suites in run-all-tests.sh (semantic, metrics and CES-contract
+# parity, the audit chain) compare runtimes, so a one-entry instance registry
+# made them skip, and a skip is a failure in --deployment.
+#
+# Registered by name, never by position (#274). `docker compose up --wait`
+# above already proved every engine healthy, so nothing here is speculative.
+# The reality-engine / perception-engine-backend pair behind the TLS proxy
+# stays what it was — Manager's RE and the TypeScript PE — and is not an
+# engine instance.
 if [ "$MULTI_ENGINE_MODE" != true ] && [ "$DRY_RUN" = false ]; then
     instance_registry_start
-    registry_add "scala-1" "scala" "https://localhost:5001" "https://localhost:3004" "" ""
+    # $HOST_IP, as the native lane registers, not localhost: Manager's
+    # Visualizer backend runs in a container here, and its localhost is itself.
+    registry_add "scala-1" "scala" "http://$HOST_IP:6101" "http://$HOST_IP:6100" "" ""
+    registry_add "cpp-1"   "cpp"   "http://$HOST_IP:6301" "http://$HOST_IP:6300" "" ""
+    registry_add "lsp-1"   "lsp"   "http://$HOST_IP:6601" "http://$HOST_IP:6600" "" ""
     _publish_service "registry"         "${REGISTRY_PORT}" "/re-registry.json"
     _publish_service "manager_backend"  3001 "/health"  https
     _publish_service "manager_frontend" 5173 "/"        https
@@ -2277,7 +2359,7 @@ if [ "$MULTI_ENGINE_MODE" != true ] && [ "$DRY_RUN" = false ]; then
     [ -n "${MCP_URL:-}" ]         && registry_set_service "mcp" "$MCP_URL"
     [ -n "${SWAGGER_URL:-}" ]     && registry_set_service "swagger" "$SWAGGER_URL"
     export RE_REGISTRY_URL="${RE_REGISTRY_URL:-http://$HOST_IP:${REGISTRY_PORT}/re-registry.json}"
-    ok "Instance registry: scala-1 → https://localhost:5001 (RE) / https://localhost:3004 (PE)"
+    ok "Instance registry: scala-1 :6101/:6100, cpp-1 :6301/:6300, lsp-1 :6601/:6600 (RE/PE) on $HOST_IP"
 fi
 
 # ── Corpus load phase (Docker RE) ─────────────────────────────────────────
@@ -2587,6 +2669,10 @@ else
   fi
   set -e
 fi
+
+set +e
+verify_localai_reach
+set -e
 
 # =============================================================================
 hdr "7 · Operability  (smoke tests)"

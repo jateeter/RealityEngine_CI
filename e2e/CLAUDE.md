@@ -61,15 +61,26 @@ corpus-derived ones (`machine-arbitrationreader`), so the same filter would drop
 real content. `scripts/tests/parity-surface.test.mjs` fixes the rules against
 the actual #321 payloads.
 
-The one identity that is normalised is identity a runtime **minted**: an entry
-present on all three runtimes under one name whose id differs between them —
-what an integration registers at runtime (localAI's machines and sensors, and
-the test sources interned from them). Each such id becomes
-`minted:<kind>:<name>`, a body naming one is compared in canonical form (keys
-sorted, machine-keyed arrays ordered by the normalised id, since each runtime
-ordered them by its own), and every substitution is listed in the report under
-`mintedIdentity`. A universe without integration-registered entries — the hosted
-job — has none, and is byte-compared exactly as before.
+What a comparison sets aside, all in `lib/unscheduled.ts` (unit tests in
+`scripts/tests/unscheduled.test.mjs`; Manager mirrors it in
+`visualizer/frontend/e2e/unscheduled.ts`; the Python stages apply the same slot
+rule in `scripts/lib/parity_identity.py`), every item reported in the capture
+manifest (#518):
+
+| Set aside | Recognised by | Why |
+|---|---|---|
+| Minted identity | `<kind>-<uuid>` — every runtime mints that shape; corpus ids are never UUIDs | differs by construction; becomes `minted:<kind>` so a body gaining or losing an id still fails. Name-paired entries become `minted:<kind>:<name>` first (`mintedIdentity`) |
+| Unscheduled slots | a `slot` segment in a source name (`localai/health/slot/pulse`) | appear on their own schedule; slot entries, entries over slot regions and slot cells in perceptual vectors are dropped (`unscheduledSlots`) |
+| Live-source wall-clock time | `lastUpdated` | arrival time per engine; becomes `live:time`, `null` kept. Ordering is to come from Lamport ticks (engine UUID + step) |
+| Sources removed on an integration's schedule | named in localAIStack's durable `/observations/removals` and absent from some engine | the removal is right and recorded; one engine losing it first is not divergence (`removedOnSchedule`) |
+
+A declared id is never set aside: an id from `integrations.json` or the corpus is
+the same on every runtime and is compared byte for byte.
+
+The stimulus is equalised as well as the comparison: each engine under test gets
+exactly one localAIStack retrieval, addressed to it alone (`X-RE-Instance`,
+`POST /rag/retrieve`), recorded under `retrievals`. A universe without
+localAIStack — the hosted job — records `false` and needs none.
 
 "All on" is accounted, not assumed: a sensor is active iff it holds a value
 inside its TTL, so a localAI sensor that has not reported stays off on every

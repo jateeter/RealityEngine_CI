@@ -1,5 +1,52 @@
 version: '3.8'
 
+# Shared by the six engine-* services (the C++/LSP/Scala RE+PE trio). They are
+# the containerized counterpart of `startUniverse.sh --engines=cpp:1,lsp:1,scala:1`:
+# plain HTTP, each RE paired with its own runtime's PE, published on host
+# ports that mirror the native band layout one thousand up (scala 6100/6101,
+# cpp 6300/6301, lsp 6600/6601: PE then RE), so they collide with neither the
+# native universe nor the TLS proxy. startUniverse.sh registers them in the
+# instance registry as scala-1, cpp-1 and lsp-1 — the three-engine suites in
+# run-all-tests.sh need exactly that and skipped without it (#363).
+x-engine-logging: &engine-logging
+  driver: loki
+  options:
+    loki-url: "https://localhost:3100/loki/api/v1/push"
+    loki-tls-insecure-skip-verify: "true"
+    loki-batch-size: "400"
+    loki-retries: "2"
+    loki-max-backoff: "1000ms"
+    loki-external-labels: "service=engine,environment=production,app=reality-engine"
+
+x-engine-common: &engine-common
+  restart: unless-stopped
+  networks:
+    - reality-network
+  extra_hosts:
+    - "host.docker.internal:host-gateway"
+  logging: *engine-logging
+  depends_on:
+    loki:
+      condition: service_healthy
+
+# Corpus + semantics mounts, the same pair reality-engine takes (see there for
+# why both, and why MACHINE_CORPUS_DIR rather than MACHINES_DIR).
+x-engine-corpus: &engine-corpus
+  - ${MACHINE_CORPUS_DIR:-${MACHINES_DIR:?MACHINES_DIR must be set — run via startUniverse.sh}}/machines:/app/machines:ro
+  - ${MACHINE_CORPUS_DIR:-${MACHINES_DIR:?MACHINES_DIR must be set — run via startUniverse.sh}}/semantics:/app/semantics:ro
+
+x-engine-re-env: &engine-re-env
+  MACHINES_DIR: /app/machines
+  VECTOR_DIMENSION: ${VECTOR_DIMENSION:-7680}
+  QDRANT_URL: http://host.docker.internal:4333
+  SEMANTICS_MANIFEST: /app/semantics/abox-manifest.json
+
+x-engine-pe-volumes: &engine-pe-volumes
+  - ${MACHINE_CORPUS_DIR:-${MACHINES_DIR:?MACHINES_DIR must be set — run via startUniverse.sh}}/machines:/app/machines:ro
+  - ${MACHINE_CORPUS_DIR:-${MACHINES_DIR:?MACHINES_DIR must be set — run via startUniverse.sh}}/semantics:/app/semantics:ro
+  - ./config:/app/config:ro
+  - ../localAIStack/data/machines:/app/localai-machines:ro
+
 services:
   # Loki - Log Aggregation (TLS enabled)
   # Port 3100 kept bound to host: the Docker logging driver runs on the host
@@ -149,6 +196,218 @@ services:
       retries: 5
       start_period: 30s
 
+  # ── Engine trio: Scala, C++, LSP — each RE with its own runtime's PE ──────
+  # Registered by startUniverse.sh as scala-1 / cpp-1 / lsp-1. The Scala RE
+  # reuses reality-engine's image but runs without a keystore, so it serves
+  # plain HTTP like its native counterpart and like the other two runtimes.
+  engine-scala-re:
+    <<: *engine-common
+    build:
+      context: ../RealityEngine_Scala
+      dockerfile: ../RealityEngine_CI/docker/scala/Dockerfile
+    container_name: re-engine-scala-re
+    environment:
+      <<: *engine-re-env
+      PORT: "3000"
+      JAVA_TOOL_OPTIONS: ${ENGINE_SCALA_RE_JAVA_OPTS:--Xmx3g}
+    volumes: *engine-corpus
+    ports:
+      - "6101:3000"
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://127.0.0.1:3000/api/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+      start_period: 30s
+
+  engine-scala-pe:
+    <<: *engine-common
+    build:
+      context: ../RealityEngine_Scala/perception-engine
+      dockerfile: ../../RealityEngine_CI/docker/scala-perception-engine/Dockerfile
+    container_name: re-engine-scala-pe
+    environment:
+      - PORT=3004
+      - PERCEPTION_ENGINE_PORT=3004
+      - REALITY_ENGINE_URL=http://engine-scala-re:3000
+      - DATA_PATH=/app/data
+      - FRESH_START=true
+      - JAVA_TOOL_OPTIONS=${ENGINE_SCALA_PE_JAVA_OPTS:--Xmx2g}
+      - MACHINES_DIR=/app/machines
+      - VECTOR_DIMENSION=${VECTOR_DIMENSION:-7680}
+      - QDRANT_URL=http://host.docker.internal:4333
+      - SEMANTICS_MANIFEST=/app/semantics/abox-manifest.json
+      - LOCAL_AI_API_URL=http://host.docker.internal:4000
+      - LOCAL_AI_MACHINES_DIR=/app/localai-machines
+      - INTEGRATIONS_CONFIG=/app/config/integrations.json
+      # Pass-through from the host shell, as for perception-engine-backend.
+      # Bare names on purpose: deploy-validate's restart reads these names
+      # back from the running container (compose_passthrough_names), and a
+      # value interpolated here would come back empty on a recreate.
+      - ACP_ENABLED
+      - ACP_PLATFORM
+      - ACP_SURFACE
+      - ACP_GATEWAY_URL
+      - OPENCLAW_GATEWAY_URL
+      - ACP_SESSION_KEY
+      - OPENCLAW_ACP_SESSION
+      - ACP_TARGET_AGENT
+      - ACP_COMPLETION_SOURCE_MAPPING_ID
+      - HEALTHKIT_BRIDGE_TOKEN
+      - TRIGGERS_ENABLED
+      - TRIGGER_DISPATCH_MODE
+      - TRIGGER_GRAPHQL_URL
+    volumes: *engine-pe-volumes
+    ports:
+      - "6100:3004"
+    depends_on:
+      engine-scala-re:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://127.0.0.1:3004/api/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+      start_period: 30s
+
+  engine-cpp-re:
+    <<: *engine-common
+    build:
+      context: ../RealityEngine_CPP
+      dockerfile: ../RealityEngine_CI/docker/cpp/Dockerfile
+    container_name: re-engine-cpp-re
+    environment: *engine-re-env
+    # Positional arguments, as RealityEngine_CPP/start.sh passes them.
+    command: ["/app/bin/reality_engine_server", "3000", "/app/machines", "${VECTOR_DIMENSION:-7680}"]
+    volumes: *engine-corpus
+    ports:
+      - "6301:3000"
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://127.0.0.1:3000/api/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+      start_period: 10s
+
+  engine-cpp-pe:
+    <<: *engine-common
+    # Same build as engine-cpp-re (one image, two roles); the layer cache
+    # makes the second build free, and every service keeps the
+    # realityengine_ci-<service> image name startUniverse.sh verifies.
+    build:
+      context: ../RealityEngine_CPP
+      dockerfile: ../RealityEngine_CI/docker/cpp/Dockerfile
+    container_name: re-engine-cpp-pe
+    environment:
+      - MACHINES_DIR=/app/machines
+      - VECTOR_DIMENSION=${VECTOR_DIMENSION:-7680}
+      - QDRANT_URL=http://host.docker.internal:4333
+      - SEMANTICS_MANIFEST=/app/semantics/abox-manifest.json
+      - LOCAL_AI_API_URL=http://host.docker.internal:4000
+      - LOCAL_AI_MACHINES_DIR=/app/localai-machines
+      - INTEGRATIONS_CONFIG=/app/config/integrations.json
+      # Pass-through from the host shell, as for perception-engine-backend.
+      # Bare names on purpose: deploy-validate's restart reads these names
+      # back from the running container (compose_passthrough_names), and a
+      # value interpolated here would come back empty on a recreate.
+      - ACP_ENABLED
+      - ACP_PLATFORM
+      - ACP_SURFACE
+      - ACP_GATEWAY_URL
+      - OPENCLAW_GATEWAY_URL
+      - ACP_SESSION_KEY
+      - OPENCLAW_ACP_SESSION
+      - ACP_TARGET_AGENT
+      - ACP_COMPLETION_SOURCE_MAPPING_ID
+      - HEALTHKIT_BRIDGE_TOKEN
+      - TRIGGERS_ENABLED
+      - TRIGGER_DISPATCH_MODE
+      - TRIGGER_GRAPHQL_URL
+    command: ["/app/bin/perception_engine_server", "3004", "http://engine-cpp-re:3000",
+              "http://host.docker.internal:4000", "/app/localai-machines", "${VECTOR_DIMENSION:-7680}"]
+    volumes: *engine-pe-volumes
+    ports:
+      - "6300:3004"
+    depends_on:
+      engine-cpp-re:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://127.0.0.1:3004/api/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+      start_period: 10s
+
+  engine-lsp-re:
+    <<: *engine-common
+    build:
+      context: ../RealityEngine_LSP
+      dockerfile: ../RealityEngine_CI/docker/lsp/Dockerfile
+    container_name: re-engine-lsp-re
+    environment:
+      <<: *engine-re-env
+      REALITY_ENGINE_PORT: "3000"
+    command: ["reality"]
+    volumes: *engine-corpus
+    ports:
+      - "6601:3000"
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://127.0.0.1:3000/api/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 18
+      start_period: 30s
+
+  engine-lsp-pe:
+    <<: *engine-common
+    # Same build as engine-lsp-re (one image, two roles); the layer cache
+    # makes the second build free, and every service keeps the
+    # realityengine_ci-<service> image name startUniverse.sh verifies.
+    build:
+      context: ../RealityEngine_LSP
+      dockerfile: ../RealityEngine_CI/docker/lsp/Dockerfile
+    container_name: re-engine-lsp-pe
+    environment:
+      - PERCEPTION_ENGINE_PORT=3004
+      - REALITY_ENGINE_URL=http://engine-lsp-re:3000
+      - MACHINES_DIR=/app/machines
+      - VECTOR_DIMENSION=${VECTOR_DIMENSION:-7680}
+      - QDRANT_URL=http://host.docker.internal:4333
+      - SEMANTICS_MANIFEST=/app/semantics/abox-manifest.json
+      - LOCAL_AI_API_URL=http://host.docker.internal:4000
+      - LOCAL_AI_MACHINES_DIR=/app/localai-machines
+      - INTEGRATIONS_CONFIG=/app/config/integrations.json
+      # Pass-through from the host shell, as for perception-engine-backend.
+      # Bare names on purpose: deploy-validate's restart reads these names
+      # back from the running container (compose_passthrough_names), and a
+      # value interpolated here would come back empty on a recreate.
+      - ACP_ENABLED
+      - ACP_PLATFORM
+      - ACP_SURFACE
+      - ACP_GATEWAY_URL
+      - OPENCLAW_GATEWAY_URL
+      - ACP_SESSION_KEY
+      - OPENCLAW_ACP_SESSION
+      - ACP_TARGET_AGENT
+      - ACP_COMPLETION_SOURCE_MAPPING_ID
+      - HEALTHKIT_BRIDGE_TOKEN
+      - TRIGGERS_ENABLED
+      - TRIGGER_DISPATCH_MODE
+      - TRIGGER_GRAPHQL_URL
+    command: ["perception"]
+    volumes: *engine-pe-volumes
+    ports:
+      - "6600:3004"
+    depends_on:
+      engine-lsp-re:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://127.0.0.1:3004/api/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 18
+      start_period: 30s
+
   # Visualizer Backend (Node.js/Express) - accessed via TLS proxy at https://localhost:3001
   # Source: ../RealityEngine_Manager/visualizer/backend
   visualizer-backend:
@@ -166,10 +425,18 @@ services:
       - MACHINES_DIR=/app/corpus
       - REALITY_ENGINE_URL=https://reality-engine:3000
       - PERCEPTION_ENGINE_URL=https://perception-engine-backend:3004
+      # The instance registry startUniverse.sh serves on the host (0.0.0.0).
+      # Without it Manager knew only the pair above and could not switch to the
+      # engine-* instances the registry lists (#363). Manager polls it, so it
+      # need not exist yet when this container starts.
+      - RE_REGISTRY_URL=http://host.docker.internal:${REGISTRY_PORT:-5999}/re-registry.json
       - TLS_CERT_PATH=/etc/certs/server.crt
       - TLS_KEY_PATH=/etc/certs/server.key
       - NODE_EXTRA_CA_CERTS=/etc/certs/ca.crt
-      - ALLOWED_ORIGINS=https://localhost:5173,https://localhost:3001
+      # The instance registry publishes the frontend at $HOST_IP (startUniverse.sh
+      # exports it before `compose up`), and tests that open the page there send
+      # that origin. localhost alone rejected every switch with a CORS 500 (#363).
+      - ALLOWED_ORIGINS=https://localhost:5173,https://localhost:3001,https://${HOST_IP:-localhost}:5173,https://${HOST_IP:-localhost}:3001
       - AUDIT_LOG_ENABLED=true
       - AUDIT_LOG_LEVEL=2
       - AUDIT_LOG_SERVICE=visualizer-backend

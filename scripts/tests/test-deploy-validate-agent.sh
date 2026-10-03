@@ -19,7 +19,9 @@ set -uo pipefail
 CI_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 A="${1:-$CI_DIR/scripts/deploy-validate-agent.sh}"
 extract() { sed -n "/^$1() {/,/^}/p" "$A"; }
+eval "$(extract engine_pair_health)"
 eval "$(extract phase_health)"
+eval "$(extract skip_engine_restarts)"
 eval "$(extract phase_deploy)"
 eval "$(extract file_issue)"
 eval "$(extract phase_restart_matrix)"
@@ -43,7 +45,8 @@ check() { if eval "$2"; then echo "ok   $1"; else echo "FAIL $1"; rc=1; fi; }
 DEPLOY_FAILED=true; DEPLOY_TORE_DOWN=true; FAILS=(); SKIPS=()
 phase_health
 check "failed deploy files nothing in health" '[ ${#FAILS[@]} -eq 0 ]'
-check "failed deploy skips all 7 probes" '[ ${#SKIPS[@]} -eq 7 ]'
+check "failed deploy skips all 10 probes" '[ ${#SKIPS[@]} -eq 10 ]'
+check "each engine pair is skipped, against its runtime" 'for rt in scala cpp lsp; do printf "%s\n" "${SKIPS[@]}" | grep -q "^$rt:" || exit 1; done'
 check "OpenClaw is skipped, not failed" 'printf "%s\n" "${SKIPS[@]}" | grep -q "^openclaw:"'
 
 # 2. Healthy deploy path: a genuinely down gateway is still a finding.
@@ -51,11 +54,12 @@ DEPLOY_FAILED=false; DEPLOY_TORE_DOWN=true; FAILS=(); SKIPS=()
 phase_health
 check "successful deploy still files a down gateway" 'printf "%s\n" "${FAILS[@]}" | grep -q "^openclaw:OpenClaw gateway unhealthy"'
 check "successful deploy still files localAI" 'printf "%s\n" "${FAILS[@]}" | grep -q "^localai:"'
+check "a down engine container is filed against its runtime" '[ "$(printf "%s\n" "${FAILS[@]}" | grep -cE "^(scala|cpp|lsp):")" -eq 6 ]'
 
 # 3. No deploy this cycle (--restart-only / --no-deploy): probes run as before.
 DEPLOY_FAILED=false; DEPLOY_TORE_DOWN=false; FAILS=(); SKIPS=()
 phase_health
-check "no-deploy cycle still probes and files" '[ ${#FAILS[@]} -eq 7 ]'
+check "no-deploy cycle still probes and files" '[ ${#FAILS[@]} -eq 13 ]'
 
 # 4. Recurrence comment body: real newlines, no literal backslash-n.
 phase=health; note="docker logs openclaw-gateway"
@@ -92,6 +96,7 @@ poll() { return 0; }; curl() { return 0; }; PASSES=()
 phase_health
 check "health does not re-file the refusal" '[ ${#FAILS[@]} -eq 1 ]'
 check "health skips the four proxied probes" '[ ${#SKIPS[@]} -eq 4 ]'
+check "engine containers sit off the proxy and are still probed" '[ "$(printf "%s\n" "${PASSES[@]}" | grep -cE "^(scala|cpp|lsp):")" -eq 6 ]'
 check "stacks the deploy never touched are still probed" 'printf "%s\n" "${PASSES[@]}" | grep -q "^localai:" && printf "%s\n" "${PASSES[@]}" | grep -q "^openclaw:"'
 
 # 7. The containerized restart after a torn-down, failed deploy cannot pass:
@@ -104,11 +109,11 @@ restart_repo_script() { RESTARTED+=("$1"); }
 DOCKER_LANE_BLOCKERS=""; OPENCLAW=yes; SKIPS=(); FAILS=()
 DEPLOY_FAILED=true; DEPLOY_TORE_DOWN=true
 phase_restart_matrix
-check "failed deploy skips the two compose restarts" '[ ${#SKIPS[@]} -eq 2 ] && [ ${#FAILS[@]} -eq 0 ]'
+check "failed deploy skips the five compose restarts" '[ ${#SKIPS[@]} -eq 5 ] && [ ${#FAILS[@]} -eq 0 ]'
 check "failed deploy still restarts localAI and OpenClaw" '[ "${RESTARTED[*]}" = "localai openclaw" ]'
 DEPLOY_FAILED=false; RESTARTED=(); SKIPS=()
 phase_restart_matrix
-check "a successful deploy restarts all four units" '[ "${RESTARTED[*]}" = "reality-engine manager localai openclaw" ] && [ ${#SKIPS[@]} -eq 0 ]'
+check "a successful deploy restarts all seven units" '[ "${RESTARTED[*]}" = "reality-engine manager scala cpp lsp localai openclaw" ] && [ ${#SKIPS[@]} -eq 0 ]'
 
 # 8. OpenClaw restarts with the agent profile the deploy resolved. A bare
 #    start.sh defaults to `full`, so a regression deploy (15 agents) came back

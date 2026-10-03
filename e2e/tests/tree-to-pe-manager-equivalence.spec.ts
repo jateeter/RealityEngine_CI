@@ -12,6 +12,8 @@ import {
   type SurfaceCapture,
   type SurfaceFinding,
 } from '../lib/parity-surface';
+import { slotRegionsOf, withoutLiveTimes, withoutMintedIds, withoutNamed, withoutSlots, type Region } from '../lib/unscheduled';
+import { reEndpoint, serviceEndpoint } from '../lib/registry';
 
 interface EngineTarget {
   id: string;
@@ -163,6 +165,24 @@ async function switchEngine(request: APIRequestContext, engine: EngineTarget): P
   const capture = await captureRequestResponse(engine, 'POST', res);
   expect(res.ok(), `engine switch to ${engine.id} failed: ${res.status()}`).toBeTruthy();
   return capture;
+}
+
+/**
+ * A defined starting point is two calls (scripts/lib/reset_contract.py, #211):
+ * `POST /api/pe/reset` is layer-local and leaves the RE's CES activation, its
+ * histories and its step counter as earlier traffic left them. This spec reset
+ * only the PE, so `GET /api/engine/active` compared each RE's accumulated
+ * history — in the deployment gate, whatever the suites before this one had
+ * pushed — and reported it as divergence (#518). The RE is reset first, at the
+ * `re_url` the instance registry lists (Manager does not proxy it), then the PE.
+ */
+async function resetEngine(request: APIRequestContext, engine: EngineTarget): Promise<CapturedResponse> {
+  const re = await request.post(`${reEndpoint(engine.id)}/api/engine/reset`, {
+    data: {},
+    headers: { 'Content-Type': 'application/json' },
+  });
+  expect(re.ok(), `RE reset on ${engine.id} failed: ${re.status()}`).toBeTruthy();
+  return resetPE(request, engine);
 }
 
 async function resetPE(request: APIRequestContext, engine: EngineTarget): Promise<CapturedResponse> {
@@ -361,29 +381,121 @@ function latestComparableBySignature(run: EngineRun): Map<string, CapturedRespon
   return out;
 }
 
-function asSurfaceCapture(capture: CapturedResponse, minted: MintedId[] = []): SurfaceCapture {
-  let body = Buffer.from(capture.bodyBase64, 'base64');
-  if (minted.length) {
-    let text = body.toString('utf8');
-    for (const m of minted) text = text.split(m.id).join(m.token);
-    // A runtime orders entries by its own minted ids, so once those ids are
-    // normalised the order of the entries they keyed is an artifact too. Only a
-    // body that actually names a minted entry is put in canonical form; every
-    // other body stays byte for byte.
-    if (text.includes('minted:')) {
-      try {
-        text = JSON.stringify(canonicalJson(JSON.parse(text)));
-      } catch {
-        /* not JSON: compared as substituted text */
+function asSurfaceCapture(
+  capture: CapturedResponse,
+  minted: MintedId[] = [],
+  slots: readonly Region[] = [],
+  removed: ReadonlySet<string> = new Set(),
+): SurfaceCapture {
+  const raw = Buffer.from(capture.bodyBase64, 'base64');
+  let text = raw.toString('utf8');
+  for (const m of minted) text = text.split(m.id).join(m.token);
+  // Every runtime mints `<kind>-<uuid>`, so identity the name match above could
+  // not pair (an id no listing names, a field such as a source's machineId) is
+  // still recognisable by shape (e2e/lib/unscheduled.ts, #518).
+  text = withoutMintedIds(text);
+  let changed = text !== raw.toString('utf8');
+  {
+    // Slots appear on their own schedule, not the engines' (#518): set aside
+    // wherever they are, so a slot one engine has and another does not yet
+    // have is not reported as divergence. Live-source wall-clock times go too.
+    try {
+      const parsed = JSON.parse(text);
+      const kept = withoutNamed(withoutLiveTimes(withoutSlots(parsed, slots)), removed);
+      if (JSON.stringify(kept) !== JSON.stringify(parsed)) {
+        text = JSON.stringify(kept);
+        changed = true;
       }
+    } catch {
+      /* not JSON: nothing to set aside */
     }
-    body = Buffer.from(text, 'utf8');
   }
+  // A runtime orders entries by its own minted ids, so once those ids are
+  // normalised the order of the entries they keyed is an artifact too. Only a
+  // body something was taken out of is put in canonical form; every other body
+  // stays byte for byte.
+  if (changed) {
+    try {
+      text = JSON.stringify(canonicalJson(JSON.parse(text)));
+    } catch {
+      /* not JSON: compared as substituted text */
+    }
+  }
+  const body = changed ? Buffer.from(text, 'utf8') : raw;
   return {
     status: capture.status,
     body,
-    sha256: minted.length ? sha256(body) : capture.sha256,
+    sha256: changed ? sha256(body) : capture.sha256,
   };
+}
+
+/** localAIStack's base URL from the instance registry, or null on a universe without it. */
+function localAIUrl(): string | null {
+  try {
+    return serviceEndpoint('localai_api');
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * One retrieval per engine under test, addressed to that engine alone (#518).
+ *
+ * Retrieval writes localAI's `rag_retrieval` sensor. Left to whatever the flow
+ * happened to trigger, one engine received a retrieval and the others did not,
+ * and the comparison reported the test's own stimulus as divergence. Each
+ * engine now gets exactly one, through `X-RE-Instance`, so the stimulus is
+ * equal by construction. `/rag/retrieve` runs retrieval without generation, so
+ * this does not depend on a generation model being installed.
+ */
+async function retrieveOnce(request: APIRequestContext, engine: EngineTarget): Promise<boolean> {
+  const url = localAIUrl();
+  if (!url) return false;
+  const res = await request.post(`${url}/rag/retrieve`, {
+    data: { question: 'How does the Reality Engine perceive a source?' },
+    headers: { 'Content-Type': 'application/json', 'X-RE-Instance': engine.id },
+  });
+  expect(res.ok(), `retrieval addressed to ${engine.id} failed: ${res.status()} ${await res.text()}`).toBeTruthy();
+  return true;
+}
+
+/**
+ * Sources localAIStack removed on its own schedule — recorded durably by it
+ * (`/observations/removals`) — that are not present on every engine now. The
+ * removal is right and its record is kept for K-line support; an entry one
+ * engine has already lost and another has not is not an engine divergence.
+ */
+async function removedOnSchedule(request: APIRequestContext, runs: EngineRun[]): Promise<Set<string>> {
+  const url = localAIUrl();
+  if (!url) return new Set();
+  const res = await request.get(`${url}/observations/removals?limit=1000`);
+  if (!res.ok()) return new Set();
+  const recorded = new Set<string>(
+    ((await res.json()).removals ?? [])
+      .filter((r: any) => r.kind === 'source' && typeof r.observed?.name === 'string')
+      .map((r: any) => r.observed.name as string));
+  const presentOn = runs.map(run => {
+    const body = latestBody(run, '/api/pe/sources');
+    const list: any[] = Array.isArray(body) ? body : body?.sources ?? [];
+    return new Set(list.map(e => e?.name).filter((n): n is string => typeof n === 'string'));
+  });
+  return new Set([...recorded].filter(name => !presentOn.every(set => set.has(name))));
+}
+
+/** Every slot region any engine reported, so each is set aside on all three. */
+function slotRegions(runs: EngineRun[]): Region[] {
+  const regions: Region[] = [];
+  for (const run of runs) {
+    for (const c of run.captures) {
+      try {
+        slotRegionsOf(JSON.parse(Buffer.from(c.bodyBase64, 'base64').toString('utf8')), regions);
+      } catch {
+        /* not JSON */
+      }
+    }
+  }
+  const seen = new Set<string>();
+  return regions.filter(r => !seen.has(`${r[0]}:${r[1]}`) && !!seen.add(`${r[0]}:${r[1]}`));
 }
 
 /** Keys sorted; arrays of machine-keyed entries ordered by their (normalised) identity. */
@@ -393,7 +505,10 @@ function canonicalJson(value: unknown): unknown {
     const keyed = items.length > 1 && items.every(
       (v) => v !== null && typeof v === 'object' && !Array.isArray(v) && typeof (v as any).machineId === 'string');
     if (!keyed) return items;
-    const key = (v: any) => JSON.stringify([v.machineId, v.sequenceId ?? '', v.vector?.id ?? v.id ?? '']);
+    // The whole entry breaks ties: once minted ids become `minted:<kind>`,
+    // several entries share a key, and their engine-specific order must not
+    // survive into the comparison.
+    const key = (v: any) => JSON.stringify([v.machineId, v.sequenceId ?? '', v.vector?.id ?? v.id ?? '', JSON.stringify(v)]);
     return [...items].sort((a: any, b: any) => (key(a) < key(b) ? -1 : key(a) > key(b) ? 1 : 0));
   }
   if (value !== null && typeof value === 'object') {
@@ -472,7 +587,7 @@ function mintedIds(runs: EngineRun[]): Record<Runtime, MintedId[]> {
  * be byte identity everywhere — which asserted more than SURFACE_SPEC.md grants
  * and reported two non-divergences as failures on #321.
  */
-function compareRuns(runs: EngineRun[]) {
+function compareRuns(runs: EngineRun[], removedOnSchedule: ReadonlySet<string> = new Set()) {
   const byRuntime = Object.fromEntries(
     runs.map(run => [run.engine.runtime, latestComparableBySignature(run)])
   ) as Record<Runtime, Map<string, CapturedResponse>>;
@@ -497,13 +612,14 @@ function compareRuns(runs: EngineRun[]) {
     }));
 
   const minted = mintedIds(runs);
+  const slots = slotRegions(runs);
   const findings: SurfaceFinding[] = [];
   const noRuntimeImplements: ReturnType<typeof unanimousSilence>[] = [];
   for (const signature of signatures) {
     const captures = {
-      lsp: asSurfaceCapture(byRuntime.lsp.get(signature)!, minted.lsp),
-      scala: asSurfaceCapture(byRuntime.scala.get(signature)!, minted.scala),
-      cpp: asSurfaceCapture(byRuntime.cpp.get(signature)!, minted.cpp),
+      lsp: asSurfaceCapture(byRuntime.lsp.get(signature)!, minted.lsp, slots, removedOnSchedule),
+      scala: asSurfaceCapture(byRuntime.scala.get(signature)!, minted.scala, slots, removedOnSchedule),
+      cpp: asSurfaceCapture(byRuntime.cpp.get(signature)!, minted.cpp, slots, removedOnSchedule),
     };
     // Checked before the comparison: all three refusing identically agrees,
     // and `compareSurface` will say so by returning null. What that agreement
@@ -536,6 +652,11 @@ function compareRuns(runs: EngineRun[]) {
       };
     }),
     findings,
+    // Slot regions set aside on every engine (e2e/lib/unscheduled.ts).
+    unscheduledSlots: slots.map(([offset, length]) => ({ offset, length })),
+    // Sources localAIStack removed on its own schedule and recorded durably
+    // (localAIStack /observations/removals), present on some engines only.
+    removedOnSchedule: [...removedOnSchedule].sort(),
     // The minted-identity allowance, entry by entry (see mintedIds).
     mintedIdentity: (minted.lsp ?? []).map(m => ({ kind: m.kind, name: m.name })),
     skippedManagerControlCalls: runs.map(run => ({
@@ -615,18 +736,20 @@ test('tree view to PE Manager verifies all sources on and compares captured API 
   );
 
   const runs: EngineRun[] = [];
+  const retrievals: Record<string, boolean> = {};
 
   for (const engine of ENGINES) {
     const setupCaptures = [
       await switchEngine(request, engine),
-      await resetPE(request, engine),
+      await resetEngine(request, engine),
     ];
+    retrievals[engine.id] = await retrieveOnce(request, engine);
     const run = await captureEngineFlow(page, engine);
     run.captures.unshift(...setupCaptures);
     runs.push(run);
   }
 
-  const comparison = compareRuns(runs);
+  const comparison = compareRuns(runs, await removedOnSchedule(request, runs));
   const captureManifest = await writeCaptureBodies(runs, testInfo);
   const report = {
     generatedAt: new Date().toISOString(),
@@ -652,6 +775,10 @@ test('tree view to PE Manager verifies all sources on and compares captured API 
       noRuntimeImplements: comparison.noRuntimeImplements,
       surfaceRules: comparison.surfaceRules,
       mintedIdentity: comparison.mintedIdentity,
+      unscheduledSlots: comparison.unscheduledSlots,
+      removedOnSchedule: comparison.removedOnSchedule,
+      // One retrieval per engine under test; false where no localAIStack runs.
+      retrievals,
       findingCount: comparison.findings.length,
       findings: comparison.findings,
       skippedManagerControlCalls: comparison.skippedManagerControlCalls,

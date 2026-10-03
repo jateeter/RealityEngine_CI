@@ -525,10 +525,10 @@ phase_deploy() {
       "Unexpected — compose down should not affect the daemon; investigate Docker Desktop"
     return 1
   fi
-  # This agent deploys single-engine Docker (no multi-engine registry). Remove a
-  # stale /tmp/re-registry/re-registry.json left by a prior native/multi-engine
-  # run so the test gate's stack-health check probes the live Docker stack
-  # instead of dead registry endpoints (a stale registry => false "live stack down").
+  # The Docker lane publishes its own instance registry (scala-1/cpp-1/lsp-1,
+  # the engine-* containers). Remove a stale /tmp/re-registry/re-registry.json
+  # left by a prior native run first, so nothing between here and that publish
+  # can resolve dead native endpoints (a stale registry => false "live stack down").
   rm -f "${RE_REGISTRY_FILE:-/tmp/re-registry/re-registry.json}" 2>/dev/null || true
   local machine_corpus="${DEPLOYMENT_MACHINE_CORPUS:-regression}"
   local post_start_full_corpus="${DEPLOYMENT_POST_START_FULL_CORPUS:-off}"
@@ -554,6 +554,17 @@ phase_deploy() {
 # =============================================================================
 # Phase 2 · Health gate — public Docker endpoints
 # =============================================================================
+# engine_pair_health <runtime> <re-port> <pe-port>
+engine_pair_health() {
+  local rt="$1" re="$2" pe="$3"
+  poll "http://localhost:$re/api/health" "$rt RE container (:$re)" 20 "-sf" \
+    && pass "$rt" health "$rt RE container healthy (:$re)" \
+    || fail "$rt" health "$rt RE container unhealthy (:$re)" "docker logs re-engine-$rt-re"
+  poll "http://localhost:$pe/api/health" "$rt PE container (:$pe)" 20 "-sf" \
+    && pass "$rt" health "$rt PE container healthy (:$pe)" \
+    || fail "$rt" health "$rt PE container unhealthy (:$pe)" "docker logs re-engine-$rt-pe"
+}
+
 phase_health() {
   hdr "Phase 2 · Health gate (public Docker endpoints)"
   # A deploy that tore the stacks down and then failed started nothing, so
@@ -572,6 +583,8 @@ phase_health() {
     skip localai health "localAIStack API (:4000)" "$why"
     skip localai health "Qdrant (:4333)" "$why"
     [ "$OPENCLAW" != "no" ] && skip openclaw health "OpenClaw gateway (:18789)" "$why"
+    local rt
+    for rt in scala cpp lsp; do skip "$rt" health "$rt RE+PE containers" "$why"; done
     return 0
   fi
   # With the Docker lane blocked, the RE/PE/Visualizer probes measure nothing
@@ -592,6 +605,12 @@ phase_health() {
   poll "http://localhost:3001/health" "Visualizer backend (:3001)" 15 && pass manager health "Visualizer backend healthy"  || fail manager health "Visualizer backend unhealthy (:3001)" "docker logs reality-engine-visualizer-backend"
   poll "http://localhost:5173/" "Visualizer UI (:5173)" 15         && pass manager health "Visualizer UI reachable"        || fail manager health "Visualizer UI unreachable (:5173)" "docker logs reality-engine-visualizer-frontend"
   fi
+  # The engine trio the instance registry lists (scala-1/cpp-1/lsp-1), plain
+  # HTTP on their own ports — not behind the TLS proxy, so a native universe
+  # blocking the proxy does not block these.
+  engine_pair_health scala 6101 6100
+  engine_pair_health cpp   6301 6300
+  engine_pair_health lsp   6601 6600
   poll "http://localhost:4000/health" "localAIStack API (:4000)" 15 && pass localai health "localAIStack API healthy"      || fail localai health "localAIStack API unhealthy (:4000)" "docker logs localai_api"
   poll "http://localhost:4333/collections" "Qdrant (:4333)" 15     && pass localai health "Qdrant reachable"               || fail localai health "Qdrant unreachable (:4333)" "docker logs localai_qdrant"
   if [ "$OPENCLAW" != "no" ]; then
@@ -673,6 +692,15 @@ deployed_passthrough_env() {  # <svc...>
   done
 }
 
+# The host address the deploy registered under, read back from the instance
+# registry startUniverse.sh wrote. visualizer-backend's ALLOWED_ORIGINS is built
+# from it, and this shell never had it: a recreate without it would come back
+# allowing localhost only.
+deployed_host_ip() {
+  python3 -c 'import json,sys; print(json.load(open(sys.argv[1])).get("host",""))' \
+    "${RE_REGISTRY_FILE:-/tmp/re-registry/re-registry.json}" 2>/dev/null || true
+}
+
 restart_compose_service() {  # <unit> <health-url> <label> <svc...>
   local unit="$1" url="$2" label="$3"; shift 3
   local svcs=( "$@" ) build=() carried=() kv
@@ -689,6 +717,7 @@ restart_compose_service() {  # <unit> <health-url> <label> <svc...>
   # and after the carried values, so the resolved token is the one that holds.
   ( cd "$CI_DIR" && env ${carried[@]+"${carried[@]}"} \
       MACHINE_CORPUS_DIR="$(corpus_dir)" HEALTHKIT_BRIDGE_TOKEN="$(deploy_healthkit_token)" \
+      HOST_IP="$(deployed_host_ip)" \
       docker compose up -d --force-recreate --no-deps ${build[@]+"${build[@]}"} "${svcs[@]}" ) >>"$RUN_LOG" 2>&1 \
     || { fail "$unit" restart "$label recreate failed" "docker compose up ${svcs[*]}"; return 1; }
   # Recreating a backend gives it a NEW container IP, but the nginx tls-proxy
@@ -716,6 +745,11 @@ restart_repo_script() {  # <unit> <health-url> <label> <repo-dir> [start.sh args
   fi
 }
 
+skip_engine_restarts() {  # <why>
+  local rt
+  for rt in scala cpp lsp; do skip "$rt" restart "$rt RE+PE containers" "$1"; done
+}
+
 phase_restart_matrix() {
   hdr "Phase 3 · Restart matrix — CONTAINERIZED lane (per-unit)"
   if [ -n "$DOCKER_LANE_BLOCKERS" ]; then
@@ -725,6 +759,7 @@ phase_restart_matrix() {
     local why="Docker lane blocked by a native universe (orchestration finding)"
     skip reality-engine restart "RE API (Scala container)" "$why"
     skip manager restart "Manager PE+Visualizer containers" "$why"
+    skip_engine_restarts "$why"
   elif [ "$DEPLOY_FAILED" = true ] && [ "$DEPLOY_TORE_DOWN" = true ]; then
     # restart_compose_service recreates one service with --no-deps and then the
     # tls-proxy. nginx/tls-proxy.conf names every upstream statically with no
@@ -736,10 +771,16 @@ phase_restart_matrix() {
     local why="deploy failed after teardown; the stack a --no-deps restart needs is not up (orchestration finding)"
     skip reality-engine restart "RE API (Scala container)" "$why"
     skip manager restart "Manager PE+Visualizer containers" "$why"
+    skip_engine_restarts "$why"
   else
     restart_compose_service reality-engine "https://localhost:5001/api/health" "RE API (Scala container)" reality-engine
     restart_compose_service manager "https://localhost:3004/api/health" "Manager PE+Visualizer containers" \
         perception-engine-backend perception-engine-frontend visualizer-backend visualizer-frontend
+    # Each runtime's RE and PE together: the PE holds the RE's URL, so a lone RE
+    # recreate would test a pairing the deployment never has.
+    restart_compose_service scala "http://localhost:6100/api/health" "Scala RE+PE containers" engine-scala-re engine-scala-pe
+    restart_compose_service cpp   "http://localhost:6300/api/health" "C++ RE+PE containers"   engine-cpp-re engine-cpp-pe
+    restart_compose_service lsp   "http://localhost:6600/api/health" "LSP RE+PE containers"   engine-lsp-re engine-lsp-pe
   fi
   restart_repo_script localai "http://localhost:4000/health" "localAIStack" "$LAS_DIR"
   if [ "$OPENCLAW" = "yes" ] || { [ "$OPENCLAW" = "auto" ] && curl -sf --max-time 3 http://localhost:18789/healthz >/dev/null 2>&1; }; then

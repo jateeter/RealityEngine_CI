@@ -803,8 +803,21 @@ run_playwright_e2e() {
                 e2e_instance="$(RE_REGISTRY_FILE="$registry_file" bash -c \
                     '. "$1"; registry_instance_ids' _ "$CI_DIR/scripts/lib/resolve-endpoint.sh" 2>/dev/null | head -1)"
             fi
+            # The frontend's scheme comes from the instance registry: plain HTTP
+            # from the native lane's Vite, HTTPS behind the Docker lane's TLS
+            # proxy. Hard-coding http sent the Docker lane through nginx's
+            # http->https 302, which Playwright follows as a GET, so every POST
+            # /api/engines/active came back 404 (#363).
+            local fe_url="${PLAYWRIGHT_BASE_URL:-}"
+            if [ -z "$fe_url" ]; then
+                case "$(RE_REGISTRY_FILE="$registry_file" bash -c \
+                        '. "$1"; service_endpoint manager_frontend' _ "$CI_DIR/scripts/lib/resolve-endpoint.sh" 2>/dev/null)" in
+                    https://*) fe_url="https://localhost:5173" ;;
+                    *)         fe_url="http://localhost:5173" ;;
+                esac
+            fi
             run_shell_suite "CI e2e (Playwright, multi-engine)" "$CI_DIR" \
-                "REUSE_SERVICES=true MULTI_ENGINE_E2E=true RE_E2E_INSTANCE='$e2e_instance' PLAYWRIGHT_BASE_URL='${PLAYWRIGHT_BASE_URL:-http://localhost:5173}' CI=true npx playwright test $CI_E2E_MULTI_ENGINE_SPECS --project=chromium --workers=1"
+                "REUSE_SERVICES=true MULTI_ENGINE_E2E=true RE_E2E_INSTANCE='$e2e_instance' PLAYWRIGHT_BASE_URL='$fe_url' CI=true npx playwright test $CI_E2E_MULTI_ENGINE_SPECS --project=chromium --workers=1"
             # Everything else in e2e/tests/ is single-engine only. Report each
             # one rather than letting the narrowed run imply full coverage.
             local _skipped

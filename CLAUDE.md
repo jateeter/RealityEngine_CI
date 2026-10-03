@@ -30,6 +30,12 @@ npm run test:deployment
 - Prefer `RE_REGISTRY_URL` for Manager, Machines, and CI e2e tests.
 - Pass CI-generated `config/integrations.json` to PE services with `INTEGRATIONS_CONFIG`.
 - Keep OpenClaw defaults aligned with `ACP_ENABLED=true`, `ACP_GATEWAY_URL` or `OPENCLAW_GATEWAY_URL`, `ACP_SESSION_KEY`, `ACP_TARGET_AGENT`, and `ACP_COMPLETION_SOURCE_MAPPING_ID=acp-openclaw-completion`.
+- The Docker path (no `--engines`) runs the same engine set as
+  `--engines=cpp:1,lsp:1,scala:1`: compose services `engine-{scala,cpp,lsp}-{re,pe}`
+  (images in `docker/scala`, `docker/scala-perception-engine`, `docker/cpp`,
+  `docker/lsp`), plain HTTP on 6100/6101, 6300/6301, 6600/6601 (PE/RE),
+  registered as `scala-1`, `cpp-1`, `lsp-1`. The TLS-proxied `reality-engine` +
+  TypeScript PE pair stays Manager's and is not an engine instance (#363).
 - `startUniverse.sh --openclaw` delegates to `localOpenClawStack/scripts/start.sh`; keep hardening, immutable image pins, WebUI bootstrap, and live verification authoritative in that native stack entrypoint.
 - Keep e2e results separated by availability, instance registry alignment, contract parity, byte equivalence, and integration success.
 - **No parity or proof run against engines that are not built from current source.**

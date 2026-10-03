@@ -56,6 +56,7 @@ two is what let a shape divergence masquerade as a behavioural one.
 
 from __future__ import annotations
 
+import re
 from typing import Any
 
 # Minted by the runtime that produced the payload — different on every engine
@@ -188,22 +189,94 @@ CORPUS_DECLARED_KEYS = frozenset(
     }
 )
 
+# Unscheduled slots (RealityEngine_CI#518). Some sources appear on their own
+# schedule, not the engines': localAIStack's HealthKit slots
+# (`localai/health/slot/<band>`) come and go with each engine's scope and a
+# reconciliation loop, so engines in parity compared a moment apart can differ
+# only in which slots exist yet. A slot is a source with a `slot` segment in its
+# name. Slot entries, and entries over a slot's region, are left out of every
+# comparison, and a slot's cells in a perceptual vector are zeroed. The same
+# rule as e2e/lib/unscheduled.ts, which the browser-captured comparisons use.
+_SLOT_NAME = re.compile(r"(^|/)slot(/|$)")
+_SLOT_NAME_KEYS = ("name", "sourceName")
+
+
+def _is_slot_name(value: Any) -> bool:
+    return isinstance(value, str) and bool(_SLOT_NAME.search(value))
+
+
+def _region_of(entry: dict) -> tuple[int, int] | None:
+    region = entry.get("region")
+    if isinstance(region, dict) and isinstance(region.get("offset"), int) and isinstance(region.get("length"), int):
+        return region["offset"], region["length"]
+    if isinstance(entry.get("offset"), int) and isinstance(entry.get("length"), int):
+        return entry["offset"], entry["length"]
+    return None
+
+
+def slot_regions_of(value: Any, into: list[tuple[int, int]] | None = None) -> list[tuple[int, int]]:
+    """Regions of every slot source found anywhere in `value`."""
+    into = [] if into is None else into
+    if isinstance(value, list):
+        for v in value:
+            slot_regions_of(v, into)
+    elif isinstance(value, dict):
+        region = _region_of(value)
+        if region and any(_is_slot_name(value.get(k)) for k in _SLOT_NAME_KEYS) and region not in into:
+            into.append(region)
+        for v in value.values():
+            slot_regions_of(v, into)
+    return into
+
+
+def _is_slot_entry(value: Any, slots: list[tuple[int, int]]) -> bool:
+    if not isinstance(value, dict):
+        return False
+    if any(_is_slot_name(value.get(k)) for k in _SLOT_NAME_KEYS):
+        return True
+    region = _region_of(value)
+    if region is None or not slots:
+        return False
+    o, length = region
+    return any(o >= so and o + max(length, 1) <= so + sl for so, sl in slots)
+
+
+def without_slots(value: Any, slots: list[tuple[int, int]] | None = None) -> Any:
+    """`value` with slot sources, entries over slot regions, and slot cells removed."""
+    slots = slot_regions_of(value) if slots is None else slots
+    if isinstance(value, list):
+        end = max((o + n for o, n in slots), default=0)
+        if end and len(value) >= end and all(isinstance(v, (int, float)) and not isinstance(v, bool) for v in value):
+            masked = list(value)
+            for o, n in slots:
+                masked[o : o + n] = [0] * n
+            return masked
+        return [without_slots(v, slots) for v in value if not _is_slot_entry(v, slots)]
+    if isinstance(value, dict):
+        return {k: without_slots(v, slots) for k, v in value.items()}
+    return value
+
+
 def strip_engine_identity(value: Any, extra_keys: frozenset[str] | None = None) -> Any:
-    """Recursively drop engine-local keys, keeping everything else.
+    """Recursively drop engine-local keys and unscheduled slots, keeping everything else.
 
     A filter rather than a whitelist: whitelisting is how the previous
     signature ended up comparing `machineId` and nothing else useful — the
     kept-key list happened to include an identity and exclude the region
     offsets that carry the actual behaviour.
     """
+    return _strip_keys(without_slots(value), extra_keys)
+
+
+def _strip_keys(value: Any, extra_keys: frozenset[str] | None = None) -> Any:
     drop = (
         ENGINE_LOCAL_KEYS | INTERNAL_AUGMENTATION_KEYS | (extra_keys or frozenset())
     ) - UNIT_BEARING_KEYS
 
     if isinstance(value, dict):
-        return {k: strip_engine_identity(v, extra_keys) for k, v in value.items() if k not in drop}
+        return {k: _strip_keys(v, extra_keys) for k, v in value.items() if k not in drop}
     if isinstance(value, list):
-        return [strip_engine_identity(v, extra_keys) for v in value]
+        return [_strip_keys(v, extra_keys) for v in value]
     return value
 
 
