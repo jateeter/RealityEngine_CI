@@ -5,7 +5,6 @@ This directory documents application orchestration, deployment, APIs, and integr
 - Update docs when `startUniverse.sh`, instance registry shape, OpenClaw/localAI wiring, or e2e commands change.
 - Keep generated OpenAPI docs distinct from hand-written architecture notes.
 - Link back to `/Users/johnt/workspace/GitHub/CLAUDE.md` for the current application map.
-- Use markdown LSP support for structural edits.
 
 ## Standing rules — authoritative in `../docs/ENGINEERING_CONTRACT.md`
 

@@ -5,10 +5,9 @@ This directory holds generated and shared runtime configuration for the integrat
 - Keep `integrations.json` compatible with every PE implementation that consumes `INTEGRATIONS_CONFIG`.
 - Keep instance registry and config defaults aligned with `/Users/johnt/workspace/GitHub/CLAUDE.md`.
 - Treat generated runtime manifests as operational state unless the user explicitly asks to commit them.
-- Use JSON schema-aware editing where available.
 - `ces-contracts/` holds the CES output-stream contract shards, derived from 3-of-3 runtime agreement (`docs/QUORUM_CONTRACT.md`) and named `domain-<name>.json` or `corpus-<name>.json`. They are authoritative git files, not runtime state: review them as diffs. The drift gate in `scripts/run-all-tests.sh` runs `scripts/record-ces-contracts.py --check` against them.
 - Record them with `scripts/record-ces-contracts.py --only <domain> --write` (or `--corpus <name> --write`), never by hand. Which shards exist and whether they are current is tracked in the cesgen registry, `RealityEngine_Machines/domains/ces-contract-registry.json`.
-- There is no single-file `ces-contracts.json` any more. It, `scripts/regression-ces-contracts.py` and `scripts/record-ces-contract-shards.sh` were retired on 2026-09-14 (#376) because they measured a synthetic stimulus. Both scripts refuse to run unless `CES_ALLOW_RETIRED_RECORDER=1`, which exists only to reproduce the old behaviour.
+- `ces-contracts/` shards are the only CES contract record. `scripts/regression-ces-contracts.py` and `scripts/record-ces-contract-shards.sh` measured a synthetic stimulus and are retired: they refuse to run unless `CES_ALLOW_RETIRED_RECORDER=1`, which exists only to reproduce their output.
 
 ## Standing rules — authoritative in `../docs/ENGINEERING_CONTRACT.md`
 

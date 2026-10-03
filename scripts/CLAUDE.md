@@ -5,7 +5,6 @@ This directory contains operational helpers for startup, testing, OpenAPI, and v
 - Keep script defaults aligned with `startUniverse.sh` and the root application map.
 - Prefer explicit `RE_REGISTRY_URL`, `RE_BASE_URL`, `PE_BASE_URL`, `VIZ_BASE_URL`, and `VIZ_FRONTEND_URL`.
 - Preserve compatibility with native multi-engine runs.
-- Use `bash-language-server` for shell changes.
 
 ## Quorum is 3-of-3
 
@@ -26,110 +25,35 @@ If you are adding a stage and reach for "compare everything against
 `instance_order[0]`", that is the defect in #138 and the reason this rule is
 written down.
 
-## The CES contract, and why it has no oracle
+## The CES contract
 
 `record-ces-contracts.py` derives the shards in `config/ces-contracts/` from
-**3-of-3 agreement** across the cpp, lsp and scala runtimes. It replaced
-`regression-ces-contracts.py` on 2026-09-14 (#376), which in turn replaced
-`cesgen-contracts.mjs`, which replayed the corpus through one nominated engine.
+**3-of-3 agreement** across the cpp, lsp and scala runtimes. It arms the
+corpus's own interned sources, so one push advances every machine together
+(`ISRESeed(n)`), and projects that drive onto each domain's machines. It never
+registers its own source: a probe that does measures a synthetic stimulus, not
+the corpus (SURFACE_SPEC.md).
 
-**What changed on 2026-09-14, and why the rest of this section is history.**
-The previous recorder drove one chain at a time through a source it registered
-itself. SURFACE_SPEC.md rules that out: a probe that registers its own source
-measures a synthetic stimulus, not the corpus. Every shard it produced was
-discarded. The current recorder arms the corpus's own interned sources, so one
-push advances every machine together (`ISRESeed(n)`), and projects that single
-drive onto each domain's machines. Its verdicts are `agreed`, `agreed-silent`
-and `disagreement`. `--check` is the drift gate `run-all-tests.sh` runs, and
-it reports a shard recorded under a different stimulus (resident machines,
-seed depth, steps) as incomparable, not as drift. Record a shard with
-`record-ces-contracts.py --only <domain> --write`.
+Verdicts: `agreed` (this is the contract), `agreed-silent`, and `disagreement`,
+which carries every party's stream with none as the reference. `--check` is the
+drift gate `run-all-tests.sh` runs; a shard recorded under a different stimulus
+(resident machines, seed depth, steps) is `incomparable`, not drift. Record a
+shard with `record-ces-contracts.py --only <domain> --write`.
 
-`regression-ces-contracts.py` and `record-ces-contract-shards.sh` are kept on
-purpose, as the fullest statement of the per-chain approach, and refuse to run
-without `CES_ALLOW_RETIRED_RECORDER=1`. The text from here to "Parity stages"
-describes them. Keep it as the rationale for the shard and verdict design, but
-do not take it as a description of what records the contract today.
+No runtime is the oracle: replaying the corpus through one engine makes that
+engine unfalsifiable, so the contract is agreement, not a reference replay.
+Three runtimes can still be wrong the same way; deriving expected streams from
+the corpus and the declared fold rule is option (3) on #327.
 
-The oracle argument behind both still holds. A contract recorded by replaying through one
-engine makes that engine **unfalsifiable**: regenerating makes it pass by
-construction, the gate can never find a defect *in* it, and to regenerate you
-must already trust the thing the gate exists to check. Its nominated engine was
-the deprecated TypeScript prototype, which is out of the focus set; the oracle
-is not being rebuilt, it is being removed (#327, direction (2)).
+Each shard carries `corpusFingerprint` (defined in
+`RealityEngine_Machines/scripts/ces_corpus_fingerprint.py`).
+`RealityEngine_Machines/tests/contracts/ces_contract_registry_test.py` fails on
+any shard the corpus has moved out from under, against the cesgen registry
+`domains/ces-contract-registry.json`.
 
-Four verdicts, and only the first becomes a contract:
-
-| verdict | means |
-|---|---|
-| `agreed` | all three produced the same stream — **this is the contract** |
-| `disagreement` | they differ; every cluster's stream is carried, none is the reference |
-| `no-runtime-emits` | all three ran and emitted nothing — nobody implements this shape |
-| `unmeasurable` | a runtime could not be driven; no evidence either way |
-
-`unmeasurable` exists so a 500 never reads as silence, and `no-runtime-emits`
-so silence never reads as a contract with an empty stream. All four are
-enumerated in the artifact, never reduced to counts.
-
-Recording is **refused** without a formed quorum or after a failed reset. The
-comparison stages can report honestly against a partial lane; this one writes a
-file that is consumed later *as* the contract, and a caveat inside a file is
-read by whoever opens the file.
-
-This is not an oracle in the strong sense — three runtimes can still be wrong
-the same way. Deriving the expected stream from the corpus plus the declared
-fold rule would be that, and it is option (3) on #327, not this.
-
-### Shards, and why the contract is not one file
-
-One recording for the whole corpus does not survive a corpus that grows. A
-machine added to one domain would mean re-recording all 4941 chains against a
-live quorum, and reviewing a diff nobody can read. Divergence is a property of
-machine *shape* and the corpus arrives a domain at a time, so the shard boundary
-that matches how the corpus mutates is the domain.
-
-`--machine-corpus` therefore takes three selector shapes: `full`, a bare name
-for a `config/<name>-corpus.txt` selection, and `domain:<name>` for one corpus
-domain. `--list-scopes` prints them all and needs no running universe — the
-command that says what is recordable must not itself require a quorum.
-
-`record-ces-contract-shards.sh` drives every scope, cheapest first, skipping
-those already current, so an interrupted sweep resumes rather than restarts.
-
-**A shard says which corpus it describes.** Every artifact carries
-`corpusFingerprint` — per-machine sha256, using the definition in
-`RealityEngine_Machines/scripts/ces_corpus_fingerprint.py`, imported rather than
-restated so the recorder and the cesgen registry cannot disagree about what a corpus
-change is. `RealityEngine_Machines/domains/ces-contract-registry.json` compares
-that with the corpus as it stands, and
-`tests/contracts/ces_contract_registry_test.py` fails on any shard the corpus
-has moved out from under, naming the machines. That gate lives in the corpus
-repo because that is where the change is made and where its author can act.
-
-**Failures are marked, not fatal.** A sweep of a dozen domains is long enough
-that something will go wrong partway, so a failed scope is journalled and the
-sweep continues. The journal is a file — `.ces-contracts/journal.json`, written
-after every scope — because marking that dies with the process does not help a
-restart. Restarting is the same command again: recorded-and-current scopes are
-skipped by the cesgen registry, failed ones retried, `--skip-failed` steps past them,
-`--retry-failed-only` comes back for just those. A failed scope leaves no shard,
-since the recorder writes once at the end, so it reads as unrecorded rather than
-as a partial contract that looks whole.
-
-Two things deliberately do *not* count as scope failures. Quorum is re-checked
-before every scope, and losing a runtime at hour three halts the sweep instead
-of marking every remaining domain failed — that is one universe-level fault, not
-nine scope-level ones. And `--max-consecutive` (default 3) halts on a run of
-failures, because consecutive failures are evidence of one systemic problem and
-grinding through the rest produces a dozen identical logs and no new
-information.
-
-**Residency is checked before recording, not after.** The recorder drives chains
-through the live PE; a machine the engines never loaded emits nothing, and that
-is correctly classified `no-runtime-emits`. Correct, and a useless shard —
-indistinguishable from a domain that genuinely does nothing. So the driver
-refuses a scope whose machines are not resident rather than recording silence.
-Domain scopes need `--machine-corpus=full` at boot.
+`regression-ces-contracts.py` and `record-ces-contract-shards.sh` are retired
+and refuse to run without `CES_ALLOW_RETIRED_RECORDER=1`. Their per-chain design
+notes are in `docs/CES_CONTRACT_RETIRED_RECORDER.md`.
 
 ## Parity stages
 
@@ -184,10 +108,8 @@ Domain scopes need `--machine-corpus=full` at boot.
   `stepCycle` is ~96% in steady state. `activateSources` is large only on the
   first iteration — 1342 sequential PATCHes, and only lsp needs them, since its
   reset is the one that deactivates (#163). Inside a step the engine is ~95 ms
-  of the ~1.1 s, so the remainder is PE-side assembly over the active sources
-  and wants its own measurement. #256 first put 87% of the engine's share
-  on OSRE construction; its later measurement puts the fold itself at 0.028 ms,
-  so do not repeat the 87% figure.
+  of the ~1.1 s; the remainder is PE-side assembly over the active sources and
+  wants its own measurement. The fold itself measures 0.028 ms (#256).
 
 - `regression-reset-contract.py`: the acceptance stage for
   `RealityEngine_CI#163` and `#166`. Registers the corpus-test integration
@@ -199,13 +121,9 @@ Domain scopes need `--machine-corpus=full` at boot.
   which in turn carries `regression-trajectory-parity.py` — one definition of
   parity, one definition of how a machine is loaded.
 
-  **The contract landed, and this is now a wired gate.** It asserts the settled
-  contract from #163 (registration declares; reset is membership-neutral and
-  *validates* activity rather than assigning it). That used to fail on every
-  runtime, which is why it was kept out of `regression-test.sh` — a harness
-  stage that always fails is a harness stage everyone learns to ignore. It
-  passes as of 2026-09-11 on cpp-1 + lsp-1 + scala-1 in 21s and runs beside the
-  other conformance gates.
+  Wired as the `reset-contract` stage of `regression-test.sh`. It asserts the
+  settled contract from #163: registration declares; reset is
+  membership-neutral and *validates* activity rather than assigning it.
 
   Activity *at registration* is asserted (#358): `compare_activity` across
   runtimes and `registration_activity_violations` against the rule, for `test`
@@ -296,17 +214,9 @@ caller's (SURFACE_SPEC.md, "Reset is layer-local", #211).
 
 `scripts/lib/reset_contract.py` is the one implementation. Call
 `reset_pair(post, re_url, pe_url, label)` or `reset_instances(post, instances)`
-rather than restating the pair — it was restated in three stages and omitted in
-two, which is how the asymmetry survived:
-
-| stage | before | now |
-|---|---|---|
-| `regression-corpus-parity-loop.py` | both halves | delegates |
-| `regression-universal-vectors.py` | RE only | both halves |
-| `regression-trajectory-parity.py` | **no reset at all** | both halves |
-| `regression-pe-step-contract.py` | RE only | both halves |
-| `regression-arbiter.py` | RE only | both halves |
-| `regression-reset-contract.py` | PE only, by design | unchanged — that *is* the contract it tests |
+rather than restating the pair. Every comparison stage resets both halves
+through it; `regression-reset-contract.py` resets the PE only, because that is
+the contract it tests.
 
 Reset **before** arming, never after: reset validates activity rather than
 assigning it (#163), so arming first and resetting second discards the arming.
@@ -366,32 +276,11 @@ Notes that bite when changing these:
   has and another does not is stimulus, and the trajectory comparison will
   faithfully report the difference as engine divergence.
 
-## Engine defects these stages were blocked by (resolved)
-
-Measured 2026-08-19 on cpp-1/lsp-1/scala-1: `POST /api/reset` meant three
-different things (cpp kept its sources, lsp discarded them, scala reactivated
-every one), cpp stayed on idx 0 of an interned sequence, and lsp contributed
-nothing after a reset.
-
-The reset half is settled. #163 fixed the contract and closed on 2026-08-27; a
-comment on it records all three runtimes holding 1340 of 1340 test sources, all
-active, after a reset, and says the three-way description above matches none of
-them. `regression-reset-contract.py` has asserted that contract as a wired gate
-since 2026-09-11 (see above). The loop's remaining post-reset count split was a
-matter of *when* each runtime re-materialises its sources, not what it holds,
-and closed as #253.
-
-The cpp idx-0 observation was not re-measured when this section was rewritten.
-The loop's passing iterations above are consistent with it being fixed, but
-re-measure before relying on either reading.
-
-Still true, and worth knowing:
+## Known limits
 
 - `GET /api/engine/stats` is not a parity-proven interface. Gates that relied on
   it are skipped (#311). Read the perceptual space width from `GET /api/config`,
-  key **`eventDimension`**. This file once said `vectorDimension`, which no
-  runtime emits, and three call sites read it and got nothing
-  (RealityEngine_CI#422).
+  key **`eventDimension`** — no runtime emits `vectorDimension`.
 - `regression-trajectory-parity.py` seeds one source without checking the
   others match, so it is exposed to unequal stimulus. Equalise sources first.
 
