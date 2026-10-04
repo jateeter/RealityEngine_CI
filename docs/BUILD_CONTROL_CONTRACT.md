@@ -44,7 +44,7 @@ It is the answer to "how is this repository built", per repository:
 | RealityEngine_Scala — PE | `sbt clean assembly` in `perception-engine/` |
 | RealityEngine_Machines | `bash scripts/validate-corpus.sh`, `npm ci`, `npm run typecheck` |
 | RealityEngine_Manager | per package dir: `npm ci`, `npm run build`, `npm run typecheck` |
-| RealityEngine_CI | `npm ci`, `mcp` install + test + `routes:check`, `npm run typecheck` |
+| RealityEngine_CI | `npm ci`, `mcp` route fixture regenerated from the C++ source, then `mcp` install + test, `npm run typecheck` |
 
 Run the whole thing with:
 

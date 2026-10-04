@@ -978,13 +978,17 @@ build_repos() {
     record_repo_provenance "$repo"
   done
   run_repo_cmd "RealityEngine_CI" "build" "build-ci-npm-install" bash -lc "cd '$(repo_root RealityEngine_CI)' && npm ci"
+  # The engine route table the MCP e2e asserts against is a view of the C++
+  # runtime. It is regenerated here, where both repos are checked out at the
+  # run's pinned SHAs, before the e2e reads it: a stale fixture is a stale
+  # view and is repaired, not failed (ENGINEERING_CONTRACT). The generator logs
+  # each route it changed. What fails is the disagreement that survives
+  # regeneration — an MCP tool aimed at a path the freshly extracted table does
+  # not serve — and the e2e below is what catches it. Failing on staleness
+  # alone made the 2026-10-03 nightly red with nothing broken (#517).
+  run_repo_cmd "RealityEngine_CI" "build" "build-ci-mcp-routes-regen" bash -lc \
+    "cd '$(repo_root RealityEngine_CI)/mcp' && REALITY_ENGINE_CPP_DIR='$(repo_root RealityEngine_CPP)' node scripts/gen-engine-routes.mjs --require-source"
   run_repo_cmd "RealityEngine_CI" "build" "build-ci-mcp-test" bash -lc "cd '$(repo_root RealityEngine_CI)/mcp' && npm install && npm test"
-  # The engine route table the MCP e2e asserts against is generated from the
-  # C++ runtime. If the engine adds or moves a route and the fixture is not
-  # regenerated, the e2e is checking a stale contract — catch that here, where
-  # both repos are checked out at the run's pinned SHAs.
-  run_repo_cmd "RealityEngine_CI" "build" "build-ci-mcp-routes-check" bash -lc \
-    "cd '$(repo_root RealityEngine_CI)/mcp' && REALITY_ENGINE_CPP_DIR='$(repo_root RealityEngine_CPP)' npm run routes:check"
   run_repo_cmd "RealityEngine_CPP" "build" "build-cpp" bash -lc "cd '$(repo_root RealityEngine_CPP)' && make all"
   # RealityEngine_LSP/quicklisp/ is untracked, so a cold-start worktree never
   # has it and `make build` dies with "Missing Quicklisp". The hosted lane only

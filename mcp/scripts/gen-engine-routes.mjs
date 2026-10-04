@@ -11,8 +11,16 @@
 //   node scripts/gen-engine-routes.mjs           # write the fixture
 //   node scripts/gen-engine-routes.mjs --check   # fail if stale
 //
+// Writing reports every route it added or removed, so a regeneration is
+// recorded as an event. The regression gate regenerates before the MCP e2e
+// rather than failing on a stale fixture (ENGINEERING_CONTRACT: a stale view
+// is regenerated, not failed); the e2e then fails only on a tool that no
+// freshly extracted route serves. `--check` stays for a local pre-commit look.
+//
 // Skips (exit 0) when the C++ source is not checked out beside this repo, so
-// it does not turn a partial workspace into a build failure.
+// it does not turn a partial workspace into a build failure. `--require-source`
+// makes that a failure instead: the gate depends on the regeneration
+// happening, and a silent skip would leave the e2e on the committed fixture.
 
 import { readFileSync, writeFileSync, existsSync } from 'node:fs';
 import { dirname, resolve } from 'node:path';
@@ -41,11 +49,13 @@ function extract(file) {
 
 const missing = Object.values(SOURCES).filter((f) => !existsSync(f));
 if (missing.length) {
+  const required = process.argv.includes('--require-source');
   process.stderr.write(
-    `[gen-engine-routes] C++ engine source not found (${missing[0]}); skipping.\n` +
+    `[gen-engine-routes] C++ engine source not found (${missing[0]}); ` +
+      `${required ? 'failing (--require-source)' : 'skipping'}.\n` +
       `[gen-engine-routes] Set REALITY_ENGINE_CPP_DIR to regenerate.\n`
   );
-  process.exit(0);
+  process.exit(required ? 1 : 0);
 }
 
 const generated = {
@@ -70,7 +80,33 @@ if (process.argv.includes('--check')) {
   process.exit(0);
 }
 
+function previousRoutes() {
+  if (!existsSync(fixturePath)) return { re: [], pe: [] };
+  try {
+    const prev = JSON.parse(readFileSync(fixturePath, 'utf8'));
+    return { re: prev.re ?? [], pe: prev.pe ?? [] };
+  } catch {
+    return { re: [], pe: [] };
+  }
+}
+
+const previous = previousRoutes();
+const changes = [];
+for (const surface of ['re', 'pe']) {
+  const before = new Set(previous[surface]);
+  const after = new Set(generated[surface]);
+  for (const r of generated[surface]) if (!before.has(r)) changes.push(`  + ${surface} ${r}`);
+  for (const r of previous[surface]) if (!after.has(r)) changes.push(`  - ${surface} ${r}`);
+}
+
 writeFileSync(fixturePath, serialized);
 process.stdout.write(
   `engine-routes.json written (${generated.re.length} RE routes, ${generated.pe.length} PE routes).\n`
 );
+if (changes.length) {
+  process.stdout.write(
+    `engine-routes.json regenerated: ${changes.length} route(s) changed against the committed fixture.\n` +
+      `${changes.join('\n')}\n` +
+      'Commit the regenerated fixture (npm run routes:gen) so the hosted MCP e2e sees it too.\n'
+  );
+}
