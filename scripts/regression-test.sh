@@ -1019,7 +1019,15 @@ build_repos() {
     "cd '$(repo_root RealityEngine_Scala)' && sbt clean assembly"
   run_repo_cmd "RealityEngine_Scala" "build" "build-scala-pe" bash -lc \
     "cd '$(repo_root RealityEngine_Scala)/perception-engine' && sbt clean assembly"
-  run_repo_cmd "RealityEngine_Machines" "build" "validate-machines" bash -lc "cd '$(repo_root RealityEngine_Machines)' && bash scripts/validate-corpus.sh"
+  # validate-corpus.sh skips JSON-Schema enforcement (all corpus artifacts vs
+  # schemas/) when ajv is not installed, and still exits 0. A cold-start
+  # worktree has no node_modules, so every lane reported this stage passed
+  # with the schema check never run. Install first, and treat the skip as a
+  # failure: absence must not read as success.
+  run_repo_cmd "RealityEngine_Machines" "build" "validate-machines" bash -lc \
+    "set -euo pipefail; cd '$(repo_root RealityEngine_Machines)' && npm ci --no-audit --no-fund \
+      && out=\$(mktemp) && bash scripts/validate-corpus.sh 2>&1 | tee \"\$out\" \
+      && if grep -q 'validate-schemas: SKIPPED' \"\$out\"; then echo 'validate-machines: schema validation was skipped; failing'; exit 1; fi"
   # TypeScript is typechecked explicitly rather than relied on as a side effect
   # of bundling. Playwright transpiles specs without typechecking them, so
   # these suites had never been checked at all — adding this surfaced a derived
