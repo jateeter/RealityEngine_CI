@@ -91,6 +91,8 @@ SUMMARIES: dict[str, str] = {
     "GET:/api/engine/osre-history":                            "OSRE-History — output reality event vector per step",
     "GET:/api/engine/isre-history":                            "ISRE-History — input space reality event vector per step",
     "GET:/api/engine/steps/{n}/pair":                          "The (ISRE, OSRE) pair for step n, waiting up to timeoutMs at its completion point",
+    "GET:/api/engine/clock":                                   "The instance clock {instance, lamport, step} for the newest committed step",
+    "GET:/api/arbitration":                                    "Arbitration records: the legacy latest-step object, or retained steps keyed by step (?step=N)",
     "POST:/api/engine/process":                                "Process input vector across all machines",
     "POST:/api/engine/reset":                                  "Reset machine, engine, and perception state",
     # RE — Machines
@@ -660,6 +662,11 @@ def parse_surface_spec(spec_path: str) -> dict[str, list[tuple[str, str, str]]]:
                 path_raw   = m.group(2)
                 if raw_method in ("METHOD", "PROTOCOL"):   # header row
                     continue
+                # A route is a path. Status tables share the row shape —
+                # `| 410 | `{"error": …}` | …` — and were emitted as operations
+                # named after their bodies (410_error_step_n_is_no_longer_retained).
+                if not path_raw.startswith("/"):
+                    continue
                 method = protocol_to_method.get(raw_method, raw_method)
                 openapi_path = re.sub(r':(\w+)', r'{\1}', path_raw)
                 routes.append((tag, method, openapi_path))
@@ -720,6 +727,15 @@ def build_paths(routes: list[tuple[str, str, str]],
                 {"name": "values",     "in": "query", "required": True,
                  "description": "Comma-separated numeric values.",
                  "schema": {"type": "string"}},
+            ]
+
+        # GET /api/arbitration?step=N — one retained step (RealityEngine_CI#296).
+        if method == "GET" and path == "/api/arbitration":
+            op["parameters"] = [
+                {"name": "step", "in": "query", "required": False,
+                 "schema": {"type": "integer", "minimum": 0},
+                 "description": "Read one retained step. 404 not resolved, 410 no "
+                                "longer retained, 409 while arbitrationRetention is off."},
             ]
 
         # Request body

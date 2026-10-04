@@ -60,13 +60,13 @@ from __future__ import annotations
 import argparse
 import json
 import sys
-import time
 from pathlib import Path
 from typing import Any
 from urllib import error, request
 
 sys.path.insert(0, str(Path(__file__).resolve().parent / "lib"))
 from reset_contract import reset_pair  # noqa: E402
+from step_observer import DEFAULT_WINDOW_MS, StepObserver, StepNotResolved, StepNotRetained  # noqa: E402
 
 # The fixtures do not fire on their own. Each is a single-step initial sequence
 # whose CES matches [1, 0] over its own input region, so the stage drives those
@@ -83,11 +83,11 @@ TRIGGER_CELLS = {
     16936: 1.0,  # ArbitrationProviderPeer -> writes [1,1] into 16940-16941
 }
 
-# Attempts at the 9a drive before calling it a failure. The drive is
-# deterministic; what is not is whether an unrelated push lands between it and
-# the read, so a handful of attempts converts a coin flip into a near-certainty
-# without masking a fixture that genuinely never asserts.
-FIXTURE_ATTEMPTS = 5
+# Steps of arbitration records each runtime retains while this stage runs
+# (RealityEngine_CI#296). The stage reads its own steps by number, so the window
+# only has to outlast the steps another app instance might push between a drive
+# and its read; the declared defaults are restored on the way out.
+RETENTION_WINDOW = 16
 
 CELLS_9A = [16930, 16931]
 CELLS_9B = [16940, 16941]
@@ -243,12 +243,168 @@ def observed_counts(instances: list[dict]) -> dict[str, int]:
     }
 
 
+def run_fixtures(instances, retain, driven_records, step_of, fail, report,
+                 resolved_by_runtime, replay, replay_providers, args) -> bool:
+    """9a and 9b on every instance, each read from the step it drove. True when
+    9b was exercised on at least one runtime."""
+    ran_9b = False
+    for instance in instances:
+        name = f"{instance['runtime']}:{instance['id']}"
+        entry: dict[str, Any] = {"instance": name, "re": instance["re"]}
+        print(f"\n== {name}")
+
+        status, payload = http("GET", f"{instance['re']}/api/arbitration")
+        if status != 200:
+            fail(f"{name}: GET /api/arbitration -> {status} {str(payload)[:80]}")
+            entry["reachable"] = False
+            report["instances"].append(entry)
+            continue
+        entry["reachable"] = True
+        entry["registryEntries"] = payload.get("registryEntries")
+        entry["shards"] = payload.get("shards")
+        print(f"  registry entries {payload.get('registryEntries')}  shards {payload.get('shards')}")
+        # Read above in the legacy shape; from here every read is by step.
+        retain(instance)
+
+        # -- 9a: SEVERITY resolves to 0, not 1 ---------------------------------
+        # No precondition on vectorDimension.
+        #
+        # An earlier version failed the run when /api/config reported less than
+        # 16944, on the theory that the fixtures at cells 16924-16943 could not
+        # exist in a smaller vector. That is wrong: the engines grow the
+        # perceptual space on demand, which region-allocation.json states
+        # outright — "Engines grow the perceptual space on demand; this records
+        # the corpus footprint." The reported dimension is the configured value
+        # and does not move when the space expands.
+        #
+        # Verified: an engine booted at the 7680 default, driven at cells 16924+,
+        # emits `cell 16930 rule SEVERITY resolved 0` and still reports
+        # vectorDimension 7680. The guard blocked a working system.
+        #
+        # The real check is the one below — a contended cell that emits no record
+        # fails. That catches a vector too small *and* every other reason a
+        # fixture might not fire, without asserting a mechanism the runtimes do
+        # not use.
+        vector = [0.0] * TRIGGER_VECTOR_LENGTH
+        for cell, value in TRIGGER_CELLS.items():
+            vector[cell] = value
+
+        # One drive, read back from its own step (#296).
+        records: dict[int, Any] = {}
+        _, driven = http("POST", f"{instance['re']}/api/perceive", {"vector": vector})
+        entry["fixture9aStep"] = step_of(driven)
+        try:
+            records = driven_records(instance, entry["fixture9aStep"], CELLS_9A)
+        except (RuntimeError, StepNotResolved, StepNotRetained) as exc:
+            fail(f"{name}: 9a step {entry['fixture9aStep']}: {exc}")
+        entry["fixture9a"] = {}
+        for cell in CELLS_9A:
+            record = records.get(cell)
+            if not record:
+                fail(f"{name}: 9a cell {cell} emitted no arbitration record")
+                continue
+            entry["fixture9a"][str(cell)] = record.get("resolved")
+            if record.get("rule") != "SEVERITY":
+                fail(f"{name}: 9a cell {cell} rule {record.get('rule')!r}, expected SEVERITY")
+            if record.get("resolved") != EXPECTED_9A:
+                fail(f"{name}: 9a cell {cell} resolved {record.get('resolved')!r}, "
+                     f"expected {EXPECTED_9A} — RED asserts 0 and outranks AMBER; "
+                     "a value of 1 is the OR/MAX behaviour the contract replaces")
+            for problem in check_record_completeness(record):
+                fail(f"{name}: {problem}")
+        resolved_by_runtime[name] = {
+            cell: records[cell].get("resolved") for cell in CELLS_9A if cell in records
+        }
+
+        # -- 9b: PRECEDENCE, replayed generated contribution -------------------
+        source = replay["source"]
+        region = replay["region"]
+        entry["fixture9b"] = []
+        # One pass per ranked provider, per replayed value.
+        for provider in replay_providers:
+            origin = source["originTemplate"].format(provider=provider) \
+                if "originTemplate" in source else source["origin"]
+            for case in replay["replays"]:
+                # Fully specified, because the runtimes disagree on what may be
+                # defaulted. C++ and LSP accept a minimal sensor source and fill
+                # the rest in; the Scala PE's decoder requires name, active,
+                # sensorId, ttlMs and lastValue and rejects the payload outright:
+                #   DecodingFailure at .name: Missing required field
+                # So 9b was skipped as "PE source replay unavailable (400)" on
+                # that runtime for as long as this fixture has existed, and the
+                # criterion it exists to prove was never exercised there (#123).
+                #
+                # The harness was the divergent party, as it was when it posted a
+                # source type of "regression" that no runtime defines. Sending
+                # every field is also the honest payload for a sensor source:
+                # sensorId and ttlMs are meaningful, not ceremony.
+                #
+                # That the three PEs disagree on which fields may be omitted is a
+                # separate parity question — the same class as the push response
+                # shape, on the source-creation side.
+                replay_id = f"{source['id']}-{provider}"
+                payload_source = {
+                    "id": replay_id,
+                    "name": f"{provider} arbitration replay",
+                    "type": source["type"],
+                    "active": True,
+                    "sensorId": replay_id,
+                    "ttlMs": 300_000,
+                    "lastValue": list(case["values"]),
+                    "origin": origin,
+                    "region": region,
+                    "values": case["values"],
+                }
+                code, _ = http("POST", f"{instance['pe']}/api/sources", payload_source)
+                if code not in (200, 201, 409):
+                    print(f"  note: PE source replay unavailable ({code}); "
+                          f"9b skipped for {provider}/{case['label']}")
+                    entry["fixture9b"].append(
+                        {"provider": provider, "label": case["label"],
+                         "status": "unavailable"})
+                    continue
+                ran_9b = True
+                _, pushed = http("POST", f"{instance['pe']}/api/push",
+                                 {"sourceId": f"{source['id']}-{provider}"})
+                case_report = {"provider": provider, "label": case["label"], "cells": {},
+                               "step": step_of(pushed)}
+                try:
+                    got = driven_records(instance, case_report["step"], CELLS_9B)
+                except (RuntimeError, StepNotResolved, StepNotRetained) as exc:
+                    fail(f"{name}: 9b {provider}/{case['label']} step {case_report['step']}: {exc}")
+                    got = {}
+                for index, cell in enumerate(CELLS_9B):
+                    record = got.get(cell)
+                    if not record:
+                        continue
+                    case_report["cells"][str(cell)] = record.get("resolved")
+                    expected = case["expectResolved"][index]
+                    if record.get("resolved") != expected:
+                        fail(f"{name}: 9b cell {cell} ({provider}/{case['label']}) "
+                             f"resolved {record.get('resolved')!r}, expected {expected} "
+                             "— a generated contribution must never override a "
+                             "deterministic one (5a)")
+                    suppressed = {c.get("provider") for c in record.get("suppressed") or []}
+                    if suppressed and provider not in suppressed:
+                        fail(f"{name}: 9b cell {cell} suppressed {sorted(suppressed)}, "
+                             f"expected the {provider} contribution to be the suppressed "
+                             "one and to stay attributable (§6)")
+                    for problem in check_record_completeness(record):
+                        fail(f"{name}: {problem}")
+                entry["fixture9b"].append(case_report)
+
+        report["instances"].append(entry)
+
+    return ran_9b
+
+
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--registry", type=Path, required=True)
     parser.add_argument("--contributions", type=Path, required=True)
     parser.add_argument("--out", type=Path, required=True)
-    parser.add_argument("--settle-ms", type=int, default=1500)
+    parser.add_argument("--step-window-ms", type=int, default=DEFAULT_WINDOW_MS,
+                        help="how long to wait for a driven step's completion point")
     parser.add_argument("--machines", type=Path, required=True,
                         help="RealityEngine_Machines root, for the provider registry")
     parser.add_argument("--lane", choices=("hosted", "local"), default="hosted",
@@ -343,173 +499,56 @@ def main() -> int:
             fail(f"{instance['runtime']}:{item} — "
                  "the fixture below was measured against unknown prior state")
     report["reset"] = reset_outcomes
-    time.sleep(args.settle_ms / 1000.0)
 
-    for instance in instances:
-        name = f"{instance['runtime']}:{instance['id']}"
-        entry: dict[str, Any] = {"instance": name, "re": instance["re"]}
-        print(f"\n== {name}")
+    # Each fixture is read from the step it drove (#296), never from "the
+    # latest step". GET /api/arbitration used to serve only the latest step, so
+    # any push between a drive and its read -- the PE's own interval, another
+    # app instance -- replaced the records, and "9a cell 16930 emitted no
+    # arbitration record" was filed against two runtimes and closed as not
+    # reproducible (RealityEngine_CPP#32, RealityEngine_CI#139). This stage then
+    # slept and retried. Now it turns retention on, waits for the driven step's
+    # completion point, and reads that step by number: one drive, no sleep, no
+    # retry, and an interloping step cannot touch the answer.
+    def get(url: str) -> tuple[int, Any]:
+        return http("GET", url)
 
-        status, payload = http("GET", f"{instance['re']}/api/arbitration")
+    def driven_records(instance: dict, step_number: Any, cells: list[int]) -> dict[int, dict]:
+        if not isinstance(step_number, int):
+            raise RuntimeError("the drive's response names no step number")
+        StepObserver(get, instance["re"], args.step_window_ms).await_pair(step_number)
+        status, body = http("GET", f"{instance['re']}/api/arbitration?step={step_number}")
         if status != 200:
-            fail(f"{name}: GET /api/arbitration -> {status} {str(payload)[:80]}")
-            entry["reachable"] = False
-            report["instances"].append(entry)
-            continue
-        entry["reachable"] = True
-        entry["registryEntries"] = payload.get("registryEntries")
-        entry["shards"] = payload.get("shards")
-        print(f"  registry entries {payload.get('registryEntries')}  shards {payload.get('shards')}")
+            raise RuntimeError(f"GET /api/arbitration?step={step_number} -> {status} {str(body)[:120]}")
+        return cell_records(body, cells)
 
-        # -- 9a: SEVERITY resolves to 0, not 1 ---------------------------------
-        # No precondition on vectorDimension.
-        #
-        # An earlier version failed the run when /api/config reported less than
-        # 16944, on the theory that the fixtures at cells 16924-16943 could not
-        # exist in a smaller vector. That is wrong: the engines grow the
-        # perceptual space on demand, which region-allocation.json states
-        # outright — "Engines grow the perceptual space on demand; this records
-        # the corpus footprint." The reported dimension is the configured value
-        # and does not move when the space expands.
-        #
-        # Verified: an engine booted at the 7680 default, driven at cells 16924+,
-        # emits `cell 16930 rule SEVERITY resolved 0` and still reports
-        # vectorDimension 7680. The guard blocked a working system.
-        #
-        # The real check is the one below — a contended cell that emits no record
-        # fails. That catches a vector too small *and* every other reason a
-        # fixture might not fire, without asserting a mechanism the runtimes do
-        # not use.
-        vector = [0.0] * TRIGGER_VECTOR_LENGTH
-        for cell, value in TRIGGER_CELLS.items():
-            vector[cell] = value
+    def step_of(response: Any) -> Any:
+        if isinstance(response, dict):
+            if isinstance(response.get("stepNumber"), int):
+                return response["stepNumber"]
+            if isinstance(response.get("step"), dict):
+                return response["step"].get("stepNumber")
+        return None
 
-        # Drive and read until the fixture is observed, rather than once.
-        #
-        # `GET /api/arbitration` serves the LAST step's records on every runtime
-        # — C++ reads `hist.back().arbitration`, LSP holds
-        # `reality-state-arbitration` for the most recent step. So any step
-        # between the drive and the read replaces them, and the PE is pushing on
-        # its own interval throughout: a push landing in that window leaves a
-        # step in which the writers did not assert, and the read finds nothing.
-        #
-        # That is a race, not a runtime defect. The symptom — "9a cell 16930
-        # emitted no arbitration record" — has now been filed against two
-        # different runtimes and closed as not reproducible once already
-        # (jateeter/RealityEngine_CPP#32, jateeter/RealityEngine_CI#139),
-        # because in isolation the drive works on all three. Verified directly:
-        # driving this exact sequence against a quiet LSP yields both records.
-        #
-        # Retrying removes the race without redesigning the endpoint. A fixture
-        # that never appears across every attempt is a real failure and still
-        # reported as one.
-        records: dict[int, Any] = {}
-        for attempt in range(FIXTURE_ATTEMPTS):
-            http("POST", f"{instance['re']}/api/perceive", {"vector": vector})
-            http("POST", f"{instance['re']}/api/perceptual-simulation/step", {})
-            time.sleep(args.settle_ms / 1000.0)
-            _, after = http("GET", f"{instance['re']}/api/arbitration")
-            records = cell_records(after, CELLS_9A)
-            if all(records.get(cell) for cell in CELLS_9A):
-                entry["fixture9aAttempts"] = attempt + 1
-                break
-        else:
-            entry["fixture9aAttempts"] = FIXTURE_ATTEMPTS
-        entry["fixture9a"] = {}
-        for cell in CELLS_9A:
-            record = records.get(cell)
-            if not record:
-                fail(f"{name}: 9a cell {cell} emitted no arbitration record")
-                continue
-            entry["fixture9a"][str(cell)] = record.get("resolved")
-            if record.get("rule") != "SEVERITY":
-                fail(f"{name}: 9a cell {cell} rule {record.get('rule')!r}, expected SEVERITY")
-            if record.get("resolved") != EXPECTED_9A:
-                fail(f"{name}: 9a cell {cell} resolved {record.get('resolved')!r}, "
-                     f"expected {EXPECTED_9A} — RED asserts 0 and outranks AMBER; "
-                     "a value of 1 is the OR/MAX behaviour the contract replaces")
-            for problem in check_record_completeness(record):
-                fail(f"{name}: {problem}")
-        resolved_by_runtime[name] = {
-            cell: records[cell].get("resolved") for cell in CELLS_9A if cell in records
-        }
+    def retain(instance: dict) -> None:
+        for control, value in (("arbitrationRetention", True), ("arbitrationWindow", RETENTION_WINDOW)):
+            code, body = http("PUT", f"{instance['re']}/api/engine/config/{control}", {"value": value})
+            if code != 200:
+                fail(f"{instance['runtime']}:{instance['id']}: PUT /api/engine/config/{control} -> "
+                     f"{code} {str(body)[:80]} — per-step arbitration retention (#296) is required "
+                     "to read a fixture's own step")
 
-        # -- 9b: PRECEDENCE, replayed generated contribution -------------------
-        source = replay["source"]
-        region = replay["region"]
-        entry["fixture9b"] = []
-        # One pass per ranked provider, per replayed value.
-        for provider in replay_providers:
-            origin = source["originTemplate"].format(provider=provider) \
-                if "originTemplate" in source else source["origin"]
-            for case in replay["replays"]:
-                # Fully specified, because the runtimes disagree on what may be
-                # defaulted. C++ and LSP accept a minimal sensor source and fill
-                # the rest in; the Scala PE's decoder requires name, active,
-                # sensorId, ttlMs and lastValue and rejects the payload outright:
-                #   DecodingFailure at .name: Missing required field
-                # So 9b was skipped as "PE source replay unavailable (400)" on
-                # that runtime for as long as this fixture has existed, and the
-                # criterion it exists to prove was never exercised there (#123).
-                #
-                # The harness was the divergent party, as it was when it posted a
-                # source type of "regression" that no runtime defines. Sending
-                # every field is also the honest payload for a sensor source:
-                # sensorId and ttlMs are meaningful, not ceremony.
-                #
-                # That the three PEs disagree on which fields may be omitted is a
-                # separate parity question — the same class as the push response
-                # shape, on the source-creation side.
-                replay_id = f"{source['id']}-{provider}"
-                payload_source = {
-                    "id": replay_id,
-                    "name": f"{provider} arbitration replay",
-                    "type": source["type"],
-                    "active": True,
-                    "sensorId": replay_id,
-                    "ttlMs": 300_000,
-                    "lastValue": list(case["values"]),
-                    "origin": origin,
-                    "region": region,
-                    "values": case["values"],
-                }
-                code, _ = http("POST", f"{instance['pe']}/api/sources", payload_source)
-                if code not in (200, 201, 409):
-                    print(f"  note: PE source replay unavailable ({code}); "
-                          f"9b skipped for {provider}/{case['label']}")
-                    entry["fixture9b"].append(
-                        {"provider": provider, "label": case["label"],
-                         "status": "unavailable"})
-                    continue
-                ran_9b = True
-                http("POST", f"{instance['pe']}/api/push",
-                     {"sourceId": f"{source['id']}-{provider}"})
-                http("POST", f"{instance['re']}/api/perceptual-simulation/step", {})
-                time.sleep(args.settle_ms / 1000.0)
-                _, current = http("GET", f"{instance['re']}/api/arbitration")
-                got = cell_records(current, CELLS_9B)
-                case_report = {"provider": provider, "label": case["label"], "cells": {}}
-                for index, cell in enumerate(CELLS_9B):
-                    record = got.get(cell)
-                    if not record:
-                        continue
-                    case_report["cells"][str(cell)] = record.get("resolved")
-                    expected = case["expectResolved"][index]
-                    if record.get("resolved") != expected:
-                        fail(f"{name}: 9b cell {cell} ({provider}/{case['label']}) "
-                             f"resolved {record.get('resolved')!r}, expected {expected} "
-                             "— a generated contribution must never override a "
-                             "deterministic one (5a)")
-                    suppressed = {c.get("provider") for c in record.get("suppressed") or []}
-                    if suppressed and provider not in suppressed:
-                        fail(f"{name}: 9b cell {cell} suppressed {sorted(suppressed)}, "
-                             f"expected the {provider} contribution to be the suppressed "
-                             "one and to stay attributable (§6)")
-                    for problem in check_record_completeness(record):
-                        fail(f"{name}: {problem}")
-                entry["fixture9b"].append(case_report)
+    # Restore the declared defaults whatever happens: retention is this stage's
+    # instrument, not a state it leaves behind for the stages after it.
+    def restore() -> None:
+        for instance in instances:
+            for control in ("arbitrationRetention", "arbitrationWindow"):
+                http("DELETE", f"{instance['re']}/api/engine/config/{control}")
 
-        report["instances"].append(entry)
+    try:
+        ran_9b = run_fixtures(instances, retain, driven_records, step_of, fail, report,
+                              resolved_by_runtime, replay, replay_providers, args)
+    finally:
+        restore()
 
     # -- cross-runtime parity -------------------------------------------------
     distinct = {json.dumps(v, sort_keys=True) for v in resolved_by_runtime.values() if v}

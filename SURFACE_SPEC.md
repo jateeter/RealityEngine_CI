@@ -708,6 +708,8 @@ default is wrong rather than different.
 
 | control | scope | default | mutable | |
 |---|---|---|---|---|
+| `arbitrationRetention` | `engine` | `false` | `true` | arbitration records retained per step; `false` is the legacy escape (#296) |
+| `arbitrationWindow` | `engine` | `1` | `true` | steps of arbitration records retained, ending at the latest; `[0, 1024]` (#296) |
 | `historyLimit` | `engine` | `250` | `true` | entries retained in the simulation-step history |
 | `includeActiveRegions` | `engine` | `true` | `true` | the active-region list in a step response |
 | `includeMachineResults` | `engine` | `true` | `true` | per-machine results in a step response |
@@ -854,6 +856,8 @@ the drift this issue exists to prevent visible on the first run.
 | GET | `/api/engine/osre-history` | ✓ | ✓ | ✓ |
 | GET | `/api/engine/isre-history` | ✓ | ✓ | ✓ |
 | GET | `/api/engine/steps/:n/pair` | ✓ | ✓ | ✓ |
+| GET | `/api/engine/clock` | ✓ | ✓ | ✓ |
+| GET | `/api/arbitration` | ✓ | ✓ | ✓ |
 | POST | `/api/engine/process` | ✓ | ✓ | ✓ |
 | POST | `/api/engine/reset` | ✓ | ✓ | ✓ |
 
@@ -1240,6 +1244,113 @@ stepping the engine, and is reported as an exclusivity violation by number
 (docs/OBSERVATION_EXCLUSIVITY.md) — never as an engine divergence.
 `scripts/lib/step_observer.py` implements this for the parity stages, which no
 longer take `--settle-ms`.
+
+#### Arbitration retention and the instance clock
+
+`GET /api/arbitration` reports the arbitration records of a step
+(docs/ARBITER_CONTRACT.md §6). It used to report only the latest step, so a
+reader that was not synchronous with the step loop read whatever step came last —
+an interloping push, or a step it never caused — and three investigations blamed
+three runtimes for a record that had simply been overwritten (#283). Records are
+now retained **keyed by step**, under an instance clock, behind a legacy escape
+(RealityEngine_CI#296). No runtime is a reference: this section and 3-of-3
+conformance govern.
+
+##### The instance clock
+
+A UUID identifies an **instance** — `cpp-1`, `lsp-2` — never an engine type or
+an image, and **no two instances of any engine type may share one.** The
+instance registry allocates it (`INSTANCE_UUID`, recorded as `instance_uuid`;
+`scripts/lib/instance_uuids.py`); an instance launched without one mints a
+version-7 UUID at boot, never at image-save time.
+
+The clock is `{instance, lamport, step}`:
+
+| field | |
+|---|---|
+| `instance` | the instance UUID |
+| `lamport` | ticks once per committed step and is **never reset**, so `(instance, lamport)` names one step uniquely. `0` before the first step since boot |
+| `step` | the step count, which a reset restarts. `-1` before the first step since boot or reset |
+
+`GET /api/engine/clock` returns the clock for the newest committed step. Every
+retained arbitration step carries the clock it committed at.
+
+**An allocated instance keeps its clock across restarts.** `INSTANCE_CLOCK_DIR`
+(default `~/.reality-engine/clock/`) holds `<uuid>.lamport`, a high-water mark
+reserved 1024 ticks ahead: a boot resumes from the mark and reserves the next
+block before issuing any tick, and a tick past the persisted mark is always
+preceded by the write of the next block (temp + rename), never followed by it.
+The instance holds an exclusive `fcntl` lock on `<uuid>.lock` for its whole life,
+so a second live process — of any engine type — presenting the same UUID refuses
+to boot. A clock that cannot be read or written refuses the boot too: either way
+ticks could be issued twice.
+
+`instance` and `lamport` are instance facts and are **left out of cross-runtime
+byte comparison**; `step` is compared. Wall-clock time orders nothing.
+
+##### The controls and the two worlds
+
+| `arbitrationRetention` | `arbitrationWindow` | `GET /api/arbitration` returns |
+|---|---|---|
+| `false` (default) | *ignored* | the legacy object, unchanged — **not** a list — and nothing is retained per step |
+| `true` | `0` | `[]` |
+| `true` | `1` (default) | `[<step n>]` |
+| `true` | `2` | `[<step n-1>, <step n>]` |
+| `true` | `k` | `[<step n-k+1>, … , <step n>]`, oldest first; fewer when fewer were retained — no padding, no error |
+
+Both are set through `/api/engine/config` at runtime, in either direction, with
+no restart; the next read follows. Turning retention off drops everything
+retained, so the escape restores the memory profile as well as the shape.
+Turning it on retains from the next committed step. Narrowing the window evicts
+at once. A reset drops every retained step and the latest-step records the legacy
+object reports; the clock keeps its `lamport`.
+
+Each retained step is committed **before** the step's completion point
+("Step completion") is published, so an observer woken for step n finds n's
+records already there.
+
+Retention is a table keyed by step with a configurable span, not a ring of the
+latest n, so the window's anchor can later move (K-line histories).
+
+##### Retained step shape
+
+```
+{ "clock": {"instance", "lamport", "step"},
+  "registryEntries", "registrySource", "shards", "count",
+  "records": [ ArbitrationRecord … ] }
+```
+
+The legacy object's fields under the clock. In this world the records are
+**canonical**, because this is the world held to 3-of-3 byte equivalence:
+
+- records ascending by `cell`;
+- `contributors` and `suppressed` ascending by `(provider, originId, cesId,
+  outputVectorId)` — §4's MEAN order, led by provider;
+- a machine contribution's `outputVectorId` is the string `"0"`.
+
+`shards` (arbiter parallelism) and `registrySource` (a path) are deployment facts
+and are left out of byte comparison with `instance` and `lamport`.
+
+The legacy object keeps each runtime's own order and fields — the escape
+preserves what a consumer was written against. Its bytes are unchanged except
+where they were wrong: C++ served the **oldest** retained step rather than the
+latest (fixed in RealityEngine_CPP#157), and LSP and Scala kept the previous
+step's records across a reset.
+
+##### `GET /api/arbitration?step=N`
+
+| Status | Body | When |
+|--------|------|------|
+| 200 | the retained step | step N is retained |
+| 404 | `{"error": "step N has not resolved"}` | N is beyond the newest committed step |
+| 410 | `{"error": "step N is no longer retained"}` | N resolved and is outside the window, was evicted, ran before retention was on, or was cleared by a reset |
+| 409 | `{"error": "arbitration retention is off; …"}` | `arbitrationRetention` is `false` |
+| 400 | `{"error": "step must be a non-negative integer"}` | malformed |
+
+There is no wait: a reader waits for step N's completion point
+(`GET /api/engine/steps/:n/pair`) and then reads N's records, which were retained
+before that point was published. `regression-arbiter.py` reads its fixture's own
+step this way. `regression-arbitration-retention.py` is the acceptance stage.
 
 ### Machines
 

@@ -508,6 +508,7 @@ jobs:
             # declared dimension and the universal probe live only here.
             RealityEngine_CI/.regression-tests/runs/*/reports/engine-process-parity.json
             RealityEngine_CI/.regression-tests/runs/*/reports/arbiter*.json
+            RealityEngine_CI/.regression-tests/runs/*/reports/arbitration-retention*.json
             RealityEngine_CI/.regression-tests/runs/*/reports/mqtt-yuma*.json
             RealityEngine_CI/.regression-tests/runs/*/reports/mcp-smoke.json
             RealityEngine_CI/.regression-tests/runs/*/reports/openclaw*.json
