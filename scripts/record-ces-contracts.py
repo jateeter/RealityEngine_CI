@@ -67,6 +67,12 @@ Json = dict[str, Any]
 
 REPO_ROOT = SCRIPT_DIR.parent
 MACHINES_ROOT = REPO_ROOT.parent / "RealityEngine_Machines"
+# A corpus selection may name machines another repo owns: the regression corpus
+# draws rag_corrective_cycle, session_rag_context and session_agent_context from
+# localAIStack. The cesgen registry builder resolves them there, so the recorder
+# must too, or the shard covers a narrower scope than the registry measures and
+# reads `stale` (+3 added) the moment it is written.
+LOCAL_AI_MACHINES = REPO_ROOT.parent / "localAIStack" / "data" / "machines"
 SHARD_DIR = REPO_ROOT / "config" / "ces-contracts"
 
 
@@ -107,15 +113,31 @@ def delete_json(url: str) -> tuple[int, Any]:
 
 # ── the corpus side ─────────────────────────────────────────────────────────
 
-def load_corpus() -> dict[str, Json]:
+def load_corpus(include_localai: bool = False) -> dict[str, Json]:
     """machineName -> {domain, output region}, read from the corpus on disk.
 
     Keyed on name rather than id: machine ids are minted per-runtime for
     anything imported at runtime, so the same file answers a different id in
     each engine. See `ces_seed_drive.source_fingerprint`.
+
+    `include_localai` adds localAIStack's own machines, keyed by basename as the
+    cesgen registry keys them, for a --corpus scope that names them. Never for
+    domain recording: they belong to no corpus domain.
     """
     root = MACHINES_ROOT / "machines"
     corpus: dict[str, Json] = {}
+    if include_localai and LOCAL_AI_MACHINES.is_dir():
+        for path in sorted(LOCAL_AI_MACHINES.glob("*.json")):
+            try:
+                machine = json.loads(path.read_text(encoding="utf-8")).get("machine")
+            except Exception:  # noqa: BLE001
+                continue
+            if not isinstance(machine, dict):
+                continue
+            mapping = machine.get("perceptualMapping") or {}
+            if isinstance(machine.get("name"), str) and isinstance(mapping.get("output"), dict):
+                corpus[machine["name"]] = {"domain": "localai", "output": mapping["output"],
+                                           "input": mapping.get("input"), "relFile": path.name}
     for path in sorted(root.rglob("*.json")):
         try:
             doc = json.loads(path.read_text(encoding="utf-8"))
@@ -152,7 +174,10 @@ def corpus_fingerprint(rel_files: Iterable[str] | None = None) -> Json:
     import ces_corpus_fingerprint as fp  # noqa: E402
 
     root = MACHINES_ROOT / "machines"
-    paths = ([root / rel for rel in sorted(rel_files)] if rel_files is not None
+    # A localAIStack machine's relFile is its basename, and fingerprint_paths
+    # keys a file outside the corpus root by basename -- as the builder does.
+    paths = ([root / rel if (root / rel).exists() else LOCAL_AI_MACHINES / rel
+              for rel in sorted(rel_files)] if rel_files is not None
              else sorted(root.rglob("*.json")))
     return fp.fingerprint_paths(paths, root)
 
@@ -331,7 +356,7 @@ def main() -> int:
             print(f"  {line}")
         return 1
 
-    corpus = load_corpus()
+    corpus = load_corpus(include_localai=bool(args.corpus))
     resident, res_err = seed.machine_registry(get_json, instances[0]["re"])
     if res_err:
         print(f"FAIL could not read the machine registry: {res_err}")
