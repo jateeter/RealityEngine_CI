@@ -592,6 +592,37 @@ so the operator is applied in its **multi-valued form over `[0..1]`**, the
 chain top being 1; a Boolean gate's first-order form would collapse a graded
 value to 0 or 1.
 
+**Amended 2026-10-04 (owner decision, RealityEngine_CI#525): a declared rule
+governs.** Where the arbitration registry (§5) declares a rule for the cell, the
+fold applies that rule to the two contributions instead of `T_M`. The OSRE side is
+provider `machine`, and the source side is the source's provider (below).
+Under `PRECEDENCE` the higher-ranked provider's value is taken whole, so a
+deterministic machine determination beats a `generated` source **at any value**,
+and criterion 5a holds at the fold as it does in the arbiter. `T_M` remains the
+operator for every cell the registry does not declare.
+
+Ranks are the arbiter's own: the cell's declared `providerRanks` entry for the
+provider, else the rank of its determinism class (§3), exactly as the arbiter
+ranks contributions it resolves. Only `PRECEDENCE` is resolved at the fold
+today. A declared cell whose rule is anything else, or whose two providers rank
+equal, folds by `T_M`, and its record says so (`declaredRule`). Today that set is empty: the registry declares `SEVERITY`
+only on machine/machine cells (9a), which no source writes.
+
+**The provider of a source** is decided the same way in all four runtimes:
+
+1. the first `.`-separated segment of `origin`, lowercased, mapped through the
+   surface aliases `openclaw` → `acp`, `ollama` → `localai` and
+   `localaistack` → `localai`. So `acp.openclaw.….assessment` is `acp`,
+   `openclaw` is `acp`, and `mqtt`, `healthkit` and `carekit` are themselves;
+2. an empty `origin`, or the generic `signal`, falls back to the kind:
+   `test` and `simulated` → `synthetic`, anything else → `sensor`.
+
+A provider the §3 registry does not name ranks as `generated`. That is the rule
+§3 already states for an unregistered surface, and it means an unknown origin
+can never outrank a reading. The rule uses the *first segment*, not a substring
+anywhere in `origin`, because a substring match lets `localai.…-mcp-…`
+classify as `mcp`.
+
 A cell is an **OSRE cell** at transition `n` when the output region of a
 `mergeBatch` operation of the push that produced `OSRE(n-1)` covers it. Where a
 source (after the tier and incumbency above) and that OSRE term both hold the
@@ -627,10 +658,29 @@ SttContention := {
   transition : int,                       // globalStep of the assembly recorded
   cells      : [ { cell, resolution: "incumbent" | "live-over-seed",
                    winner: SourceRef, suppressed: [SourceRef] } ],   // ascending cell
+  folds      : [ OsreFold ],                                         // ascending cell
   counters   : [ { id, name, contended, suppressed } ]               // (name, id) order
 }
 SourceRef := { id, name, kind, activatedAt }
+OsreFold  := {
+  cell, resolution: "declared-rule" | "osre-fold",
+  rule?        : "PRECEDENCE",            // resolution declared-rule
+  operator?    : "or" | "and" | …,        // resolution osre-fold: T_M
+  declaredRule?: string,                  // osre-fold on a declared cell the fold cannot apply
+  osre   : { machine, provider: "machine", value },
+  source : { id, name, kind, provider, value },
+  resolved : number,
+  kept   : "osre" | "source" | "both" | "combined"
+}
 ```
+
+**Every Source-vs-OSRE fold is recorded** in `folds` (2026-10-04, #525): the
+cell, how it was resolved, both sides with their values, and the result. `kept`
+says which side the result came from: `both` when the two values are equal, and
+`combined` when the operator blended them. A fold counts toward its source's
+`contended`, and toward `suppressed` when `kept` is `osre`. `cells` keeps its
+meaning: two sources on one cell. A cell can appear in both, with `cells`
+deciding which source reached the fold.
 
 `contended` counts the transitions in which the source shared a cell with
 another writer, and `suppressed` counts those in which it lost at least one
@@ -975,6 +1025,19 @@ contribution does not override a determination, and that an asynchronous arrival
 order does not change the result.
 
 Both belong beside the ring in the regression corpus.
+
+**Where 9b resolves** (2026-10-04, RealityEngine_CI#525). The machine's output
+and the PE source never meet in the RE arbiter, which sees one writer per step.
+They meet in the PE's Source-vs-OSRE fold (§4.4b): the machine asserts at step
+n, and the source folds against that OSRE term into ISRE(n+1) under the
+declared `PRECEDENCE`. So 9b reads the fold's record on
+`GET /api/sources/contention` at step n+1. That record shows `declared-rule`,
+with the machine kept and the agent suppressed but attributable. It does not
+read `/api/arbitration`. Until #525, 9b had never observed anything: its
+machines were absent from the regression corpus, the replay source was never
+activated by ingress, and the stage looked for the record at the RE. It runs on
+both lanes, because the replay is a PE source whose origin classifies as `acp`
+and needs no live gateway.
 
 ## 10. Open
 

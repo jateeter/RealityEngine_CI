@@ -5,7 +5,7 @@
     "ARBITER_CONTRACT.md 8.0: byte equivalence is only defined over reproducible",
     "contributions. A `generated` contribution is not reproducible by",
     "construction, so fixture 9b is tested by replaying a recorded set or with",
-    "generated sources disabled \u2014 never by comparing two live agent runs and",
+    "generated sources disabled — never by comparing two live agent runs and",
     "expecting identical vectors, which is a misunderstanding of what",
     "`generated` means.",
     "",
@@ -15,7 +15,9 @@
     "Contract 2.1: nothing bypasses the arbiter, and a test harness that did",
     "would be proving something other than the runtime.",
     "",
-    "Providers are not listed here. They come from the corpus: every provider appearing in arbitration-registry providerRanks other than `machine`. Hardcoding `acp` would ship every future surface unexercised until someone remembered to edit this file, which is the failure criterion 11 is written against."
+    "Providers are not listed here. They come from the corpus: every provider appearing in arbitration-registry providerRanks other than `machine`. Hardcoding `acp` would ship every future surface unexercised until someone remembered to edit this file, which is the failure criterion 11 is written against.",
+    "",
+    "Where the contention resolves (RealityEngine_CI#525): the machine asserts at step n and the replayed source meets that OSRE term in the PE's Source-vs-OSRE fold into ISRE(n+1), under the declared PRECEDENCE (ARBITER_CONTRACT.md 4.4b, amended 2026-10-04). The record is the fold's entry on GET /api/sources/contention `folds`, not an RE arbitration record. The replay source is a sensor: it is active only once a value arrives through POST /api/sensors/:id, which is how the stage delivers each case's values."
   ],
   "schemaVersion": "1.0.0",
   "fixture": "9b",
@@ -25,7 +27,7 @@
   },
   "machineWriter": {
     "machine": "ArbitrationProviderPeer",
-    "note": "asserts [1,1] at AMBER; deterministic, providerRank 3"
+    "note": "asserts [1,1] at AMBER; deterministic, providerRank 3. Its input [16936:16938] must read 00 then 10, so each case drives a sensor of its own through both before the replayed source can meet its output."
   },
   "source": {
     "id": "arb-9b-replay",
@@ -59,7 +61,7 @@
       ]
     },
     {
-      "label": "agent at the ceiling \u2014 criterion 5a, at any value",
+      "label": "agent at the ceiling — criterion 5a, at any value",
       "values": [
         1.0,
         1.0

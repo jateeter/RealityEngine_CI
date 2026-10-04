@@ -186,6 +186,21 @@ replace. The sleep and the five-attempt retry are gone, as is the
 `/api/perceptual-simulation/step` call that answered 400 on every runtime. The
 declared defaults are restored in a `finally`.
 
+**9b reads the PE's fold record, on both lanes (#525).** The machine and the
+replayed `acp` source meet in the PE's Source-vs-OSRE fold into ISRE(n+1), not
+in the RE arbiter. Each case does four things:
+- drives `ArbitrationProviderPeer` through `00` then `10` with a sensor of its
+  own;
+- delivers both values through `POST /api/sensors/:id`, which is the only way a
+  sensor becomes active;
+- pushes once more;
+- reads `GET /api/sources/contention` `folds`.
+
+It asserts the declared `PRECEDENCE` with the machine kept and the agent
+attributable. Its sources are deleted in a `finally`. A lane where 9b observes
+nothing fails the stage. Before #525 it passed while 9b had observed nothing on
+any lane.
+
 `regression-arbitration-retention.py` (stage `arbitration-retention`, beside the
 arbiter) is the acceptance stage: the declared controls, the legacy body byte for
 byte against `config/arbitration-legacy-baseline.json` (`registrySource` and

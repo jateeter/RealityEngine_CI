@@ -2100,6 +2100,10 @@ counters:
   "cells": [ { "cell": 4210, "resolution": "incumbent",
                "winner":     { "id": "…", "name": "…", "kind": "test", "activatedAt": 0 },
                "suppressed": [ { "id": "…", "name": "…", "kind": "test", "activatedAt": 7 } ] } ],
+  "folds": [ { "cell": 16940, "resolution": "declared-rule", "rule": "PRECEDENCE",
+               "osre":   { "machine": "Arbitration Provider Peer", "provider": "machine", "value": 1 },
+               "source": { "id": "…", "name": "…", "kind": "sensor", "provider": "acp", "value": 0.5 },
+               "resolved": 1, "kept": "osre" } ],
   "counters": [ { "id": "…", "name": "…", "contended": 3, "suppressed": 1 } ] }
 ```
 
@@ -2120,6 +2124,19 @@ over `[0..1]` to the source value and the OSRE value — `max` for the default
 machine's outputs into the OSRE, so a source and the machine's output combine
 the way the machine's own outputs do. Until 2026-10-02 the source simply
 overwrote the OSRE value.
+
+**Except where the cell's rule is declared** (owner decision, 2026-10-04,
+RealityEngine_CI#525). A cell the arbitration registry declares folds by that
+rule instead. Under `PRECEDENCE` the higher-ranked provider's value is taken
+whole, so a machine's deterministic determination beats a `generated` source
+(`acp`, `mcp`, `localai`) at any value, and §4.3a's criterion 5a holds at the
+fold. A source's provider is the first segment of its `origin`, mapped through
+`openclaw` → `acp`, `ollama` and `localaistack` → `localai`. An empty
+`origin`, or `signal`, falls back to the kind. Every PE loads the registry the
+RE loads. **Every fold is recorded** in `folds`: the cell, how it was resolved,
+both sides with their values, the result, and which side was `kept`. A fold
+counts toward its source's counters, and toward `suppressed` when `kept` is
+`osre`. `ARBITER_CONTRACT.md` §4.4b has the full shape.
 
 Before this rule the winner was decided by name. "HealthKit Vitals Monitor /
 2 sequences" sorted after "HealthKit Blood Pressure" and replayed `[0,0,0,0]`
