@@ -23,7 +23,7 @@
     "routes:check": "node scripts/gen-engine-routes.mjs --check"
   },
   "engines": {
-    "node": ">=20.0.0"
+    "node": ">=26.0.0"
   },
   "dependencies": {
     "@modelcontextprotocol/sdk": "^1.12.0",

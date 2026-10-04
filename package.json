@@ -30,7 +30,7 @@
     "typecheck": "tsc --noEmit"
   },
   "engines": {
-    "node": ">=25.5.0",
+    "node": ">=26.0.0",
     "npm": ">=10.0.0"
   },
   "devDependencies": {
