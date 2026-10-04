@@ -38,8 +38,8 @@ if [ "${BASH_VERSINFO[0]:-0}" -lt 5 ] && [ -x /opt/homebrew/bin/bash ]; then
 fi
 set -uo pipefail
 
-# Node: the newest installed release of this major. Manager needs >=26, the
-# other suites >=25.5. nvm.sh is not safe under `set -u`.
+# Node: the newest installed release of this major. Every Node suite needs
+# >=26 (engines in each package.json). nvm.sh is not safe under `set -u`.
 NODE_MAJOR="${DEPLOY_VALIDATE_NODE_MAJOR:-26}"
 if [ -s "$HOME/.nvm/nvm.sh" ]; then
   set +u

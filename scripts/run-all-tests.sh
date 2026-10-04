@@ -414,7 +414,7 @@ run_openclaw_integration_e2e() {
         return
     fi
 
-    require_node "$label" "25.5.0" || return
+    require_node "$label" "26.0.0" || return
     local report_dir="${OPENCLAW_E2E_REPORT_DIR:-/tmp/re-openclaw-e2e-reports}"
 
     local registry_file="${RE_REGISTRY_FILE:-/tmp/re-registry/re-registry.json}"
@@ -513,7 +513,7 @@ run_unit() {
 
 run_regression_issue_filer_tests() {
     local label="Regression auto-filer dedup unit tests"
-    require_node "$label" "25.5.0" || return
+    require_node "$label" "26.0.0" || return
     run_suite "$label" "$CI_DIR" npm run test:regression-issue-filer
 }
 
@@ -600,7 +600,7 @@ booted_corpus_dir() {
 }
 
 run_generator_drift_checks() {
-    require_node "Generator drift checks" "25.5.0" || return
+    require_node "Generator drift checks" "26.0.0" || return
     run_suite "cesgen drift check" "$CI_DIR" \
         env MACHINES_DIR="$FULL_CORPUS_DIR" node scripts/cesgen.mjs --all --check
     run_suite "cesgen-oracles drift check" "$CI_DIR" \
@@ -616,13 +616,13 @@ run_corpus_dimension_tests() {
 
 run_parity_surface_tests() {
     local label="Parity surface declaration unit tests"
-    require_node "$label" "25.5.0" || return
+    require_node "$label" "26.0.0" || return
     run_suite "$label" "$CI_DIR" npm run test:parity-surface
 }
 
 run_openclaw_adapter_tests() {
     local label="OpenClaw adapter unit/mock e2e"
-    require_node "$label" "25.5.0" || return
+    require_node "$label" "26.0.0" || return
     run_suite "$label" "$CI_DIR" npm run test:openclaw-adapter
 }
 
@@ -683,7 +683,7 @@ run_docs_audit() {
 
 run_machines_offline() {
     repo_present "Machines" "$MACHINES_DIR" || return
-    require_node "Machines" "25.5.0" || return
+    require_node "Machines" "26.0.0" || return
     local py
     if py="$(resolve_python)"; then
         run_suite "Machines validate" "$MACHINES_DIR" npm run validate
@@ -788,7 +788,7 @@ run_playwright_e2e() {
         multi_engine=true
     fi
 
-    require_node "Playwright e2e" "25.5.0" || return
+    require_node "Playwright e2e" "26.0.0" || return
 
     if [ -d "$CI_DIR/node_modules" ]; then
         if [ "$multi_engine" = "true" ]; then
