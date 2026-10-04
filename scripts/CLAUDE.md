@@ -174,9 +174,26 @@ step — `regression-trajectory-parity.py`, `record-ces-contracts.py` (through
 The window is `--step-window-ms` (default 5000); `--settle-ms` is gone. A step the
 observer did not cause between two of its own is reported by number as an
 exclusivity violation. Still on elapsed time, and not step boundaries: the
-post-reset waits in `regression-universal-vectors.py`,
-`regression-pe-step-contract.py` and `regression-arbiter.py`, and the arbiter's
-fixture reads, which race because `/api/arbitration` serves only the latest step.
+post-reset waits in `regression-universal-vectors.py` and
+`regression-pe-step-contract.py`.
+
+## Arbitration is read by step (#296)
+
+`regression-arbiter.py` turns `arbitrationRetention` on for its run, drives each
+fixture once, waits for that step's completion point and reads
+`GET /api/arbitration?step=N` — the step it drove, which no interloping push can
+replace. The sleep and the five-attempt retry are gone, as is the
+`/api/perceptual-simulation/step` call that answered 400 on every runtime. The
+declared defaults are restored in a `finally`.
+
+`regression-arbitration-retention.py` (stage `arbitration-retention`, beside the
+arbiter) is the acceptance stage: the declared controls, the legacy body byte for
+byte against `config/arbitration-legacy-baseline.json` (`registrySource` and
+`shards` masked), the reset fix, n = 0/1/2, every `?step=N` status, both toggle
+directions without a restart, and the instance clock (`lamport` never resets,
+`step` does) — then 3-of-3 byte equality of the retained bodies with the instance
+facts (`clock.instance`, `clock.lamport`) and deployment facts removed.
+`--record-legacy-baseline` re-records the baseline from a conforming universe.
 
 ## Push response shape
 

@@ -1694,6 +1694,24 @@ run_arbiter() {
     --out "$REPORT_DIR/arbiter.json"
 }
 
+run_arbitration_retention() {
+  step "Arbitration retention keyed by step, and the instance clock (#296)"
+  local ci; ci="$(repo_root RealityEngine_CI)"
+  # The 9a fixture is its stimulus, so it needs a corpus carrying the
+  # ArbitrationWriterA/B pair, as the arbiter stage does.
+  case "$MACHINE_CORPUS" in
+    arbiter-fixture|regression|full) ;;
+    *)
+      write_skip_report "arbitration-retention-skipped.json" \
+        "corpus '$MACHINE_CORPUS' has no contended cells; run --machine-corpus=regression"
+      log "SKIP arbitration-retention: corpus '$MACHINE_CORPUS' contains no contended cells"
+      return 0 ;;
+  esac
+  run_cmd "arbitration-retention" python3 "$ci/scripts/regression-arbitration-retention.py" \
+    --registry /tmp/re-registry/re-registry.json \
+    --out "$REPORT_DIR/arbitration-retention.json"
+}
+
 run_engine_process_parity() {
   step "POST /api/engine/process parity across runtimes"
   local ci; ci="$(repo_root RealityEngine_CI)"
@@ -2157,6 +2175,9 @@ if [ "$LIVE_TESTS" = true ]; then
   run_stage "mqtt-yuma"         run_mqtt_yuma
   run_stage "mcp"               run_mcp
   run_stage "arbiter"           run_arbiter
+  # Beside the arbiter, on the same fixture: retention keyed by step, the legacy
+  # escape byte for byte, and the instance clock, 3-of-3 (#296).
+  run_stage "arbitration-retention" run_arbitration_retention
   # Beside the arbiter: both are conformance gates that need the engines up and
   # a corpus that can exercise them, and both compare across runtimes rather
   # than checking one. This one drives /api/engine/process and resets both

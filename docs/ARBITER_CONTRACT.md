@@ -708,6 +708,12 @@ the domain bus exists to surface.
 `suppressed` is what the resolution discarded. Emitting records for uncontended
 cells is OPTIONAL and SHOULD be off by default.
 
+The records are served by `GET /api/arbitration`: the latest step's in the legacy
+shape, or — with `arbitrationRetention` on — retained per step and addressed by
+`?step=N`, each under the instance clock `{instance, lamport, step}`. That is
+specified in SURFACE_SPEC.md, "Arbitration retention and the instance clock"
+(RealityEngine_CI#296).
+
 ## 7. Parallelism directives
 
 The stage is structurally parallel: gather is a map, resolve is a per-cell
