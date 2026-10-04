@@ -70,13 +70,18 @@ domains/digital-logic/ArbitrationWriterA.json
 domains/digital-logic/ArbitrationWriterB.json
 domains/digital-logic/ArbitrationReader.json
 
-# NOT included: ArbitrationProviderPeer / ArbitrationProviderTarget.
-#
-# Those are §9b, machine-versus-provider contention, and their declared
-# non-machine writer is an ACP source. The hosted profile refuses --openclaw, so
-# that surface is not running there and the fixture would sit in the corpus
-# proving nothing. It stays in config/arbiter-fixture-corpus.txt, which the
-# arbiter stage boots on the local lane where the provider exists.
+# ── Machine-versus-provider contention: §9b ─────────────────────────────────
+# ArbitrationProviderPeer asserts [1,1] into 16940-16941 when its input reads
+# 00 then 10; an ACP-classified source writes the same cells, and the PE's
+# Source-vs-OSRE fold resolves them under the declared PRECEDENCE
+# {acp:1, machine:3}. Both lanes carry them (owner decision, 2026-10-04,
+# RealityEngine_CI#525): the replay is a PE source whose origin classifies as
+# acp, so no live OpenClaw gateway is needed. They used to be excluded on the
+# premise that the hosted lane could not exercise them, while the stage that
+# would have booted them on the local lane never did -- so 9b observed nothing
+# on either.
+domains/digital-logic/ArbitrationProviderPeer.json
+domains/digital-logic/ArbitrationProviderTarget.json
 
 # ── The semantic audit invariant's named machine ────────────────────────────
 #

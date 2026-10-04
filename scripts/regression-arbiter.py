@@ -19,11 +19,15 @@ What it asserts, and why each is the discriminator rather than a smoke check:
       ArbitrationProviderPeer asserts [1,1] as a deterministic machine output;
       an ACP-class contribution is replayed against it. The machine value is the
       ceiling of the clamped range, so PRECEDENCE and a naive MAX agree on the
-      resolved value — what separates them is the record. Under PRECEDENCE the
-      agent contribution is suppressed for losing on determinism class and stays
-      attributable there (§6). So 9b asserts the record, not only the value, and
-      replays several agent values to cover criterion 5a: a generated
-      contribution never overrides a deterministic one *at any value*.
+      resolved value — what separates them is the record. The two meet in the
+      PE's Source-vs-OSRE fold into ISRE(n+1), not in the RE arbiter (which
+      sees one writer per step), and the fold is recorded on
+      GET /api/sources/contention `folds` (4.4b, amended 2026-10-04, #525).
+      Under PRECEDENCE that record says `declared-rule` and keeps the machine,
+      with the agent suppressed and attributable (§6). So 9b asserts the record,
+      not only the value, and replays several agent values to cover criterion
+      5a: a generated contribution never overrides a deterministic one *at any
+      value*. The peer reads 00 then 10, so each case drives it through both.
 
   8   every contended cell emits a record whose contributors ∪ suppressed is the
       full contribution set, with `provider` populated on every entry.
@@ -39,20 +43,12 @@ origin names an ACP surface, which is the path a live gateway takes — because
 §2.1 says nothing bypasses the arbiter and a harness that did would be proving
 something other than the runtime.
 
-Lane split, and it is by design rather than by circumstance:
-
-    9a  machine/machine    both lanes. Needs the corpus and the engines, and
-                           nothing else.
-    9b  machine/provider   LOCAL ONLY. Its declared non-machine writer is an ACP
-                           source, and OpenClaw, Ollama and the HealthKit bridge
-                           run only on the local lane — the hosted profile
-                           refuses them outright. Replay removes the need for a
-                           live *gateway*; it does not conjure a PE integration
-                           surface the lane never started.
-
-So the hosted lane is not where machine/provider contention gets proven, and a
-hosted run reporting 9b unexercised is complete rather than partial. #123 argued
-the opposite and was wrong.
+Both fixtures run on every lane (owner decision, 2026-10-04, #525). 9b was
+local-only, on the premise that its ACP writer needs the OpenClaw surface; the
+replay is a PE source whose origin classifies as acp, so it needs no gateway.
+That premise also hid that 9b had never observed anything on the local lane:
+the regression corpus omitted its machines, the replay source was never active,
+and the stage passed regardless. It now fails when 9b observes nothing.
 """
 
 from __future__ import annotations
@@ -91,6 +87,9 @@ RETENTION_WINDOW = 16
 
 CELLS_9A = [16930, 16931]
 CELLS_9B = [16940, 16941]
+# ArbitrationProviderPeer's input region, driven 00 then 10 by a sensor of its own.
+PEER_INPUT_REGION = {"offset": 16936, "length": 2}
+PEER_SOURCE_ID = "arb-9b-peer-input"
 EXPECTED_9A = 0.0  # SEVERITY: RED wins over AMBER, and RED asserts 0
 
 
@@ -243,7 +242,7 @@ def observed_counts(instances: list[dict]) -> dict[str, int]:
     }
 
 
-def run_fixtures(instances, retain, driven_records, step_of, fail, report,
+def run_fixtures(instances, retain, driven_records, step_of, drive_9b, fail, report,
                  resolved_by_runtime, replay, replay_providers, args) -> bool:
     """9a and 9b on every instance, each read from the step it drove. True when
     9b was exercised on at least one runtime."""
@@ -316,81 +315,58 @@ def run_fixtures(instances, retain, driven_records, step_of, fail, report,
             cell: records[cell].get("resolved") for cell in CELLS_9A if cell in records
         }
 
-        # -- 9b: PRECEDENCE, replayed generated contribution -------------------
+        # -- 9b: machine vs provider, at the PE's Source-vs-OSRE fold -----------
+        # ArbitrationProviderPeer asserts [1,1] into 16940-16941 at step n (its
+        # input reads 00 then 10), and the replayed ACP source writes the same
+        # cells. The two meet in the PE's fold into ISRE(n+1), where the
+        # declared PRECEDENCE {acp:1, machine:3} keeps the machine's value at
+        # any agent value (ARBITER_CONTRACT.md 4.4b, amended 2026-10-04,
+        # RealityEngine_CI#525), and the fold is recorded on
+        # GET /api/sources/contention. 9b reads that record -- the RE arbiter
+        # sees one writer per step and has no record to give.
+        #
+        # What separates PRECEDENCE from the machine's own `or` (max) is the
+        # record, not the value: the peer asserts 1.0, the ceiling, so both give
+        # 1.0. Under PRECEDENCE the record says `declared-rule` and keeps the
+        # OSRE side even when the agent is also at 1.0; under max it would say
+        # `osre-fold` and, at 1.0, `both`.
         source = replay["source"]
-        region = replay["region"]
         entry["fixture9b"] = []
-        # One pass per ranked provider, per replayed value.
         for provider in replay_providers:
             origin = source["originTemplate"].format(provider=provider) \
                 if "originTemplate" in source else source["origin"]
             for case in replay["replays"]:
-                # Fully specified, because the runtimes disagree on what may be
-                # defaulted. C++ and LSP accept a minimal sensor source and fill
-                # the rest in; the Scala PE's decoder requires name, active,
-                # sensorId, ttlMs and lastValue and rejects the payload outright:
-                #   DecodingFailure at .name: Missing required field
-                # So 9b was skipped as "PE source replay unavailable (400)" on
-                # that runtime for as long as this fixture has existed, and the
-                # criterion it exists to prove was never exercised there (#123).
-                #
-                # The harness was the divergent party, as it was when it posted a
-                # source type of "regression" that no runtime defines. Sending
-                # every field is also the honest payload for a sensor source:
-                # sensorId and ttlMs are meaningful, not ceremony.
-                #
-                # That the three PEs disagree on which fields may be omitted is a
-                # separate parity question — the same class as the push response
-                # shape, on the source-creation side.
-                replay_id = f"{source['id']}-{provider}"
-                payload_source = {
-                    "id": replay_id,
-                    "name": f"{provider} arbitration replay",
-                    "type": source["type"],
-                    "active": True,
-                    "sensorId": replay_id,
-                    "ttlMs": 300_000,
-                    "lastValue": list(case["values"]),
-                    "origin": origin,
-                    "region": region,
-                    "values": case["values"],
-                }
-                code, _ = http("POST", f"{instance['pe']}/api/sources", payload_source)
-                if code not in (200, 201, 409):
-                    print(f"  note: PE source replay unavailable ({code}); "
-                          f"9b skipped for {provider}/{case['label']}")
-                    entry["fixture9b"].append(
-                        {"provider": provider, "label": case["label"],
-                         "status": "unavailable"})
+                case_report = {"provider": provider, "label": case["label"], "cells": {}}
+                try:
+                    folds, isre, case_report["steps"] = drive_9b(instance, origin, provider, case["values"])
+                except (RuntimeError, StepNotResolved, StepNotRetained) as exc:
+                    fail(f"{name}: 9b {provider}/{case['label']}: {exc}")
+                    entry["fixture9b"].append(case_report)
                     continue
                 ran_9b = True
-                _, pushed = http("POST", f"{instance['pe']}/api/push",
-                                 {"sourceId": f"{source['id']}-{provider}"})
-                case_report = {"provider": provider, "label": case["label"], "cells": {},
-                               "step": step_of(pushed)}
-                try:
-                    got = driven_records(instance, case_report["step"], CELLS_9B)
-                except (RuntimeError, StepNotResolved, StepNotRetained) as exc:
-                    fail(f"{name}: 9b {provider}/{case['label']} step {case_report['step']}: {exc}")
-                    got = {}
+                by_cell = {f.get("cell"): f for f in folds if isinstance(f, dict)}
                 for index, cell in enumerate(CELLS_9B):
-                    record = got.get(cell)
-                    if not record:
+                    fold = by_cell.get(cell)
+                    label = f"9b cell {cell} ({provider}/{case['label']})"
+                    if not fold:
+                        fail(f"{name}: {label}: no Source-vs-OSRE fold recorded on "
+                             "GET /api/sources/contention -- the machine and the "
+                             f"{provider} source never met, or the fold was not recorded")
                         continue
-                    case_report["cells"][str(cell)] = record.get("resolved")
                     expected = case["expectResolved"][index]
-                    if record.get("resolved") != expected:
-                        fail(f"{name}: 9b cell {cell} ({provider}/{case['label']}) "
-                             f"resolved {record.get('resolved')!r}, expected {expected} "
-                             "— a generated contribution must never override a "
-                             "deterministic one (5a)")
-                    suppressed = {c.get("provider") for c in record.get("suppressed") or []}
-                    if suppressed and provider not in suppressed:
-                        fail(f"{name}: 9b cell {cell} suppressed {sorted(suppressed)}, "
-                             f"expected the {provider} contribution to be the suppressed "
-                             "one and to stay attributable (§6)")
-                    for problem in check_record_completeness(record):
-                        fail(f"{name}: {problem}")
+                    case_report["cells"][str(cell)] = fold.get("resolved")
+                    if (fold.get("resolution"), fold.get("rule")) != ("declared-rule", "PRECEDENCE"):
+                        fail(f"{name}: {label}: resolved by {fold.get('resolution')!r} "
+                             f"{fold.get('rule') or fold.get('operator')!r}, expected the declared "
+                             "PRECEDENCE -- a declared rule governs at the fold (4.4b)")
+                    if fold.get("resolved") != expected or isre.get(cell, 0) != expected:
+                        fail(f"{name}: {label}: resolved {fold.get('resolved')!r}, ISRE "
+                             f"{isre.get(cell, 0)!r}, expected {expected} -- a generated "
+                             "contribution must never override a deterministic one (5a)")
+                    if fold.get("kept") != "osre" or (fold.get("source") or {}).get("provider") != provider:
+                        fail(f"{name}: {label}: kept {fold.get('kept')!r} over source provider "
+                             f"{(fold.get('source') or {}).get('provider')!r}; expected the machine "
+                             f"kept and the {provider} contribution suppressed and attributable (6)")
                 entry["fixture9b"].append(case_report)
 
         report["instances"].append(entry)
@@ -424,31 +400,11 @@ def main() -> int:
     # surface exercised without editing this file (criterion 11).
     replay_providers = [p for p in registry["ranked"] if p != "machine"]
 
-    # 9b is a local-lane fixture, and that is structural rather than incidental.
-    #
-    # It asserts machine/provider contention, and its declared non-machine writer
-    # is an ACP source. The hosted profile *refuses* --openclaw, so the ACP
-    # surface is not running there at all:
-    #
-    #   SKIP OpenClaw: disabled
-    #
-    # ARBITER_CONTRACT.md 8.0 requires the contribution be replayed rather than
-    # taken from a live agent run, and that removes the need for a live
-    # *gateway* — it does not conjure a PE integration surface the lane never
-    # started. #123 claimed every substantive criterion was reachable on hosted;
-    # that was wrong, and this is where it shows.
-    #
-    # So on a lane without ACP the stage reports 9b out of scope, not
-    # unavailable. "Unavailable" reads as something broken and invites a fix;
-    # out-of-scope is the correct standing state for that lane.
-    if args.lane != "local":
-        # Do not attempt it. Reaching for a PE surface the lane never started
-        # produces a connection error that reads as a defect, which is how four
-        # hosted runs got spent on a fixture that cannot run there.
-        replay_providers = []
-        print("  9b: LOCAL LANE ONLY — machine/provider contention needs the ACP "
-              "surface, and OpenClaw, Ollama and the HealthKit bridge run only "
-              "on the local lane. Not attempted here.")
+    # 9b runs on every lane (owner decision, 2026-10-04, RealityEngine_CI#525).
+    # It was local-only on the premise that it needs the ACP surface, but the
+    # replay is a PE source whose origin classifies as acp: no live gateway is
+    # involved, and every lane starts the PEs. The premise also hid that 9b had
+    # never observed anything on the local lane either.
     print(f"provider registry: ranked={registry['ranked']} "
           f"registered={registry['registered']} unranked={registry['unranked']}")
     if registry["unranked"]:
@@ -529,6 +485,71 @@ def main() -> int:
                 return response["step"].get("stepNumber")
         return None
 
+    def drive_9b(instance: dict, origin: str, provider: str, values: list) -> tuple[list, dict, list]:
+        """One 9b case: the peer reads 00 then 10 and asserts at step n; the
+        replayed source meets it in the fold into ISRE(n+1). Returns the folds
+        recorded by that push, ISRE(n+1) at the 9b cells, and the steps."""
+        re_url, pe_url = instance["re"], instance["pe"]
+        replay_id = f"{replay['source']['id']}-{provider}"
+        peer_id = PEER_SOURCE_ID
+        for failure in reset_pair(lambda url, body: http("POST", url, body), re_url, pe_url, instance["id"]):
+            raise RuntimeError(failure)
+        observer = StepObserver(get, re_url, args.step_window_ms)
+
+        def sensor(sid: str, name: str, region: dict, origin_: str | None) -> dict:
+            # Fully specified: the Scala PE's decoder requires name, active,
+            # sensorId, ttlMs and lastValue (#123). Registration declares a
+            # sensor inactive whatever is asked; its first value activates it.
+            body = {"id": sid, "name": name, "type": "sensor", "active": True, "sensorId": sid,
+                    "ttlMs": 300_000, "lastValue": [0.0] * region["length"], "region": region}
+            if origin_:
+                body["origin"] = origin_
+            return body
+
+        def ingress(sid: str, vals: list) -> None:
+            code, body = http("POST", f"{pe_url}/api/sensors/{sid}", {"values": vals})
+            if code != 200:
+                raise RuntimeError(f"POST /api/sensors/{sid} -> {code} {str(body)[:80]}")
+
+        def push() -> int:
+            code, body = http("POST", f"{pe_url}/api/push", {})
+            step = step_of(body)
+            if code != 200 or not isinstance(step, int):
+                raise RuntimeError(f"POST /api/push -> {code} {str(body)[:80]}")
+            observer.await_pair(step)
+            return step
+
+        try:
+            for sid in (replay_id, peer_id):
+                http("DELETE", f"{pe_url}/api/sources/{sid}")
+            for body in (sensor(replay_id, f"{provider} arbitration replay", replay["region"], origin),
+                         sensor(peer_id, "9b peer input", PEER_INPUT_REGION, None)):
+                code, reply = http("POST", f"{pe_url}/api/sources", body)
+                if code not in (200, 201):
+                    raise RuntimeError(f"POST /api/sources {body['id']} -> {code} {str(reply)[:80]}")
+            steps = []
+            for peer in ([0.0, 0.0], [1.0, 0.0]):
+                ingress(peer_id, peer)
+                ingress(replay_id, list(values))
+                steps.append(push())
+            _, pair = http("GET", f"{re_url}/api/engine/steps/{steps[-1]}/pair?timeoutMs=0")
+            asserted = {c["index"]: c["value"] for c in pair["osre"]["nonZero"]} if isinstance(pair, dict) else {}
+            if any(asserted.get(cell, 0) != 1 for cell in CELLS_9B):
+                raise RuntimeError(f"the peer did not assert [1,1] at step {steps[-1]} "
+                                   f"(OSRE {[asserted.get(c, 0) for c in CELLS_9B]}): "
+                                   "is ArbitrationProviderPeer resident?")
+            steps.append(push())
+            _, contention = http("GET", f"{pe_url}/api/sources/contention")
+            _, pair = http("GET", f"{re_url}/api/engine/steps/{steps[-1]}/pair?timeoutMs=0")
+            isre = {c["index"]: c["value"] for c in pair["isre"]["nonZero"]} if isinstance(pair, dict) else {}
+            folds = contention.get("folds") if isinstance(contention, dict) else None
+            if folds is None:
+                raise RuntimeError("GET /api/sources/contention has no `folds` (4.4b, #525)")
+            return folds, isre, steps
+        finally:
+            for sid in (replay_id, peer_id):
+                http("DELETE", f"{pe_url}/api/sources/{sid}")
+
     def retain(instance: dict) -> None:
         for control, value in (("arbitrationRetention", True), ("arbitrationWindow", RETENTION_WINDOW)):
             code, body = http("PUT", f"{instance['re']}/api/engine/config/{control}", {"value": value})
@@ -545,7 +566,7 @@ def main() -> int:
                 http("DELETE", f"{instance['re']}/api/engine/config/{control}")
 
     try:
-        ran_9b = run_fixtures(instances, retain, driven_records, step_of, fail, report,
+        ran_9b = run_fixtures(instances, retain, driven_records, step_of, drive_9b, fail, report,
                               resolved_by_runtime, replay, replay_providers, args)
     finally:
         restore()
@@ -572,22 +593,13 @@ def main() -> int:
         "9b": fixture_status(cov["9b"], cov["reachable"]) if ran_9b else "not-run",
     }
     report["coverage"] = cov
-    # Which lane produced this artifact. 9b is local-lane-only by design (#134),
-    # so a report that does not say which lane it came from cannot be read after
-    # the fact — an absent 9b is expected on hosted and a regression on local.
     report["lane"] = args.lane
-    if report["status"] == "passed" and not ran_9b:
-        if args.lane != "local":
-            # Complete, not partial: the lane did everything it can, and an
-            # amber light here would be permanent and meaningless.
-            report["fixtures"]["9b"] = "local-lane-only"
-            report["reason"] = ("9b needs the ACP surface; OpenClaw, Ollama and "
-                                "the HealthKit bridge run only on the local lane")
-        else:
-            report["status"] = "partial"
-            report["reason"] = ("9b was not exercised: the lane runs ACP but no "
-                                "PE accepted the replayed contribution set, so "
-                                "machine/provider contention is unproven")
+    # 9b is in scope on every lane, so it observing nothing is a failure, never
+    # a pass: the stage passed for as long as 9b existed while asserting
+    # nothing at all (#525, the failure #135 was filed about).
+    if report["fixtures"]["9b"] != "asserted":
+        fail(f"9b {report['fixtures']['9b']}: machine/provider contention observed on "
+             f"{cov['9b']} of {cov['reachable']} runtime(s)")
 
     args.out.parent.mkdir(parents=True, exist_ok=True)
     args.out.write_text(json.dumps(report, indent=2, sort_keys=True) + "\n", encoding="utf-8")
@@ -596,14 +608,6 @@ def main() -> int:
     if report["status"] == "failed":
         print(f"arbiter: FAILED ({len(report['failures'])} problem(s))")
         return 1
-    if report["status"] == "partial":
-        print(f"arbiter: PARTIAL ({len(resolved_by_runtime)} runtime(s)) — 9a conforms; "
-              "9b not exercised, no PE accepted the replay")
-        return 0
-    if report["fixtures"]["9b"] == "local-lane-only":
-        print(f"arbiter: OK ({len(resolved_by_runtime)} runtime(s)) — 9a conforms "
-              "on every runtime; 9b is a local-lane assertion")
-        return 0
     # Print what was observed rather than a fixed "9a and 9b conform". A status
     # line that cannot say less than "conform" is not a report.
     print(f"arbiter: OK ({len(resolved_by_runtime)} runtime(s), lane {report['lane']}) — "
