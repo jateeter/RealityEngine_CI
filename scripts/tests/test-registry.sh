@@ -94,6 +94,61 @@ _exit=$?
 set -e
 assert_exit "$_exit" "0" "T9: remove on missing file exits 0"
 
+# ── Instance UUIDs (RealityEngine_CI#296) ────────────────────────────────────
+# A UUID belongs to an instance, never an engine type; no two instances share one.
+export RE_INSTANCE_STATE_DIR="$TMPDIR_TEST/instance-state"
+rm -f "$RE_REGISTRY_FILE"
+
+u_cpp1=$(instance_uuid_allocate native cpp-1)
+u_cpp2=$(instance_uuid_allocate native cpp-2)
+u_lsp1=$(instance_uuid_allocate native lsp-1)
+assert_eq "$(python3 -c "import re,sys; print(all(re.fullmatch(r'[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}', u) for u in sys.argv[1:]))" "$u_cpp1" "$u_cpp2" "$u_lsp1")" "True" "U1: allocations are canonical v7 UUIDs"
+assert_eq "$(printf '%s\n' "$u_cpp1" "$u_cpp2" "$u_lsp1" | sort -u | wc -l | tr -d ' ')" "3" "U2: two instances of one engine type get distinct UUIDs"
+assert_eq "$(instance_uuid_allocate native cpp-1)" "$u_cpp1" "U3: an instance keeps its UUID across allocations (universes)"
+u_docker_cpp1=$(instance_uuid_docker_env cpp-1)
+[ "$u_docker_cpp1" != "$u_cpp1" ] && _distinct=yes || _distinct=no
+assert_eq "$_distinct" "yes" "U4: the Docker lane's cpp-1 is a different instance from the native cpp-1"
+assert_eq "$(cat "$RE_INSTANCE_STATE_DIR/docker/cpp-1.env")" "INSTANCE_UUID=$u_docker_cpp1
+INSTANCE_CLOCK_DIR=/var/lib/reality-engine/clock" "U5: the Docker env file carries the UUID and the container clock dir"
+assert_eq "$(instance_clock_dir)" "$RE_INSTANCE_STATE_DIR/clock" "U6: native clocks live under the state dir"
+
+registry_add "cpp-1" "cpp" "http://127.0.0.1:5301" "http://127.0.0.1:5300" "" "" "$u_cpp1"
+assert_eq "$(python3 -c "import json; d=json.load(open('$RE_REGISTRY_FILE')); print(d['instances'][0]['instance_uuid'])")" "$u_cpp1" "U7: registry_add records instance_uuid"
+set +e
+registry_add "cpp-2" "cpp" "http://127.0.0.1:5311" "http://127.0.0.1:5310" "" "" "$u_cpp1" 2>/dev/null
+_exit=$?
+set -e
+assert_exit "$_exit" "1" "U8: a UUID another instance holds is refused"
+assert_eq "$(python3 -c "import json; d=json.load(open('$RE_REGISTRY_FILE')); print(len(d['instances']))")" "1" "U8: and nothing was registered"
+registry_add "cpp-1" "cpp" "http://127.0.0.1:5301" "http://127.0.0.1:5300" "" "" "$u_cpp1"
+assert_eq "$(python3 -c "import json; d=json.load(open('$RE_REGISTRY_FILE')); print(len(d['instances']))")" "1" "U9: re-registering the same instance with its own UUID is an upsert"
+registry_add "lsp-1" "lsp" "http://127.0.0.1:5601" "http://127.0.0.1:5600" "" ""
+assert_eq "$(python3 -c "import json; d=json.load(open('$RE_REGISTRY_FILE')); print([i['instance_uuid'] for i in d['instances'] if i['id']=='lsp-1'][0])")" "None" "U10: without a UUID the field is null"
+python3 "$CI_DIR/scripts/lib/instance_uuids.py" check-registry "$RE_REGISTRY_FILE"
+assert_exit "$?" "0" "U11: check-registry passes a registry with unique UUIDs"
+python3 - "$RE_REGISTRY_FILE" "$u_cpp1" <<'PY'
+import json, sys
+d = json.load(open(sys.argv[1]))
+d['instances'].append({'id': 'cpp-9', 'instance_uuid': sys.argv[2]})
+json.dump(d, open(sys.argv[1], 'w'))
+PY
+set +e
+python3 "$CI_DIR/scripts/lib/instance_uuids.py" check-registry "$RE_REGISTRY_FILE" 2>/dev/null
+_exit=$?
+set -e
+assert_exit "$_exit" "1" "U12: check-registry refuses two instances sharing a UUID"
+python3 - "$RE_INSTANCE_STATE_DIR/instance-uuids.json" "$u_cpp1" <<'PY'
+import json, sys
+d = json.load(open(sys.argv[1]))
+d['instances']['native/cpp-7'] = sys.argv[2]
+json.dump(d, open(sys.argv[1], 'w'))
+PY
+set +e
+instance_uuid_allocate native cpp-8 >/dev/null 2>&1
+_exit=$?
+set -e
+assert_exit "$_exit" "1" "U13: an allocation table holding a duplicate is refused, not repaired"
+
 # ── Summary ───────────────────────────────────────────────────────────────────
 echo ""
 echo "registry: $PASS passed, $FAIL failed"

@@ -301,6 +301,12 @@ fi  # end: if [ "$DRY_RUN" = false ] stamp
 # Source multi-engine helpers
 # shellcheck source=scripts/registry.sh
 source "$CI_DIR/scripts/registry.sh"
+# Instance identity (RealityEngine_CI#296): every instance gets a UUID allocated
+# by instance, never by engine type, kept across universes so its Lamport clock
+# (instance UUID + a counter that never resets) carries on. Native instances
+# keep their clocks here; the Docker lane mounts its own directory.
+INSTANCE_CLOCK_DIR="${INSTANCE_CLOCK_DIR:-$(instance_clock_dir)}"
+export INSTANCE_CLOCK_DIR
 # shellcheck source=scripts/allocate-ports.sh
 source "$CI_DIR/scripts/allocate-ports.sh"
 
@@ -1188,11 +1194,18 @@ spawn_scala_instance() {
     local re_port pe_port
     read -r re_port pe_port <<< "$ports"
 
+    # The instance's UUID: allocated per instance, never per engine type, and
+    # kept across universes so its Lamport clock carries on (#296).
+    local instance_uuid
+    instance_uuid=$(instance_uuid_allocate native "$id") || die "$id: instance UUID allocation failed"
+
     info "Spawning $id  (RE=$HOST_IP:$re_port  PE=$HOST_IP:$pe_port)"
 
     [ -x "$SCALA_DIR/start.sh" ] || die "$id: $SCALA_DIR/start.sh not found or not executable"
 
     INSTANCE_ID="$id" \
+    INSTANCE_UUID="$instance_uuid" \
+    INSTANCE_CLOCK_DIR="$INSTANCE_CLOCK_DIR" \
     RE_LOAD_MACHINES="$_RE_LOAD_MACHINES" \
     FRESH_START="$FRESH_START" \
     HOST="0.0.0.0" \
@@ -1217,7 +1230,8 @@ spawn_scala_instance() {
     registry_add "$id" "scala" \
         "http://$HOST_IP:$re_port" \
         "http://$HOST_IP:$pe_port" \
-        "${pid_re_actual:-$pid_re}" "${pid_pe_actual:-}"
+        "${pid_re_actual:-$pid_re}" "${pid_pe_actual:-}" \
+        "$instance_uuid" || die "$id: not registered (see above)"
 }
 
 spawn_cpp_instance() {
@@ -1226,10 +1240,17 @@ spawn_cpp_instance() {
     local re_port pe_port
     read -r re_port pe_port <<< "$ports"
 
+    # The instance's UUID: allocated per instance, never per engine type, and
+    # kept across universes so its Lamport clock carries on (#296).
+    local instance_uuid
+    instance_uuid=$(instance_uuid_allocate native "$id") || die "$id: instance UUID allocation failed"
+
     info "Spawning $id  (RE=$HOST_IP:$re_port  PE=$HOST_IP:$pe_port)"
     [ -x "$CPP_DIR/start.sh" ] || die "$id: $CPP_DIR/start.sh not found or not executable"
 
     INSTANCE_ID="$id" \
+    INSTANCE_UUID="$instance_uuid" \
+    INSTANCE_CLOCK_DIR="$INSTANCE_CLOCK_DIR" \
     RE_LOAD_MACHINES="$_RE_LOAD_MACHINES" \
     FRESH_START="$FRESH_START" \
     REALITY_ENGINE_HOST="$HOST_IP" \
@@ -1253,7 +1274,8 @@ spawn_cpp_instance() {
     registry_add "$id" "cpp" \
         "http://$HOST_IP:$re_port" \
         "http://$HOST_IP:$pe_port" \
-        "${pid_re_actual:-}" "${pid_pe_actual:-}"
+        "${pid_re_actual:-}" "${pid_pe_actual:-}" \
+        "$instance_uuid" || die "$id: not registered (see above)"
 }
 
 spawn_lsp_instance() {
@@ -1262,10 +1284,17 @@ spawn_lsp_instance() {
     local re_port pe_port
     read -r re_port pe_port <<< "$ports"
 
+    # The instance's UUID: allocated per instance, never per engine type, and
+    # kept across universes so its Lamport clock carries on (#296).
+    local instance_uuid
+    instance_uuid=$(instance_uuid_allocate native "$id") || die "$id: instance UUID allocation failed"
+
     info "Spawning $id  (RE=$HOST_IP:$re_port  PE=$HOST_IP:$pe_port)"
     [ -x "$LSP_DIR/start.sh" ] || die "$id: $LSP_DIR/start.sh not found or not executable"
 
     INSTANCE_ID="$id" \
+    INSTANCE_UUID="$instance_uuid" \
+    INSTANCE_CLOCK_DIR="$INSTANCE_CLOCK_DIR" \
     RE_LOAD_MACHINES="$_RE_LOAD_MACHINES" \
     FRESH_START="$FRESH_START" \
     REALITY_ENGINE_HOST="$HOST_IP" \
@@ -1289,7 +1318,8 @@ spawn_lsp_instance() {
     registry_add "$id" "lsp" \
         "http://$HOST_IP:$re_port" \
         "http://$HOST_IP:$pe_port" \
-        "${pid_re_actual:-}" "${pid_pe_actual:-}"
+        "${pid_re_actual:-}" "${pid_pe_actual:-}" \
+        "$instance_uuid" || die "$id: not registered (see above)"
 }
 
 # ── Engine-selection short-circuit ────────────────────────────────────────
@@ -2290,6 +2320,16 @@ else
     ok "All RE images present in engine store"
 fi
 
+# Each Docker RE's instance UUID, written where its compose service loads it
+# (env_file) before the containers are created (#296).
+# Plain variables, not an associative array: this runs under macOS /bin/bash 3.2.
+DOCKER_UUID_SCALA_1="" DOCKER_UUID_CPP_1="" DOCKER_UUID_LSP_1=""
+if [ "$DRY_RUN" = false ]; then
+    DOCKER_UUID_SCALA_1=$(instance_uuid_docker_env scala-1) || die "scala-1: instance UUID allocation failed"
+    DOCKER_UUID_CPP_1=$(instance_uuid_docker_env cpp-1)     || die "cpp-1: instance UUID allocation failed"
+    DOCKER_UUID_LSP_1=$(instance_uuid_docker_env lsp-1)     || die "lsp-1: instance UUID allocation failed"
+fi
+
 info "Starting RE services (waiting for all healthchecks, timeout 360s)..."
 docker compose up -d --wait --wait-timeout 360 || \
     die "RE services failed to reach healthy state\n  Check:  docker compose logs"
@@ -2349,9 +2389,12 @@ if [ "$MULTI_ENGINE_MODE" != true ] && [ "$DRY_RUN" = false ]; then
     instance_registry_start
     # $HOST_IP, as the native lane registers, not localhost: Manager's
     # Visualizer backend runs in a container here, and its localhost is itself.
-    registry_add "scala-1" "scala" "http://$HOST_IP:6101" "http://$HOST_IP:6100" "" ""
-    registry_add "cpp-1"   "cpp"   "http://$HOST_IP:6301" "http://$HOST_IP:6300" "" ""
-    registry_add "lsp-1"   "lsp"   "http://$HOST_IP:6601" "http://$HOST_IP:6600" "" ""
+    registry_add "scala-1" "scala" "http://$HOST_IP:6101" "http://$HOST_IP:6100" "" "" \
+        "$DOCKER_UUID_SCALA_1" || die "scala-1: not registered (see above)"
+    registry_add "cpp-1"   "cpp"   "http://$HOST_IP:6301" "http://$HOST_IP:6300" "" "" \
+        "$DOCKER_UUID_CPP_1" || die "cpp-1: not registered (see above)"
+    registry_add "lsp-1"   "lsp"   "http://$HOST_IP:6601" "http://$HOST_IP:6600" "" "" \
+        "$DOCKER_UUID_LSP_1" || die "lsp-1: not registered (see above)"
     _publish_service "registry"         "${REGISTRY_PORT}" "/re-registry.json"
     _publish_service "manager_backend"  3001 "/health"  https
     _publish_service "manager_frontend" 5173 "/"        https

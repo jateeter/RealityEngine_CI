@@ -35,6 +35,17 @@ x-engine-corpus: &engine-corpus
   - ${MACHINE_CORPUS_DIR:-${MACHINES_DIR:?MACHINES_DIR must be set — run via startUniverse.sh}}/machines:/app/machines:ro
   - ${MACHINE_CORPUS_DIR:-${MACHINES_DIR:?MACHINES_DIR must be set — run via startUniverse.sh}}/semantics:/app/semantics:ro
 
+# Instance identity (RealityEngine_CI#296). A UUID belongs to an instance, never
+# to an engine type or image, and no two instances may share one. startUniverse.sh
+# allocates one per instance and writes it to <state>/docker/<id>.env, loaded
+# below, so any tool that recreates a container presents the same UUID; absent
+# the file, the engine mints its own. Each RE keeps its Lamport clock on the
+# <state>/clock-docker bind mount, so the clock survives the container.
+x-engine-re-volumes: &engine-re-volumes
+  - ${MACHINE_CORPUS_DIR:-${MACHINES_DIR:?MACHINES_DIR must be set — run via startUniverse.sh}}/machines:/app/machines:ro
+  - ${MACHINE_CORPUS_DIR:-${MACHINES_DIR:?MACHINES_DIR must be set — run via startUniverse.sh}}/semantics:/app/semantics:ro
+  - ${RE_INSTANCE_STATE_DIR:-${HOME}/.reality-engine}/clock-docker:/var/lib/reality-engine/clock
+
 x-engine-re-env: &engine-re-env
   MACHINES_DIR: /app/machines
   VECTOR_DIMENSION: ${VECTOR_DIMENSION:-7680}
@@ -210,7 +221,10 @@ services:
       <<: *engine-re-env
       PORT: "3000"
       JAVA_TOOL_OPTIONS: ${ENGINE_SCALA_RE_JAVA_OPTS:--Xmx3g}
-    volumes: *engine-corpus
+    env_file:
+      - path: ${RE_INSTANCE_STATE_DIR:-${HOME}/.reality-engine}/docker/scala-1.env
+        required: false
+    volumes: *engine-re-volumes
     ports:
       - "6101:3000"
     healthcheck:
@@ -279,7 +293,10 @@ services:
     environment: *engine-re-env
     # Positional arguments, as RealityEngine_CPP/start.sh passes them.
     command: ["/app/bin/reality_engine_server", "3000", "/app/machines", "${VECTOR_DIMENSION:-7680}"]
-    volumes: *engine-corpus
+    env_file:
+      - path: ${RE_INSTANCE_STATE_DIR:-${HOME}/.reality-engine}/docker/cpp-1.env
+        required: false
+    volumes: *engine-re-volumes
     ports:
       - "6301:3000"
     healthcheck:
@@ -348,7 +365,10 @@ services:
       <<: *engine-re-env
       REALITY_ENGINE_PORT: "3000"
     command: ["reality"]
-    volumes: *engine-corpus
+    env_file:
+      - path: ${RE_INSTANCE_STATE_DIR:-${HOME}/.reality-engine}/docker/lsp-1.env
+        required: false
+    volumes: *engine-re-volumes
     ports:
       - "6601:3000"
     healthcheck:
