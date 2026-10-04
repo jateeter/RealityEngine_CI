@@ -601,11 +601,25 @@ deterministic machine determination beats a `generated` source **at any value**,
 and criterion 5a holds at the fold as it does in the arbiter. `T_M` remains the
 operator for every cell the registry does not declare.
 
-Ranks are the arbiter's own: the cell's declared `providerRanks` entry for the
-provider, else the rank of its determinism class (§3), exactly as the arbiter
-ranks contributions it resolves. Only `PRECEDENCE` is resolved at the fold
-today. A declared cell whose rule is anything else, or whose two providers rank
-equal, folds by `T_M`, and its record says so (`declaredRule`). Today that set is empty: the registry declares `SEVERITY`
+**Only a provider the cell names.** The declared rule applies when the cell's
+`providerRanks` names the source's provider explicitly, as `acp` is named on the
+9b cells. A provider the declaration does not name keeps `T_M`, and its record
+carries `review: "provider-unranked"`. That covers the corpus's interned seeds
+(`synthetic`), sensors, and any surface a cell's author never ranked.
+
+An unnamed provider is not overridden by default. It goes into **review**, from
+which it is either ranked explicitly on the cells it writes, or placed in the
+**unnamed-provider trustability ranking**, which decides a collision between two
+unnamed providers (owner decision, 2026-10-04, #525; the review process and the
+ranking are #526). Applied to every provider, the rule silenced 20 corpus
+machines, because their seeds lost to an upstream machine's OSRE on declared
+cells.
+
+Ranks are the arbiter's own: the cell's declared `providerRanks`, with `machine`
+falling back to its determinism class (§3) when unnamed. Only `PRECEDENCE` is
+resolved at the fold today. A declared cell whose rule is anything else, or
+whose two providers rank equal, folds by `T_M`, and its record says so
+(`declaredRule`). Today that set is empty: the registry declares `SEVERITY`
 only on machine/machine cells (9a), which no source writes.
 
 **The provider of a source** is decided the same way in all four runtimes:
@@ -667,6 +681,7 @@ OsreFold  := {
   rule?        : "PRECEDENCE",            // resolution declared-rule
   operator?    : "or" | "and" | …,        // resolution osre-fold: T_M
   declaredRule?: string,                  // osre-fold on a declared cell the fold cannot apply
+  review?      : "provider-unranked",     // the cell does not name the source's provider
   osre   : { machine, provider: "machine", value },
   source : { id, name, kind, provider, value },
   resolved : number,

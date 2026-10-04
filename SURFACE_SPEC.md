@@ -2127,7 +2127,10 @@ overwrote the OSRE value.
 
 **Except where the cell's rule is declared** (owner decision, 2026-10-04,
 RealityEngine_CI#525). A cell the arbitration registry declares folds by that
-rule instead. Under `PRECEDENCE` the higher-ranked provider's value is taken
+rule instead, **for a provider the declaration names**. An unnamed provider,
+such as a seed or a sensor, keeps the operator and is flagged
+`review: "provider-unranked"`. Under `PRECEDENCE` the higher-ranked provider's
+value is taken
 whole, so a machine's deterministic determination beats a `generated` source
 (`acp`, `mcp`, `localai`) at any value, and §4.3a's criterion 5a holds at the
 fold. A source's provider is the first segment of its `origin`, mapped through
