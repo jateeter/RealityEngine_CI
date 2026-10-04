@@ -89786,7 +89786,7 @@
       "lsp-1": 1335,
       "scala-1": 1335
     },
-    "completionPoint": "none exposed by any runtime (RealityEngine_CI#375)",
+    "completionPoint": "GET /api/engine/steps/:n/pair (RealityEngine_CI#375)",
     "internedSources": {
       "cpp-1": 1335,
       "lsp-1": 1335,
@@ -89796,11 +89796,11 @@
     "model": "corpus-interned test sources (composed ISRESeed)",
     "residentMachines": 1337,
     "seedDepth": 79,
-    "settleMs": 0,
     "sourcelessMachines": [
       "localai/agent_topology",
       "localai/rag_topology"
     ],
+    "stepWindowMs": 5000,
     "steps": 79
   }
 }
