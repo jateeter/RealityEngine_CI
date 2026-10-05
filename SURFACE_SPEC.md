@@ -503,6 +503,12 @@ Two consequences follow, and both are contract:
   ingested and resident even though it never enters the perceptual space, so a
   second machine of that name is versioned — and, having no region to reallocate,
   is ingested under the versioned name with nothing allocated.
+- **`GET /api/machines` lists every resident machine**, mapped or not, and
+  `GET /api/machines/:id` answers for each (owner decision, 2026-10-05,
+  RealityEngine_CPP#163). The list is how a caller finds a machine to delete; a
+  resident machine it omitted could be neither found nor removed. C++ listed
+  only the machines in its perceptual space and omitted mapping-less ones while
+  LSP and Scala listed them, a 2-1 split.
 
 When the requested `name` is already held by a resident machine:
 
