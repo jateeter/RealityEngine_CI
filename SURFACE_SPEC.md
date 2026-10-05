@@ -720,6 +720,7 @@ default is wrong rather than different.
 | `includeActiveRegions` | `engine` | `true` | `true` | the active-region list in a step response |
 | `includeMachineResults` | `engine` | `true` | `true` | per-machine results in a step response |
 | `includePerceptualSpace` | `engine` | `true` | `true` | the perceptual-space vector in a step response |
+| `phaseDetail` | `engine` | `false` | `true` | step phase timing: when on, `/api/metrics` reports the five declared step phases (below) |
 | `transitionsInhibited` | `machine` | `false` | `true` | whether a machine passes its Reality Event forward |
 
 This table is the declaration, and `regression-engine-config-parity.py` **parses
@@ -756,16 +757,19 @@ can see.
 
 ##### Not every control is universal, and the difference must be sayable
 
-`phaseDetail` exists on C++ alone. It gates reading a clock inside `merge_build`
-and emitting the resulting sub-phase timings; LSP and Scala construct a step
-differently and have no sub-phases to time.
+`phaseDetail` was the example. It existed on C++ alone and gated clock reads
+inside `merge_build`, whose sub-phases LSP and Scala do not have. Requiring all
+three to carry it as it stood would have produced, on two runtimes, a control
+that accepts `true`, reports `true`, and changes nothing. That is the precise
+failure this pathway exists to remove, rebuilt deliberately and called
+conformance. **A control that reports a value it does not act on is worse than
+an absent one**, because an absent control is visible and a lying one is not.
 
-The tempting move is to require all three to carry it. That would produce, on
-two runtimes, a control that accepts `true`, reports `true`, and changes
-nothing — which is the precise failure this pathway exists to remove, rebuilt
-deliberately and called conformance. **A control that reports a value it does
-not act on is worse than an absent one**, because an absent control is visible
-and a lying one is not.
+It became universal by giving every runtime something real to measure, not by
+adding the flag (owner decision, 2026-10-05). The step phases every runtime
+shares under "Step completion" are what it now times; see "`phaseDetail`: step
+phase timing" below. C++'s `merge_build` sub-phases remain, as C++
+instrumentation metrics behind the same gate.
 
 So the pathway distinguishes two kinds:
 
@@ -776,7 +780,7 @@ So the pathway distinguishes two kinds:
 
 | instrumentation control | `scope` | `default` | runtimes |
 |---|---|---|---|
-| `phaseDetail` | `engine` | `false` | CPP |
+| *(none declared today)* | | | |
 
 Both kinds use the same five-field shape, so nothing about the response changes
 and a reader cannot tell them apart from the wire — which is correct. **Which
@@ -784,6 +788,57 @@ controls are universal is declared here, not inferred from what the runtimes
 happen to agree on.** Inferring it would make the comparison circular: three
 runtimes that all omit a control would define it out of the contract, and the
 `historyLimit` split is exactly what happens when the runtimes get to decide.
+
+##### `phaseDetail`: step phase timing
+
+When `phaseDetail` is `true`, every runtime measures each step in **five phases**,
+each the span between two boundaries every runtime already has ("Step
+completion"):
+
+| boundary | |
+|---|---|
+| B0 | the step starts |
+| B1 | ISRE(n) is captured |
+| B2 | every composer has joined |
+| B3 | OSRE(n) is resolved |
+| B4 | the (ISRE(n), OSRE(n)) pair is committed, arbitration retained with it |
+| B5 | the completion point is published |
+
+| phase | span |
+|---|---|
+| `step.isre_capture` | B0 → B1 |
+| `step.compose` | B1 → B2 |
+| `step.resolve` | B2 → B3 |
+| `step.commit` | B3 → B4 |
+| `step.publish` | B4 → B5 |
+
+The phases tile the step: they sum to B0 → B5 with nothing unattributed. Whether
+a step is measured is decided at B0, so turning the control on or off mid-step
+never splits one step's phases.
+
+`GET /api/metrics` reports them while the control is on:
+
+```
+re_step_phase_seconds_total{runtime="<rt>",phase="step.<name>"}   one line per phase, seconds summed over measured steps
+re_step_phase_detail_steps_total{runtime="<rt>"}                  steps measured
+```
+
+While it is off those lines are **absent, not zero**: zero would read as "this
+costs nothing", which is a claim, where absence says "not measured".
+`re_step_phase_detail{runtime="<rt>"}` (0 or 1) is always present. The totals
+are counters since boot: a reset does not clear them, and turning the control
+off and on resumes them.
+
+Timings differ on every run of every engine by construction, so they live in
+`/api/metrics`, which is never compared byte for byte, and **never on the step
+response**, which is. What is held 3-of-3 is that the control exists with this
+declared default (checks 1–3 of `regression-engine-config-parity.py`) and that
+it acts: on, one pushed step adds one measured step and time to the phases;
+off, the phase lines go away (check 4).
+
+C++ also reports its finer phases (`machine_join`, `merge_build`, … always) and
+the `merge_build.*` sub-phases (behind this gate) under the same metric name.
+These are C++ instrumentation and are not part of the contract.
 
 **The per-request flags remain.** A caller declining `machineResults` on one
 push is not configuration; folding it in would make response shape depend on

@@ -13,6 +13,11 @@ meaningless without the one before it:
   1. every runtime carries the universal control set
   2. every runtime declares the specification's default for each of them
   3. the runtimes agree with each other
+  4. phaseDetail acts: on, one step is measured in the five declared step
+     phases; off, they are absent (SURFACE_SPEC, "phaseDetail"). A control that
+     reports a value it does not act on is worse than an absent one, so its
+     presence alone proves nothing. This half pushes one step per runtime;
+     --no-step skips it.
 
 Order matters. Three runtimes that all omit a control agree perfectly about
 nothing, and three that agree on a default the specification does not declare
@@ -140,6 +145,79 @@ def read_config(base: str) -> tuple[dict | None, str | None]:
         return None, f"{type(exc).__name__}: {exc}"
 
 
+STEP_PHASES = ("step.isre_capture", "step.compose", "step.resolve", "step.commit", "step.publish")
+
+
+def _http(method: str, url: str, body: dict | None = None, timeout: int = 120) -> tuple[int, str]:
+    data = json.dumps(body).encode("utf-8") if body is not None else None
+    req = request.Request(url, data=data, method=method,
+                          headers={"content-type": "application/json"} if data else {})
+    try:
+        with request.urlopen(req, timeout=timeout) as response:
+            return response.status, response.read().decode("utf-8")
+    except error.HTTPError as exc:
+        return exc.code, exc.read().decode("utf-8", "replace")
+
+
+def _phase_metrics(re_url: str) -> tuple[dict[str, float], int | None]:
+    """The step.* phase seconds and the measured-steps counter, from /api/metrics."""
+    _, text = _http("GET", f"{re_url}/api/metrics", timeout=300)
+    phases: dict[str, float] = {}
+    steps = None
+    for line in text.splitlines():
+        if line.startswith("re_step_phase_seconds_total{"):
+            # Label order carries no meaning in the exposition format, and the
+            # runtimes differ: Scala sorts labels, C++ and LSP lead with runtime.
+            m = re.match(r're_step_phase_seconds_total\{([^}]*)\}\s+(\S+)$', line)
+            labels = dict(re.findall(r'(\w+)="([^"]*)"', m.group(1))) if m else {}
+            if labels.get("phase", "").startswith("step."):
+                phases[labels["phase"]] = float(m.group(2))
+        elif line.startswith("re_step_phase_detail_steps_total{"):
+            steps = int(float(line.rsplit(None, 1)[1]))
+    return phases, steps
+
+
+def check_phase_detail_acts(inst: dict) -> str | None:
+    """None when phaseDetail measures a step on, and stops reporting off.
+
+    The control's prior value is restored whatever happens.
+    """
+    re_url, pe_url = inst["re_url"].rstrip("/"), inst.get("pe_url", "").rstrip("/")
+    if not pe_url:
+        return "no pe_url in the instance registry; cannot push a step"
+    status, text = _http("GET", f"{re_url}/api/engine/config/phaseDetail")
+    if status != 200:
+        return f"GET /api/engine/config/phaseDetail answered {status}"
+    prior = json.loads(text).get("value", False)
+    try:
+        status, _ = _http("PUT", f"{re_url}/api/engine/config/phaseDetail", {"value": True})
+        if status != 200:
+            return f"PUT phaseDetail=true answered {status}"
+        before, steps_before = _phase_metrics(re_url)
+        status, _ = _http("POST", f"{pe_url}/api/push", {})
+        if status != 200:
+            return f"POST /api/push answered {status}"
+        after, steps_after = _phase_metrics(re_url)
+        missing = [p for p in STEP_PHASES if p not in after]
+        if missing:
+            return f"on, /api/metrics lacks {', '.join(missing)}"
+        if steps_before is None or steps_after is None or steps_after != steps_before + 1:
+            return (f"on, re_step_phase_detail_steps_total went {steps_before} -> {steps_after} "
+                    f"for one push (expected +1)")
+        grew = sum(after[p] - before.get(p, 0.0) for p in STEP_PHASES)
+        if grew <= 0:
+            return "on, the pushed step added no time to any step phase"
+        status, _ = _http("PUT", f"{re_url}/api/engine/config/phaseDetail", {"value": False})
+        if status != 200:
+            return f"PUT phaseDetail=false answered {status}"
+        off, _ = _phase_metrics(re_url)
+        if any(p in off for p in STEP_PHASES):
+            return "off, /api/metrics still reports step.* phases"
+        return None
+    finally:
+        _http("PUT", f"{re_url}/api/engine/config/phaseDetail", {"value": prior})
+
+
 def summarise_value(control: dict) -> object:
     """What may be compared across runtimes for this control's value.
 
@@ -168,6 +246,8 @@ def main() -> None:
                     default=os.environ.get("RE_REGISTRY_URL",
                                            "http://127.0.0.1:5999/re-registry.json"))
     ap.add_argument("--json", help="Write the full report to this path.")
+    ap.add_argument("--no-step", action="store_true",
+                    help="Skip check 4, which pushes one step per runtime.")
     args = ap.parse_args()
 
     declared = parse_declared_controls(SPEC)
@@ -269,6 +349,22 @@ def main() -> None:
         else:
             shown = json.dumps(next(iter(values.values())), sort_keys=True)
             print(f"  ✓ {name} = {shown[:90]}")
+
+    # 4. phaseDetail acts. Presence and defaults say nothing about whether the
+    #    control does anything, which is the failure SURFACE_SPEC names for it.
+    if "phaseDetail" in declared and not args.no_step:
+        print("\n4. phaseDetail acts (one step per runtime)")
+        for inst in instances:
+            if inst["id"] not in configs:
+                continue
+            why = check_phase_detail_acts(inst)
+            if why:
+                failures += 1
+                line = f"phaseDetail on {inst['id']}: {why}"
+                report["findings"].append(line)
+                print(f"  ✗ {line}")
+            else:
+                print(f"  ✓ {inst['id']}: five step phases measured when on, absent when off")
 
     # Controls a runtime carries that the specification does not declare. Not a
     # failure — instrumentation controls are legitimate and declared separately
