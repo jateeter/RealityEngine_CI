@@ -85,15 +85,28 @@ querystring (e.g. `?runtime=scala&service=pe`) so individual views are
 linkable.
 
 When served through `scripts/serve-openapi.sh`, the checked-in generated specs
-are exposed with a runtime-aware `servers:` block that points to the same-origin
-Swagger proxy:
+are exposed with a `servers:` block that lists **every running instance** of the
+spec's surface through the same-origin Swagger proxy (#323):
 
 ```text
-http://localhost:8088/proxy/{cpp,lsp,scala}/{re,pe}
+http://localhost:8088/proxy/instance/<instance-id>/{re,pe}     # any instance
+http://localhost:8088/proxy/{cpp,lsp,scala}/{re,pe}            # first instance of a runtime
 ```
 
-The proxy resolves live targets from `/tmp/re-registry/re-registry.json`, so
-"Try it out" follows the active universe instead of static local ports. The
+The runtimes are wire-compatible, so any spec can target any instance serving
+its surface (an RE spec, an RE URL). Two ways to choose:
+
+- **Whole spec:** the portal's **Instance** selector (or `?instance=<id>` on the
+  page or on a spec URL) makes that instance the default of every operation.
+- **One operation:** each operation carries its own server list, so a single
+  call can be aimed at another instance while the rest of the page stays put.
+  An operation's list overrides Swagger's top-level server dropdown, which is
+  why the whole-spec choice is the Instance selector.
+
+With no choice made, each spec defaults to the first instance of its own
+runtime, as before. The proxy resolves live targets from
+`/tmp/re-registry/re-registry.json`, so "Try it out" follows the active
+universe instead of static local ports. The
 generated YAML files remain the source artifacts and should not be edited by
 hand.
 

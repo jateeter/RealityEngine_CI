@@ -48,6 +48,10 @@
       <option value="re">Reality Engine (RE)</option>
       <option value="pe">Perception Engine (PE)</option>
     </select>
+    <label for="instance" title="Points every operation at this instance. Each operation also has its own server choice.">Instance</label>
+    <select id="instance">
+      <option value="">default (first of this runtime)</option>
+    </select>
     <span class="spacer"></span>
     <a id="rawlink" href="#" target="_blank" rel="noopener">view raw spec ↗</a>
   </div>
@@ -59,10 +63,31 @@
     const runtimeSel = document.getElementById('runtime');
     const serviceSel = document.getElementById('service');
     const rawlink = document.getElementById('rawlink');
+    const instanceSel = document.getElementById('instance');
     let ui;
 
+    // Any running instance can serve any spec of its surface: the runtimes are
+    // wire-compatible (RealityEngine_CI#323). The portal lists them from the
+    // instance registry; served from a plain static server there is none, and
+    // only the default option remains.
+    async function loadInstances() {
+      try {
+        const resp = await fetch('registry.json');
+        if (!resp.ok) return;
+        const reg = await resp.json();
+        for (const i of (reg.instances || [])) {
+          if ((i.status || 'running') !== 'running' || !i.id) continue;
+          const opt = document.createElement('option');
+          opt.value = i.id;
+          opt.textContent = `${i.id} (${i.runtime || '?'})`;
+          instanceSel.appendChild(opt);
+        }
+      } catch (_) { /* static serving: no registry */ }
+    }
+
     function specUrl() {
-      return `${runtimeSel.value}-${serviceSel.value}.yaml`;
+      const base = `${runtimeSel.value}-${serviceSel.value}.yaml`;
+      return instanceSel.value ? `${base}?instance=${encodeURIComponent(instanceSel.value)}` : base;
     }
 
     function render() {
@@ -79,6 +104,7 @@
       });
       // Reflect selection in the querystring so views are linkable.
       const q = new URLSearchParams({ runtime: runtimeSel.value, service: serviceSel.value });
+      if (instanceSel.value) q.set('instance', instanceSel.value);
       history.replaceState(null, '', `?${q}`);
     }
 
@@ -89,7 +115,12 @@
 
     runtimeSel.addEventListener('change', render);
     serviceSel.addEventListener('change', render);
-    window.onload = render;
+    instanceSel.addEventListener('change', render);
+    window.onload = async () => {
+      await loadInstances();
+      if (q.get('instance')) instanceSel.value = q.get('instance');
+      render();
+    };
   </script>
 </body>
 </html>

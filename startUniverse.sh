@@ -984,8 +984,8 @@ PYEOF
         else
             add_warn "Swagger PE OpenAPI spec unavailable or invalid at $swagger_url/scala-pe.yaml"
         fi
-        local swagger_runtime
-        swagger_runtime="$(python3 - "$REGISTRY_FILE" <<'PYEOF' 2>/dev/null || true
+        local swagger_runtime swagger_instance
+        read -r swagger_runtime swagger_instance < <(python3 - "$REGISTRY_FILE" <<'PYEOF' 2>/dev/null || true
 import json, sys
 try:
     with open(sys.argv[1]) as f:
@@ -994,21 +994,29 @@ except Exception:
     registry = {"instances": []}
 for instance in registry.get("instances", []):
     runtime = instance.get("runtime")
-    if runtime and instance.get("re_url") and instance.get("pe_url") and instance.get("status", "running") == "running":
-        print(runtime)
+    if runtime and instance.get("id") and instance.get("re_url") and instance.get("pe_url") and instance.get("status", "running") == "running":
+        print(runtime, instance["id"])
         break
 PYEOF
-)"
-        if [ -n "$swagger_runtime" ]; then
-            if swagger_serves "${swagger_runtime}-re.yaml" "url: ${swagger_url}/proxy/${swagger_runtime}/re"; then
-                ok "Swagger RE spec uses same-origin proxy for ${swagger_runtime}"
+) || true
+        if [ -n "${swagger_runtime:-}" ]; then
+            # Specs list every running instance of their surface, by the
+            # instance-scoped proxy route (#323); the first listed for a spec
+            # is the first running instance of that spec's runtime.
+            if swagger_serves "${swagger_runtime}-re.yaml" "url: ${swagger_url}/proxy/instance/${swagger_instance}/re"; then
+                ok "Swagger RE spec uses same-origin instance proxy (${swagger_instance})"
             else
                 add_warn "Swagger RE spec for ${swagger_runtime} does not expose same-origin proxy server"
             fi
-            if swagger_serves "${swagger_runtime}-pe.yaml" "url: ${swagger_url}/proxy/${swagger_runtime}/pe"; then
-                ok "Swagger PE spec uses same-origin proxy for ${swagger_runtime}"
+            if swagger_serves "${swagger_runtime}-pe.yaml" "url: ${swagger_url}/proxy/instance/${swagger_instance}/pe"; then
+                ok "Swagger PE spec uses same-origin instance proxy (${swagger_instance})"
             else
                 add_warn "Swagger PE spec for ${swagger_runtime} does not expose same-origin proxy server"
+            fi
+            if curl -sf --max-time 5 "$swagger_url/proxy/instance/${swagger_instance}/re/api/health" >/dev/null 2>&1; then
+                ok "Swagger instance proxy executes against ${swagger_instance}"
+            else
+                add_warn "Swagger instance proxy execution failed for ${swagger_instance}"
             fi
             if curl -sf --max-time 5 "$swagger_url/proxy/${swagger_runtime}/re/api/health" >/dev/null 2>&1; then
                 ok "Swagger RE proxy executes against active ${swagger_runtime}"
