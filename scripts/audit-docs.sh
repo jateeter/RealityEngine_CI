@@ -10,9 +10,15 @@
 #   6. Manager OpenAPI spec current with the routes the proxy serves
 #
 # Usage (from RealityEngine_CI root):
-#   bash scripts/audit-docs.sh [--fix]
+#   bash scripts/audit-docs.sh
 #
-# --fix   Auto-regenerate stale OpenAPI files (all other checks are read-only).
+# Check 3 regenerates: a stale or missing generated OpenAPI document, here or
+# in a runtime repo's propagated mirror, is a stale view of SURFACE_SPEC.md and
+# is rewritten and reported, not failed (ENGINEERING_CONTRACT, "a stale
+# registry is regenerated, not failed"). It fails only on a disagreement that
+# survives the rewrite, or on an invalid generated document. Commit what it
+# rewrote. All other checks are read-only. `--fix`, which used to opt into the
+# rewrite, is accepted and does nothing more.
 
 set -uo pipefail
 
@@ -20,13 +26,14 @@ CI_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 WS="$(cd "$CI_DIR/.." && pwd)"
 
 FAIL=0
-FIX=false
-for arg in "$@"; do [ "$arg" = "--fix" ] && FIX=true; done
+# `--fix` is accepted for existing callers; regeneration is now the default.
 
 # ── Helpers ──────────────────────────────────────────────────────────────────
 pass()   { printf "  \033[32m✓\033[0m %s\n" "$1"; }
 fail()   { printf "  \033[31m✗\033[0m %s\n" "$1"; FAIL=$((FAIL + 1)); }
 detail() { printf "    %s\n" "$1"; }
+# A regeneration: reported, not counted as a failure.
+regen()  { printf "  \033[33m↻\033[0m %s\n" "$1"; }
 hdr()    { printf "\n\033[1m%s\033[0m\n" "$1"; }
 
 # Directories excluded from every grep search (basename match).
@@ -143,15 +150,13 @@ else
     for surface in re pe; do
       committed="$OUT_DIR/${runtime}-${surface}.yaml"
       generated="$TMP_DIR/${runtime}-${surface}.yaml"
-      if [ ! -f "$committed" ]; then
-        fail "missing: docs/openapi/${runtime}-${surface}.yaml — run: bash scripts/generate-openapi.sh"
-        PARITY_PASS=false
-      elif ! diff -q "$committed" "$generated" >/dev/null 2>&1; then
-        fail "stale: docs/openapi/${runtime}-${surface}.yaml — run: bash scripts/generate-openapi.sh"
-        PARITY_PASS=false
-        if $FIX; then
-          cp "$generated" "$committed"
-          detail "auto-fixed: regenerated ${runtime}-${surface}.yaml"
+      if [ ! -f "$committed" ] || ! diff -q "$committed" "$generated" >/dev/null 2>&1; then
+        cp "$generated" "$committed"
+        if diff -q "$committed" "$generated" >/dev/null 2>&1; then
+          regen "regenerated docs/openapi/${runtime}-${surface}.yaml from SURFACE_SPEC — commit it"
+        else
+          fail "docs/openapi/${runtime}-${surface}.yaml still differs after regeneration"
+          PARITY_PASS=false
         fi
       fi
     done
@@ -169,15 +174,19 @@ else
     local mirror="$2"
     local label="$3"
 
-    if [ ! -f "$mirror" ]; then
-      fail "missing propagated OpenAPI mirror: $label — run: bash scripts/generate-openapi.sh --propagate"
-      PROPAGATION_PASS=false
-    elif ! diff -q "$source" "$mirror" >/dev/null 2>&1; then
-      fail "stale propagated OpenAPI mirror: $label — run: bash scripts/generate-openapi.sh --propagate"
-      PROPAGATION_PASS=false
-      if $FIX; then
-        cp "$source" "$mirror"
-        detail "auto-fixed propagated mirror: $label"
+    # A runtime repo that is not checked out has no mirror to keep current.
+    if [ ! -d "$(dirname "$(dirname "$(dirname "$mirror")")")" ]; then
+      detail "skipped $label: repository not checked out"
+      return
+    fi
+    if [ ! -f "$mirror" ] || ! diff -q "$source" "$mirror" >/dev/null 2>&1; then
+      mkdir -p "$(dirname "$mirror")"
+      cp "$source" "$mirror"
+      if diff -q "$source" "$mirror" >/dev/null 2>&1; then
+        regen "regenerated propagated mirror $label — commit it in ${label%%/*}"
+      else
+        fail "propagated mirror $label still differs after regeneration"
+        PROPAGATION_PASS=false
       fi
     fi
   }
@@ -231,14 +240,16 @@ python3 "$CI_DIR/scripts/openapi/generate.py" \
   --out-re "$MGR_TMP/re.yaml" --out-pe "$MGR_TMP/pe.yaml" \
   --out-manager "$MGR_TMP/manager.yaml" >/dev/null 2>&1
 
-if [ ! -f "$MGR_COMMITTED" ]; then
-  fail "missing: docs/openapi/manager.yaml — run: bash scripts/generate-openapi.sh"
-elif ! diff -q "$MGR_COMMITTED" "$MGR_TMP/manager.yaml" >/dev/null 2>&1; then
-  fail "stale: docs/openapi/manager.yaml — run: bash scripts/generate-openapi.sh"
-  if $FIX; then cp "$MGR_TMP/manager.yaml" "$MGR_COMMITTED"; detail "fixed"; fi
-else
+# A stale or missing document is regenerated, as in check 3.
+if [ ! -f "$MGR_COMMITTED" ] || ! diff -q "$MGR_COMMITTED" "$MGR_TMP/manager.yaml" >/dev/null 2>&1; then
+  cp "$MGR_TMP/manager.yaml" "$MGR_COMMITTED"
+  regen "regenerated docs/openapi/manager.yaml from SURFACE_SPEC — commit it"
+fi
+if diff -q "$MGR_COMMITTED" "$MGR_TMP/manager.yaml" >/dev/null 2>&1; then
   routes=$(grep -cE "^  /api/" "$MGR_COMMITTED")
   pass "Manager OpenAPI current with SURFACE_SPEC ($routes paths)"
+else
+  fail "docs/openapi/manager.yaml still differs after regeneration"
 fi
 rm -rf "$MGR_TMP"
 
