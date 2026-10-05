@@ -70,7 +70,10 @@ jobs:
   # than going unnoticed until something downstream reads a stale artifact.
   corpus-static:
     name: Full corpus — generators, schemas, OWL, inventory
-    runs-on: ubuntu-latest
+    # Pinned, not ubuntu-latest: ubuntu-latest becomes Ubuntu 26 on 2026-10-19,
+    # and on 2026-10-05 its hosted pool could not supply runners. The toolchain
+    # here was verified on 24.04; moving to 26 is its own change.
+    runs-on: ubuntu-24.04
     timeout-minutes: 90
     outputs:
       verdict: ${{ steps.sweep.outcome }}
@@ -213,7 +216,7 @@ jobs:
   # the gap #356 names: scala held 1344 to cpp/lsp's 1338 unnoticed).
   corpus-load-parity:
     name: Full corpus — per-runtime load count parity
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     timeout-minutes: 120
     # Sequenced after the static sweep so two long jobs do not contend for
     # runners, but NOT conditional on it. These answer different questions —
@@ -313,7 +316,7 @@ jobs:
   #   3. Is the regression profile still in step with its source list?
   agent-corpus:
     name: Full agent corpus — construct and verify (1,322)
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     timeout-minutes: 30
     steps:
       - name: Checkout RealityEngine_CI
@@ -418,7 +421,7 @@ jobs:
   # ── One issue per failing sweep, deduplicated ────────────────────────────
   report:
     name: Report drift
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     needs: [corpus-static, corpus-load-parity, agent-corpus]
     if: always() && (needs.corpus-static.result == 'failure' || needs.corpus-load-parity.result == 'failure' || needs.agent-corpus.result == 'failure')
     steps:
