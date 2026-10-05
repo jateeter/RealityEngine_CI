@@ -1,7 +1,7 @@
 {
   "corpusFingerprint": {
     "algorithm": "sha256/relfile-sorted-v1",
-    "digest": "sha256:42d008cca3ae3c04d8a90213d1afc2b2c4209917d99ddf27fc74c21118672512",
+    "digest": "sha256:f7c8f596d59d0adceaee5d698dc887285d8f84c293f8e767d271adff13fe5c6b",
     "machineCount": 12,
     "members": {
       "domains/community-services/DocumentSigningWorkflowMonitor.json": "e67e067cdcc20f8977be260831b61a39df60f65bcfaf92727979ae1858116f4a",
@@ -13,7 +13,7 @@
       "domains/digital-logic/DLX017_start-busy-done.json": "baa5a6a26aee0014c892120a6c805c1882d8456dadcd4cb390ac7b2da687ba61",
       "domains/digital-logic/DLX034_watchdog-kick-window.json": "7f23145810cf0b2351d9c70a6096962cd55947e449425cae1aa5b794a562e4a8",
       "domains/digital-logic/DLX041_one-hot-grant.json": "ead6dd1b3436f90b7fab0b20838706425d8e67c0cb926abf01a0807e58c5232f",
-      "domains/digital-logic/DigitalLogicDlx021030Interconnect.json": "ea9a16fa859d2a5d87346c0bf688fe1ead852d577e8b8a3cbd732d1d5ec548a5",
+      "domains/digital-logic/DigitalLogicDlx021030Interconnect.json": "4c287d196a618e755629dee4ac9bd6866fbc2f05d072a65e3b7f4aa4e89f2d62",
       "domains/digital-logic/OpenClawCompletionE2E.json": "3f8015dc63a70b74a8f9fcea884d01266822d906cd4e304c87096cecbf537197",
       "domains/health-personal/HomeTransportationBarrierMonitor.json": "cba40e2ae14f4229390079a3f32ce941a1f9766327c83e0663eef863d5d7fff8"
     }
@@ -166,30 +166,12 @@
         [
           0.0,
           1,
-          1,
-          0.0
-        ],
-        [
-          0.0,
-          1,
-          1,
-          0.0
-        ],
-        [
-          1,
-          0.0,
           0.0,
           0.0
         ],
         [
           0.0,
-          1,
-          1,
-          0.0
-        ],
-        [
           0.0,
-          1,
           1,
           0.0
         ],
@@ -202,7 +184,25 @@
         [
           0.0,
           1,
+          0.0,
+          0.0
+        ],
+        [
+          0.0,
+          0.0,
           1,
+          0.0
+        ],
+        [
+          1,
+          0.0,
+          0.0,
+          0.0
+        ],
+        [
+          0.0,
+          1,
+          0.0,
           0.0
         ]
       ],
