@@ -1196,6 +1196,10 @@ first disagreement is the answer they exist to give.
 returned from there. Both default to the whole history, which is capped at 1024
 entries and cleared by `POST /api/reset`.
 
+These two histories are the pair list of the corpus-scope K-line over the
+retained span: each route reads one half of every pair. See "K-lines and runtime
+snapshots", whose definition governs every history.
+
 Regions are not compared. They are an abstraction laid across the input space
 Reality Event: it is the vector that must be equivalent, and region
 equivalence follows from it.
@@ -1316,7 +1320,8 @@ Each retained step is committed **before** the step's completion point
 records already there.
 
 Retention is a table keyed by step with a configurable span, not a ring of the
-latest n, so the window's anchor can later move (K-line histories).
+latest n, so the window's anchor can later move. Retained records attach to a
+K-line's pairs by step number ("K-lines and runtime snapshots").
 
 ##### Retained step shape
 
@@ -2379,6 +2384,223 @@ alias for the same handler.
 
 ---
 
+## K-lines and runtime snapshots
+
+*Specified 2026-10-05 (RealityEngine_CI#287, phase 1). The format and routes below
+are a contract with no implementation yet. The routes stay out of the RE route
+tables, which list only what all three runtimes serve, until phase 2 implements
+them on every runtime.*
+
+### What a K-line is
+
+**A K-line is the composition of (a) the active Reality Events of a set of
+machines and (b) the ordered list of step pairs `(ISRE_k, OSRE_k)` those machines
+went through** (owner definition, 2026-10-05, after Minsky's knowledge-line). It
+is what it takes to put a set of machines back into a state they were in, and to
+show that they got there.
+
+**This definition governs every history, in every context.** A history is a
+K-line, or a view of one. It is not a separate ISRE ring, OSRE ring and
+active-event list that happen to share step numbers (see "Histories are
+K-lines" below).
+
+```
+K-line(M, m..n) = ( active(M, before m),
+                    [ (ISRE_k|M, OSRE_k|M)  for k = m .. n ],
+                    active(M, after n) )
+```
+
+- **`M`, the scope**, is either `"corpus"` (every resident machine) or a list of
+  corpus machine names.
+- **`m..n`, the span**, is a range of step numbers, `m ≤ n`. It can sit anywhere in
+  the steps an engine has taken, not only at the latest ones.
+- **The active list is carried at both ends** (owner decision, 2026-10-05):
+  - `active(M, before m)` is the state M's machines hold when ISRE_m is presented:
+    after step m-1 committed, or after boot or reset when m is the first step.
+  - `active(M, after n)` is the state after step n committed.
+
+  The first makes a K-line self-verifying. The second makes it directly
+  resumable.
+- **Each active entry** is `{machine, sequence, event, justMatched}`:
+  - `machine` is the corpus machine name;
+  - `sequence` and `event` are the corpus-declared sequence and Reality Event ids;
+  - `justMatched` is the event's `wasJustMatched` flag (owner decision,
+    2026-10-05).
+
+  Minted machine ids never appear, because they differ per runtime ("The OSRE
+  value is the equality indicator across runtimes").
+- **A pair** is `{"stepNumber": k, "isre": <entry>, "osre": <entry>}`. `<entry>` is
+  the trajectory entry shape (`stepNumber`, `length`, `nonZero`).
+
+**Projection.** For a scope narrower than the corpus, each pair is projected onto
+M (owner decision, 2026-10-05):
+- `ISRE_k|M` keeps only the cells in the union of M's declared input regions.
+- `OSRE_k|M` keeps only the cells in the union of M's declared output regions.
+- `length` stays the full width of the space, so every index stays absolute.
+
+A corpus-scope K-line is not projected.
+
+**Self-verification.** Re-establish `active(M, before m)`, present ISRE_m … ISRE_n
+in order as each step's input space, and every committed OSRE must equal the
+recorded OSRE_k|M. The final state must equal `active(M, after n)`. A K-line that
+fails this was not produced by this corpus, and saying so is the check's job.
+
+One limit applies to a narrowed scope. An output cell M shares with a machine
+outside M is resolved by arbitration over both, so M alone cannot reproduce its
+value. Such cells are carried at their resolved value, listed in `sharedCells`,
+and excluded from the replay comparison. Every other cell is compared.
+
+### Histories are K-lines
+
+Each history the engines keep is a K-line, or one half of one:
+
+| History | As a K-line |
+|---|---|
+| Trajectory histories (`/api/engine/isre-history`, `/api/engine/osre-history`, `/api/engine/steps/:n/pair`) | the pair list of the corpus-scope K-line over the retained span. Each route reads one half of each pair; the active lists at the span's ends are what those routes leave out |
+| Arbitration retention (`/api/arbitration?step=N`) | records attached to a K-line's pairs by step number. They explain how each OSRE cell was resolved, and are carried beside a K-line, not inside its identity |
+| Retention windows | a K-line span. A window is positioned by `m..n`, not by "the latest k", so its anchor can move to any range of steps |
+| Snapshots (below) | a K-line plus the context needed to re-establish it |
+
+A new history surface states its K-line scope and span, and keeps the active
+lists if it keeps any pairs.
+
+### The snapshot body
+
+A snapshot is a K-line with what it takes to re-establish it on an engine
+holding the same corpus. It must be **runtime-independent**: a snapshot taken
+from one runtime restores into any other, and that is the property phase 2 has
+to prove.
+
+```
+{
+  "format":  "re-snapshot/1",
+  "corpus":  { "algorithm": "sha256/resident-declared-v1",
+               "fingerprint": "<hex>", "machines": <count> },
+  "controls":         { "<engine-scope control>": <value>, … },
+  "machineControls":  { "<machine name>": { "<machine-scope control>": <value>, … }, … },
+  "machineOverrides": { "<machine name>": { "arbiterRule": …,
+                                            "outputMergeTransformation": …,
+                                            "outputMergeLocked": … }, … },
+  "kline": {
+    "scope": "corpus" | ["<machine name>", …],
+    "span":  { "from": m, "to": n },
+    "clocks": { "from": <clock at step m>, "to": <clock at step n> },
+    "activeBefore": [ <active entry>, … ],
+    "pairs":        [ <pair m>, … , <pair n> ],
+    "activeAfter":  [ <active entry>, … ],
+    "sharedCells":  [ <cell index>, … ]
+  },
+  "arbitration": [ <retained step>, … ] | null,
+  "digest": "sha256:<hex>"
+}
+```
+
+**Fields:**
+- `controls` / `machineControls`: every control `/api/engine/config` declares,
+  by scope, with machine-scope values keyed by machine name and not by minted id.
+- `machineOverrides`: the per-machine values that can be retuned at runtime, by
+  machine name.
+- `clocks`: the instance clock (`{instance, lamport, step}`) at the span's two
+  ends.
+- `arbitration`: the retained arbitration steps inside the span when
+  `arbitrationRetention` is on, otherwise `null`.
+
+**Corpus fingerprint, `sha256/resident-declared-v1`.** A restore must be refused
+into a different machine set: restoring machine state into other machines
+produces nonsense silently (#220). The fingerprint covers the machines that are
+**resident**, not the files on disk, because machines are also ingested at
+runtime (`POST /api/machines`). To compute it:
+1. For each resident machine, take the SHA-256 of its declared form (the machine
+   object as ingested) serialized by RFC 8785 (JCS).
+2. Write one line per machine, `"<name>\t<hex>\n"`, ordered by name.
+3. The fingerprint is the SHA-256 of those lines.
+
+`RealityEngine_Machines/scripts/ces_corpus_fingerprint.py` already answers the
+on-disk question for CES contract shards (`sha256/relfile-sorted-v1`). This
+answers the resident question, and the two are not interchangeable.
+
+**Canonical form and digest.**
+- **Serialization:** RFC 8785 (JCS) throughout, so key order and number
+  formatting are defined once and not per language.
+- **Order:**
+  - Active lists are ordered by `(machine, sequence, event)`. Each part is
+    compared as the **bytes of its UTF-8 encoding**, and duplicates are kept.
+  - Pairs ascend by `stepNumber`; `nonZero` ascends by index.
+  - `sharedCells` ascends.
+- **Collation:** "Active events" declines to order `activeEvents` because each
+  language compares strings differently above U+FFFF. Here the collation is
+  declared, not assumed: an implementation encodes to UTF-8 and compares bytes,
+  never its native string order.
+- **Digest:** `digest` is the SHA-256 of the canonical body without `digest`,
+  `clocks.*.instance` and `clocks.*.lamport`. The same state therefore yields the
+  same digest on every runtime.
+
+**Excluded from cross-runtime comparison:** `clocks.*.instance` and
+`clocks.*.lamport` (instance facts), and the arbitration fields already excluded
+under "Retained step shape". Everything else is compared, the digest included.
+
+**Not in a snapshot:**
+- wall-clock times, which order nothing;
+- minted ids;
+- Perception Engine state (sources, the dispatch ledger). The PE has its own
+  persistence and lifecycle, and folding it in before the RE side is proven
+  would confuse two problems.
+
+### Routes
+
+| Method | Path | Does |
+|---|---|---|
+| POST | `/api/runtime/snapshot` | capture a K-line over the retained steps. Body `{scope?, from?, to?}`: scope defaults to `"corpus"`, span to the newest committed step alone. Returns `{id, digest, span}` |
+| GET | `/api/runtime/snapshots` | list `{id, digest, scope, span, machines}`, oldest first by `clocks.to.lamport` |
+| GET | `/api/runtime/snapshot/:id` | one snapshot body, in full |
+| POST | `/api/runtime/restore` | `{id}` or `{snapshot: <body>}`: re-establish it (below). Returns `{digest, step}` |
+| DELETE | `/api/runtime/snapshot/:id` | drop one |
+
+(Written outside the `| Method | Path | CPP | LSP | Scala |` tables on purpose:
+those declare what is implemented, and the OpenAPI generator reads them.)
+
+**Restore re-establishes `activeAfter`**, the controls and the overrides.
+- For a corpus-scope snapshot it also replaces the trajectory history with the
+  snapshot's pairs and sets the step count to `span.to`, so the next push
+  commits step `span.to + 1`.
+- A narrowed scope touches only M's machines and leaves the history and step
+  count alone.
+- Restore commits no step, so `lamport` does not tick.
+
+| Status | Body | When |
+|---|---|---|
+| 200 | `{"digest", "step"}` | restored |
+| 409 | `{"error": "corpus mismatch", "expected", "actual"}` | the fingerprint differs from the resident corpus |
+| 410 | `{"error": "step N is no longer retained"}` | capture asked for a span outside the retained steps |
+| 422 | `{"error": …}` | malformed body, unknown `format`, or a digest that does not match the body |
+| 503 | `{"error": "snapshots are disabled"}` | the store is off |
+
+**The store is optional and never a startup requirement.** `RE_SNAPSHOT_STORE`
+is `memory` (default), `file:<dir>`, `qdrant:<url>` or `off`. With `off`, all
+five routes answer 503 and nothing else changes: no boot failure and no other
+route affected. Qdrant is the phase 3 adapter. It holds the snapshot's ISRE at
+`span.to` as the point and the rest as payload, which gives "find a past state
+like this one" as a nearest-neighbour query.
+
+### Acceptance (phase 2)
+
+1. **Round trip, per runtime:** snapshot, `POST /api/engine/reset`, restore. The
+   digest is identical, and the following steps are byte-identical to an engine
+   that was never reset.
+2. **Cross-runtime:** a snapshot from any runtime restores into the other two,
+   and all three then commit byte-identical OSRE for the same stimulus. No
+   runtime is the source of truth. Each restores each other's snapshots, 3-of-3.
+3. **Self-verification:** for a captured K-line, re-establishing `activeBefore`
+   and presenting its ISREs reproduces its OSREs (outside `sharedCells`) and ends
+   in `activeAfter`, on every runtime.
+4. **Corpus mismatch is refused** with 409, naming both fingerprints.
+5. **With `RE_SNAPSHOT_STORE=off`**, every engine boots and passes the full
+   regression suite.
+6. A regression stage exercises 1–4 beside the arbiter and arbitration-retention
+   stages.
+
+---
+
 ## Gap Register
 
 ### Resolved gaps (v1.1.0)
@@ -2392,8 +2614,10 @@ alias for the same handler.
 
 ### Open gaps
 
-All routes listed in this spec are implemented by all three runtimes, and the
-one open **payload** gap has since been closed. It is kept here because the
+All routes listed in this spec's route tables are implemented by all three
+runtimes, and the one open **payload** gap has since been closed. The snapshot
+routes under "K-lines and runtime snapshots" are specified and not yet
+implemented. They are kept out of the route tables for that reason (#287). It is kept here because the
 register is the record of how a gap was settled, not only of which are open.
 
 #### `GET /api/machines` — the sequence summary is not the same shape everywhere *(settled 2026-09-09)*
