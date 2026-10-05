@@ -279,6 +279,32 @@ jobs:
         working-directory: RealityEngine_LSP
         run: bash scripts/bootstrap-quicklisp.sh --home
 
+      # validate-machines fails on any skipped corpus check
+      # (scripts/validate-machines-complete.sh). Before this step the hosted
+      # lane skipped guardrails (pyshacl), the QUDT units check (rdflib) and OWL
+      # reasoning (ROBOT) on every run while reporting the stage passed. The
+      # tools go in a venv because the runner's system python3 is
+      # externally managed (PEP 668); the corpus scripts read PYSHACL_PYTHON
+      # and QUDT_PYTHON for exactly this. ROBOT is the release full-corpus-cycle
+      # pins, run on the Java set up above, and named by an absolute ROBOT_BIN
+      # so a login shell's PATH cannot lose it.
+      - name: Install corpus tooling (rdflib, pyshacl, ROBOT)
+        if: runner.environment == 'github-hosted'
+        run: |
+          python3 -m venv "$HOME/corpus-venv"
+          "$HOME/corpus-venv/bin/pip" install --quiet rdflib pyshacl
+          mkdir -p "$HOME/robot"
+          curl -fsSL -o "$HOME/robot/robot.jar" \
+            https://github.com/ontodev/robot/releases/download/v1.9.6/robot.jar
+          printf '#!/usr/bin/env bash\nexec java -jar "%s/robot.jar" "$@"\n' "$HOME/robot" \
+            > "$HOME/robot/robot"
+          chmod +x "$HOME/robot/robot"
+          {
+            echo "PYSHACL_PYTHON=$HOME/corpus-venv/bin/python"
+            echo "QUDT_PYTHON=$HOME/corpus-venv/bin/python"
+            echo "ROBOT_BIN=$HOME/robot/robot"
+          } >> "$GITHUB_ENV"
+
       # The compose files pin the Loki logging driver, so `docker compose up`
       # fails with `error looking up logging plugin loki: plugin "loki" not
       # found` before a single container starts. The tri-runtime-parity job
