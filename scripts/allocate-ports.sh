@@ -32,29 +32,56 @@
 # Ports claimed during a run are remembered and never handed out twice, even
 # after the holder exits, so a late reader with a stale endpoint gets a refused
 # connection rather than a different engine that inherited the number.
+#
+# The ledger is a FILE, not only a shell variable. startUniverse.sh calls
+# `ports=$(allocate_ports …)`, and command substitution runs in a subshell, so a
+# claim recorded in a variable was gone before the next instance asked. Until an
+# engine binds its port, nothing is listening for lsof to see, so two instances
+# could be handed the same number. test-allocate-ports.sh T16 caught it
+# intermittently on the hosted lane, whose parity job runs --free-ports with
+# four instances. The file is created once and exported, so every subshell of
+# the run reads and appends the same ledger.
+#
+# Any free port will do. The allocator does not try to pack, minimise or
+# predict ports (owner, 2026-10-05); it only guarantees each claim is distinct
+# within a run.
+if [ -z "${_RE_PORT_LEDGER:-}" ]; then
+    _RE_PORT_LEDGER="$(mktemp "${TMPDIR:-/tmp}/re-port-ledger.XXXXXX")"
+    export _RE_PORT_LEDGER
+fi
 _RE_CLAIMED_PORTS="${_RE_CLAIMED_PORTS:-}"
 _RE_ALLOCATED_PORT=""
 
-_claim_free_port() {
-    local attempt port
-    for _ in 1 2 3 4 5; do
-        port=$(python3 -c "
+# Ask the OS for a free port: bind to port 0 and read back what was assigned.
+# A function of its own so a test can force the collision the ledger exists for.
+_re_probe_port() {
+    python3 -c "
 import socket
 s = socket.socket()
 s.bind(('', 0))
 print(s.getsockname()[1])
 s.close()
-" 2>/dev/null) || continue
+" 2>/dev/null
+}
+
+_claim_free_port() {
+    local port
+    for _ in $(seq 1 20); do
+        port=$(_re_probe_port) || continue
         [ -n "$port" ] || continue
         case " $_RE_CLAIMED_PORTS " in *" $port "*) continue ;; esac
+        if grep -qx "$port" "$_RE_PORT_LEDGER" 2>/dev/null; then
+            continue
+        fi
         if lsof -i ":${port}" -sTCP:LISTEN >/dev/null 2>&1; then
             continue
         fi
+        echo "$port" >> "$_RE_PORT_LEDGER"
         _RE_CLAIMED_PORTS="$_RE_CLAIMED_PORTS $port"
         _RE_ALLOCATED_PORT="$port"
         return 0
     done
-    echo "_claim_free_port: no free port after 5 attempts" >&2
+    echo "_claim_free_port: no free port after 20 attempts" >&2
     return 1
 }
 

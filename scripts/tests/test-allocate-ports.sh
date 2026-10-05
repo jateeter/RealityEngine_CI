@@ -33,6 +33,9 @@ assert_exit() {
 
 # shellcheck source=../allocate-ports.sh
 source "$CI_DIR/scripts/allocate-ports.sh"
+# The ledger file sourcing just created belongs to this test run; remove it on
+# exit so repeated runs leave nothing behind in TMPDIR.
+trap 'rm -f "$_RE_PORT_LEDGER"' EXIT
 
 echo "=== test-allocate-ports.sh ==="
 
@@ -156,6 +159,25 @@ if [ "$_claimed_first" != "$_claimed_second" ]; then
 else
   echo "  FAIL: T17: free claims remain retired within the run"; FAIL=$((FAIL+1))
 fi
+
+# T19: the ledger survives command substitution. startUniverse.sh allocates each
+# instance through `$(allocate_ports …)`, a subshell; a ledger kept only in a
+# variable was lost there, and the OS can hand back a port it just released. The
+# probe is forced to offer the same port twice, so this fails deterministically
+# without the file ledger rather than once in a while on a busy runner.
+_fake_dir="$(mktemp -d)"
+printf '40001\n40002\n40001\n40002\n40003\n40004\n' > "$_fake_dir/offers"
+_re_probe_port() {  # next offer from the list, persisted across subshells
+    local n; n=$(( $(cat "$_fake_dir/n" 2>/dev/null || echo 0) + 1 ))
+    echo "$n" > "$_fake_dir/n"
+    sed -n "${n}p" "$_fake_dir/offers"
+}
+_RE_CLAIMED_PORTS=""
+: > "$_RE_PORT_LEDGER"
+_s1=$(RE_FREE_PORTS=true allocate_ports cpp 1 2>/dev/null)
+_s2=$(RE_FREE_PORTS=true allocate_ports cpp 2 2>/dev/null)
+assert_eq "$_s1 | $_s2" "40001 40002 | 40003 40004" "T19: claims made in separate subshells never repeat (ledger survives \$(...))"
+rm -rf "$_fake_dir"
 
 # T18: an unknown runtime is still rejected in free mode — the mode changes how
 # a port is chosen, not what a valid runtime is.
