@@ -11,6 +11,10 @@
 #   - trusted CA (RE_CA_CERT)    -> the engine answers through the proxy
 #   - a CA the portal doesn't trust -> 502, never a silent pass
 #
+# And the instance-scoped route (#323): /proxy/instance/<id>/<re|pe>/... reaches
+# the named instance, and every served spec lists every running instance of
+# its surface, globally and on each path.
+#
 # Usage: bash scripts/tests/test-serve-openapi.sh
 set -uo pipefail
 
@@ -66,7 +70,7 @@ import http.server, ssl, sys
 d, port = sys.argv[1], int(sys.argv[2])
 class H(http.server.BaseHTTPRequestHandler):
     def do_GET(self):
-        body = b'{"status":"healthy"}'
+        body = ('{"status":"healthy","port":%d}' % port).encode()
         self.send_response(200 if self.path == "/api/health" else 404)
         self.send_header("Content-Type", "application/json")
         self.send_header("Content-Length", str(len(body)))
@@ -132,6 +136,64 @@ fi
 # 3. A runtime the registry does not list has no target.
 code="$(curl -s -o /dev/null -w '%{http_code}' "http://127.0.0.1:$P1/proxy/cpp/re/api/health")"
 [ "$code" = 503 ] && ok "a runtime absent from the registry answers 503" || bad "absent runtime answered $code"
+
+echo "serve_openapi.py instance-scoped targets (#323)"
+
+# 4. Two engines of different runtimes; the instance route names each one.
+ENGINE2_PORT="$(free_port)"
+start_engine "$TMP/engine" "$ENGINE2_PORT"
+wait_for "https://localhost:$ENGINE2_PORT/api/health" -k || { echo "second test engine did not start" >&2; exit 1; }
+printf '{"instances":[
+ {"id":"scala-1","runtime":"scala","re_url":"https://localhost:%s","pe_url":"https://localhost:%s","status":"running"},
+ {"id":"cpp-2","runtime":"cpp","re_url":"https://localhost:%s","pe_url":"https://localhost:%s","status":"running"},
+ {"id":"lsp-9","runtime":"lsp","re_url":"https://localhost:1","pe_url":"https://localhost:1","status":"stopped"}]}\n' \
+    "$ENGINE_PORT" "$ENGINE_PORT" "$ENGINE2_PORT" "$ENGINE2_PORT" > "$TMP/registry2.json"
+P3="$(free_port)"
+start_portal "$TMP/registry2.json" "$P3" "$TMP/ca/ca.crt"
+wait_for "http://127.0.0.1:$P3/" || { echo "portal did not start" >&2; exit 1; }
+
+code="$(curl -s -o "$TMP/r4" -w '%{http_code}' "http://127.0.0.1:$P3/proxy/instance/cpp-2/re/api/health")"
+if [ "$code" = 200 ] && grep -q "\"port\": *$ENGINE2_PORT" "$TMP/r4"; then
+    ok "the instance route reaches the named instance (cpp-2 RE)"
+else
+    bad "instance route to cpp-2 answered $code: $(cat "$TMP/r4")"
+fi
+code="$(curl -s -o "$TMP/r5" -w '%{http_code}' "http://127.0.0.1:$P3/proxy/instance/scala-1/pe/api/health")"
+if [ "$code" = 200 ] && grep -q "\"port\": *$ENGINE_PORT" "$TMP/r5"; then
+    ok "and a different named instance on the PE surface (scala-1 PE)"
+else
+    bad "instance route to scala-1 PE answered $code: $(cat "$TMP/r5")"
+fi
+code="$(curl -s -o /dev/null -w '%{http_code}' "http://127.0.0.1:$P3/proxy/instance/lsp-9/re/api/health")"
+[ "$code" = 503 ] && ok "a stopped or unknown instance answers 503" || bad "stopped instance answered $code"
+code="$(curl -s -o /dev/null -w '%{http_code}' -X OPTIONS "http://127.0.0.1:$P3/proxy/instance/cpp-2/re/api/health")"
+[ "$code" = 204 ] && ok "CORS preflight on the instance route (204)" || bad "preflight answered $code"
+
+# 5. Served specs: every running instance of the surface, the spec's runtime
+#    first, ?instance=<id> first when given, and the list on every path.
+spec_servers() {  # <url> -> instance ids in server order
+    curl -s "$1" | python3 -c '
+import sys, re
+text = sys.stdin.read()
+top = text.split("servers: &instance_servers\n", 1)[1].split("\n", 40)
+ids = [re.search(r"/proxy/instance/([^/]+)/", l).group(1) for l in top if l.startswith("- url: ")]
+paths = sum(1 for l in text.splitlines() if re.match(r"^  /.*:$", l))
+aliased = text.count("    servers: *instance_servers\n")
+print(" ".join(ids), f"paths={paths} aliased={aliased}")'
+}
+got="$(spec_servers "http://127.0.0.1:$P3/scala-re.yaml")"
+case "$got" in
+    "scala-1 cpp-2 paths="*) ok "scala-re.yaml lists every running instance, scala first: $got" ;;
+    *) bad "scala-re.yaml servers: $got" ;;
+esac
+got="$(spec_servers "http://127.0.0.1:$P3/scala-re.yaml?instance=cpp-2")"
+case "$got" in
+    "cpp-2 scala-1 "*) ok "?instance=cpp-2 makes it every operation's default: $got" ;;
+    *) bad "?instance=cpp-2 servers: $got" ;;
+esac
+paths="${got##*paths=}"; paths="${paths%% *}"; aliased="${got##*aliased=}"
+[ "$paths" -gt 0 ] && [ "$paths" = "$aliased" ] && ok "every path carries the instance list ($aliased of $paths)" \
+    || bad "paths=$paths aliased=$aliased"
 
 echo
 echo "Passed: $PASS   Failed: $FAIL"

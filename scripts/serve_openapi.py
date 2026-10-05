@@ -19,7 +19,7 @@ import re
 from socketserver import ThreadingMixIn
 import sys
 from typing import Optional
-from urllib.parse import unquote, urlparse
+from urllib.parse import parse_qs, unquote, urlparse
 from http.server import BaseHTTPRequestHandler, HTTPServer
 
 
@@ -30,6 +30,10 @@ RUNTIMES = {"cpp", "lsp", "scala"}
 SURFACES = {"re", "pe"}
 SPEC_RE = re.compile(r"^/([a-z]+)-(re|pe)\.yaml$")
 PROXY_RE = re.compile(r"^/proxy/([a-z]+)/(re|pe)(/.*)?$")
+# Instance-scoped proxy (#323): /proxy/instance/<id>/<re|pe>/... reaches the
+# named instance whatever its runtime. The runtimes are wire-compatible, so any
+# spec of a surface may target any instance serving that surface.
+INSTANCE_PROXY_RE = re.compile(r"^/proxy/instance/([A-Za-z0-9._-]+)/(re|pe)(/.*)?$")
 HOP_BY_HOP_HEADERS = {
     "connection",
     "keep-alive",
@@ -72,6 +76,35 @@ def target_for(registry_path: Path, runtime: str, surface: str) -> Optional[str]
     return None
 
 
+def running_instances(registry_path: Path) -> list[dict]:
+    return [i for i in load_registry(registry_path).get("instances", [])
+            if i.get("status", "running") == "running" and i.get("id")]
+
+
+def instance_target(registry_path: Path, instance_id: str, surface: str) -> Optional[str]:
+    key = "re_url" if surface == "re" else "pe_url"
+    for instance in running_instances(registry_path):
+        if instance["id"] == instance_id and instance.get(key):
+            return str(instance[key]).rstrip("/")
+    return None
+
+
+def server_entries(registry_path: Path, runtime: str, surface: str,
+                   request_prefix: str, preferred: Optional[str] = None) -> list[tuple[str, str]]:
+    """(url, description) for every running instance serving `surface`.
+
+    Order decides the default Swagger selects: the `preferred` instance first,
+    then instances of the spec's own runtime (so with no preference the default
+    is the one the portal always chose), then every other instance by id.
+    """
+    key = "re_url" if surface == "re" else "pe_url"
+    instances = [i for i in running_instances(registry_path) if i.get(key)]
+    instances.sort(key=lambda i: (i["id"] != preferred, i.get("runtime") != runtime, i["id"]))
+    return [(f"{request_prefix}/proxy/instance/{i['id']}/{surface}",
+             f"{i['id']} ({i.get('runtime', '?')} {surface.upper()}) via same-origin Swagger proxy")
+            for i in instances]
+
+
 def connection_for(scheme: str, host: str, port: Optional[int], timeout: float = 30):
     """An http.client connection to a proxy target.
 
@@ -88,17 +121,35 @@ def connection_for(scheme: str, host: str, port: Optional[int], timeout: float =
     return http.client.HTTPConnection(host, port, timeout=timeout)
 
 
-def rewrite_servers(spec_text: str, runtime: str, surface: str, request_prefix: str) -> str:
-    proxy_url = f"{request_prefix}/proxy/{runtime}/{surface}"
-    replacement = (
-        "servers:\n"
-        f"- url: {proxy_url}\n"
-        f"  description: Active {runtime.upper()} {surface.upper()} via same-origin Swagger proxy\n"
-    )
+def rewrite_servers(spec_text: str, runtime: str, surface: str, request_prefix: str,
+                    entries: Optional[list[tuple[str, str]]] = None) -> str:
+    """Point the spec at the portal's proxy.
+
+    With instance entries (#323), the top-level `servers:` lists every running
+    instance of the surface under the YAML anchor `instance_servers`, and every
+    path repeats it by alias. Swagger then shows a server choice inside each
+    operation, so one call can be aimed at any instance. A path-level list
+    overrides the top-level one in Swagger, so the whole-spec choice is the
+    order of the list (the portal's Instance selector, ?instance=<id>), which
+    sets the default of every operation at once.
+
+    Without entries (no registry), the single runtime-scoped proxy URL is kept.
+    """
+    if entries:
+        replacement = "servers: &instance_servers\n" + "".join(
+            f"- url: {url}\n  description: {desc}\n" for url, desc in entries)
+    else:
+        proxy_url = f"{request_prefix}/proxy/{runtime}/{surface}"
+        replacement = (
+            "servers:\n"
+            f"- url: {proxy_url}\n"
+            f"  description: Active {runtime.upper()} {surface.upper()} via same-origin Swagger proxy\n"
+        )
     lines = spec_text.splitlines(keepends=True)
     out: list[str] = []
     i = 0
     replaced = False
+    in_paths = False
     while i < len(lines):
         line = lines[i]
         if not replaced and line == "servers:\n":
@@ -108,7 +159,14 @@ def rewrite_servers(spec_text: str, runtime: str, surface: str, request_prefix: 
                 i += 1
             replaced = True
             continue
+        if line == "paths:\n":
+            in_paths = True
+        elif line[:1] not in ("", " ", "\n"):
+            in_paths = False
         out.append(line)
+        # A path item key: two-space indent, inside `paths:`.
+        if entries and in_paths and line.startswith("  /") and line.rstrip().endswith(":"):
+            out.append("    servers: *instance_servers\n")
         i += 1
     if not replaced:
         out.append("\n")
@@ -157,7 +215,8 @@ class Handler(BaseHTTPRequestHandler):
         self._proxy_or_404()
 
     def do_OPTIONS(self) -> None:
-        match = PROXY_RE.match(urlparse(self.path).path)
+        path = urlparse(self.path).path
+        match = INSTANCE_PROXY_RE.match(path) or PROXY_RE.match(path)
         if not match:
             self._send_json(404, {"error": "not found"})
             return
@@ -202,23 +261,34 @@ class Handler(BaseHTTPRequestHandler):
             self._send_json(404, {"error": f"missing spec {path.name}"})
             return True
         spec_text = path.read_text(encoding="utf-8")
-        rewritten = rewrite_servers(spec_text, runtime, surface, self._request_prefix())
+        prefix = self._request_prefix()
+        preferred = (parse_qs(parsed.query).get("instance") or [None])[0]
+        entries = server_entries(self.registry_path, runtime, surface, prefix, preferred)
+        rewritten = rewrite_servers(spec_text, runtime, surface, prefix, entries)
         self._send_bytes(200, rewritten.encode("utf-8"), "application/yaml; charset=utf-8")
         return True
 
     def _proxy(self) -> bool:
         parsed = urlparse(self.path)
-        match = PROXY_RE.match(parsed.path)
-        if not match:
-            return False
-        runtime, surface, suffix = match.groups()
-        if runtime not in RUNTIMES or surface not in SURFACES:
-            self._send_json(404, {"error": "unknown runtime or surface"})
-            return True
-        target_base = target_for(self.registry_path, runtime, surface)
-        if not target_base:
-            self._send_json(503, {"error": f"no active {runtime}/{surface} target in registry"})
-            return True
+        instance_match = INSTANCE_PROXY_RE.match(parsed.path)
+        if instance_match:
+            instance_id, surface, suffix = instance_match.groups()
+            target_base = instance_target(self.registry_path, instance_id, surface)
+            if not target_base:
+                self._send_json(503, {"error": f"no running instance {instance_id!r} serving {surface} in registry"})
+                return True
+        else:
+            match = PROXY_RE.match(parsed.path)
+            if not match:
+                return False
+            runtime, surface, suffix = match.groups()
+            if runtime not in RUNTIMES or surface not in SURFACES:
+                self._send_json(404, {"error": "unknown runtime or surface"})
+                return True
+            target_base = target_for(self.registry_path, runtime, surface)
+            if not target_base:
+                self._send_json(503, {"error": f"no active {runtime}/{surface} target in registry"})
+                return True
 
         suffix = suffix or "/"
         query = f"?{parsed.query}" if parsed.query else ""
@@ -311,6 +381,7 @@ def main() -> None:
     print(f"  Swagger portal : http://{args.host}:{args.port}/", flush=True)
     print(f"  Runtime registry: {args.registry}", flush=True)
     print(f"  Proxy pattern  : http://{args.host}:{args.port}/proxy/{{cpp,lsp,scala}}/{{re,pe}}/...", flush=True)
+    print(f"  Instance proxy : http://{args.host}:{args.port}/proxy/instance/<id>/{{re,pe}}/...", flush=True)
     server.serve_forever()
 
 

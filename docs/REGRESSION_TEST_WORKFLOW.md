@@ -76,7 +76,8 @@ The regression runner identifies testable services in this order:
    - endpoint: `http://127.0.0.1:7331/mcp`
 4. OpenAPI Swagger:
    - portal: `http://127.0.0.1:8088/`
-   - proxy execution: `/proxy/{cpp,lsp,scala}/{re,pe}/api/health`
+   - proxy execution: `/proxy/{cpp,lsp,scala}/{re,pe}/api/health` and
+     `/proxy/instance/<id>/re/api/health` (any registered instance, #323)
 5. OpenClaw:
    - gateway: `http://localhost:18789/healthz`
    - async completion path through PE:
