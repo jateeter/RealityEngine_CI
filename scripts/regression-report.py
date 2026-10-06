@@ -73,6 +73,10 @@ def collect_report_statuses(run_dir: Path) -> dict[str, Any]:
     universal = load_json(responses / "universal-vectors" / "summary.json", {})
     vector_comparison = load_json(responses / "universal-vectors" / "normalized-comparison.json", {})
     mcp = load_json(reports / "mcp-smoke.json", {})
+    # Never read, so "Arbiter conformance" said `not-run` on every run while
+    # arbiter.json said passed, 9a and 9b asserted 3/3 (pr544-1639). A lane
+    # without contended cells writes arbiter-skipped.json instead.
+    arbiter = load_json(reports / "arbiter.json", {}) or load_json(reports / "arbiter-skipped.json", {})
 
     mqtt_reports = sorted(reports.glob("mqtt-yuma*.json"))
     openclaw_reports = sorted(reports.glob("openclaw*.json"))
@@ -86,6 +90,7 @@ def collect_report_statuses(run_dir: Path) -> dict[str, Any]:
         "universalVectorComparison": section_status(vector_comparison, failure_key="failures"),
         "mqtt": aggregate_reports(mqtt_reports),
         "mcp": section_status(mcp, failure_key="failures"),
+        "arbiter": section_status(arbiter, failure_key="failures"),
         "openclaw": aggregate_reports(openclaw_reports),
         "deployment": {"status": "not-run", "reason": "deployment suite is not yet wired into regression-test.sh"},
         "reportFiles": {
@@ -94,11 +99,23 @@ def collect_report_statuses(run_dir: Path) -> dict[str, Any]:
             "universalVectors": rel(run_dir, responses / "universal-vectors" / "summary.json"),
             "universalVectorComparison": rel(run_dir, responses / "universal-vectors" / "normalized-comparison.json"),
             "mcp": rel(run_dir, reports / "mcp-smoke.json"),
+            "arbiter": rel(run_dir, reports / "arbiter.json") or rel(run_dir, reports / "arbiter-skipped.json"),
             "mqtt": [rel(run_dir, path) for path in mqtt_reports],
             "openclaw": [rel(run_dir, path) for path in openclaw_reports],
         },
     }
     stages = load_stage_results(reports / "stage-results.tsv")
+    # A skip returns 0, so run_stage records it as passed. The stage's own
+    # <name>-skipped.json is what says it did not run: arbiter-sweep read
+    # `passed` in pr544-1639 though --arbiter-sweep was never given. A skip is
+    # not coverage, and the summary must not present it as such.
+    for name, block in stages.items():
+        if block.get("status") != "passed":
+            continue
+        skip = load_json(reports / f"{name}-skipped.json", {})
+        if skip.get("status") == "skipped":
+            block["status"] = "skipped"
+            block["reason"] = skip.get("reason", "")
     statuses["stages"] = stages
     # A stage that exited non-zero failed, whatever its section's report says:
     # the exit status is what failed the run, and the summary must agree with it.
