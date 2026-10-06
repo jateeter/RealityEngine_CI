@@ -517,7 +517,7 @@ jobs:
         working-directory: RealityEngine_CI
         run: bash scripts/tests/test-healthkit-token.sh
 
-      # Node is established (nvm use 26), never inherited from the terminal (#126).
+      # Node is established (nvm use 26.8), never inherited from the terminal (#126).
       - name: Run node-env unit tests
         working-directory: RealityEngine_CI
         run: bash scripts/tests/test-node-env.sh

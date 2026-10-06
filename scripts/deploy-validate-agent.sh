@@ -829,7 +829,7 @@ source "$CI_DIR/scripts/lib/loki-driver.sh"
 # Node is established here, never inherited from the terminal: an interactive
 # run on the shell's nvm default (25.5) failed the Manager suites (#126).
 source "$CI_DIR/scripts/lib/node-env.sh"
-establish_node || warn "Node ${RE_NODE_MAJOR} could not be established via nvm"
+establish_node || warn "Node ${RE_NODE_VERSION} could not be established via nvm"
 
 # native_runtime <unit> <repo-dir> <prereq-fn> <label>
 native_runtime() {
