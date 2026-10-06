@@ -127,6 +127,53 @@ PE_ENGINE="${PE_ENGINE:-${STAMPED_PE_ENGINE:-ai}}"
 REGISTRY_FILE="${REGISTRY_FILE:-/tmp/re-registry/re-registry.json}"
 [ -f "$CI_DIR/scripts/registry.sh" ] && source "$CI_DIR/scripts/registry.sh" || true
 
+# ── The current instance registry drives teardown ────────────────────────────
+#
+# The instance registry is the view of what this host is running: every native
+# instance with its PIDs and ports, and the shim serving it. Teardown used to
+# decide what to stop from .universe-engine-selection instead, a stamp written
+# into the checkout that started the universe. A universe started from anywhere
+# else (the regression harness starts it from a run worktree) left no stamp
+# here, so the registered instances were never stopped and the script still
+# printed "Universe shutdown complete" — six engines on free ports and the shim
+# outlived it (opt3-1456, 2026-10-05). Ports were never the problem: the sweep
+# below knew only the deterministic ones, but the PIDs were recorded all along.
+#
+# Read once, before anything is stopped: stop_all_engines removes the file.
+REG_IDS=()
+REG_PIDS=()
+REG_PORTS=()
+_snapshot_instance_registry() {
+  [ -s "$REGISTRY_FILE" ] || return 0
+  local kind value
+  while read -r kind value; do
+    case "$kind" in
+      id)   REG_IDS+=("$value") ;;
+      pid)  REG_PIDS+=("$value") ;;
+      port) REG_PORTS+=("$value") ;;
+    esac
+  done < <(python3 - "$REGISTRY_FILE" <<'PYEOF' 2>/dev/null || true
+import json, sys
+reg = json.load(open(sys.argv[1]))
+for inst in reg.get('instances', []):
+    print('id', inst['id'])
+    for k in ('pid_re', 'pid_pe'):
+        if inst.get(k): print('pid', int(inst[k]))
+    for k in ('re_port', 'pe_port'):
+        if inst.get(k): print('port', int(inst[k]))
+shim = (reg.get('services') or {}).get('registry') or {}
+if shim.get('port'): print('port', int(shim['port']))
+PYEOF
+)
+}
+
+# What a listener on a registered port may be, when its PID was not the one
+# recorded (a wrapper's child, or a PID file overwritten by a later start).
+# Anything else on that port is reported rather than killed: a registry left
+# over from a universe long gone can name a free port something unrelated has
+# since taken.
+_ENGINE_LISTENER_PATTERN='reality_engine_server|perception_engine_server|reality-engine-lsp|reality-engine\.jar|perception-engine\.jar|http\.server'
+
 _term_and_wait() {
   local pid="$1" label="$2"
   [ -z "$pid" ] && return 0
@@ -199,6 +246,37 @@ _sweep_native_ports() {
   # next start finds :5999 already bound.
   for _p in $_cpp_re $_cpp_pe $_lsp_re $_lsp_pe $_sc_re $_sc_pe "${REGISTRY_PORT:-5999}"; do
     _kill_port "$_p"
+  done
+  _sweep_registered_ports
+}
+
+# The ports the instance registry recorded. Under --free-ports these are the
+# only ports the universe used; the deterministic sweep above never sees them.
+_sweep_registered_ports() {
+  local _p pid pcmd
+  for _p in ${REG_PORTS[@]+"${REG_PORTS[@]}"}; do
+    pid=$(lsof -ti ":$_p" -sTCP:LISTEN 2>/dev/null | head -1 || true)
+    [ -z "$pid" ] && continue
+    pcmd=$(ps -o command= -p "$pid" 2>/dev/null || true)
+    if printf '%s' "$pcmd" | grep -qE "$_ENGINE_LISTENER_PATTERN"; then
+      warn "Registered port $_p still held by PID $pid after stop — force-killing"
+      kill -KILL "$pid" 2>/dev/null || true
+    else
+      fail "Registered port $_p is held by PID $pid (${pcmd%% *}), not an engine or the shim — left running"
+    fi
+  done
+}
+
+# Every PID the instance registry recorded must be gone. A teardown that reports
+# success over a live engine hands the next universe a world it believes is
+# clean (#322).
+_verify_registered_pids_gone() {
+  local pid
+  sleep 0.5
+  for pid in ${REG_PIDS[@]+"${REG_PIDS[@]}"}; do
+    if kill -0 "$pid" 2>/dev/null; then
+      fail "Registered engine PID $pid is still running"
+    fi
   done
 }
 
@@ -383,6 +461,10 @@ echo "════════════════════════�
 info "Engine selection: RE_ENGINE=$RE_ENGINE  PE_ENGINE=$PE_ENGINE  --all=$STOP_ALL"
 [ -n "$STOP_INSTANCE" ] && info "  --instance=$STOP_INSTANCE"
 [ "$ENGINES_ONLY" = true ] && info "  --engines-only"
+_snapshot_instance_registry
+if [ "${#REG_IDS[@]}" -gt 0 ]; then
+  info "Instance registry $REGISTRY_FILE: ${REG_IDS[*]}"
+fi
 echo ""
 
 # ── Per-instance stop ──────────────────────────────────────────────────────
@@ -406,16 +488,23 @@ if [ "$ENGINES_ONLY" = true ]; then
   stop_api_surface_services
   stop_all_engines
   _sweep_native_ports
+  _verify_registered_pids_gone
   rm -f "$CI_DIR/.universe-engine-selection"
   echo ""
+  if [ "${#STOP_FAILURES[@]}" -gt 0 ]; then
+    echo -e "${RED}✗${NC} Native engine teardown INCOMPLETE — ${#STOP_FAILURES[@]} step(s) failed:"
+    for _f in "${STOP_FAILURES[@]}"; do echo "    - $_f"; done
+    exit 1
+  fi
   ok "Native engine instances stopped (Docker infrastructure still running)"
   exit 0
 fi
 
 # ── Full teardown ──────────────────────────────────────────────────────────
 
-# Stop any native multi-engine instances first (if --engines= was used)
-if [ "$STAMPED_MULTI_ENGINE_MODE" = "true" ] || [ "$STOP_ALL" = true ]; then
+# Stop the native instances first. The instance registry listing any is reason
+# enough: the stamp is only present in the checkout that started the universe.
+if [ "${#REG_IDS[@]}" -gt 0 ] || [ "$STAMPED_MULTI_ENGINE_MODE" = "true" ] || [ "$STOP_ALL" = true ]; then
   stop_all_engines
 fi
 
@@ -458,6 +547,7 @@ else
 fi
 
 _sweep_native_ports
+_verify_registered_pids_gone
 
 rm -f "$CI_DIR/.universe-engine-selection"
 echo ""

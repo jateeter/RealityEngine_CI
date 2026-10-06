@@ -17,7 +17,7 @@
 #   registry_stop_server   — kills the server started above
 
 REGISTRY_FILE="${RE_REGISTRY_FILE:-/tmp/re-registry/re-registry.json}"
-REGISTRY_PID_FILE="/tmp/re-registry-server.pid"
+REGISTRY_PID_FILE="${RE_REGISTRY_PID_FILE:-/tmp/re-registry-server.pid}"
 REGISTRY_PORT="${RE_REGISTRY_PORT:-5999}"
 
 _registry_init() {

@@ -507,6 +507,10 @@ jobs:
         working-directory: RealityEngine_CI
         run: bash scripts/tests/test-stack-owner.sh
 
+      - name: stopUniverse.sh follows the current instance registry
+        working-directory: RealityEngine_CI
+        run: bash scripts/tests/test-stop-universe-registry.sh
+
       # The HealthKit bridge token's one home (.secrets/) and the move from
       # config/: same value, 0600, gitignored (RealityEngine_Machines#126).
       - name: Run HealthKit token unit tests
