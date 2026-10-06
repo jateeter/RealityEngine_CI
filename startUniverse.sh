@@ -140,9 +140,11 @@ startUniverse.sh — engine-selectable CI orchestrator
                                 Materialize and boot from config/standard-deployment-corpus.txt
   --machine-corpus-manifest=PATH
                                 Alternate manifest for --machine-corpus=standard-deployment
-  --agent-profile=NAME          OpenClaw machine-behavior agents to load (full | regression).
-                                  Default follows --machine-corpus: standard-deployment
-                                  selects 'regression' (12 agents), full selects 'full' (1320).
+  --agent-profile=NAME          OpenClaw machine-behavior agents to load
+                                  (full | regression | manifest:PATH).
+                                  Default follows the deployed corpus: a bounded corpus loads
+                                  manifest:<its manifest> (exactly its machines' agents), full
+                                  loads 'full'.
   --post-start-full-corpus=off  Do not load the full corpus after startup (default)
   --post-start-full-corpus=seed After stack completion, seed the full corpus into RE instances
   --pe-source-bootstrap=auto    After the machine-load phase, call POST /api/sources/bootstrap-from-machines
@@ -236,21 +238,23 @@ case "$MACHINE_LOAD" in
     *)       _RE_LOAD_MACHINES=0 ;;
 esac
 
-# Agent corpus follows the machine corpus unless the caller overrode it. Both
-# sides then describe the same run: 12 machines with the 12 agents bound to
-# them, or the whole corpus with all of its agents.
-if [ -z "$AGENT_PROFILE" ]; then
-    case "$MACHINE_CORPUS" in
-        standard-deployment|regression) AGENT_PROFILE="regression" ;;
-        *)                              AGENT_PROFILE="full" ;;
-    esac
-fi
-
 # `regression` selects its own manifest so a caller names one corpus rather than
 # a mode plus a path. --machine-corpus-manifest still overrides, which is how a
 # one-off corpus is tried without adding a mode for it.
 if [ "$MACHINE_CORPUS" = "regression" ] && [ "$MACHINE_CORPUS_MANIFEST" = "$CI_DIR/config/standard-deployment-corpus.txt" ]; then
     MACHINE_CORPUS_MANIFEST="$CI_DIR/config/regression-corpus.txt"
+fi
+
+# OpenClaw loads the agents of the corpus the engines load, unless the caller
+# overrode it (owner rule 2026-10-06). A bounded corpus hands OpenClaw the very
+# manifest materialised below, so the two sides cannot describe different runs.
+# This was chosen by corpus *name*: standard-deployment (12 machines) and every
+# --machine-corpus-manifest one-off loaded the regression profile's 15 agents.
+if [ -z "$AGENT_PROFILE" ]; then
+    case "$MACHINE_CORPUS" in
+        standard-deployment|regression) AGENT_PROFILE="manifest:$MACHINE_CORPUS_MANIFEST" ;;
+        *)                              AGENT_PROFILE="full" ;;
+    esac
 fi
 
 if [ "$MACHINE_CORPUS" = "standard-deployment" ] || [ "$MACHINE_CORPUS" = "regression" ]; then
@@ -2576,7 +2580,10 @@ else
         # same variable as the machines/ directory itself — let the stack's
         # own config resolve the corpus path instead of inheriting ours.
         info "OpenClaw agent profile: $AGENT_PROFILE"
-        (cd "$OCS_DIR" && env -u MACHINES_DIR ./scripts/start.sh --agent-profile="$AGENT_PROFILE" > /tmp/ocs_start.log 2>&1) || \
+        # OPENCLAW_CORPUS_MACHINES_ROOT: the corpus a manifest profile resolves
+        # against, the one this universe materialised from (a run worktree's).
+        (cd "$OCS_DIR" && env -u MACHINES_DIR OPENCLAW_CORPUS_MACHINES_ROOT="$FULL_MACHINES_DIR/machines" \
+            ./scripts/start.sh --agent-profile="$AGENT_PROFILE" > /tmp/ocs_start.log 2>&1) || \
             die "OpenClaw startup failed\n$(tail -20 /tmp/ocs_start.log 2>/dev/null)"
 
         if poll_http "http://localhost:${OCS_GW_PORT}/healthz" "openclaw-gateway ready" 30 "-sf"; then

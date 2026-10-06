@@ -790,6 +790,9 @@ phase_restart_matrix() {
       restart_repo_script openclaw "http://localhost:18789/healthz" "OpenClaw gateway" "$OCS_DIR"
     else
       info "OpenClaw restarts with the deploy's agent profile: $profile"
+      # A manifest profile resolves against the corpus the deploy materialised from.
+      local full_dir; full_dir="$(sed -n 's/^FULL_MACHINES_DIR=//p' "$CI_DIR/.universe-engine-selection" 2>/dev/null | tail -1)"
+      [ -n "$full_dir" ] && export OPENCLAW_CORPUS_MACHINES_ROOT="$full_dir/machines"
       restart_repo_script openclaw "http://localhost:18789/healthz" "OpenClaw gateway" "$OCS_DIR" \
         "--agent-profile=$profile"
     fi
