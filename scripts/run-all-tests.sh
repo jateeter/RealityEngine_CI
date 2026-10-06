@@ -78,7 +78,7 @@ version_at_least() {
 # Node is established here, never inherited from the terminal (#126).
 # shellcheck source=lib/node-env.sh
 . "$SCRIPT_DIR/lib/node-env.sh"
-establish_node || warn "Node ${RE_NODE_MAJOR} could not be established; Node suites will report what they find"
+establish_node || warn "Node ${RE_NODE_VERSION} could not be established; Node suites will report what they find"
 NODE_VERSION=""
 if have node; then NODE_VERSION="$(node -v 2>/dev/null | sed -E 's/^v//')"; fi
 node_at_least() {
