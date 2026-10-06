@@ -1912,6 +1912,20 @@ instance_registry_start() {
     ok "Instance-registry REST shim ready  http://$HOST_IP:${REGISTRY_PORT}/re-registry.json"
     printf 'http://%s:%s/re-registry.json\n' "$HOST_IP" "$REGISTRY_PORT" \
         > "$CI_DIR/.universe-registry-url"
+    # Every consumer started after this point must read the instance registry
+    # this universe actually serves. This path wrote the URL to a file and never
+    # exported it, which went unnoticed only while the shim sat on 5999 and the
+    # consumers' own defaults happened to match. Under --free-ports the shim is
+    # elsewhere: localAIStack kept its compose default
+    # (host.docker.internal:5999), found no instance registry, fell back to its
+    # single RE_URL/PE_URL and served cpp-1 alone (opt3-1456, 2026-10-05). Set
+    # unconditionally: an inherited value from another shell or an earlier
+    # universe is precisely the stale address this guards against.
+    _universe_registry_url="http://$HOST_IP:${REGISTRY_PORT}/re-registry.json"
+    if [ -n "${RE_REGISTRY_URL:-}" ] && [ "$RE_REGISTRY_URL" != "$_universe_registry_url" ]; then
+        warn "RE_REGISTRY_URL was $RE_REGISTRY_URL; this universe's instance registry is $_universe_registry_url, using it"
+    fi
+    export RE_REGISTRY_URL="$_universe_registry_url"
     # Which allocation template produced the ports. Deterministic today;
     # --free-ports (#278 step 4) records "free" instead, and the same
     # instance-registry field is then the only thing distinguishing the two worlds.
