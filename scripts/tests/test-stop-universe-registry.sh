@@ -56,14 +56,16 @@ wait_listening() {  # <port>
 alive() { kill -0 "$1" 2>/dev/null && echo yes || echo no; }
 
 REG="$TMP/registry/re-registry.json"
-run_stop() {
+run_stop_with() {  # [stopUniverse.sh args...]
   env RE_REGISTRY_FILE="$REG" RE_REGISTRY_PID_FILE="$TMP/registry-server.pid" \
       RE_REGISTRY_PORT="$(free_port)" \
       CPP_PE_BASE="$(free_port)" LSP_PE_BASE="$(free_port)" SCALA_PE_BASE="$(free_port)" \
       MCP_HTTP_PID_FILE="$TMP/mcp.pid" OPENAPI_SWAGGER_PID_FILE="$TMP/swagger.pid" \
       BRIDGE_METRICS_PID_FILE="$TMP/metrics.pid" \
-      bash "$SANDBOX/stopUniverse.sh" --re-engine=cpp --pe-engine=cpp 2>&1
+      MANAGER_UNIVERSE_PID_FILE="$TMP/manager.pid" OLLAMA_UNIVERSE_PID_FILE="$TMP/ollama.pid" \
+      bash "$SANDBOX/stopUniverse.sh" "$@" 2>&1
 }
+run_stop() { run_stop_with --re-engine=cpp --pe-engine=cpp; }
 
 echo "no stamp, free ports: the instance registry's instances and shim are stopped"
 P1=$(free_port); P2=$(free_port); P3=$(free_port); P4=$(free_port); PS=$(free_port)
@@ -108,6 +110,27 @@ rm -f "$REG"
 set +e; out=$(run_stop); rc=$?; set -e
 check "$rc" 0 "teardown exits 0"
 check "$(grep -c 'Stopped instance' <<<"$out")" 0 "stops no instance"
+
+echo "a multi-engine stamp: the header names its engines, and the AI stack stops once"
+# The stamp of a --engines universe carries RE_ENGINE=ai beside ENGINES=, so the
+# header announced the single ai pair and Manager's stop ran twice. A stub
+# Manager stop.sh in the sandbox counts its calls; OPENCLAW=no and the default
+# (no --stop-docker) keep OpenClaw and Docker out of it.
+mkdir -p "$TMP/RealityEngine_Manager"
+printf '#!/usr/bin/env bash\necho "STUB MANAGER STOP"\n' > "$TMP/RealityEngine_Manager/stop.sh"
+chmod +x "$TMP/RealityEngine_Manager/stop.sh"
+printf 'RE_ENGINE=ai\nPE_ENGINE=ai\nENGINES=cpp:1,lsp:1,scala:1\nMULTI_ENGINE_MODE=true\nOPENCLAW=no\n' \
+  > "$SANDBOX/.universe-engine-selection"
+set +e; out=$(run_stop_with); rc=$?; set -e
+check "$rc" 0 "teardown exits 0"
+check "$(grep -c 'Engine selection: ENGINES=cpp:1,lsp:1,scala:1' <<<"$out")" 1 "the header names the engines launched"
+check "$(grep -c 'RE_ENGINE=ai' <<<"$out")" 0 "and not the ai pair the stamp also carries"
+check "$(grep -c 'STUB MANAGER STOP' <<<"$out")" 1 "Manager is stopped once, not twice"
+check "$([ -e "$SANDBOX/.universe-engine-selection" ] && echo present || echo removed)" removed "the stamp is removed"
+
+echo "no stamp: the header says the instance registry decides"
+set +e; out=$(run_stop); rc=$?; set -e
+check "$(grep -c 'no stamp in this checkout' <<<"$out")" 1 "the header says there is no stamp here"
 
 echo ""
 echo "stop-universe-registry: $PASS passed, $FAIL failed"

@@ -29,6 +29,8 @@ OCS_DIR="$CI_DIR/../localOpenClawStack"
 MCP_HTTP_PID_FILE="${MCP_HTTP_PID_FILE:-/tmp/realityengine-mcp-http.pid}"
 OPENAPI_SWAGGER_PID_FILE="${OPENAPI_SWAGGER_PID_FILE:-/tmp/realityengine-openapi-swagger.pid}"
 BRIDGE_METRICS_PID_FILE="${BRIDGE_METRICS_PID_FILE:-/tmp/realityengine-bridge-metrics.pid}"
+MANAGER_UNIVERSE_PID_FILE="${MANAGER_UNIVERSE_PID_FILE:-/tmp/manager_universe.pid}"
+OLLAMA_UNIVERSE_PID_FILE="${OLLAMA_UNIVERSE_PID_FILE:-/tmp/ollama_universe.pid}"
 
 GREEN='\033[0;32m'; YELLOW='\033[1;33m'; RED='\033[0;31m'; NC='\033[0m'
 ok()   { echo -e "${GREEN}✓${NC} $*"; }
@@ -378,15 +380,15 @@ stop_native_engine() {
 }
 
 stop_manager_native() {
-  if [ -f /tmp/manager_universe.pid ]; then
-    local pid; pid="$(cat /tmp/manager_universe.pid 2>/dev/null || true)"
+  if [ -f "$MANAGER_UNIVERSE_PID_FILE" ]; then
+    local pid; pid="$(cat "$MANAGER_UNIVERSE_PID_FILE" 2>/dev/null || true)"
     if [ -n "$pid" ] && ps -p "$pid" >/dev/null 2>&1; then
       info "Stopping Manager native process (PID $pid)..."
       kill -TERM "$pid" 2>/dev/null || true
       sleep 1
       ok "Manager native stopped"
     fi
-    rm -f /tmp/manager_universe.pid
+    rm -f "$MANAGER_UNIVERSE_PID_FILE"
   fi
   # Also delegate to Manager's own stop.sh if it exists
   if [ -d "$CI_DIR/../RealityEngine_Manager" ] && \
@@ -396,7 +398,13 @@ stop_manager_native() {
   fi
 }
 
+# Once per teardown. A multi-engine stamp also carries RE_ENGINE=ai, so the
+# selection loop and the multi-engine line below both asked for it, and Manager,
+# OpenClaw and the Docker notices ran twice, the second time finding nothing.
+AI_STACK_STOPPED=false
 stop_ai_stack() {
+  [ "$AI_STACK_STOPPED" = true ] && return 0
+  AI_STACK_STOPPED=true
   stop_api_surface_services
   stop_openclaw_stack "$STAMPED_OPENCLAW" "$STAMPED_OCS_NATIVE_UNLOADED"
   stop_manager_native
@@ -432,13 +440,13 @@ stop_ai_stack() {
   fi
 
   # Stop Ollama only if startUniverse.sh started it (PID file present)
-  if [ -f /tmp/ollama_universe.pid ]; then
-    local pid; pid="$(cat /tmp/ollama_universe.pid 2>/dev/null || true)"
+  if [ -f "$OLLAMA_UNIVERSE_PID_FILE" ]; then
+    local pid; pid="$(cat "$OLLAMA_UNIVERSE_PID_FILE" 2>/dev/null || true)"
     if [ -n "$pid" ] && ps -p "$pid" >/dev/null 2>&1; then
       kill -TERM "$pid" 2>/dev/null || true
       ok "Ollama stopped (PID $pid)"
     fi
-    rm -f /tmp/ollama_universe.pid
+    rm -f "$OLLAMA_UNIVERSE_PID_FILE"
   fi
 }
 
@@ -458,7 +466,16 @@ fi
 echo "════════════════════════════════════════════════════════════════════"
 echo "  Universe Teardown  [RealityEngine_CI]"
 echo "════════════════════════════════════════════════════════════════════"
-info "Engine selection: RE_ENGINE=$RE_ENGINE  PE_ENGINE=$PE_ENGINE  --all=$STOP_ALL"
+# Name what was launched. A multi-engine universe stamps RE_ENGINE=ai beside
+# ENGINES=cpp:1,lsp:1,scala:1, and the header printed only the former, so a
+# three-engine teardown announced itself as the single ai pair.
+if [ "$STAMPED_MULTI_ENGINE_MODE" = "true" ] && [ -n "$STAMPED_ENGINES" ]; then
+  info "Engine selection: ENGINES=$STAMPED_ENGINES  --all=$STOP_ALL"
+elif [ -f "$CI_DIR/.universe-engine-selection" ]; then
+  info "Engine selection: RE_ENGINE=$RE_ENGINE  PE_ENGINE=$PE_ENGINE  --all=$STOP_ALL"
+else
+  info "Engine selection: no stamp in this checkout (RE_ENGINE=$RE_ENGINE PE_ENGINE=$PE_ENGINE); native instances come from the instance registry  --all=$STOP_ALL"
+fi
 [ -n "$STOP_INSTANCE" ] && info "  --instance=$STOP_INSTANCE"
 [ "$ENGINES_ONLY" = true ] && info "  --engines-only"
 _snapshot_instance_registry
