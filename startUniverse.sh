@@ -1586,7 +1586,14 @@ if [ "$MULTI_ENGINE_MODE" = true ]; then
     _DUPE=$(printf '%s\n' $_pf_all_ports | sort -n | uniq -d)
     [ -n "$_DUPE" ] && \
         die "Cross-runtime port collision in --engines=$ENGINES — ports$(printf ' %s' $_DUPE) would be double-allocated\n  See DEPLOYMENT_CONTRACT.md § Per-Runtime Instance Limits"
-    # Check host occupancy
+    # Check host occupancy — of the template ports, which only the deterministic
+    # path binds. Under --free-ports allocate_ports never touches them, so a
+    # holder there is irrelevant: this refused a free-port universe because macOS
+    # AirPlay holds 5000, Scala's template PE port (2026-10-06).
+    if [ "$RE_FREE_PORTS" = "true" ]; then
+        info "Free-port allocation: template ports are not used, so their occupancy is not checked"
+        _pf_all_ports=""
+    fi
     for _pf_port in $_pf_all_ports; do
         if lsof -i ":${_pf_port}" -sTCP:LISTEN >/dev/null 2>&1; then
             if [ "$DRY_RUN" = true ]; then
