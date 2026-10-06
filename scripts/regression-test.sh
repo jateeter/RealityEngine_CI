@@ -660,13 +660,21 @@ start_docker_daemon() {
 # reads, including $CI_DIR/.env overrides — this host pins SCALA_PE_BASE=5100
 # precisely because macOS AirPlay squats on 5000, so hardcoding the defaults
 # here would check ports the run never uses and miss the ones it does.
+#
+# Under RE_FREE_PORTS=true the engines and the instance registry shim take free
+# ports (startUniverse.sh --free-ports), so their template ports and 5999 are not
+# the lane's. Checking them refused a free-port run over macOS AirPlay on 5000,
+# Scala's template PE port, which the run would never have bound — the same
+# defect startUniverse.sh had (#549). The fixed-port services are still checked.
 lane_ports() {
   local cpp lsp scala
   # shellcheck disable=SC1091
   [ -f "$CI_DIR/.env" ] && . "$CI_DIR/.env" >/dev/null 2>&1 || true
-  cpp="${CPP_PE_BASE:-5300}"; lsp="${LSP_PE_BASE:-5600}"; scala="${SCALA_PE_BASE:-5000}"
-  printf '%s\n' "$cpp" "$(( cpp + 1 ))" "$lsp" "$(( lsp + 1 ))" "$scala" "$(( scala + 1 ))" \
-    3001 5173 5999 4000 18789 8080 7331 8088
+  if [ "${RE_FREE_PORTS:-false}" != "true" ]; then
+    cpp="${CPP_PE_BASE:-5300}"; lsp="${LSP_PE_BASE:-5600}"; scala="${SCALA_PE_BASE:-5000}"
+    printf '%s\n' "$cpp" "$(( cpp + 1 ))" "$lsp" "$(( lsp + 1 ))" "$scala" "$(( scala + 1 ))" 5999
+  fi
+  printf '%s\n' 3001 5173 4000 18789 8080 7331 8088
 }
 
 # The stacks this harness owns. Both the teardown and the port triage below

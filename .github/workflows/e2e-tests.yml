@@ -511,6 +511,10 @@ jobs:
         working-directory: RealityEngine_CI
         run: bash scripts/tests/test-stop-universe-registry.sh
 
+      - name: The local lane's port preflight follows free-port allocation
+        working-directory: RealityEngine_CI
+        run: bash scripts/tests/test-lane-ports.sh
+
       # The HealthKit bridge token's one home (.secrets/) and the move from
       # config/: same value, 0600, gitignored (RealityEngine_Machines#126).
       - name: Run HealthKit token unit tests
