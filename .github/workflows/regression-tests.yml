@@ -90,7 +90,10 @@ jobs:
   preflight:
     name: Regression Preflight (config check)
     if: ${{ github.event_name == 'schedule' }}
-    runs-on: ubuntu-latest
+    # Pinned, not ubuntu-latest: ubuntu-latest becomes Ubuntu 26 on 2026-10-19,
+    # and on 2026-10-05 its hosted pool could not supply runners. The toolchain
+    # here was verified on 24.04; moving to 26 is its own change.
+    runs-on: ubuntu-24.04
     timeout-minutes: 5
 
     steps:
@@ -102,7 +105,7 @@ jobs:
           RUN_MODE: ${{ vars.REGRESSION_SCHEDULE_RUN_MODE }}
         run: |
           echo "REGRESSION_SCHEDULE_ENABLED   = ${SCHEDULE_ENABLED:-<unset>}"
-          echo "REGRESSION_RUNNER_LABELS      = ${RUNNER_LABELS:-<unset, defaults to [\"ubuntu-latest\"]>}"
+          echo "REGRESSION_RUNNER_LABELS      = ${RUNNER_LABELS:-<unset, defaults to [\"ubuntu-24.04\"]>}"
           echo "REGRESSION_TIMEOUT_MINUTES    = ${TIMEOUT_MINUTES:-<unset, defaults to 350>}"
           echo "REGRESSION_SCHEDULE_RUN_MODE  = ${RUN_MODE:-<unset, defaults to full>}"
           echo
@@ -120,7 +123,7 @@ jobs:
           coverage in the run list while proving nothing.
 
           The runner and timeout blockers are now fixed in the workflow itself:
-          it defaults to ubuntu-latest (proven: the tri-runtime-parity job
+          it defaults to ubuntu-24.04 (proven: the tri-runtime-parity job
           brings cpp + lsp + scala to healthy there in under 6 minutes) with a
           350-minute timeout that fits inside GitHub-hosted's 6h cap.
 
@@ -149,10 +152,10 @@ jobs:
     # Blocker 2: this defaulted to ["self-hosted"] with zero runners registered,
     # so enabling the schedule would have queued forever rather than run. A
     # hosted runner is now a proven target — the tri-runtime-parity job brings
-    # cpp + lsp + scala to healthy on ubuntu-latest in under 6 minutes, LSP
+    # cpp + lsp + scala to healthy on ubuntu-latest (then 24.04) in under 6 minutes, LSP
     # included via the Quicklisp bootstrap. Set REGRESSION_RUNNER_LABELS to
     # override once a self-hosted runner exists.
-    runs-on: ${{ fromJSON(vars.REGRESSION_RUNNER_LABELS || '["ubuntu-latest"]') }}
+    runs-on: ${{ fromJSON(vars.REGRESSION_RUNNER_LABELS || '["ubuntu-24.04"]') }}
     # Kept: this environment does not exist on the repo yet, so it is currently
     # a no-op label rather than a gate — but it is the natural place to scope
     # regression-only secrets or a required reviewer later.

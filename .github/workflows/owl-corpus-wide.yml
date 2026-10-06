@@ -48,7 +48,10 @@ concurrency:
 jobs:
   corpus-wide:
     name: Corpus-Wide Reasoning (merged graph)
-    runs-on: ubuntu-latest
+    # Pinned, not ubuntu-latest: ubuntu-latest becomes Ubuntu 26 on 2026-10-19,
+    # and on 2026-10-05 its hosted pool could not supply runners. The toolchain
+    # here was verified on 24.04; moving to 26 is its own change.
+    runs-on: ubuntu-24.04
     # HermiT took 1,061s locally on an unloaded machine; a hosted runner is
     # slower and shares CPU. 90 minutes is headroom, not an expectation — if a
     # run approaches it, that is itself the signal to shard differently rather
@@ -116,7 +119,7 @@ jobs:
             echo "| ROBOT | v1.9.10 |"
           } >> "$GITHUB_STEP_SUMMARY"
 
-      # ubuntu-latest has 16GB; -Xmx12g leaves room for the runner itself. The
+      # The ubuntu-24.04 hosted runner has 16GB; -Xmx12g leaves room for the runner itself. The
       # merged graph is ~96MB on disk and considerably more in memory.
       # All twelve domains, moved off the per-PR gate. Sharded, so this is the
       # completeness check; the merged run below is the cross-domain one.
