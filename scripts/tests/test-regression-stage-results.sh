@@ -97,6 +97,27 @@ PY
 )
 check "$CMP" '[["stage:export-parity"], [], ["export-parity"]]' "a fixed stage is a change and a resolved failure; an ongoing one is neither"
 
+echo "the pr544-1639 run: arbiter passed, arbiter-sweep skipped"
+make_run "$TMP/r5"
+printf '%s\t%s\t%s\n' arbiter-sweep passed 0 arbiter passed 0 mqtt-yuma passed 0 > "$TMP/r5/reports/stage-results.tsv"
+echo '{"status":"passed","failures":[],"lane":"local"}' > "$TMP/r5/reports/arbiter.json"
+echo '{"status":"skipped","reason":"not requested; pass --arbiter-sweep"}' > "$TMP/r5/reports/arbiter-sweep-skipped.json"
+report "$TMP/r5"
+check "$(grep -c '^- Arbiter conformance: `passed`$' "$TMP/r5/summary.md")" 1 "Arbiter conformance reads arbiter.json, not not-run"
+check "$(grep -c '^- arbiter-sweep: `skipped`$' "$TMP/r5/summary.md")" 1 "a stage that wrote <name>-skipped.json reads skipped, not passed"
+check "$(python3 -c 'import json,sys; print(json.load(open(sys.argv[1]))["stages"]["arbiter-sweep"]["reason"])' "$TMP/r5/reports/regression-status.json")" \
+  "not requested; pass --arbiter-sweep" "and keeps the skip reason"
+check "$(signature "$TMP/r5/summary.md")" "unspecified" "a skip is not a failure to file"
+
+echo "a skipped arbiter, and a failed stage that also wrote a skip report"
+make_run "$TMP/r6"
+printf '%s\t%s\t%s\n' arbiter passed 0 local-ai failed 1 > "$TMP/r6/reports/stage-results.tsv"
+echo '{"status":"skipped","reason":"no contended cells"}' > "$TMP/r6/reports/arbiter-skipped.json"
+echo '{"status":"skipped","reason":"hosted profile"}' > "$TMP/r6/reports/local-ai-skipped.json"
+report "$TMP/r6"
+check "$(grep -c '^- Arbiter conformance: `skipped`$' "$TMP/r6/summary.md")" 1 "a lane without contended cells reads skipped"
+check "$(grep -c '^- local-ai: `failed`$' "$TMP/r6/summary.md")" 1 "a non-zero exit stays failed whatever report it left"
+
 echo ""
 echo "  $PASS passed, $FAIL failed"
 [ "$FAIL" -eq 0 ]
