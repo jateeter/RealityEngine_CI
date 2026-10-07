@@ -1,6 +1,6 @@
 # Releasing RealityEngine
 
-Last reviewed: 2026-08-09
+Last reviewed: 2026-10-07
 
 How a release of the integrated RealityEngine application is defined, cut, and
 verified.
@@ -49,17 +49,37 @@ is released on its own cadence.
 
 ## What certifies a release
 
-**Hosted GitHub Actions, nightly, plus manual dispatch.**
+**A green local-lane run on `main` of every repo** (decided 2026-10-07, D3 in
+`docs/MVP_ROADMAP.md`).
 
 | | |
 |---|---|
-| Where | GitHub-hosted runners (`ubuntu-latest`), not self-hosted |
+| Where | operator hardware with Docker, Ollama and Xcode; a connected iPhone for the HealthKit leg |
+| Command | `bash scripts/regression-test.sh --execute --profile local` |
+| Free ports | `RE_FREE_PORTS=true` when a template port is held (macOS AirPlay holds 5000) |
+| Success | the run's `summary.md` reads `Status: completed`: no stage failed |
+| Engines | `cpp:1,lsp:1,scala:1`, all three runtimes in one universe |
+| Record | `.regression-tests/runs/<run-id>/`, including `release-manifest.json` |
+
+Only the local lane runs Ollama, OpenClaw, the PIM mirror and the HealthKit
+bridge, so only a local run can certify them. A stage the run **skipped** (an
+absent iPhone, an unreachable MQTT broker) is recorded in the manifest with its
+reason and is not certified by it: name it in the release notes.
+
+### The hosted nightly is the per-merge gate, not the certifier
+
+The hosted lane runs on every merge and nightly, and a green nightly is a
+precondition (MVP gate G1). It does not certify a release.
+
+| | |
+|---|---|
+| Where | GitHub-hosted runners (`ubuntu-24.04`), not self-hosted |
 | Workflow | `.github/workflows/regression-tests.yml` |
 | Cadence | nightly at `17 9 * * *` UTC, and on demand |
 | Mode | `REGRESSION_SCHEDULE_RUN_MODE = full` |
 | Enabled by | `REGRESSION_SCHEDULE_ENABLED = true` |
 | Profile | `hosted` |
-| Engines | `cpp:1,lsp:1,scala:1` — all three runtimes, in one universe |
+| Engines | `cpp:1,lsp:1,scala:1` |
 
 Manual dispatch:
 
@@ -74,6 +94,7 @@ in:
 
 - Ollama and any local-AI path
 - OpenClaw
+- the PIM mirror
 - the HealthKit bridge
 
 Those belong to the **local lane**, which is operator-run on hardware that has
@@ -83,20 +104,22 @@ Docker, Ollama and Xcode:
 bash scripts/regression-test.sh --execute --profile local
 ```
 
-The machine corpus is **not** a lane difference: both lanes boot
-`standard-deployment` (12 machines). `--machine-corpus=full` is an explicit
-opt-in available only on the local lane; full-corpus load behaviour is covered
-by dedicated scaling tests.
+The machine corpus is **not** a lane difference: both lanes boot the
+`regression` corpus (`config/regression-corpus.txt`). `--machine-corpus=full`
+is an explicit opt-in available only on the local lane; full-corpus load
+behaviour is covered by the weekly `full-corpus-cycle.yml`.
 
-It runs everything the hosted lane runs, plus two stages the hosted lane
-cannot: `local-ai` (localAIStack health, every PE reporting Ollama reachable,
-and the runtimes agreeing on the model) and `healthkit-bridge` (the bridge's
-configured-sequence e2e against a live PE). Results land in
-`.regression-tests/runs/<run-id>/` in the same shape as a hosted run.
+The local lane runs everything the hosted lane runs, plus the stages the hosted
+lane cannot: `local-ai` and `localai-machines` (localAIStack health, every PE
+reporting Ollama reachable, the runtimes agreeing on the model),
+`openclaw-integration-*` on every runtime, `pim-mirror` (HealthKit → PIM →
+POD), and `healthkit-bridge` (the real app on a connected iPhone, never the
+simulator). Results land in `.regression-tests/runs/<run-id>/` in the same
+shape as a hosted run.
 
-**A hosted certification does not certify those surfaces.** Do not read a green
-hosted run as covering them — the manifest records `coverage.localAI` and
-`coverage.openclaw`, and on a hosted run both are `false`.
+**A green hosted run does not cover those surfaces.** The manifest records
+`coverage.localAI` and `coverage.openclaw`, and on a hosted run both are
+`false`, which is why a hosted run does not certify a release.
 
 ### Stages a green run proves
 
@@ -116,27 +139,28 @@ are distinct classes of result. One green stage does not imply another; see
 
 ## Cutting a release
 
-### 1. Get a green run
+### 1. Get a green local run on `main`
+
+Every repo on `main`, current with `origin`, then:
 
 ```bash
-gh run list --workflow regression-tests.yml --limit 5
-gh run view <run-id> --json conclusion -q .conclusion   # must be: success
+bash scripts/regression-test.sh --execute --profile local --run-id <run-id>
+grep '^- Status' .regression-tests/runs/<run-id>/summary.md   # must be: completed
 ```
 
-Every run emits a candidate manifest at `<run-dir>/release-manifest.json`,
-so a green run has already produced one.
+The hosted nightly must be green at the same time (gate G1).
 
 ### 2. Produce the manifest
 
-From a downloaded artifact:
-
 ```bash
-gh run download <run-id> -D /tmp/certified
 scripts/release-manifest.py generate \
-  --run-dir /tmp/certified/regression-<run>/<run> \
+  --run-dir .regression-tests/runs/<run-id> \
   --version release-v0.1.0 \
   --out releases/release-v0.1.0.json
 ```
+
+The manifest records the run's profile, its coverage and every stage's result,
+skips included.
 
 Generating from a run that did not pass is **refused**. `--allow-unverified`
 overrides it and stamps the manifest `provisional`, and `cut-release.sh`
@@ -262,10 +286,10 @@ manifest and the tag disagree, and the manifest is the record.
 
 ## Release checklist
 
-- [ ] A regression run on `main` concluded `success`
+- [ ] A local-lane run on `main` concluded `completed`, and the hosted nightly is green
 - [ ] Manifest generated from that run, not hand-written, and **not** provisional
 - [ ] `cut-release.sh` dry run reports no drift
 - [ ] Manifest committed under `releases/`
 - [ ] Tags created, then pushed as a separate step
 - [ ] `docs/MVP_ROADMAP.md` gate status updated in the same change, naming the run
-- [ ] Release notes state what the hosted profile did **not** cover
+- [ ] Release notes name every stage the certifying run skipped, with its reason
