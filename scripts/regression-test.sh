@@ -1890,27 +1890,33 @@ run_localai_machines() {
 }
 
 run_healthkit_bridge() {
-  step "HealthKit bridge simulator leg"
+  step "HealthKit bridge leg (physical iPhone)"
   if [ "$PROFILE" != "local" ]; then
     log "SKIP HealthKit bridge: hosted profile refuses the bridge"
     write_skip_report "healthkit-bridge-skipped.json" "hosted profile refuses the HealthKit bridge"
     return 0
   fi
 
+  # The real HealthKitBridge app on a real iPhone, never the simulator (owner
+  # decision 2026-10-06). The simulator leg proved an app that HealthKit itself
+  # never feeds, and its fixed 30s wait raced a cold-booted simulator: main-1006
+  # failed "saw 0" while the sensors landed a second later. With no iPhone
+  # connected the stage records a skip with the reason; it does not fall back.
+  #
   # The bridge is a repos-group member, so this drives the cold-start worktree
   # at the pinned commit rather than whatever the operator's checkout happens
   # to contain. Testing the working copy would certify something the manifest
   # does not pin.
   local bridge
   bridge="$(repo_root localHealthkitBridge)"
-  if [ ! -x "$bridge/scripts/e2e_simulator.sh" ]; then
-    log "SKIP HealthKit bridge: localHealthkitBridge worktree has no e2e_simulator.sh"
-    write_skip_report "healthkit-bridge-skipped.json" "localHealthkitBridge worktree missing e2e_simulator.sh"
+  if [ ! -x "$bridge/scripts/e2e_device.sh" ]; then
+    log "SKIP HealthKit bridge: localHealthkitBridge worktree has no e2e_device.sh"
+    write_skip_report "healthkit-bridge-skipped.json" "localHealthkitBridge worktree missing e2e_device.sh"
     return 0
   fi
 
-  # Xcode and an iOS runtime are macOS-only. Report the reason rather than
-  # failing a lane that is otherwise valid on Linux.
+  # Xcode is macOS-only. Report the reason rather than failing a lane that is
+  # otherwise valid on Linux.
   local missing=""
   for tool in xcrun xcodegen jq; do
     command -v "$tool" >/dev/null 2>&1 || missing="$missing $tool"
@@ -1921,10 +1927,39 @@ run_healthkit_bridge() {
     return 0
   fi
 
+  # A paired iPhone whose tunnel is up. Locked is still "connected": the launch
+  # then fails, and that failure is reported, since the stage asked for a phone.
+  local devices iphone
+  devices="$(mktemp)"
+  xcrun devicectl list devices --json-output "$devices" >/dev/null 2>&1 || true
+  iphone="$(jq -r '[.result.devices[]? | select(.hardwareProperties.deviceType == "iPhone"
+    and .connectionProperties.tunnelState != "unavailable")][0].deviceProperties.name // empty' "$devices" 2>/dev/null)"
+  rm -f "$devices"
+  if [ -z "$iphone" ]; then
+    log "SKIP HealthKit bridge: no connected iPhone (xcrun devicectl list devices); the simulator is not a substitute"
+    write_skip_report "healthkit-bridge-skipped.json" \
+      "no connected iPhone: pair one with Developer Mode on; the simulator is not used"
+    return 0
+  fi
+
+  # Code signing needs the Apple Developer team. The environment wins, then the
+  # operator's .env; nothing is assumed.
+  local team="${DEVELOPMENT_TEAM:-}"
+  if [ -z "$team" ] && [ -f "$CI_DIR/.env" ]; then
+    team="$(sed -n 's/^DEVELOPMENT_TEAM=//p' "$CI_DIR/.env" | tail -1)"
+  fi
+  if [ -z "$team" ]; then
+    log "SKIP HealthKit bridge: DEVELOPMENT_TEAM is not set (environment or $CI_DIR/.env); $iphone is connected"
+    write_skip_report "healthkit-bridge-skipped.json" \
+      "DEVELOPMENT_TEAM unset: set it in the environment or RealityEngine_CI/.env to sign for $iphone"
+    return 0
+  fi
+
   # The bridge posts to one PE. Any runtime satisfies the ingest contract —
   # RealityEngine_Machines/tests/integration/healthkit-ingest-contract.spec.ts
   # enforces that — so the first live instance is enough, and the contract
-  # spec is what covers the other two.
+  # spec is what covers the other two. The instance registry publishes the
+  # host's LAN address, which is what the phone needs.
   local pe_url=""
   while IFS='|' read -r instance_id runtime url; do
     [ -n "$instance_id" ] || continue
@@ -1962,10 +1997,10 @@ run_healthkit_bridge() {
     log "HealthKit bridge: no token configured — expecting the PE to accept unauthenticated ingest"
   fi
 
-  log "HealthKit bridge simulator leg against $pe_url"
-  run_cmd "healthkit-bridge-simulator" \
-    env PE_BASE_URL="$pe_url" HEALTHKIT_BRIDGE_TOKEN="$token" \
-    bash "$bridge/scripts/e2e_simulator.sh"
+  log "HealthKit bridge on $iphone against $pe_url"
+  run_cmd "healthkit-bridge-device" \
+    env PE_BASE_URL="$pe_url" HEALTHKIT_BRIDGE_TOKEN="$token" DEVELOPMENT_TEAM="$team" \
+    bash "$bridge/scripts/e2e_device.sh"
 }
 
 run_pim_mirror() {

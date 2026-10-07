@@ -263,10 +263,18 @@ tracked defect is RealityEngine_Scala#153 (completion ingest leaves the wrong
 source active over the corpus test source's region), which is related, not
 confirmed as the cause. MQTT Yuma was skipped. This is release step 2.
 
-### G1.6 · Bridge simulator leg — done
+### G1.6 · Bridge leg — done, now on the physical iPhone
 
-Stage `healthkit-bridge` runs `localHealthkitBridge/scripts/e2e_simulator.sh`
-against a live PE from the instance registry, on the local lane only.
+Stage `healthkit-bridge` runs `localHealthkitBridge/scripts/e2e_device.sh`: the
+real HealthKitBridge app, built, installed and launched on a connected iPhone,
+against a live PE from the instance registry, on the local lane only. Owner
+decision 2026-10-06: never the simulator. With no iPhone connected, or no
+`DEVELOPMENT_TEAM` (environment or `.env`) to sign with, the stage records a
+skip with that reason rather than falling back. The simulator leg it replaced
+raced a cold-booted simulator with a fixed 30s wait (main-1006: "saw 0" while
+the sensors landed a second later).
+
+The history below describes the simulator leg as it was wired in.
 
 The leg itself already existed — the bridge's M4 records `e2e_simulator.sh`
 and `e2e_seeded.sh` passing against both the TypeScript PE and the native C++

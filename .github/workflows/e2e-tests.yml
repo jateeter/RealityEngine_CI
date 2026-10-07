@@ -515,6 +515,10 @@ jobs:
         working-directory: RealityEngine_CI
         run: bash scripts/tests/test-lane-ports.sh
 
+      - name: The HealthKit stage runs on a real iPhone, never the simulator
+        working-directory: RealityEngine_CI
+        run: bash scripts/tests/test-healthkit-stage.sh
+
       # The HealthKit bridge token's one home (.secrets/) and the move from
       # config/: same value, 0600, gitignored (RealityEngine_Machines#126).
       - name: Run HealthKit token unit tests
