@@ -1,6 +1,6 @@
 # MVP Release Roadmap
 
-Last reviewed: 2026-09-25
+Last reviewed: 2026-10-07
 
 The route from the current `v0.0.1-baseline` tag to a tagged MVP release of the
 integrated RealityEngine application.
@@ -13,15 +13,14 @@ released, and is the place to record gate status as it changes.
 
 | Gate | What it means | Status |
 |---|---|---|
-| **G1** | Certification runs and passes on every merge to main | **REGRESSED**. The nightly has been red for 15 nights, 2026-09-11 through 2026-09-25; last green 2026-09-10 (`cac03f01`). Two of the four failing stages share one cause, fixed after the last run; two are open engine disagreements. See *G1 status, 2026-09-25* |
+| **G1** | Certification runs and passes on every merge to main | **Done again.** Scheduled nightlies green 2026-10-04 → 2026-10-07; latest **37601209935** (2026-10-07, `f4b8c46b`). The 2026-09-25 failures are fixed (#462, #463, #464). See *G1 status, 2026-10-07* |
 | **G2** | Versions pinned across repos, reproducibly | **Tooling done; the pin is stale.** `releases/v0.1.0-rc1.json` is from 2026-08-09, covers 8 repos, and predates G4. A run now builds, and so pins, **10**. Re-pin from a green run (release step 7) |
 | **G3** | Release documentation and process | **Done.** `RELEASE.md` and `scripts/cut-release.sh`; D1 decided 2026-09-25: application releases are tagged **`release-vN.M.Z`**, enforced by both tools |
-| **G4** | MVP scope: PIM and HealthKit bridge | **Decided**: both in; the SCS POD is authoritative. **The mirror blocks the MVP (D2, decided 2026-09-25)**: specified in `localHealthkitBridge/docs/MIRROR_CONTRACT.md`, tracked in localHealthkitBridge#45, **not built** |
+| **G4** | MVP scope: PIM and HealthKit bridge | **Decided, and the mirror is built.** localHealthkitBridge#45 closed 2026-09-26 (contract #44, PIM#83, bridge #46, CI#473). Stage `pim-mirror` passes on the local lane (`pr544-1639`, `main-1006`). One gap remains: a `pim-mirror` **skip** does not yet block `cut-release.sh` |
 
-**Release assets are current** as of 2026-09-25: the corpus, oracles, cesgen
-bindings, OpenAPI, OWL baselines and the OpenClaw agent corpus were all
-regenerated and verified (see *Release assets*). The route to MVP now runs
-through G1, not through any artifact.
+**Release assets re-verified 2026-10-07** (*Release assets*): six of eight
+pass. The OWL baselines and the OpenClaw agent index name the corpus as it was
+before Machines#208 and need regenerating. **The route to MVP now runs through the local lane (step 2).**
 
 ---
 
@@ -32,13 +31,13 @@ done when that proof exists, not when the work behind it merges.
 
 | # | Step | Done when | Status |
 |---|---|---|---|
-| 1 | **Clear the nightly (G1).** Resolve #464 (cpp `wasJustMatched`) and #463 (scala omits MQTT sources at registration). Confirm the empty-MCP-URL fix (#462) clears `service-inventory` and `mcp` | a **scheduled** `regression-tests.yml` run concludes `success`, recorded here by run id and date | open |
-| 2 | **Clear the local lane.** `bash scripts/regression-test.sh --execute --profile local`. The hosted lane does not cover Ollama, OpenClaw, the full corpus or the HealthKit bridge (`RELEASE.md`), so this is the only proof of them | every stage passes, including `openclaw-integration-*` on all three runtimes and `healthkit-bridge` | open: the last run (2026-09-24, `20260924T215111Z`) failed only `openclaw-integration-scala-1` |
-| 3 | **Weekly full-corpus cycle green on schedule.** `full-corpus-cycle.yml`: 1,327 machines validated, loaded identically by all three runtimes, and the 1,322-spec agent corpus rebuilt and matched | a **scheduled** run concludes `success` | branch dispatch green 2026-09-25 (run 36180913113, the first fully green run); first scheduled run is Sunday 2026-09-27 |
+| 1 | **Clear the nightly (G1).** Resolve #464 (cpp `wasJustMatched`) and #463 (scala omits MQTT sources at registration). Confirm the empty-MCP-URL fix (#462) clears `service-inventory` and `mcp` | a **scheduled** `regression-tests.yml` run concludes `success`, recorded here by run id and date | **done**: 36990104679 (2026-10-02) was the first scheduled green since 2026-09-10; after one red night (2026-10-03, below), green every night since, latest **37601209935** (2026-10-07) |
+| 2 | **Clear the local lane.** `bash scripts/regression-test.sh --execute --profile local`. The hosted lane does not cover Ollama, OpenClaw, the full corpus or the HealthKit bridge (`RELEASE.md`), so this is the only proof of them | every stage passes on `main` of every repo, including `openclaw-integration-*` on all three runtimes, `pim-mirror` and `healthkit-bridge` (on the iPhone) | **open, one stage left.** `pr544-1639` (2026-10-05) passed every stage but built CI from a PR branch, so it cannot certify. `main-1006` (2026-10-06) failed only `healthkit-bridge`, a simulator race; #552 moves the stage to the physical iPhone. Re-run on `main` once #552 merges, with the iPhone connected |
+| 3 | **Weekly full-corpus cycle green on schedule.** `full-corpus-cycle.yml`: 1,327 machines validated, loaded identically by all three runtimes, and the 1,322-spec agent corpus rebuilt and matched | a **scheduled** run concludes `success` | **done**: 36296119645 (2026-09-27) and 37184003178 (2026-10-04), both scheduled, both green |
 | 4 | **Decide the release tag (D1)** | the decision is recorded here and in `RELEASE.md` *Tag conventions* | **done 2026-09-25**: `release-vN.M.Z` (candidates `release-vN.M.Z-rcN`) |
-| 5 | **Build the mirror (D2, MVP-blocking):** bridge → PIM API → POD, per `localHealthkitBridge/docs/MIRROR_CONTRACT.md`: PIM metric catalog, `health-observations` domain, the dynamic approved-metric set, `healthkit/sync/preview` + `apply` with per-batch owner approval; the bridge `PIMClient`; the CI mirror leg | the local-lane **mirror leg is green**, recorded here by run id | **decided 2026-09-25; in progress** (localHealthkitBridge#45) |
-| 6 | **Re-verify release assets at the release commit** (commands under *Release assets*) | every check passes against the commits being pinned | current as of 2026-09-25; repeat at release time |
-| 7 | **Generate the manifest from the green run** of step 1: `scripts/release-manifest.py generate … --version release-v0.1.0 --out releases/release-v0.1.0.json`. It must be non-provisional and cover all 10 repos | `releases/release-v0.1.0.json` exists and is committed | open (supersedes `v0.1.0-rc1`) |
+| 5 | **Build the mirror (D2, MVP-blocking):** bridge → PIM API → POD, per `localHealthkitBridge/docs/MIRROR_CONTRACT.md`: PIM metric catalog, `health-observations` domain, the dynamic approved-metric set, `healthkit/sync/preview` + `apply` with per-batch owner approval; the bridge `PIMClient`; the CI mirror leg | the local-lane **mirror leg is green**, recorded here by run id | **built**; leg green in `pr544-1639` and `main-1006`. **Open:** a `pim-mirror` skip does not block `cut-release.sh`, though D2 says the release waits on this leg (not yet filed) |
+| 6 | **Re-verify release assets at the release commit** (commands under *Release assets*) | every check passes against the commits being pinned | **re-run 2026-10-07 at `origin/main`: 6 of 8 pass.** The OWL baselines and the agent index are stale by fingerprint since Machines#208; fixed by Machines#212 and localOpenClawStack#57 (open). Repeat at the commits pinned |
+| 7 | **Generate the manifest from the certifying run** (see D3): `scripts/release-manifest.py generate … --version release-v0.1.0 --out releases/release-v0.1.0.json`. It must be non-provisional and cover all 10 repos | `releases/release-v0.1.0.json` exists and is committed | open (supersedes `v0.1.0-rc1`). Both local runs' manifests are provisional: `main-1006` failed, and `pr544-1639` built CI `ce3059fa` while `origin/main` was `793ca566` |
 | 8 | **Rehearse the cut:** `scripts/cut-release.sh --manifest releases/release-v0.1.0.json` (dry run) | no drift, and no tag collision | open |
 | 9 | **Tag, then push separately:** `--execute`, then `--execute --push` | tags exist on all 10 remotes | open |
 | 10 | **Release notes:** what certified it, what the hosted lane did not cover, and the known limitations below | notes published with the tag | open |
@@ -64,47 +63,92 @@ done when that proof exists, not when the work behind it merges.
   - **D2b:** **every health metric** goes to PIM, and the approved set can be
     **changed at runtime and is honored** everywhere, including PE ingest scope;
   - the surface is `healthkit/sync/preview` + `apply`.
-- **Whether #467 blocks the MVP.** The OpenClaw regression profile loads 12 agents
-  where the regression corpus has 15, and no per-run check detects a stale agent
-  corpus. The weekly cycle (step 3) now catches staleness within a week.
+- **#467: resolved, no longer a question.** The regression profile now derives
+  from `config/regression-corpus.txt` and loads all 15 agents
+  (localOpenClawStack#47), and #496 added the per-run `agent-corpus-current`
+  stage and the §3.7(4) provenance check. Closed 2026-10-01.
+- **D3, open: which run certifies the release.** Step 7 pins from one run, but
+  the hosted nightly (step 1) does not cover Ollama, OpenClaw, the full corpus,
+  the mirror or the bridge, and the local lane (step 2) is the only run that
+  does. Either pin from a green **local** run on `main`, or require the hosted
+  and local runs to have built the same commits. The local lane already writes
+  `release-manifest.json`, so the first option needs no new tooling.
 
 ### Known limitations to state in the release notes
 
 - **Hosted certification** does not cover the full corpus, Ollama, OpenClaw or
   the HealthKit bridge (`RELEASE.md`). Steps 2 and 3 cover them.
-- **Manager #96, TypeScript 7:** held. No `ts-jest` release accepts TypeScript 7,
-  so the PE backend stays on 5.x.
-- **#375, no step-completion barrier:** observers read after a drive, not at an
-  atomic boundary. The CES contract shards record their stimulus for this reason.
-- **#467:** stale-agent detection is weekly, not per run.
+- **MQTT Yuma** runs against the live broker on every lane (#520) and skips,
+  with the reason recorded, when the broker does not answer within 10s. Both
+  recent local runs skipped it.
+- **HealthKit bridge** is proven only on a physical iPhone (#552); with none
+  connected the stage records a skip.
 
 ---
 
-## Release assets: current as of 2026-09-25
+## Release assets: re-verified 2026-10-07, two stale
 
-Regenerated and verified against `origin/main` of every repo. Repeat at step 6
-against the commits being pinned.
+Checked against `origin/main` of every repo on 2026-10-07: Machines `2e907a3f`,
+CPP `e40465a`, LSP `7d45555`, Scala `b7e2e77`, Manager `a8c0648`,
+localOpenClawStack `e06c029`, CI `f4b8c46`; Node 26.8, ROBOT, pySHACL and QUDT
+all present. No check wrote to a checkout. Repeat at the commits being pinned.
 
-| Asset | State | Check |
+| Asset | State 2026-10-07 | Check |
 |---|---|---|
-| Machine corpus, 1,327 machines, 12 domains | `corpus-exit-v2.0` criteria hold; every Machines generator current, and **no gate skipped** (ROBOT, SHACL, QUDT all ran) | `bash scripts/validate-corpus.sh` in Machines, with `PYSHACL_PYTHON`/`QUDT_PYTHON` set |
-| JSON Schema | 1,338 artifacts, 0 invalid | `node scripts/validate-schemas.mjs` (after `npm ci`) |
-| OWL release baselines | ontology **0.5.0**, corpus `1.0.0+corpus.cba104f1972d`; ELK + HermiT consistent | Machines#178; `reason-owl.sh` reports "no axiom changes" |
-| Oracles | 4,966 current | `node scripts/cesgen-oracles.mjs --check` |
-| cesgen bindings | C++ and **Scala** current; Scala had never been checked and was 355 files behind | #466, Scala#161; `node scripts/cesgen.mjs --all --check` |
-| OpenAPI | regenerated from `SURFACE_SPEC`, propagated to CPP/LSP/Manager | #466; `bash scripts/generate-openapi.sh` leaves no diff |
-| CES contract shards | 16 scopes: 15 recorded, 1 unrecorded (tracked gap) | `npm run ces-contracts:status` in Machines |
-| OpenClaw agent corpus | 1,322 specs (the 5 arbitration fixtures are agent-free), `provenance.corpus.digest` = `d550be8da2c3`, `conformsTo` `corpus-exit-v2.0` | localOpenClawStack#46; `check-corpus-exit-criteria.py` PASS |
+| Machine corpus, 1,327 machines, 12 domains | **pass**: 0 errors, 0 warnings, **nothing skipped** (ROBOT, SHACL, QUDT all ran); arbitration 2,837 contended cells; one-CES-one-pattern OK | `bash scripts/validate-corpus.sh` in Machines, with `PYSHACL_PYTHON`/`QUDT_PYTHON` set |
+| JSON Schema | **pass**: 1,337 artifacts, 0 invalid | `node scripts/validate-schemas.mjs` |
+| Oracles | **pass**: 4,964 verified | `node scripts/cesgen-oracles.mjs --check` |
+| cesgen bindings | **pass**: 1,327 machines verified | `node scripts/cesgen.mjs --all --check` |
+| OpenAPI | **pass**: regeneration differs only in `x-generated-from` (the path it ran from); CPP, LSP and Manager mirrors byte-identical to CI's | `bash scripts/generate-openapi.sh`, then `git diff docs/openapi` |
+| CES contract shards | **pass**: 16 scopes, **16 recorded** (the unrecorded scope of 2026-09-25 is closed) | `npm run ces-contracts:status` in Machines |
+| OWL release baselines | **stale fingerprint.** Released at corpus `08e9269cb38d` (Machines#198, 2026-10-04); corpus is now `db2cbb45b46f`. The diff is the version annotations only; reasoning is consistent under ELK and HermiT | `reason-owl.sh` must report no changes against `semantics/released/` |
+| OpenClaw agent corpus | **stale index.** All agent specs match; `INDEX.json` provenance still names `08e9269cb38d`, and `INDEX.md` differs. Exit criteria PASS; `--require-current-digest` FAILS. Regression profile current (15 agents) | `materialize_agents.py --check`; `check-corpus-exit-criteria.py … --require-current-digest` |
 
-The agent corpus and the OWL baselines carry the **same corpus fingerprint**.
-Comparing it with the corpus as it stands is the staleness check for both.
+**Cause of both:** Machines#208 (2026-10-05, *one CES, one regular
+expression*) changed 7 machine files after the 2026-10-04 baseline release and
+weekly cycle, so the corpus fingerprint moved. The agent corpus and the OWL
+baselines carry the **same fingerprint**, which is why they went stale
+together. **Fixes open:** localOpenClawStack#57 (index digest only; all five
+agent-corpus gates pass) and Machines#212 (12 domains + corpus re-released;
+the only axiom changes are the 37 `elementLevel` values #208 corrected, and a
+re-run reports `no axiom changes`). Merge both, then step 6 is 8 of 8.
+
+Neither the per-run `agent-corpus-current` stage nor the regression lanes
+caught it: the stage checks the 15 regression agents, which did not change.
+Only the weekly cycle checks the index digest, and its next run is Sunday
+2026-10-11.
 
 ---
 
-## G1 status, 2026-09-25
+## G1 status, 2026-10-07
 
-**The nightly certification lane has now been red for 15 consecutive nights**
-(2026-09-11 → 2026-09-25). The cause has moved twice, and the lane now gets
+**The nightly is green again.** It was red for 21 consecutive nights
+(2026-09-11 → 2026-10-01) and has failed once since:
+
+| Date | Run | Result |
+|---|---|---|
+| 2026-10-01 | 36922035240 (dispatch, nightly settings) | **success**: first green hosted run at `main` after the fixes for #463 and #464 merged; `reset-contract` and `export-parity` pass 3-of-3 |
+| 2026-10-02 | 36990104679 (scheduled) | **success**: first scheduled green since 2026-09-10 |
+| 2026-10-03 | 37113046063 (scheduled) | failed at `build-ci-mcp-routes-check`: the MCP engine-routes fixture was stale after that day's SURFACE_SPEC changes. Regenerated by #519; #530 made the stage regenerate the fixture rather than fail on it, per the *regenerate a stale registry* rule |
+| 2026-10-04 → 10-07 | 37197442002, 37291753819, 37443457740, **37601209935** (scheduled) | **success** every night |
+
+What closed the 2026-09-25 failures:
+
+| Stage | Fix |
+|---|---|
+| `service-inventory`, `mcp` | #462: an empty MCP URL means the default |
+| `export-parity` (CI#464) | #487 resets every runtime first and settles what RE reset leaves |
+| `reset-contract` (CI#463) | engine fixes merged 2026-10-01 (CPP `0598e43`, LSP `d7cdec9`, Scala `83a8a12`) and #488, which asserts source activity at registration; all three now declare the same 34 sources |
+
+The stage set has grown again since: arbiter conformance (#527),
+arbitration retention (#524), boot-source declaration (#488), agent-corpus
+currency (#496) and the step completion point that replaced `--settle-ms`
+(#522, closing #375). A green nightly today covers all of them.
+
+### G1 status, 2026-09-25 (superseded, kept as the record)
+
+**The nightly certification lane had been red for 15 consecutive nights**
+(2026-09-11 → 2026-09-25). The cause had moved twice, and the lane got
 further each time:
 
 | Period | Where it failed |
@@ -120,8 +164,8 @@ further each time:
 | `export-parity` | 19 of 21 machines differ **only** on `events[0].wasJustMatched`: cpp-1 `False`, lsp-1/scala-1 `True` | **open: #464** |
 | `reset-contract` | at registration scala-1 declares none of the MQTT `LATERAL/*` sources that cpp-1 and lsp-1 declare | **open: #463** |
 
-G1 returns to **Done** when a *scheduled* run goes green, named here by run id
-and date. That is not before, and not on the strength of fixes alone.
+G1 returned to **Done** on a *scheduled* green run (36990104679, 2026-10-02),
+not on the strength of the fixes alone.
 
 ### G1 status, 2026-09-17 (superseded, kept as the record)
 
@@ -176,8 +220,8 @@ First fully green certification run: **31297685782**, hosted profile,
 
 **Since then** the lane has added export parity, the reset contract (#163), PE
 step contract, engine config and process parity, machine-set parity, and the
-arbiter. Of these, `export-parity` and `reset-contract` are the two open failures
-in *G1 status*. A green run today proves considerably more than 31297685782
+arbiter. `export-parity` and `reset-contract` were the last two to go green
+(*G1 status*). A green run today proves considerably more than 31297685782
 did.
 
 **Universal-vector parity** closed on run 31291784885: 5 events × 3 runtimes,
@@ -208,7 +252,7 @@ It was deferred while a stage was red, because scheduled runs default to
 31297685782 went fully green, which removed the reason.
 
 This is the gate that turns certification from something we run into something
-that runs. *That it runs is done; that it passes is G1's open state.*
+that runs. *That it runs is done; that it passes is recorded under* G1 status.
 
 ### G1.5 · Local lane — done
 
@@ -254,14 +298,16 @@ first run, none of which stub tests could have surfaced:
 The third is the one worth remembering: the stage written to catch this class
 of problem had the same blind spot, and only a live run exposed it.
 
-**Latest local run, 2026-09-24 (`20260924T215111Z`):** build, service
-readiness, trajectory parity, universal vectors and MCP passed. OpenClaw
-integration passed on cpp-1 and lsp-1 and **failed on scala-1**. The report
-records `status: failed` with an empty `failureStage` and an empty
-`completionSourceId`, so the harness itself does not say why. The nearest
-tracked defect is RealityEngine_Scala#153 (completion ingest leaves the wrong
-source active over the corpus test source's region), which is related, not
-confirmed as the cause. MQTT Yuma was skipped. This is release step 2.
+**Latest local runs:**
+
+| Run | Finished | Result |
+|---|---|---|
+| `pr544-1639` | 2026-10-05 | **every stage passed**, including OpenClaw on all three runtimes, `local-ai`, `localai-machines`, `pim-mirror` and `healthkit-bridge`. Built CI from PR #544, not `main`, so it cannot certify. MQTT Yuma skipped; arbiter conformance not run |
+| `main-1006` | 2026-10-06 | failed **only `healthkit-bridge`**: the simulator leg saw 0 sensors inside its fixed 30s wait while they landed about a second later. #552 replaces it with the physical-iPhone leg. MQTT Yuma and `arbiter-sweep` skipped |
+
+The 2026-09-24 OpenClaw failure on scala-1 is gone: Scala#153 closed
+2026-10-01, and #507 now names every OpenClaw failure stage, so a failure
+can no longer report an empty `failureStage`. This is release step 2.
 
 ### G1.6 · Bridge simulator leg — done
 
@@ -312,7 +358,7 @@ The bridge itself shipped **v0.1.0 (MVP) on 2026-09-24**
 (`localHealthkitBridge` `v0.1.0` → `e351651`). That is a component release,
 which is why D1 exists.
 
-### G1.7 · Weekly full-corpus cycle — done on branch, first scheduled run 2026-09-27
+### G1.7 · Weekly full-corpus cycle — done, green on schedule
 
 `full-corpus-cycle.yml` is the only check over all 1,327 machines, which the
 per-PR gates and the regression lanes deliberately do not load. Weekly since
@@ -332,6 +378,11 @@ failure suppressed load parity, which therefore never ran; when it did, cpp
 recorded `ERROR` because its `start.sh` refuses to run without Qdrant and was
 never launched (#383, fixed by #469). Branch dispatch **run 36180913113 is the
 first fully green run**: all three runtimes 1,328 at `eventDimension` 16,944.
+
+Scheduled runs **36296119645 (2026-09-27) and 37184003178 (2026-10-04)** are
+both green: 1,327 machines loaded on every runtime at `eventDimension` 16,944
+(RS Flip Flop retired, #478), and 1,322 agents rebuilt and matched. #482 added
+the localAIStack checkout the agent-corpus job needed.
 
 ---
 
@@ -365,6 +416,10 @@ otherwise read as clean.
 
 Every regression run now emits `release-manifest.json` beside its reports, so a
 green run yields a ready-to-tag manifest with no separate step to remember.
+
+Both recent local runs emitted 10-repo manifests, and both are provisional
+(`main-1006` failed; `pr544-1639` built a CI commit that was not
+`origin/main`). The refusal worked as designed.
 
 **`releases/v0.1.0-rc1.json` is a historical pin, not a release candidate.**
 It was generated from run 31297685782 on 2026-08-09, covers 8 repos, and
@@ -483,18 +538,25 @@ of a boundary is what produced this gate.
 | Full-corpus load parity: cpp `ERROR` | CI#383 | **Closed** by #469: cpp's `start.sh` refused to run without Qdrant |
 | OpenClaw agent corpus five weeks stale | localOpenClawStack#46 | **Closed**: regenerated, fixture guard fixed, provenance recorded |
 | Scala cesgen bindings never checked | CI#466, Scala#161 | **Closed**: 355 files regenerated; the gate now reaches Scala |
+| Nightly red: cpp `wasJustMatched` disagrees with lsp/scala | CI#464 | **Closed 2026-10-01** by #487; confirmed on 36922035240 |
+| Nightly red: scala declares no MQTT sources at registration | CI#463 | **Closed 2026-10-01**: engine fixes + #488; confirmed on 36922035240 |
+| `service-inventory` / `mcp` fail on an empty MCP URL | #462 | **Confirmed** by every scheduled green since 2026-10-02 |
+| Local lane: OpenClaw fails on scala-1 | Scala#153, #507 | **Closed**: OpenClaw passes on all three in `pr544-1639` and `main-1006` |
+| Mirror not built | localHealthkitBridge#45 | **Closed 2026-09-26**: PIM#83, bridge #46, CI#473 |
+| Stale agent corpus detected weekly only; 12 of 15 agents | CI#467 | **Closed 2026-10-01**: localOpenClawStack#47, #496 per-run gate |
+| No step-completion barrier | CI#375 | **Closed 2026-10-03** by #522; `--settle-ms` removed |
+| TypeScript 7 in Manager PE backend | Manager#96 | **Done** by Manager#212 (2026-10-04): vitest + tsx, TypeScript 7 adopted |
 
 ### Open now
 
 | Item | Where | Effect on release |
 |---|---|---|
-| Nightly red: cpp `wasJustMatched` disagrees with lsp/scala | CI#464 | **blocks step 1** |
-| Nightly red: scala declares no MQTT sources at registration | CI#463 | **blocks step 1** |
-| `service-inventory` / `mcp` fail on an empty MCP URL | fixed by #462 | confirm on the next scheduled run |
-| Local lane: OpenClaw fails on scala-1, with no failure stage recorded | related to Scala#153 | **blocks step 2** |
-| Mirror not built: PIM catalog + preview/apply, bridge `PIMClient`, CI mirror leg | localHealthkitBridge#45 | **blocks step 5** (D2: MVP-blocking) |
-| Stale agent corpus detected weekly, not per run; regression profile 12 of 15 agents | CI#467 | decide whether it blocks |
-| TypeScript 7 in Manager PE backend | Manager#96 | held; state as a limitation |
+| HealthKit stage on the physical iPhone | CI#552 (open) | **blocks step 2**: `main-1006` failed only this stage |
+| Local lane green on `main` of every repo | step 2 | **blocks step 7** under either answer to D3 |
+| A `pim-mirror` skip does not block `cut-release.sh` | noted on localHealthkitBridge#45; not yet filed | D2 makes the leg release-blocking, so the tool should refuse a skip |
+| Which run certifies the release | D3 | decide before step 7 |
+| OWL baselines and agent index name corpus `08e9269cb38d`; corpus is `db2cbb45b46f` (Machines#208) | Machines#212, localOpenClawStack#57 | merge both; repeat step 6 at the release commit |
+| Mirror PE scope push covered only by PIM unit tests; bridge mirror not wired into `App/` | localHealthkitBridge#45 (noted at close) | not blocking; state in the release notes |
 
 ## How to update this file
 
