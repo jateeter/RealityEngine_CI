@@ -1428,7 +1428,9 @@ fi
 # it separately is what lets a later `docker compose` call reproduce the same
 # mount without having to know that (#328).
 MACHINE_CORPUS_DIR="$MACHINES_DIR"
-export SCALA_DIR MGR_DIR MACHINES_DIR MACHINE_CORPUS_DIR PROMETHEUS_FILE_SD_DIR
+# FULL_MACHINES_DIR reaches compose: the Load Machines catalog mounts the full
+# corpus while MACHINES_DIR is the bounded one the engines boot (Manager#256).
+export SCALA_DIR MGR_DIR MACHINES_DIR MACHINE_CORPUS_DIR FULL_MACHINES_DIR PROMETHEUS_FILE_SD_DIR
 export ACP_ENABLED ACP_PLATFORM ACP_SURFACE ACP_GATEWAY_URL OPENCLAW_GATEWAY_URL
 export ACP_SESSION_KEY OPENCLAW_ACP_SESSION ACP_TARGET_AGENT ACP_COMPLETION_SOURCE_MAPPING_ID INTEGRATIONS_CONFIG
 
@@ -2206,8 +2208,13 @@ except Exception:
         _manager_nvm_dir="${NVM_DIR:-$HOME/.nvm}"
 
         info "Starting Manager (Visualizer) natively — RE: $_re_arg  registry: http://$HOST_IP:${REGISTRY_PORT}/re-registry.json"
+        # The Load Machines catalog is the full corpus plus localAIStack's own
+        # machines, not the bounded working copy MACHINES_DIR names in
+        # standard-deployment and regression modes (Manager#256).
         NVM_DIR="$_manager_nvm_dir" \
             RE_REGISTRY_URL="http://$HOST_IP:${REGISTRY_PORT}/re-registry.json" \
+            MACHINES_CATALOG_DIR="$FULL_MACHINES_DIR" \
+            MACHINES_CATALOG_EXTRA_DIRS="$LAS_DIR/data/machines" \
             VIZ_RATE_LIMIT_MAX="${VIZ_RATE_LIMIT_MAX:-5000}" \
             VIZ_MACHINES_RATE_LIMIT_MAX="${VIZ_MACHINES_RATE_LIMIT_MAX:-2000}" \
             nohup "$MGR_DIR/start.sh" --re "$_re_arg" --pe "$_pe_arg" --no-seed \
