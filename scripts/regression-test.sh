@@ -528,15 +528,26 @@ run_repo_cmd() {
 record_manifest() {
   mkdir -p "$RUN_DIR"
   python3 - "$RUN_DIR/manifest.json" "$RUN_ID" "$BRANCH_NAME" "$WORKTREE_BRANCH" "$ENGINES_SPEC" \
-    "$PROFILE" "$LOCAL_AI" "$MACHINE_CORPUS" "$OPENCLAW_FLAG" <<'PYEOF'
+    "$PROFILE" "$LOCAL_AI" "$MACHINE_CORPUS" "$OPENCLAW_FLAG" \
+    "$BUILD" "$START" "$LIVE_TESTS" "$(date -u +%Y-%m-%dT%H:%M:%SZ)" <<'PYEOF'
 import json
 import sys
 from pathlib import Path
 
 (path, run_id, branch, worktree_branch, engines,
- profile, local_ai, machine_corpus, openclaw_flag) = sys.argv[1:]
+ profile, local_ai, machine_corpus, openclaw_flag,
+ build, start, live_tests, started_at) = sys.argv[1:]
 payload = {
     "runId": run_id,
+    # When the run began and which phases it ran. Retention and the comparison
+    # baseline order runs by time and protect the newest run that ran the live
+    # stages (scripts/lib/run_history.py); a run id says neither.
+    "startedAt": started_at,
+    "phases": {
+        "build": build == "true",
+        "start": start == "true",
+        "liveTests": live_tests == "true",
+    },
     "branch": branch,
     "worktreeBranch": worktree_branch,
     "engineSpec": engines,
@@ -912,20 +923,25 @@ prepare_docker() {
 # with their git worktrees and Regression-Test-* branches, so nothing dangles in
 # any member repo. Runs after prepare_docker: the previous universe (started from
 # an older run's worktrees) has been stopped, so nothing still mounts what is
-# removed. The previous run survives by construction when KEEP_RUNS >= 2 — it is
-# the comparison baseline (regression-comparison.json, previousRunId).
+# removed.
+#
+# "Newest" is by when a run ran, and the newest certifying run (completed, live
+# stages run) is always kept: it is the comparison baseline and the release
+# candidate. Both decisions are scripts/lib/run_history.py's. This sorted run ids
+# by name, so on 2026-10-08 a build-only run kept pr544-1639 (10-05) and deleted
+# main-1007 (10-07), the release candidate.
 prune_run_history() {
   [ "$KEEP_RUNS" -gt 0 ] 2>/dev/null || { log "Run history: keeping all runs (--keep-runs 0)"; return 0; }
   local runs_dir="$HISTORY_DIR/runs"
   [ -d "$runs_dir" ] || return 0
-  local -a runs=()
-  local r
-  while IFS= read -r r; do runs+=("$r"); done < <(ls -1 "$runs_dir" | grep -v "^$RUN_ID\$" | sort -r)
+  local -a doomed=()
+  local r total
+  total=$(find "$runs_dir" -mindepth 1 -maxdepth 1 -type d ! -name "$RUN_ID" | wc -l | tr -d ' ')
   # This run counts toward KEEP_RUNS even though its directory is being created now.
-  local keep_old=$(( KEEP_RUNS - 1 )) i=0 removed=0
-  for r in "${runs[@]}"; do
-    i=$(( i + 1 ))
-    [ "$i" -le "$keep_old" ] && continue
+  while IFS= read -r r; do [ -n "$r" ] && doomed+=("$r"); done < <(
+    python3 "$CI_DIR/scripts/lib/run_history.py" prune "$runs_dir" --keep "$KEEP_RUNS" --exclude "$RUN_ID")
+  local removed=0
+  for r in "${doomed[@]}"; do
     local dir="$runs_dir/$r" wt common repo br
     if [ -d "$dir/worktrees" ]; then
       for wt in "$dir"/worktrees/*/; do
@@ -945,7 +961,7 @@ prune_run_history() {
       log "Run history: could not fully remove $r (a mount may still hold part of it)"
     fi
   done
-  log "Run history: kept $(( ${#runs[@]} < keep_old ? ${#runs[@]} : keep_old )) previous run(s) + this one; removed $removed (--keep-runs $KEEP_RUNS)"
+  log "Run history: kept $(( total - ${#doomed[@]} )) previous run(s) + this one; removed $removed (--keep-runs $KEEP_RUNS)"
 }
 
 create_worktrees() {
@@ -2115,8 +2131,11 @@ retain_history() {
   [ "$EXECUTE" = true ] || return 0
   [ "$RETAIN" -gt 0 ] 2>/dev/null || return 0
   if [ -d "$HISTORY_DIR/runs" ]; then
+    # By time, keeping the newest certifying run (scripts/lib/run_history.py);
+    # this listed directories by name.
     while IFS= read -r old_run; do
       [ -n "$old_run" ] || continue
+      old_run="$HISTORY_DIR/runs/$old_run"
       for repo in "${REPOS[@]}"; do
         local source tree
         source="$(repo_path "$repo")"
@@ -2127,7 +2146,7 @@ retain_history() {
         fi
       done
       rm -rf "$old_run"
-    done < <(find "$HISTORY_DIR/runs" -mindepth 1 -maxdepth 1 -type d | sort -r | tail -n +"$((RETAIN + 1))")
+    done < <(python3 "$CI_DIR/scripts/lib/run_history.py" prune "$HISTORY_DIR/runs" --keep "$RETAIN")
   fi
 }
 

@@ -371,10 +371,27 @@ says nothing about the engines.
 their git worktrees and `Regression-Test-*` branches in every member repo. Each
 run holds full worktrees and builds (1.6-3.9 GiB). Unbounded, they filled the
 disk twice on 2026-09-24 and put Docker's containerd store into I/O errors and
-then read-only. The previous run survives by construction: it is the
-comparison baseline. Pruning runs after the Docker preflight has stopped the
+then read-only. Pruning runs after the Docker preflight has stopped the
 old universe, so nothing still mounts what is removed. Change it with
 `--keep-runs N` or `REGRESSION_KEEP_RUNS`; `0` keeps everything.
+
+**"Most recent" is by time, and the newest certifying run is always kept.**
+`scripts/lib/run_history.py` decides both, for pruning, for `--retain`, and for
+the comparison baseline in `regression-report.py`:
+
+- A run's time is its manifest's `finishedAt`, else `startedAt`, else the
+  directory mtime, never its id. Ids are free-form, and sorting them by name
+  deleted the release candidate on 2026-10-08: build-only `build-1008` kept
+  `pr544-1639` (10-05) and removed `main-1007` (10-07).
+- A *certifying* run completed and ran the live stages. The manifest records
+  this as `phases.liveTests`; for older manifests, `reports/service-inventory.json`
+  marks a run that started a universe. The newest certifying run is kept even
+  when `--keep-runs` leaves no room for it. It is the comparison baseline, and
+  the release candidate (D3, `docs/MVP_ROADMAP.md`). A build-only run is never
+  the baseline.
+- Still pin a release candidate as soon as it exists (copy its
+  `release-manifest.json` into `releases/`). A newer certifying run will
+  supersede it here.
 
 ## Standing rules — authoritative in `../docs/ENGINEERING_CONTRACT.md`
 

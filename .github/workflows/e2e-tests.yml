@@ -469,6 +469,10 @@ jobs:
         working-directory: RealityEngine_CI
         run: bash scripts/tests/test-local-ai-probe.sh
 
+      - name: Run run-history retention unit tests
+        working-directory: RealityEngine_CI
+        run: bash scripts/tests/test-run-history.sh
+
       - name: Run arbiter fixture-status unit tests
         working-directory: RealityEngine_CI
         run: bash scripts/tests/test-arbiter-fixture-status.sh
