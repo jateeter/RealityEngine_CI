@@ -16,8 +16,16 @@ assert_contains() {
 }
 
 TMP="$(mktemp -d)"
-PIDS=()
-cleanup() { for p in "${PIDS[@]:-}"; do kill "$p" 2>/dev/null || true; done; rm -rf "$TMP"; }
+# Stub pids go to a file, not an array: spawn runs as PORT=$(spawn ...), a
+# subshell, so an array it appended to was the subshell's copy and the trap
+# found it empty. Every run left its six stubs listening, orphaned to launchd.
+PIDFILE="$TMP/stub.pids"
+cleanup() {
+  if [ -f "$PIDFILE" ]; then
+    while read -r p; do kill "$p" 2>/dev/null || true; done < "$PIDFILE"
+  fi
+  rm -rf "$TMP"
+}
 trap cleanup EXIT
 
 # A stub that serves one fixed JSON body on every path.
@@ -39,7 +47,7 @@ spawn() {                     # $1=body-file -> echoes port
   local port
   port=$(python3 -c "import socket;s=socket.socket();s.bind(('127.0.0.1',0));print(s.getsockname()[1]);s.close()")
   python3 "$TMP/stub.py" "$port" "$1" >/dev/null 2>&1 &
-  PIDS+=($!)
+  echo "$!" >> "$PIDFILE"
   for _ in $(seq 1 40); do
     curl -sf "http://127.0.0.1:$port/" >/dev/null 2>&1 && break
     sleep 0.1
