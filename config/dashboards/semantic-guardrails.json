@@ -207,7 +207,7 @@
             "uid": "prometheus"
           },
           "editorMode": "code",
-          "expr": "sum(semantic_escalation_dispatches_total{rag!=\"RED\",rag!=\"unstated\"})",
+          "expr": "sum(semantic_escalation_dispatches_total{rag!=\"RED\",rag!=\"unstated\"}) or vector(0)",
           "legendFormat": "violations",
           "range": true,
           "refId": "A"
@@ -955,7 +955,7 @@
             "uid": "prometheus"
           },
           "editorMode": "code",
-          "expr": "sum(semantic_perception_events_total{integration=\"unattributed\"})",
+          "expr": "sum(semantic_perception_events_total{integration=\"unattributed\"}) or vector(0)",
           "legendFormat": "events",
           "range": true,
           "refId": "A"

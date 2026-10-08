@@ -114,7 +114,7 @@
       "targets": [
         {
           "refId": "A",
-          "expr": "topk(8, sum by (machine, sequence) (rate(ces_paging_decisions_total{rag_status_code=~\"RED|AMBER\", machine=~\"$machine\"}[1m])))",
+          "expr": "topk(8, sum by (machine, sequence) (rate(ces_paging_decisions_total{rag_status_code=~\"RED|AMBER\", machine=~\"$machine\"}[2m])))",
           "legendFormat": "{{machine}} :: {{sequence}}"
         }
       ],

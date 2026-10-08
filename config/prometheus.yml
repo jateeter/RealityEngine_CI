@@ -26,7 +26,12 @@ scrape_configs:
   # Scala Reality Engine — inside the compose network (internal port 3000,
   # exposed on host via nginx at https://localhost:5001).
   - job_name:     reality-engine-scala-compose
+    # Engine /api/metrics is 2+ MB per instance; at the 5s global interval a
+    # slow engine misses the deadline and the abandoned requests pile up
+    # (scala-1 reached 61s per scrape on 2026-10-08).
     metrics_path: /api/metrics
+    scrape_interval: 30s
+    scrape_timeout:  25s
     scheme:       https
     # runtime= label is emitted by the engine; preserve it so dashboards'
     # {runtime=~"$runtime"} queries work without exported_runtime aliasing.
@@ -45,6 +50,8 @@ scrape_configs:
   # Scala Perception Engine — TypeScript backend inside compose.
   - job_name:     perception-engine-scala-compose
     metrics_path: /api/metrics
+    scrape_interval: 30s
+    scrape_timeout:  25s
     scheme:       https
     honor_labels: true
     tls_config:
@@ -64,6 +71,8 @@ scrape_configs:
 
   - job_name:     reality-engine-registry
     metrics_path: /api/metrics
+    scrape_interval: 30s
+    scrape_timeout:  25s
     honor_labels: true
     file_sd_configs:
       - files:
@@ -72,6 +81,8 @@ scrape_configs:
 
   - job_name:     perception-engine-registry
     metrics_path: /api/metrics
+    scrape_interval: 30s
+    scrape_timeout:  25s
     honor_labels: true
     file_sd_configs:
       - files:
@@ -81,6 +92,9 @@ scrape_configs:
   # ── AI bridge operations — CI-owned exporter for OpenClaw/localAIStack ───
   - job_name:     ai-bridge-operations
     metrics_path: /metrics
+    # The exporter probes localAIStack /health, which can take ~10s.
+    scrape_interval: 15s
+    scrape_timeout:  12s
     honor_labels: true
     static_configs:
       - targets:

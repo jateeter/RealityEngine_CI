@@ -130,7 +130,7 @@ def build() -> dict:
         "determination carried an explicit non-RED RAG status. This contradicts the "
         "re:EscalationDetermination axiom and must stay at zero. 'unstated' is excluded: "
         "the axiom is open-world, so an absent status is consistent.",
-        [target('sum(semantic_escalation_dispatches_total{rag!="RED",rag!="unstated"})', "violations")],
+        [target('sum(semantic_escalation_dispatches_total{rag!="RED",rag!="unstated"}) or vector(0)', "violations")],
         {"h": 5, "w": 7, "x": 10, "y": 1},
         steps=[{"color": "green", "value": None}, {"color": "red", "value": 1}],
     ))
@@ -227,7 +227,7 @@ def build() -> dict:
         "Perception events with no originating integration recorded. These are auditable "
         "against the corpus but not against an upstream; a rising count means a new "
         "ingress path needs an origin tag.",
-        [target('sum(semantic_perception_events_total{integration="unattributed"})', "events")],
+        [target('sum(semantic_perception_events_total{integration="unattributed"}) or vector(0)', "events")],
         {"h": 4, "w": 8, "x": 16, "y": 33},
         steps=[{"color": "text", "value": None}, {"color": "yellow", "value": 1}],
     ))
