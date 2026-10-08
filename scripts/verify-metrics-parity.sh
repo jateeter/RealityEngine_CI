@@ -5,9 +5,9 @@
 # Byte-equivalence check for the Perception Engine metrics exposition
 # (RealityEngine_Machines docs/PE_METRICS_CONTRACT.md).
 #
-# Every PE in the runtime registry must serve GET /api/metrics, and the
-# semantic_* block must be byte-identical across runtimes once the runtime
-# label is normalized. Sample values are dropped before comparison because
+# Every PE in the runtime registry must serve GET /api/metrics, and the whole
+# exposition (core gauges, semantic_* block, mqtt_* block) must be
+# byte-identical across runtimes once the runtime label is normalized. Sample values are dropped before comparison because
 # engines legitimately differ in state (source counts, step counters); what
 # must match is the structure: metric names, HELP/TYPE wording, label sets,
 # label ordering, and series ordering.
@@ -78,6 +78,13 @@ SEMANTIC_REQUIRED = [
     "semantic_dispatch_records_total",
     "semantic_dispatch_records_iri_joined_total",
 ]
+# The MQTT bridge block (PE_METRICS_CONTRACT.md, "MQTT bridge"). The two gauges
+# are emitted whether or not a bridge is configured; the counters only when one
+# is, which is configuration and so compared like any other series.
+MQTT_REQUIRED = [
+    "mqtt_bridge_enabled",
+    "mqtt_bridge_connected",
+]
 
 registry = json.loads(os.environ["REGISTRY_JSON"])
 with_values = os.environ.get("WITH_VALUES") == "true"
@@ -111,7 +118,7 @@ for inst in instances:
         # differences and reported as its own verdict.
         unmeasurable.append(f"{label}: /api/metrics unreachable ({exc})")
         continue
-    missing = [m for m in SEMANTIC_REQUIRED if f"# TYPE {m} " not in body]
+    missing = [m for m in SEMANTIC_REQUIRED + MQTT_REQUIRED if f"# TYPE {m} " not in body]
     if missing:
         failures.append(f"{label}: missing required metrics: {', '.join(missing)}")
         continue

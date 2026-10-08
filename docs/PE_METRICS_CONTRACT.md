@@ -1,6 +1,6 @@
 # Perception Engine Metrics Contract
 
-Last reviewed: 2026-07-31
+Last reviewed: 2026-10-08
 
 Single source of truth for the Prometheus exposition served by every
 Perception Engine runtime (C++, Lisp, Scala, TypeScript) at
@@ -29,8 +29,10 @@ Metrics carry a `runtime` label that is necessarily different per engine
 The contract is therefore:
 
 > After replacing the value of the `runtime` label with a fixed placeholder,
-> the **`semantic_*` block** of the exposition must be byte-identical across
-> runtimes given identical engine state.
+> the **whole exposition** (core gauges, `semantic_*` block, `mqtt_*` block)
+> must be byte-identical across runtimes given identical engine state.
+> Without `--with-values` the verifier drops sample values and compares the
+> structure: names, HELP/TYPE wording, label sets and order, series order.
 
 That normalization is the only permitted difference. Ordering, spacing,
 `# HELP` / `# TYPE` wording, label order, and number formatting must match
@@ -93,6 +95,46 @@ semantic_dispatch_records_iri_joined_total   Dispatch records whose machine reso
 semantic_escalation_dispatches_total   Escalation-class actions dispatched, by RAG status of the determination.
 ```
 
+### MQTT bridge
+
+Emitted after the semantic block, in this order. Same names, HELP text and
+order as the TypeScript PE, which introduced them.
+
+| Metric | Type | Meaning |
+|---|---|---|
+| `mqtt_bridge_enabled` | gauge | a bridge is configured (1/0) |
+| `mqtt_bridge_connected` | gauge | the bridge is connected to its broker (1/0) |
+| `mqtt_messages_received_total` | counter | PUBLISH messages received |
+| `mqtt_messages_mapped_total` | counter | rule matches that mapped to a region |
+| `mqtt_messages_rejected_total` | counter | rule matches rejected by extract/normalize/length |
+| `mqtt_messages_unmatched_total` | counter | messages whose topic matched no rule |
+| `mqtt_pushes_triggered_total` | counter | perceive pushes triggered by MQTT ingest |
+| `mqtt_mappings_loaded` | gauge | mapping rules in the registry |
+
+**Exact HELP strings** (part of the contract — copy verbatim):
+
+```
+mqtt_bridge_enabled            MQTT bridge is configured (1) or disabled (0).
+mqtt_bridge_connected          MQTT bridge is currently connected to the broker (1/0).
+mqtt_messages_received_total   Total MQTT PUBLISH messages received.
+mqtt_messages_mapped_total     Total messages successfully mapped to a region.
+mqtt_messages_rejected_total   Total messages rejected by mapping/normalize.
+mqtt_messages_unmatched_total  Total messages whose topic matched no rule.
+mqtt_pushes_triggered_total    Total perceive pushes triggered by MQTT ingest.
+mqtt_mappings_loaded           Number of mapping rules in the registry.
+```
+
+- **Disabled bridge:** emit `mqtt_bridge_enabled 0` and `mqtt_bridge_connected 0`
+  and nothing else. The six other series appear only when a bridge is
+  configured. That is configuration, not traffic, so engines launched alike
+  emit the same set.
+- **Mapped and rejected count per rule.** One PUBLISH fans out to every rule
+  whose `topicFilter` matches, so a single message can add several to either.
+- **A push is triggered only by a mapped message.** A rejected one wrote
+  nothing, so it must not step the engine (RealityEngine_Scala#188 brought
+  Scala into line with C++, LSP and TypeScript).
+- `verify-metrics-parity.sh` requires the two gauges on every PE.
+
 ## Semantics of the counters
 
 - **`integration`** attributes a write to the upstream that produced it:
@@ -130,5 +172,6 @@ byte-strict. `--with-values` asserts equal state and compares everything.
 | Check | Where |
 |---|---|
 | endpoint present, 200, parseable | `verify-metrics-parity.sh` |
-| `semantic_*` block byte-identical after runtime-label normalization | `verify-metrics-parity.sh` |
+| `semantic_*` and MQTT gauges present on every PE | `verify-metrics-parity.sh` |
+| whole exposition byte-identical after runtime-label normalization | `verify-metrics-parity.sh` |
 | counters move as records are emitted | audit-chain e2e drives a push, then re-scrapes |
