@@ -1,6 +1,6 @@
 # MVP Release Roadmap
 
-Last reviewed: 2026-10-07
+Last reviewed: 2026-10-08
 
 The route from the current `v0.0.1-baseline` tag to a tagged MVP release of the
 integrated RealityEngine application.
@@ -23,10 +23,13 @@ passed at first; the OWL baselines and the agent index trailed Machines#208.
 Both are fixed (Machines#212, localOpenClawStack#57, merged) and pass at the
 commits `main-1007` built.
 
-**The local lane is green on `main`** (`main-1007`, 2026-10-07), and **D3 is
-decided**: a green local-lane run on `main` certifies the release. What remains
-before tagging is the HealthKit iPhone leg, which `main-1007` skipped, and steps
-7–11.
+**The local lane went green on `main`** (`main-1007`, 2026-10-07), and **D3 is
+decided**: a green local-lane run on `main` certifies the release. That run can
+no longer certify: its directory, manifest included, was deleted on 2026-10-08
+by run retention (*Open now*), and CPP and Manager have merged fixes since.
+**The next step is a fresh local-lane run on current `main`**, with the iPhone
+connected if the HealthKit leg is to be proven, whose manifest becomes the
+release pin; then steps 8–11.
 
 ---
 
@@ -43,7 +46,7 @@ done when that proof exists, not when the work behind it merges.
 | 4 | **Decide the release tag (D1)** | the decision is recorded here and in `RELEASE.md` *Tag conventions* | **done 2026-09-25**: `release-vN.M.Z` (candidates `release-vN.M.Z-rcN`) |
 | 5 | **Build the mirror (D2, MVP-blocking):** bridge → PIM API → POD, per `localHealthkitBridge/docs/MIRROR_CONTRACT.md`: PIM metric catalog, `health-observations` domain, the dynamic approved-metric set, `healthkit/sync/preview` + `apply` with per-batch owner approval; the bridge `PIMClient`; the CI mirror leg | the local-lane **mirror leg is green**, recorded here by run id | **built**; leg green in `pr544-1639` and `main-1006`. **Open:** a `pim-mirror` skip does not block `cut-release.sh`, though D2 says the release waits on this leg (not yet filed) |
 | 6 | **Re-verify release assets at the release commit** (commands under *Release assets*) | every check passes against the commits being pinned | **8 of 8 at `main-1007`'s commits.** The two that failed (OWL baselines, agent index) were fixed by Machines#212 and localOpenClawStack#57 and re-checked 2026-10-07 at Machines `9775da6`, localOpenClawStack `6cda7e7`: index digest current, and `no axiom changes` in the domains #208 touched. Repeat if the pinned commits move |
-| 7 | **Generate the manifest from the certifying run** (D3: a green local-lane run on `main`): `scripts/release-manifest.py generate --run-dir .regression-tests/runs/<run-id> --version release-v0.1.0 --out releases/release-v0.1.0.json`. It must be non-provisional and cover all 10 repos | `releases/release-v0.1.0.json` exists and is committed | open (supersedes `v0.1.0-rc1`). **Candidate: `main-1007`**, whose manifest is non-provisional and pins all 10 repos. Pinning from it releases without the iPhone leg proven; a re-run with the iPhone connected would close that |
+| 7 | **Generate the manifest from the certifying run** (D3: a green local-lane run on `main`): `scripts/release-manifest.py generate --run-dir .regression-tests/runs/<run-id> --version release-v0.1.0 --out releases/release-v0.1.0.json`. It must be non-provisional and cover all 10 repos | `releases/release-v0.1.0.json` exists and is committed | open (supersedes `v0.1.0-rc1`). **No candidate.** `main-1007`'s manifest was deleted on 2026-10-08 (run retention, *Open now*), and it pinned CPP `e40465a` and Manager `a8c0648`, both since superseded (CPP#167 `7feb92f`: SSE/WebSocket sessions no longer drop at 15 s / 5 s; Manager#249/#251/#252 `aca405a`). Re-run the local lane at current `main` and pin from that run before it can be pruned (`--keep-runs 0`, or copy the manifest into `releases/` at once) |
 | 8 | **Rehearse the cut:** `scripts/cut-release.sh --manifest releases/release-v0.1.0.json` (dry run) | no drift, and no tag collision | open |
 | 9 | **Tag, then push separately:** `--execute`, then `--execute --push` | tags exist on all 10 remotes | open |
 | 10 | **Release notes:** what certified it, what the hosted lane did not cover, and the known limitations below | notes published with the tag | open |
@@ -311,7 +314,7 @@ of problem had the same blind spot, and only a live run exposed it.
 | Run | Finished | Result |
 |---|---|---|
 | `pr544-1639` | 2026-10-05 | **every stage passed**, including OpenClaw on all three runtimes, `local-ai`, `localai-machines`, `pim-mirror` and `healthkit-bridge`. Built CI from PR #544, not `main`, so it cannot certify. MQTT Yuma skipped; arbiter conformance not run |
-| **`main-1007`** | 2026-10-07 | **no failures, on `main` of all 10 repos.** 19 passed, including OpenClaw on all three runtimes, `local-ai`, `localai-machines`, `pim-mirror` and arbiter conformance. Skipped: `healthkit-bridge` (no iPhone connected), MQTT Yuma (broker timeout), `arbiter-sweep` (opt-in). Run with `RE_FREE_PORTS=true`: macOS AirPlay holds 5000 and CI's `.env` no longer carries `SCALA_PE_BASE=5100`. Manifest non-provisional |
+| **`main-1007`** (run directory deleted 2026-10-08; this row is the record) | 2026-10-07 | **no failures, on `main` of all 10 repos.** 19 passed, including OpenClaw on all three runtimes, `local-ai`, `localai-machines`, `pim-mirror` and arbiter conformance. Skipped: `healthkit-bridge` (no iPhone connected), MQTT Yuma (broker timeout), `arbiter-sweep` (opt-in). Run with `RE_FREE_PORTS=true`: macOS AirPlay holds 5000 and CI's `.env` no longer carries `SCALA_PE_BASE=5100`. Manifest non-provisional |
 | `main-1006` | 2026-10-06 | failed **only `healthkit-bridge`**: the simulator leg saw 0 sensors inside its fixed 30s wait while they landed about a second later. #552 replaces it with the physical-iPhone leg. MQTT Yuma and `arbiter-sweep` skipped |
 
 The 2026-09-24 OpenClaw failure on scala-1 is gone: Scala#153 closed
@@ -572,6 +575,8 @@ of a boundary is what produced this gate.
 
 | Item | Where | Effect on release |
 |---|---|---|
+| No certifying run at current `main` | step 7 | `main-1007` is gone and predates CPP#167 and Manager#249/#251/#252; re-run the local lane on `main` and pin from it |
+| Run retention removes the newest run | `scripts/regression-test.sh` `prune_run_history` | "newest" is `ls \| sort -r` on run ids, i.e. reverse-alphabetical: on 2026-10-08 a build-only run (`build-1008`) kept `pr544-1639` (10-05) and deleted `main-1007` (10-07), the release candidate. Not yet fixed or filed |
 | HealthKit leg on the physical iPhone not yet run | step 2 (#552 merged) | `main-1007` skipped it; run the local lane with the iPhone connected, or release with the leg stated as unproven |
 | A `pim-mirror` skip does not block `cut-release.sh` | noted on localHealthkitBridge#45; not yet filed | D2 makes the leg release-blocking, so the tool should refuse a skip |
 | MQTT Yuma broker unreachable on three consecutive local runs | `yuma.lateraledge.cloud:1883` | the certifying run skips MQTT; state it, or wait for the broker |
