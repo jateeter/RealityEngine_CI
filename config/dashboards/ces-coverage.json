@@ -118,7 +118,7 @@
       "targets": [
         {
           "refId": "A",
-          "expr": "sum(rate(ces_vector_matched_total{runtime=~\"$runtime\", machine=~\"$machine\"}[1m])) by (runtime)",
+          "expr": "sum(rate(ces_vector_matched_total{runtime=~\"$runtime\", machine=~\"$machine\"}[2m])) by (runtime)",
           "legendFormat": "{{runtime}}"
         }
       ],
@@ -133,7 +133,7 @@
       "targets": [
         {
           "refId": "A",
-          "expr": "sum(rate(ces_sequence_outputs_total{runtime=~\"$runtime\", machine=~\"$machine\"}[1m])) by (runtime)",
+          "expr": "sum(rate(ces_sequence_outputs_total{runtime=~\"$runtime\", machine=~\"$machine\"}[2m])) by (runtime)",
           "legendFormat": "{{runtime}}"
         }
       ],

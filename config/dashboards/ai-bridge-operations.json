@@ -88,7 +88,7 @@
     },
     {
       "datasource": { "type": "prometheus", "uid": "prometheus" },
-      "fieldConfig": { "defaults": { "custom": { "drawStyle": "line", "lineInterpolation": "linear", "lineWidth": 1, "pointSize": 5, "showPoints": "auto" }, "thresholds": { "mode": "absolute", "steps": [{ "color": "green", "value": null }] } }, "overrides": [] },
+      "fieldConfig": { "defaults": { "custom": { "drawStyle": "line", "lineInterpolation": "linear", "lineWidth": 1, "pointSize": 5, "showPoints": "auto" }, "noValue": "No adapter runs recorded", "thresholds": { "mode": "absolute", "steps": [{ "color": "green", "value": null }] } }, "overrides": [] },
       "gridPos": { "h": 8, "w": 12, "x": 0, "y": 5 },
       "id": 5,
       "options": { "legend": { "calcs": ["lastNotNull"], "displayMode": "table", "placement": "bottom" }, "tooltip": { "mode": "multi", "sort": "none" } },
@@ -100,7 +100,7 @@
     },
     {
       "datasource": { "type": "prometheus", "uid": "prometheus" },
-      "fieldConfig": { "defaults": { "custom": { "drawStyle": "line", "lineInterpolation": "linear", "lineWidth": 1, "pointSize": 5, "showPoints": "auto" }, "thresholds": { "mode": "absolute", "steps": [{ "color": "green", "value": null }] }, "unit": "s" }, "overrides": [] },
+      "fieldConfig": { "defaults": { "custom": { "drawStyle": "line", "lineInterpolation": "linear", "lineWidth": 1, "pointSize": 5, "showPoints": "auto" }, "noValue": "No adapter runs recorded", "thresholds": { "mode": "absolute", "steps": [{ "color": "green", "value": null }] }, "unit": "s" }, "overrides": [] },
       "gridPos": { "h": 8, "w": 12, "x": 12, "y": 5 },
       "id": 6,
       "options": { "legend": { "calcs": ["lastNotNull"], "displayMode": "table", "placement": "bottom" }, "tooltip": { "mode": "multi", "sort": "none" } },

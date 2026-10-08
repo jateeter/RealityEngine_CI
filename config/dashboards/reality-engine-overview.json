@@ -619,7 +619,8 @@
   },
   "timepicker": {},
   "timezone": "",
-  "title": "Reality Engine Overview",
+  "description": "Docker lane only: reads the app=reality-engine labels the Loki Docker logging driver attaches to compose containers. A native universe (--engines=...) produces none; use Native Runtime Logs there.",
+  "title": "Reality Engine Overview (Docker lane)",
   "uid": "reality-engine-overview",
   "version": 1,
   "weekStart": ""

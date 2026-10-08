@@ -5,7 +5,9 @@ import { readFile } from 'node:fs/promises';
 
 const port = Number(process.env.BRIDGE_METRICS_PORT || '7342');
 const host = process.env.BRIDGE_METRICS_HOST || '127.0.0.1';
-const timeoutMs = Number(process.env.BRIDGE_METRICS_TIMEOUT_MS || '2500');
+// localAIStack /health waits on its engine fan-out and can take ~10s; a
+// shorter timeout reported a healthy API as down.
+const timeoutMs = Number(process.env.BRIDGE_METRICS_TIMEOUT_MS || '10000');
 const ledgerPath = process.env.BRIDGE_METRICS_LEDGER || '/tmp/realityengine-openclaw-adapter-metrics.jsonl';
 
 const openclawUrl = trim(process.env.OPENCLAW_GATEWAY_URL || process.env.ACP_GATEWAY_URL || 'http://127.0.0.1:18789');
@@ -104,30 +106,29 @@ async function collectMetrics() {
   lines.push(`re_ai_bridge_target_info${labels({ provider: 'qdrant', endpoint: qdrantUrl })} 1`);
   lines.push(`re_ai_bridge_target_info${labels({ provider: 'ollama', endpoint: ollamaUrl })} 1`);
 
+  // Probe every target at once: sequential probes summed their timeouts.
+  const settle = (promise) => promise.then((value) => ({ value }), (error) => ({ error }));
+  const openclawHeaders = openclawToken ? { authorization: `Bearer ${openclawToken}` } : {};
+  const [openclawHealth, openclawModelList, localAiHealth, qdrantCollections, ollamaTags, ledger] = await Promise.all([
+    settle(fetchJson(`${openclawUrl}/healthz`)),
+    settle(fetchJson(`${openclawUrl}/v1/models`, { headers: openclawHeaders })),
+    settle(fetchJson(`${localAiUrl}/health`)),
+    settle(fetchJson(`${qdrantUrl}/collections`)),
+    settle(fetchJson(`${ollamaUrl}/api/tags`)),
+    readLedger()
+  ]);
+
   emit(lines, 're_openclaw_gateway_up', 'OpenClaw gateway health probe result.', 'gauge');
-  let openclawUp = 0;
-  try {
-    await fetchJson(`${openclawUrl}/healthz`);
-    openclawUp = 1;
-  } catch {
-    openclawUp = 0;
-  }
+  const openclawUp = openclawHealth.error ? 0 : 1;
   lines.push(`re_openclaw_gateway_up${labels({ provider: 'openclaw' })} ${openclawUp}`);
 
   emit(lines, 're_openclaw_models_total', 'Models visible through the OpenClaw OpenAI-compatible gateway.', 'gauge');
-  let openclawModels = 0;
-  try {
-    const headers = openclawToken ? { authorization: `Bearer ${openclawToken}` } : {};
-    const data = await fetchJson(`${openclawUrl}/v1/models`, { headers });
-    openclawModels = Array.isArray(data?.data) ? data.data.length : 0;
-  } catch {
-    openclawModels = 0;
-  }
+  const openclawModels = Array.isArray(openclawModelList.value?.data) ? openclawModelList.value.data.length : 0;
   lines.push(`re_openclaw_models_total${labels({ provider: 'openclaw' })} ${openclawModels}`);
 
   emit(lines, 're_localaistack_service_up', 'localAIStack service health from /health.', 'gauge');
-  try {
-    const health = await fetchJson(`${localAiUrl}/health`);
+  if (!localAiHealth.error) {
+    const health = localAiHealth.value;
     const services = health?.services && typeof health.services === 'object' ? health.services : {};
     for (const [service, value] of Object.entries(services)) {
       if (Array.isArray(value)) continue;
@@ -139,28 +140,19 @@ async function collectMetrics() {
       lines.push('# TYPE re_localaistack_ollama_models_total gauge');
       lines.push(`re_localaistack_ollama_models_total${labels({ service: 'ollama' })} ${services.ollama_models.length}`);
     }
-  } catch {
+  } else {
     lines.push(`re_localaistack_api_up${labels({ service: 'api' })} 0`);
   }
 
   emit(lines, 're_qdrant_collections_total', 'Qdrant collection count from /collections.', 'gauge');
-  try {
-    const data = await fetchJson(`${qdrantUrl}/collections`);
-    const collections = data?.result?.collections;
-    lines.push(`re_qdrant_collections_total${labels({ service: 'qdrant' })} ${Array.isArray(collections) ? collections.length : 0}`);
-  } catch {
-    lines.push(`re_qdrant_collections_total${labels({ service: 'qdrant' })} 0`);
-  }
+  const collections = qdrantCollections.value?.result?.collections;
+  lines.push(`re_qdrant_collections_total${labels({ service: 'qdrant' })} ${Array.isArray(collections) ? collections.length : 0}`);
 
   emit(lines, 're_ollama_models_total', 'Native Ollama model count from /api/tags.', 'gauge');
-  try {
-    const data = await fetchJson(`${ollamaUrl}/api/tags`);
-    lines.push(`re_ollama_models_total${labels({ service: 'ollama' })} ${Array.isArray(data?.models) ? data.models.length : 0}`);
-  } catch {
-    lines.push(`re_ollama_models_total${labels({ service: 'ollama' })} 0`);
-  }
+  const models = ollamaTags.value?.models;
+  lines.push(`re_ollama_models_total${labels({ service: 'ollama' })} ${Array.isArray(models) ? models.length : 0}`);
 
-  const { runs } = summarizeLedger(await readLedger());
+  const { runs } = summarizeLedger(ledger);
   emit(lines, 're_openclaw_adapter_runs_total', 'OpenClaw ACP adapter executions by result status.', 'counter');
   emit(lines, 're_openclaw_adapter_duration_seconds_count', 'OpenClaw ACP adapter duration count.', 'counter');
   emit(lines, 're_openclaw_adapter_duration_seconds_sum', 'OpenClaw ACP adapter duration sum in seconds.', 'counter');
