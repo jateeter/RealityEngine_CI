@@ -69,6 +69,7 @@ from pathlib import Path
 from typing import Any
 
 sys.path.insert(0, str(Path(__file__).resolve().parent / "lib"))
+from registry_url import registry_url  # noqa: E402
 
 
 def load_trajectory_module() -> Any:
@@ -812,7 +813,7 @@ def completed_indices(path: Path) -> set[int]:
 def main() -> int:
     parser = argparse.ArgumentParser(
         description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
-    parser.add_argument("--registry", default="http://127.0.0.1:5999/re-registry.json")
+    parser.add_argument("--registry", default=registry_url())
     parser.add_argument("--machines-root", type=Path, required=True,
                         help="RealityEngine_Machines/machines directory")
     parser.add_argument("--out", type=Path, required=True)

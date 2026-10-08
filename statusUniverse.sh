@@ -125,7 +125,7 @@ if [ "$STAMPED_MULTI_ENGINE_MODE" = "true" ] && [ -f "$REGISTRY_FILE" ]; then
     _add_row "$_si_rt" "${_si_id}-pe" "✓" "✓" "$_si_pe_h" "PE:${_si_pe_port}"
   done < <(registry_ids 2>/dev/null || true)
 elif [ "$STAMPED_MULTI_ENGINE_MODE" = "true" ] && [ ! -f "$REGISTRY_FILE" ]; then
-  _add_row "registry" "—" "✓" "MISSING" "FAIL" ":5999"
+  _add_row "registry" "—" "✓" "MISSING" "FAIL" ":${REGISTRY_PORT:-5999}"
   OVERALL=1
 fi
 

@@ -658,6 +658,14 @@ jobs:
         working-directory: RealityEngine_CI
         run: bash scripts/check-workflow-endpoints.sh
 
+      - name: No consumer assumes the instance registry is on :5999
+        working-directory: RealityEngine_CI
+        run: bash scripts/check-registry-url-literals.sh
+
+      - name: Run instance-registry address resolution unit tests
+        working-directory: RealityEngine_CI
+        run: bash scripts/tests/test-registry-url.sh
+
 
       - name: Run regression comparison unit tests
         working-directory: RealityEngine_CI

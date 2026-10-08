@@ -66,7 +66,7 @@ node bin/realityengine-mcp.js --list-tools   # npm run mcp:tools
 
 | Variable | Default | Purpose |
 |---|---|---|
-| `RE_REGISTRY_URL` | – | Instance registry (CI `scripts/registry.sh`, `:5999`). Preferred. |
+| `RE_REGISTRY_URL` | `.universe-registry-url` | Instance registry. Unset, the gateway reads the address `startUniverse.sh` wrote to `.universe-registry-url` (`:5999` with fixed ports, OS-assigned under `--free-ports`). Preferred. |
 | `RE_URL` / `PE_URL` | – | Single-instance fallback when no registry. |
 | `RE_MCP_ALLOW_MUTATION` | `false` | Allow all mutating tools. |
 | `RE_MCP_ALLOWED_TOOLS` | – | Comma-list allowlist (overrides the above; read or write). |
@@ -158,7 +158,7 @@ const response = await client.responses.create({
 ```bash
 docker build -t realityengine-mcp -f Dockerfile .
 docker run --rm -p 7331:7331 \
-  -e RE_REGISTRY_URL=http://host.docker.internal:5999 \
+  -e RE_REGISTRY_URL="$(cat .universe-registry-url)" \
   -e RE_MCP_HTTP_HOST=0.0.0.0 \
   realityengine-mcp
 ```

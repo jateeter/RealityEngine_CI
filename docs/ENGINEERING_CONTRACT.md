@@ -66,7 +66,7 @@ under discussion.
 
 | Qualifier | What it names |
 | --- | --- |
-| **instance** registry | `/tmp/re-registry/re-registry.json`, served at `:5999/re-registry.json`. Running RE/PE instances with `re_url`/`pe_url`/ports, plus `services` and `allocation`. What `RE_REGISTRY_URL` points at. |
+| **instance** registry | `/tmp/re-registry/re-registry.json`, served at `:5999/re-registry.json` with fixed ports or an OS-assigned port under `--free-ports`; the address in use is in `.universe-registry-url`, and `scripts/lib/registry-url.sh` / `registry_url.py` resolve it. Running RE/PE instances with `re_url`/`pe_url`/ports, plus `services` and `allocation`. What `RE_REGISTRY_URL` points at. |
 | **machine** registry | The machines a runtime holds in memory, reported by `GET /api/machines`. Distinct from `GET /api/machines/json/list`, the on-disk corpus catalog — they answered 163 and 21 for the same universe. |
 | **cesgen** registry | `RealityEngine_Machines/domains/ces-contract-registry.json`. Which CES contract shards exist, what corpus each was recorded against, whether each is current. |
 | **arbitration** registry | `machines/domains/arbitration-registry.json`. |

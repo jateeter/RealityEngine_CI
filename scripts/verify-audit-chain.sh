@@ -24,7 +24,8 @@
 #   ./scripts/verify-audit-chain.sh [--machine "Fall Detection"] [--warn-only]
 #
 # Env:
-#   RE_REGISTRY_URL   registry endpoint (default http://127.0.0.1:5999/re-registry.json)
+#   RE_REGISTRY_URL   registry endpoint (default: scripts/lib/registry-url.sh —
+#                     .universe-registry-url, then :5999)
 #   MACHINES_DIR      corpus checkout (default sibling RealityEngine_Machines)
 #   FALL_INPUT_OFFSET input region offset (default 3813 — Fall Detection)
 #   VECTOR_DIMENSION  dense vector length (default 7680)
@@ -34,7 +35,9 @@
 set -euo pipefail
 
 CI_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
-REGISTRY_URL="${RE_REGISTRY_URL:-http://127.0.0.1:5999/re-registry.json}"
+# shellcheck source=scripts/lib/registry-url.sh
+source "$CI_DIR/scripts/lib/registry-url.sh"
+REGISTRY_URL="$(registry_url)"
 #
 # MACHINES_REPO, not a corpus. This resolves repository-level artifacts —
 # scripts/ and semantics/ — which a materialised corpus does not contain: it

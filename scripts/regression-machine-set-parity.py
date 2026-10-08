@@ -53,7 +53,7 @@ could not be read is a failure rather than an absent row.
 
 Usage:
   python3 scripts/regression-machine-set-parity.py
-  python3 scripts/regression-machine-set-parity.py --registry http://127.0.0.1:5999/re-registry.json
+  python3 scripts/regression-machine-set-parity.py --registry "$RE_REGISTRY_URL"
   python3 scripts/regression-machine-set-parity.py --out report.json
 """
 

@@ -18,6 +18,8 @@ set -uo pipefail
 # -- Paths -----------------------------------------------------------------
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 CI_DIR="$(cd "$SCRIPT_DIR/.." && pwd)"
+# shellcheck source=scripts/lib/registry-url.sh
+source "$CI_DIR/scripts/lib/registry-url.sh"
 WS="$(cd "$CI_DIR/.." && pwd)"
 
 SCALA_DIR="$WS/RealityEngine_Scala"
@@ -171,7 +173,7 @@ skip_not_applicable() {
 
 # Instances the instance registry lists; 0 when it cannot be read.
 deployed_engine_count() {
-    curl -sf --max-time 5 "${1:-${RE_REGISTRY_URL:-http://127.0.0.1:5999/re-registry.json}}" 2>/dev/null \
+    curl -sf --max-time 5 "${1:-$(registry_url)}" 2>/dev/null \
         | python3 -c 'import json,sys; print(len(json.load(sys.stdin).get("instances") or []))' 2>/dev/null \
         || echo 0
 }
@@ -304,7 +306,7 @@ run_semantic_parity_smoke() {
         skip_suite "$label" "verify-semantic-parity.sh missing or not executable"
         return
     fi
-    local registry_url="${RE_REGISTRY_URL:-http://127.0.0.1:5999/re-registry.json}"
+    local registry_url; registry_url="$(registry_url)"
     if ! curl -sf --max-time 5 "$registry_url" >/dev/null 2>&1; then
         skip_suite "$label" "registry not reachable at $registry_url"
         return
@@ -329,7 +331,7 @@ run_ces_contract_drift() {
         skip_suite "$label" "record-ces-contracts.py missing"
         return
     fi
-    local registry_url="${RE_REGISTRY_URL:-http://127.0.0.1:5999/re-registry.json}"
+    local registry_url; registry_url="$(registry_url)"
     if ! curl -sf --max-time 5 "$registry_url" >/dev/null 2>&1; then
         skip_suite "$label" "instance registry not reachable at $registry_url"
         return
@@ -362,7 +364,7 @@ run_metrics_parity_smoke() {
         skip_suite "$label" "verify-metrics-parity.sh missing or not executable"
         return
     fi
-    local registry_url="${RE_REGISTRY_URL:-http://127.0.0.1:5999/re-registry.json}"
+    local registry_url; registry_url="$(registry_url)"
     if ! curl -sf --max-time 5 "$registry_url" >/dev/null 2>&1; then
         skip_suite "$label" "registry not reachable at $registry_url"
         return
@@ -388,7 +390,7 @@ run_audit_chain_e2e() {
         skip_suite "$label" "verify-audit-chain.sh missing or not executable"
         return
     fi
-    local registry_url="${RE_REGISTRY_URL:-http://127.0.0.1:5999/re-registry.json}"
+    local registry_url; registry_url="$(registry_url)"
     if ! curl -sf --max-time 5 "$registry_url" >/dev/null 2>&1; then
         skip_suite "$label" "registry not reachable at $registry_url"
         return
@@ -769,7 +771,7 @@ run_playwright_e2e() {
     hdr "Live-stack Playwright suites"
 
     local registry_file="${RE_REGISTRY_FILE:-/tmp/re-registry/re-registry.json}"
-    local registry_url="${RE_REGISTRY_URL:-http://127.0.0.1:5999/re-registry.json}"
+    local registry_url; registry_url="$(registry_url)"
     local multi_engine=false
 
     if ! stack_healthy; then

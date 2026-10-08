@@ -159,7 +159,9 @@ startUniverse.sh — engine-selectable CI orchestrator
                                 <runtime>:<count> pairs, e.g. --engines=scala:2,cpp:1
                                 Spawns N native instances of each runtime on distinct ports.
                                 Infrastructure (Loki/Qdrant/Redis) still starts via Docker.
-                                Registry served at http://<HOST_IP>:5999/re-registry.json
+                                Registry served at http://<HOST_IP>:5999/re-registry.json (an OS-assigned
+                                port under --free-ports; the address in use is
+                                written to .universe-registry-url)
   --re-engine=ai|cpp|lsp        Single-engine runtime (default: ai).  Ignored when --engines= set.
   --pe-engine=ai|cpp|lsp        Single PE runtime (default: ai).  Ignored when --engines= set.
   --mqtt-broker-url=URL         MQTT broker URL for PE bridge
