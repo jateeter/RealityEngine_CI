@@ -576,7 +576,7 @@ of a boundary is what produced this gate.
 | Item | Where | Effect on release |
 |---|---|---|
 | No certifying run at current `main` | step 7 | `main-1007` is gone and predates CPP#167 and Manager#249/#251/#252; re-run the local lane on `main` and pin from it |
-| Run retention removes the newest run | `scripts/regression-test.sh` `prune_run_history` | "newest" is `ls \| sort -r` on run ids, i.e. reverse-alphabetical: on 2026-10-08 a build-only run (`build-1008`) kept `pr544-1639` (10-05) and deleted `main-1007` (10-07), the release candidate. Not yet fixed or filed |
+| Run retention removes the newest run | `scripts/regression-test.sh` `prune_run_history` | "newest" is `ls \| sort -r` on run ids, i.e. reverse-alphabetical: on 2026-10-08 a build-only run (`build-1008`) kept `pr544-1639` (10-05) and deleted `main-1007` (10-07), the release candidate. **Fixed** by this repo's `scripts/lib/run_history.py`: runs are ordered by time, and the newest certifying run is always kept |
 | HealthKit leg on the physical iPhone not yet run | step 2 (#552 merged) | `main-1007` skipped it; run the local lane with the iPhone connected, or release with the leg stated as unproven |
 | A `pim-mirror` skip does not block `cut-release.sh` | noted on localHealthkitBridge#45; not yet filed | D2 makes the leg release-blocking, so the tool should refuse a skip |
 | MQTT Yuma broker unreachable on three consecutive local runs | `yuma.lateraledge.cloud:1883` | the certifying run skips MQTT; state it, or wait for the broker |

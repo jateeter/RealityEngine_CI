@@ -8,8 +8,12 @@ import json
 from pathlib import Path
 import re
 import shutil
+import sys
 import time
 from typing import Any
+
+sys.path.insert(0, str(Path(__file__).resolve().parent / "lib"))
+import run_history  # noqa: E402
 
 
 def load_json(path: Path, default: Any = None) -> Any:
@@ -253,14 +257,10 @@ def find_compare_run(history_dir: Path, current_run_id: str, compare_run: str) -
     if compare_run:
         candidate = runs_dir / compare_run
         return candidate if candidate.is_dir() else None
-    candidates: list[tuple[str, Path]] = []
-    for path in sorted(runs_dir.glob("*")):
-        if not path.is_dir() or path.name == current_run_id:
-            continue
-        manifest = load_json(path / "manifest.json", {})
-        if manifest.get("status") == "completed":
-            candidates.append((path.name, path))
-    return candidates[-1][1] if candidates else None
+    # The newest certifying run by time, not the last run id by name: names are
+    # free-form, and sorting them compared main-1007 against pr544-1639 rather
+    # than main-1006. A build-only run is never the baseline.
+    return run_history.baseline(runs_dir, current_run_id)
 
 
 def compare_runs(current: dict[str, Any], previous: dict[str, Any] | None, previous_id: str | None) -> dict[str, Any]:
