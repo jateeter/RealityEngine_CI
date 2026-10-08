@@ -442,7 +442,11 @@ services:
       # image, answered 200 with an empty tree, and the modal rendered no rows
       # in the Docker lane only (RealityEngine_Machines#126). The full corpus,
       # as natively: the catalog is what can be loaded, marked against what is.
+      # FULL_MACHINES_DIR, not MACHINES_DIR: in standard-deployment and
+      # regression modes MACHINES_DIR is the bounded working copy the engines
+      # boot, and the modal offered 23 of 1,327 machines (Manager#256).
       - MACHINES_DIR=/app/corpus
+      - MACHINES_CATALOG_EXTRA_DIRS=/app/catalog-extra
       - REALITY_ENGINE_URL=https://reality-engine:3000
       - PERCEPTION_ENGINE_URL=https://perception-engine-backend:3004
       # The instance registry startUniverse.sh serves on the host (0.0.0.0).
@@ -480,7 +484,10 @@ services:
       - reality-network
     volumes:
       - ./certs:/etc/certs:ro
-      - ${MACHINES_DIR:?MACHINES_DIR must be set — run via startUniverse.sh}/machines:/app/corpus/machines:ro
+      - ${FULL_MACHINES_DIR:-${MACHINES_DIR:?MACHINES_DIR must be set — run via startUniverse.sh}}/machines:/app/corpus/machines:ro
+      # localAIStack's own machines, which bounded corpora list as an extra
+      # source root; offered in the catalog's corpus/ branch.
+      - ../localAIStack/data/machines:/app/catalog-extra:ro
     logging:
       driver: loki
       options:
