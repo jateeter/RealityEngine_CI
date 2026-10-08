@@ -41,6 +41,12 @@ semantic_dispatch_records_total{runtime="$rt"} 0
 # HELP semantic_dispatch_records_iri_joined_total Dispatch records whose machine resolved to a corpus ABox IRI.
 # TYPE semantic_dispatch_records_iri_joined_total counter
 semantic_dispatch_records_iri_joined_total{runtime="$rt"} 0
+# HELP mqtt_bridge_enabled MQTT bridge is configured (1) or disabled (0).
+# TYPE mqtt_bridge_enabled gauge
+mqtt_bridge_enabled{runtime="$rt"} 0
+# HELP mqtt_bridge_connected MQTT bridge is currently connected to the broker (1/0).
+# TYPE mqtt_bridge_connected gauge
+mqtt_bridge_connected{runtime="$rt"} 0
 EOF
 }
 
@@ -99,6 +105,13 @@ block cpp > "$T/cpp/api/metrics"
 block lsp | grep -v "semantic_dispatch_records_total" > "$T/lsp/api/metrics"
 block scala > "$T/scala/api/metrics"
 run_case "missing required metric fails" 1 "missing required metrics"
+
+# 7. A PE without the MQTT block fails: the Semantic Guardrails MQTT panels
+#    read it from every runtime (RealityEngine_CPP#169, _LSP#162, _Scala#186).
+block cpp > "$T/cpp/api/metrics"
+block lsp | grep -v "mqtt_bridge_connected" > "$T/lsp/api/metrics"
+block scala > "$T/scala/api/metrics"
+run_case "missing MQTT gauge fails" 1 "missing required metrics: mqtt_bridge_connected"
 
 echo ""
 echo "metrics-parity tests: $PASS passed, $FAIL failed"
