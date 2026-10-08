@@ -1,8 +1,13 @@
+import { readFileSync } from 'node:fs';
+import { fileURLToPath } from 'node:url';
+
 // Configuration + runtime discovery for the RealityEngine MCP gateway.
 //
 // Resolution order for finding RE/PE base URLs:
-//   1. RE_REGISTRY_URL  — the instance registry served by RealityEngine_CI
-//      (scripts/registry.sh, default :5999). Shape:
+//   1. The instance registry served by RealityEngine_CI: RE_REGISTRY_URL, or
+//      else the address startUniverse.sh wrote to .universe-registry-url in
+//      the CI checkout this gateway runs from. Its port is 5999 only with
+//      fixed ports; under --free-ports it is OS-assigned. Shape:
 //        { "host": "127.0.0.1",
 //          "instances": [ { "id", "runtime", "re_url", "pe_url", ... } ] }
 //      Multiple engines (cpp/lsp/scala) can be live at once; tools accept an
@@ -14,6 +19,17 @@
 const REGISTRY_TTL_MS = Number(process.env.RE_MCP_REGISTRY_TTL_MS ?? 5000);
 
 let _registryCache = { at: 0, data: null };
+
+// The address the running universe serves, as startUniverse.sh recorded it.
+// Read per call: a universe restarted under --free-ports moves its registry.
+function universeRegistryUrl() {
+  try {
+    const file = fileURLToPath(new URL('../../.universe-registry-url', import.meta.url));
+    return readFileSync(file, 'utf8').split('\n')[0].trim() || null;
+  } catch {
+    return null;
+  }
+}
 
 function envInstance() {
   const reUrl = process.env.RE_URL || process.env.REALITY_ENGINE_URL;
@@ -29,7 +45,7 @@ function envInstance() {
 }
 
 async function fetchRegistry() {
-  const url = process.env.RE_REGISTRY_URL;
+  const url = process.env.RE_REGISTRY_URL || universeRegistryUrl();
   if (!url) return null;
   const now = Date.now();
   if (_registryCache.data && now - _registryCache.at < REGISTRY_TTL_MS) {

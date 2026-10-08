@@ -157,7 +157,7 @@ registry, so pass it explicitly:
 ## Usage
 
     python3 scripts/regression-reset-contract.py \
-        --registry http://127.0.0.1:5999/re-registry.json \
+        --registry "$RE_REGISTRY_URL" \
         --machines-root ../RealityEngine_Machines/machines \
         --machines 8 \
         --out /tmp/reset-contract
@@ -174,6 +174,9 @@ import sys
 import time
 from pathlib import Path
 from typing import Any
+
+sys.path.insert(0, str(Path(__file__).resolve().parent / "lib"))
+from registry_url import registry_url  # noqa: E402
 
 
 def load_stage(module_name: str, filename: str) -> Any:
@@ -953,7 +956,7 @@ def observe_boot(instances: list[dict[str, Any]], summary: dict[str, Any],
 def main() -> int:
     parser = argparse.ArgumentParser(
         description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
-    parser.add_argument("--registry", default="http://127.0.0.1:5999/re-registry.json")
+    parser.add_argument("--registry", default=registry_url())
     parser.add_argument("--out", type=Path, required=True)
     parser.add_argument("--run-id", default=time.strftime("%Y%m%dT%H%M%SZ", time.gmtime()))
     parser.add_argument("--machines-root", type=Path,

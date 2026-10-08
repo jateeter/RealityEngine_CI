@@ -56,6 +56,7 @@ from typing import Any
 from urllib import error, request
 
 sys.path.insert(0, str(Path(__file__).resolve().parent / "lib"))
+from registry_url import registry_url  # noqa: E402
 
 
 def _request(url: str, method: str = "GET", body: Any = None,
@@ -204,7 +205,7 @@ def verify(registry_url: str, manifest: dict[str, Any]) -> tuple[int, int, list[
 def main() -> int:
     parser = argparse.ArgumentParser(
         description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
-    parser.add_argument("--registry", default="http://127.0.0.1:5999/re-registry.json")
+    parser.add_argument("--registry", default=registry_url())
     parser.add_argument("--capture", metavar="FILE", type=Path,
                         help="checkpoint every machine on every runtime, write the manifest here")
     parser.add_argument("--restore", metavar="FILE", type=Path,

@@ -59,12 +59,14 @@ if [ "${CES_ALLOW_RETIRED_RECORDER:-}" != "1" ]; then
 fi
 
 CI_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+# shellcheck source=scripts/lib/registry-url.sh
+source "$CI_DIR/scripts/lib/registry-url.sh"
 MACHINES_DIR="$CI_DIR/../RealityEngine_Machines"
 SHARD_DIR="$CI_DIR/config/ces-contracts"
 REGISTRY_JSON="$MACHINES_DIR/domains/ces-contract-registry.json"
 BUILDER="$MACHINES_DIR/scripts/build-ces-contract-registry.py"
 RECORDER="$CI_DIR/scripts/regression-ces-contracts.py"
-REGISTRY_URL="${RE_REGISTRY_URL:-http://127.0.0.1:5999/re-registry.json}"
+REGISTRY_URL="$(registry_url)"
 INSTANCE_REGISTRY="${RE_INSTANCE_REGISTRY:-/tmp/re-registry/re-registry.json}"
 
 FORCE=false

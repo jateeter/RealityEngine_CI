@@ -5,7 +5,7 @@
 #
 # Run (registry-aware; reach the host registry/engines):
 #   docker run --rm -p 7331:7331 \
-#     -e RE_REGISTRY_URL=http://host.docker.internal:5999 \
+#     -e RE_REGISTRY_URL="$(cat .universe-registry-url)" \
 #     -e RE_MCP_HTTP_HOST=0.0.0.0 \
 #     realityengine-mcp
 #

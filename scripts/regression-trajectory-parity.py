@@ -66,6 +66,7 @@ from typing import Any
 from urllib import error, request
 
 sys.path.insert(0, str(Path(__file__).resolve().parent / "lib"))
+from registry_url import registry_url  # noqa: E402
 from reset_contract import reset_instances  # noqa: E402
 from step_observer import (  # noqa: E402
     DEFAULT_WINDOW_MS,
@@ -508,7 +509,7 @@ def fetch_history(instance: dict[str, Any], kind: str) -> tuple[list[dict[str, A
 
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--registry", default="http://127.0.0.1:5999/re-registry.json")
+    parser.add_argument("--registry", default=registry_url())
     parser.add_argument("--out", type=Path, required=True)
     parser.add_argument("--run-id", default=time.strftime("%Y%m%dT%H%M%SZ", time.gmtime()))
     parser.add_argument("--steps", type=int, default=0,

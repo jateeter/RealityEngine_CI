@@ -59,6 +59,7 @@ from urllib import error, request
 
 SCRIPT_DIR = Path(__file__).resolve().parent
 sys.path.insert(0, str(SCRIPT_DIR / "lib"))
+from registry_url import registry_url  # noqa: E402
 
 import ces_seed_drive as seed  # noqa: E402
 from reset_contract import reset_instances  # noqa: E402
@@ -316,7 +317,7 @@ def build_shards(report: Json, corpus: dict[str, Json], resident: set[str],
 def main() -> int:
     ap = argparse.ArgumentParser(description=__doc__,
                                  formatter_class=argparse.RawDescriptionHelpFormatter)
-    ap.add_argument("--registry", default="http://127.0.0.1:5999/re-registry.json")
+    ap.add_argument("--registry", default=registry_url())
     ap.add_argument("--steps", type=int, default=None,
                     help="pushes to drive; default is the full interned seed depth")
     ap.add_argument("--step-window-ms", type=int, default=seed.DEFAULT_WINDOW_MS,

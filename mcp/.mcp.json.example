@@ -6,7 +6,6 @@
       "command": "node",
       "args": ["mcp/bin/realityengine-mcp.js"],
       "env": {
-        "RE_REGISTRY_URL": "http://localhost:5999",
         "RE_MCP_INSECURE_TLS": "1",
         "RE_MCP_ALLOW_MUTATION": "false"
       }

@@ -83,7 +83,7 @@ selector stage in particular must never report agreement it did not observe.
 
 Usage:
   python3 scripts/regression-perceive-selector.py
-  python3 scripts/regression-perceive-selector.py --registry http://127.0.0.1:5999/re-registry.json
+  python3 scripts/regression-perceive-selector.py --registry "$RE_REGISTRY_URL"
   python3 scripts/regression-perceive-selector.py --skip-inertness   # no reset/drive
   python3 scripts/regression-perceive-selector.py --out report.json
 """

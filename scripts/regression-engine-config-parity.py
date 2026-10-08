@@ -36,7 +36,7 @@ never read as parity.
 
 Usage:
   python3 scripts/regression-engine-config-parity.py
-  python3 scripts/regression-engine-config-parity.py --registry http://127.0.0.1:5999/re-registry.json
+  python3 scripts/regression-engine-config-parity.py --registry "$RE_REGISTRY_URL"
   python3 scripts/regression-engine-config-parity.py --json report.json
 """
 
@@ -47,6 +47,9 @@ import re
 import sys
 from pathlib import Path
 from urllib import error, request
+
+sys.path.insert(0, str(Path(__file__).resolve().parent / "lib"))
+from registry_url import registry_url  # noqa: E402
 
 CI_DIR = Path(__file__).resolve().parent.parent
 SPEC = CI_DIR / "SURFACE_SPEC.md"
@@ -243,8 +246,7 @@ def main() -> None:
     ap = argparse.ArgumentParser(description=__doc__,
                                  formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument("--registry",
-                    default=os.environ.get("RE_REGISTRY_URL",
-                                           "http://127.0.0.1:5999/re-registry.json"))
+                    default=registry_url())
     ap.add_argument("--json", help="Write the full report to this path.")
     ap.add_argument("--no-step", action="store_true",
                     help="Skip check 4, which pushes one step per runtime.")

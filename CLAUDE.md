@@ -28,6 +28,12 @@ npm run test:deployment
 ## Runtime Contract
 
 - Prefer `RE_REGISTRY_URL` for Manager, Machines, and CI e2e tests.
+- **The instance registry is on :5999 only with fixed ports.** Under
+  `--free-ports` it is OS-assigned; `startUniverse.sh` records the address in
+  `.universe-registry-url` and `stopUniverse.sh` removes it. A consumer
+  resolves it with `scripts/lib/registry-url.sh` / `registry_url.py`
+  (`RE_REGISTRY_URL`, then that file, then `:5999`), never a literal;
+  `scripts/check-registry-url-literals.sh` fails a new one.
 - Pass CI-generated `config/integrations.json` to PE services with `INTEGRATIONS_CONFIG`.
 - Keep OpenClaw defaults aligned with `ACP_ENABLED=true`, `ACP_GATEWAY_URL` or `OPENCLAW_GATEWAY_URL`, `ACP_SESSION_KEY`, `ACP_TARGET_AGENT`, and `ACP_COMPLETION_SOURCE_MAPPING_ID=acp-openclaw-completion`.
 - **Instance identity (#296).** A UUID belongs to an instance, never an engine

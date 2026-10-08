@@ -71,7 +71,7 @@ An integrator that hard-codes `5001` works until the day a second instance
 exists or the ports move. The runtime registry is the supported way in:
 
 ```
-RE_REGISTRY_URL=http://127.0.0.1:5999/re-registry.json
+RE_REGISTRY_URL="$(cat .universe-registry-url)"   # :5999 with fixed ports
 ```
 
 Each running engine contributes one entry, written by `scripts/registry.sh`:
@@ -160,7 +160,7 @@ curl http://localhost:5000/api/health    # PE
 # Registry-backed, as part of a universe — the supported path
 cd RealityEngine_CI
 ./startUniverse.sh --engines=scala:1 --machine-load=runtime --warn-only
-curl http://127.0.0.1:5999/re-registry.json | python3 -m json.tool
+curl "$(cat .universe-registry-url)" | python3 -m json.tool
 ```
 
 ## Known limitations

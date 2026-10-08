@@ -316,6 +316,10 @@ stop_all_engines() {
   done < <(registry_ids 2>/dev/null)
   registry_stop_server 2>/dev/null || true
   rm -f "$REGISTRY_FILE"
+  # startUniverse.sh wrote the shim's address here; with the shim gone it names
+  # a dead port, and scripts/lib/registry-url.sh would hand it to every
+  # consumer ahead of the :5999 default.
+  rm -f "$CI_DIR/.universe-registry-url"
   ok "All native instances stopped"
 }
 

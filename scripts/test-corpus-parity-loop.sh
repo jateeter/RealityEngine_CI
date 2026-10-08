@@ -81,7 +81,8 @@ elif [ -f "$CI_DIR/.universe-engine-selection" ]; then
   fi
   unset _stamped
 fi
-REGISTRY_PORT="${RE_REGISTRY_PORT:-5999}"
+# shellcheck source=scripts/lib/registry-url.sh
+source "$CI_DIR/scripts/lib/registry-url.sh"
 
 SEED_MACHINE="domains/digital-logic/DLX011_req-ack-handshake.json"
 MODE="cumulative"
@@ -263,7 +264,9 @@ else
 fi
 
 # ── 2. Wait for the registry and confirm three RE/PE pairs ────────────────────
-REGISTRY_URL="http://127.0.0.1:${REGISTRY_PORT}/re-registry.json"
+# Resolved after the start above: under --free-ports the shim is not on 5999,
+# and startUniverse.sh has just recorded where it is.
+REGISTRY_URL="$(registry_url)"
 info "Waiting for registry at $REGISTRY_URL"
 for _ in $(seq 1 60); do
   curl -sf --max-time 3 "$REGISTRY_URL" >/dev/null 2>&1 && break

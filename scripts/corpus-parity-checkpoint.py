@@ -207,7 +207,7 @@ def cmd_command(args: argparse.Namespace) -> int:
     if failure:
         print(f"#   machine: {failure.get('machineFile')}")
     print("python3 scripts/regression-corpus-parity-loop.py \\")
-    print("  --registry http://127.0.0.1:5999/re-registry.json \\")
+    print("  --registry \"$RE_REGISTRY_URL\" \\")
     print("  --machines-root ../RealityEngine_Machines/machines \\")
     print("  --out /tmp/repro.json --mode cumulative --stop-on-fail")
     return 0
