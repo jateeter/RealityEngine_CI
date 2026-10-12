@@ -14,6 +14,7 @@ reports and obsolete fixed-vector notes have been removed.
 | [ACRONYMS.md](ACRONYMS.md) | Acronym definitions. |
 | [INTEGRATION_ARCHITECTURE.md](INTEGRATION_ARCHITECTURE.md) | Provider-neutral PE integration, trigger dispatch, source mapping, and MCP architecture. |
 | [MVP_ROADMAP.md](MVP_ROADMAP.md) | Route from the baseline tag to a tagged MVP release, and current gate status. |
+| [ReleaseRoadmap.md](ReleaseRoadmap.md) | Release 0.01 / MVP task tracker: downloadable Docker images for a full deployment on macOS 26+, and every task to the tagged release. |
 | [../RELEASE.md](../RELEASE.md) | What a release is, how it is cut, certified, verified and rolled back. |
 | [BIBLIOGRAPHY.md](BIBLIOGRAPHY.md) | External and project references. |
 
