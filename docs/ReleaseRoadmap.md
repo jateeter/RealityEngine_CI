@@ -85,8 +85,8 @@ needing no source checkout, compiler or build toolchain on the Mac:
 | **B1** | One Dockerfile per image, and the image catalog | CI + repos | A2 | in progress | |
 | **B2** | Self-contained images | CI + repos | B1 | open | |
 | **B3** | Pin and unify third-party images | CI + repos | — | in progress | OCS#58, localAIStack#129, PIM#84 |
-| **B4** | Native arm64 builds | CI | A4, B1 | open | |
-| **B5** | Release image workflow | CI | A3, B4 | open | |
+| **B4** | Native arm64 builds | CI | A4, B1 | in progress | |
+| **B5** | Release image workflow | CI | A3, B4 | in progress | |
 | **B6** | Image hygiene | all | B1 | open | |
 | **C1** | Release compose, engines generated from the instance spec | CI | B2, B3 | open | |
 | **C2** | Instance registry, MCP, config and UUIDs in containers | CI | B2 | open | |
@@ -225,6 +225,17 @@ Each is reflected in `RELEASE.md` where it changes the process.
   available to these public repos. No QEMU emulation and no amd64 image. Fix
   PIM's `ubuntu-latest` runner pin.
   - **Done:** every image builds green on a hosted arm64 run.
+  - **Progress (2026-10-17):** `release/build-images.py` builds the catalog
+    natively for `linux/arm64`. Locally, on an Apple Silicon Mac, all 11
+    buildable images built: `re-cpp` 167 MB, `re-lsp` 249 MB, `re-scala`
+    701 MB, `re-scala-pe` 590 MB, `re-visualizer-backend` 268 MB,
+    `re-visualizer-frontend` 104 MB, and the rest. `re-visualizer-frontend`
+    first failed on a stale cached `npm install` layer (TypeScript 7 without
+    its linux-arm64 binary), from a tree that builds cleanly without the
+    cache. A pushed build therefore always uses `--no-cache --pull`, and
+    Manager's Dockerfiles should move from `npm install` to `npm ci` (B6).
+    `release-images.yml` builds every image on `ubuntu-24.04-arm` for any PR
+    that touches the image build.
 - [ ] **B5 — Release image workflow** (`release-images.yml`). From a candidate
   manifest it checks out each repo at its pinned commit and builds every image
   in the catalog. It pushes to `ghcr.io/jateeter/re-<component>` tagged with
@@ -235,6 +246,13 @@ Each is reflected in `RELEASE.md` where it changes the process.
   don't push.
   - **Done:** a candidate build produces images whose `revision` labels equal
     the manifest's pins, and every package is public (A3).
+  - **Progress (2026-10-17):** `release-images.yml`, `release/build-images.py`
+    and `release/promote-images.py`. A dispatch with a candidate tag builds
+    from `pins` (default: each repo's main), pushes with SBOM and provenance,
+    and uploads the images file. A dispatch with `promote_from` retags the
+    candidates by digest and refuses to move an existing release tag. A
+    release tag can only be promoted, never built. Not yet run with a push:
+    that needs the first dispatch on main and the packages made public.
 - [ ] **B6 — Image hygiene.** Each image runs as a non-root user, has a
   `HEALTHCHECK`, contains no secrets, and stays within a size budget recorded
   per image. Today localAI is 1.44 GB and the OpenClaw browser 4.4 GB.

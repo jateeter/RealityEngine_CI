@@ -1,0 +1,189 @@
+name: Release images
+
+# Builds the release images in release/images.json natively on linux/arm64
+# (ReleaseRoadmap B4, B5; decisions A3, A4) and, on dispatch, pushes them to
+# ghcr.io/jateeter. The images file it produces (commit and digest per image)
+# is uploaded as an artifact; release-manifest.py takes it with --images.
+#
+#   build    a pull request that touches the image build: every image is built,
+#            nothing is pushed. This is B4's evidence that each one builds on a
+#            hosted arm64 runner.
+#   push     dispatch with a tag: every repo is checked out at the commit in
+#            `pins` (default: its main), every image is built from it and
+#            pushed as <tag> and sha-<12 hex>, with SBOM and provenance.
+#   promote  dispatch with promote_from: the images already pushed under that
+#            candidate tag are retagged as `tag` by digest, without rebuilding
+#            (RELEASE.md, Cutting a release, step 6).
+#
+# A first push of an image creates a private GHCR package. Making it public is
+# a one-time owner step in the package settings (A3).
+
+on:
+  pull_request:
+    paths:
+      - release/images.json
+      - release/build-images.py
+      - release/promote-images.py
+      - release/init/**
+      - release/corpus/**
+      - docker/**
+      - mcp/Dockerfile
+      - .github/workflows/release-images.yml
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: "Image tag: release-vN.M.Z-rcN, release-vN.M.Z (with promote_from), or dev-<name>"
+        required: true
+      pins:
+        description: 'JSON object repo -> commit; repos left out build from their main. Example: {"RealityEngine_CPP":"ea6545f..."}'
+        required: false
+        default: "{}"
+      promote_from:
+        description: "Promote the images pushed under this candidate tag to `tag`, by digest, without rebuilding"
+        required: false
+        default: ""
+
+permissions:
+  contents: read
+
+concurrency:
+  group: release-images-${{ github.event_name }}-${{ github.ref }}-${{ inputs.tag || 'pr' }}
+  cancel-in-progress: false
+
+env:
+  OWNER: jateeter
+
+jobs:
+  images:
+    name: ${{ inputs.promote_from && 'Promote' || 'Build' }} release images (linux/arm64)
+    runs-on: ubuntu-24.04-arm
+    timeout-minutes: 120
+    permissions:
+      contents: read
+      packages: write
+    steps:
+      - name: Validate the tag
+        if: github.event_name == 'workflow_dispatch'
+        env:
+          TAG: ${{ inputs.tag }}
+          PROMOTE_FROM: ${{ inputs.promote_from }}
+        run: |
+          set -euo pipefail
+          if [ -n "$PROMOTE_FROM" ]; then
+            [[ "$PROMOTE_FROM" =~ ^release-v[0-9]+\.[0-9]+\.[0-9]+-rc[0-9]+$ ]] || { echo "promote_from must be a release candidate tag"; exit 1; }
+            [[ "$TAG" =~ ^release-v[0-9]+\.[0-9]+\.[0-9]+$ ]] || { echo "a promoted tag must be release-vN.M.Z"; exit 1; }
+            [ "${PROMOTE_FROM%-rc*}" = "$TAG" ] || { echo "$PROMOTE_FROM is not a candidate of $TAG"; exit 1; }
+          else
+            [[ "$TAG" =~ ^(release-v[0-9]+\.[0-9]+\.[0-9]+-rc[0-9]+|dev-[a-z0-9.-]+)$ ]] \
+              || { echo "build tag must be release-vN.M.Z-rcN or dev-<name>; release tags are promoted, never built"; exit 1; }
+          fi
+
+      - name: Resolve pins
+        id: pins
+        env:
+          PINS: ${{ inputs.pins || '{}' }}
+        run: |
+          set -euo pipefail
+          python3 - <<'PY' >> "$GITHUB_OUTPUT"
+          import json, os
+          pins = json.loads(os.environ["PINS"] or "{}")
+          repos = ["RealityEngine_CI", "RealityEngine_CPP", "RealityEngine_LSP", "RealityEngine_Scala",
+                   "RealityEngine_Machines", "RealityEngine_Manager", "localAIStack", "localOpenClawStack",
+                   "OpenCommons-Health---Personal-Information-Management"]
+          unknown = set(pins) - set(repos)
+          if unknown:
+              raise SystemExit(f"pins for unknown repos: {sorted(unknown)}")
+          for r in repos:
+              print(f"{r.replace('-', '_')}={pins.get(r, '')}")
+          PY
+
+      - name: Checkout RealityEngine_CI
+        uses: actions/checkout@v7
+        with:
+          path: RealityEngine_CI
+          ref: ${{ steps.pins.outputs.RealityEngine_CI || (github.event_name == 'pull_request' && github.event.pull_request.head.sha || 'main') }}
+
+      - name: Checkout the sibling repos
+        if: inputs.promote_from == ''
+        env:
+          GH_TOKEN: ${{ github.token }}
+          P_CPP: ${{ steps.pins.outputs.RealityEngine_CPP }}
+          P_LSP: ${{ steps.pins.outputs.RealityEngine_LSP }}
+          P_SCALA: ${{ steps.pins.outputs.RealityEngine_Scala }}
+          P_MACHINES: ${{ steps.pins.outputs.RealityEngine_Machines }}
+          P_MANAGER: ${{ steps.pins.outputs.RealityEngine_Manager }}
+          P_LOCALAI: ${{ steps.pins.outputs.localAIStack }}
+          P_OPENCLAW: ${{ steps.pins.outputs.localOpenClawStack }}
+          P_PIM: ${{ steps.pins.outputs.OpenCommons_Health___Personal_Information_Management }}
+        run: |
+          set -euo pipefail
+          clone() {   # repo, commit-or-empty
+            git clone --quiet --filter=blob:none "https://github.com/$OWNER/$1.git" "$1"
+            if [ -n "$2" ]; then git -C "$1" checkout --quiet "$2"; fi
+            echo "$1 @ $(git -C "$1" rev-parse HEAD)"
+          }
+          clone RealityEngine_CPP "$P_CPP"
+          clone RealityEngine_LSP "$P_LSP"
+          clone RealityEngine_Scala "$P_SCALA"
+          clone RealityEngine_Machines "$P_MACHINES"
+          clone RealityEngine_Manager "$P_MANAGER"
+          clone localAIStack "$P_LOCALAI"
+          clone localOpenClawStack "$P_OPENCLAW"
+          clone OpenCommons-Health---Personal-Information-Management "$P_PIM"
+
+      - name: Check the image catalog
+        working-directory: RealityEngine_CI
+        run: python3 scripts/check-release-images.py
+
+      - uses: docker/setup-buildx-action@v3
+
+      - name: Log in to GHCR
+        if: github.event_name == 'workflow_dispatch'
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Build every image (no push)
+        if: github.event_name == 'pull_request'
+        working-directory: RealityEngine_CI
+        run: python3 release/build-images.py --tag dev-pr-${{ github.event.pull_request.number }} --out "$RUNNER_TEMP/images.json"
+
+      - name: Build and push every image
+        if: github.event_name == 'workflow_dispatch' && inputs.promote_from == ''
+        working-directory: RealityEngine_CI
+        env:
+          TAG: ${{ inputs.tag }}
+        run: python3 release/build-images.py --tag "$TAG" --push --out "$RUNNER_TEMP/images.json"
+
+      - name: Promote the candidate images
+        if: github.event_name == 'workflow_dispatch' && inputs.promote_from != ''
+        working-directory: RealityEngine_CI
+        env:
+          TAG: ${{ inputs.tag }}
+          FROM: ${{ inputs.promote_from }}
+        run: python3 release/promote-images.py --from-tag "$FROM" --to-tag "$TAG" --out "$RUNNER_TEMP/images.json"
+
+      - name: Summary
+        if: always()
+        run: |
+          set -euo pipefail
+          f="$RUNNER_TEMP/images.json"
+          [ -f "$f" ] || { echo "no images file" >> "$GITHUB_STEP_SUMMARY"; exit 0; }
+          python3 - "$f" >> "$GITHUB_STEP_SUMMARY" <<'PY'
+          import json, sys
+          d = json.load(open(sys.argv[1]))
+          print(f"### Release images `{d['tag']}` ({d['platform']}, pushed: {d['pushed']})\n")
+          print("| Image | Repo | Commit | Digest |\n|---|---|---|---|")
+          for i in d["images"]:
+              print(f"| `{i['name']}` | {i['repo']} | `{i['revision'][:12]}` | `{(i.get('digest') or i.get('image_id') or '')[:19]}` |")
+          PY
+
+      - name: Upload the images file
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: release-images-${{ inputs.tag || format('pr-{0}', github.event.pull_request.number) }}
+          path: ${{ runner.temp }}/images.json
+          if-no-files-found: ignore
