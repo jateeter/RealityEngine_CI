@@ -88,12 +88,12 @@ needing no source checkout, compiler or build toolchain on the Mac:
 | **B4** | Native arm64 builds | CI | A4, B1 | in progress | |
 | **B5** | Release image workflow | CI | A3, B4 | in progress | |
 | **B6** | Image hygiene | all | B1 | open | |
-| **C1** | Release compose, engines generated from the instance spec | CI | B2, B3 | open | |
-| **C2** | Instance registry, MCP, config and UUIDs in containers | CI | B2 | open | |
-| **C3** | Installer CLI | CI | C1, C2, A5, A6 | open | |
-| **C4** | Persistence and lifecycle | CI | C1 | open | |
-| **C5** | Install documentation | CI/docs | C3, A2 | open | |
-| **C6** | Dynamic machine loading from `RealityEngine_Machines` | CI + Manager | C2 | open | |
+| **C1** | Release compose, engines generated from the instance spec | CI | B2, B3 | in progress: live on the developer Mac |  |
+| **C2** | Instance registry, MCP, config and UUIDs in containers | CI | B2 | in progress: live on the developer Mac |  |
+| **C3** | Installer CLI | CI | C1, C2, A5, A6 | in progress: live on the developer Mac |  |
+| **C4** | Persistence and lifecycle | CI | C1 | in progress: down/up and spec change verified |  |
+| **C5** | Install documentation | CI/docs | C3, A2 | in progress: `INSTALL.md` drafted |  |
+| **C6** | Dynamic machine loading from `RealityEngine_Machines` | CI + Manager | C2 | in progress: live on the developer Mac | Manager#276 |
 | **D1** | Runtime and observability soak, multi-instance | CI/engines | C3 | open | |
 | **D2** | 2D/3D UI acceptance | Manager | C3 | open | |
 | **D3** | localAI reaches every engine | localAI/CI | C2 | open | |
@@ -294,6 +294,62 @@ Each is reflected in `RELEASE.md` where it changes the process.
   - **Done:** for a multi-instance spec, the instance registry lists every
     instance with its UUID and no host process; `instance_uuids.py
     check-registry` passes.
+
+**Progress on C1–C4 and C6, 2026-10-17.** `release/compose.yml`,
+`release/init/` (`re-init`), `release/corpus/` (`re-corpus`), `release/config/`
+and `release/realityengine` were installed live on the developer Mac (Apple
+Silicon, macOS 26.6, Docker Desktop 29.8) from locally built arm64 images,
+with `realityengine install --local`:
+
+- **Everything up.** All 26 services healthy or completed (20 fixed, plus the trio's 6 engine services): the engines,
+  instance registry, localAI with Qdrant and Redis, OpenClaw with its browser
+  and Open WebUI, PIM with CSS and its bootstrap, MCP, Manager behind the TLS
+  proxy, Loki, Promtail, Prometheus and Grafana.
+- **Every surface answered, against the install itself:**
+  - each engine RE and PE healthy, with the 23-machine regression corpus;
+  - the instance registry's two views; `check-registry` passes;
+  - each engine's `/api/engine/clock` reports the UUID `re-init` allocated;
+  - Manager's UI over TLS, `/api/engines` listing every instance, and
+    `/api/pe/*` proxied to the active PE;
+  - the Load Machines catalog: 1,335 machines;
+  - localAI `ok`, with `bridge_engines` equal to the instance registry;
+  - the Open WebUI admin signs in with the generated credentials;
+  - PIM reports `podAccess: true`;
+  - MCP `ok`;
+  - all engine targets up in Prometheus, 8 dashboards in Grafana, and every
+    container's logs in Loki through Promtail's Docker discovery.
+- **A7, the spec changed live** from `cpp:1,lsp:1,scala:1` to
+  `cpp:2,lsp:1,scala:1`: `cpp-2` joined on its band ports (6310/6311) with a
+  fresh UUID, every existing UUID was kept, and localAI picked it up.
+- **C4: `down`, then `up`** kept the UUIDs and their Lamport clocks (0 →
+  1024), a record written to the Solid pod, and the loaded machines, which are
+  replayed into every instance.
+- **C6:**
+  - `machines load --domain ai-services` loaded 9 machines into all four
+    instances and refreshed every PE;
+  - `machines sync` replaced the catalog with RealityEngine_Machines `main`
+    (`dde5f97c3f06`, 1,327 files) in 5 seconds;
+  - a bad ref is refused with the catalog unchanged.
+- **Memory:** the default trio uses about 3.9 GB of Docker memory when idle.
+  Open WebUI is the largest (1.3 GB); each engine container is under 200 MB
+  idle. The installer warns below 8 GB. Under-load figures are D1's.
+
+Found and fixed on the way:
+- **localOpenClawStack#59:** three scripts named `claude.md` for the tracked
+  `CLAUDE.md`. `harden-config.sh` therefore failed on any case-sensitive
+  filesystem, and `start.sh --fresh` deleted the file.
+- **Manager#276:** Load Machines decided presence by id. C++ and Scala mint
+  ids, so a repeated load gave them `<name> v2` copies and left LSP without
+  them: three runtimes holding different machine sets.
+- **localAI must restart when the instance spec changes.** It registers its
+  machines with each engine at start, so `cpp-2` lacked them until localAI
+  carried `RE_ENGINES` in its environment.
+- **An image built while Docker's disk was full** (`re-visualizer-frontend`)
+  had an empty nginx config and site, with the build reporting success.
+  Rebuilt.
+
+**Open:** the image registry pull path (B5's first push), a clean Mac (E3),
+and `upgrade` between two published versions.
 - [ ] **C3 — Installer CLI** (`realityengine install | up | down | status |
   upgrade | uninstall | machines`).
   - It is a small shell script that runs on the stock macOS `/bin/bash` (3.2),
@@ -520,10 +576,10 @@ Each is reflected in `RELEASE.md` where it changes the process.
 | F. Release | F1 → F2 → F3 → F4 → F5 | tags and images published and verified; full documentation published |
 
 **Biggest risks**, each unproven today, so start with them:
-1. **C2:** the deployment has never run without the host-side instance
-   registry shim, MCP process and config generation.
-2. **C1:** engine services generated per instance have never run; the Docker
-   path has only ever run the fixed trio.
+1. ~~**C2:** the deployment has never run without the host-side instance
+   registry shim, MCP process and config generation.~~ Proven live 2026-10-17.
+2. ~~**C1:** engine services generated per instance have never run.~~ Proven live
+   2026-10-17, including a spec change from three to four instances.
 3. **B4:** the LSP (SBCL) and Scala builds on hosted arm64 runners.
 4. **E3:** the first install on a Mac that has never seen a checkout.
 

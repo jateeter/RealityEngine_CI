@@ -1,5 +1,10 @@
 # Docker Quick Start
 
+> **Installing a release?** This file is the development path, built from
+> source checkouts. To install the RealityEngine suite on a Mac from its release
+> images, see [`INSTALL.md`](INSTALL.md).
+
+
 Run the entire Reality Engine stack (8 services) with a single command.
 
 ## TL;DR

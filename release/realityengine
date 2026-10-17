@@ -1,0 +1,320 @@
+#!/bin/bash
+# realityengine — install and run the RealityEngine suite from its release images.
+#
+#   realityengine install [--version release-v0.0.1] [--engines cpp:1,lsp:1,scala:1]
+#   realityengine up      [--engines SPEC]     re-configure for a spec and start
+#   realityengine down                         stop (data is kept)
+#   realityengine status                       what is installed and running
+#   realityengine logs    [SERVICE]
+#   realityengine upgrade --to VERSION         move to another release, data kept
+#   realityengine uninstall [--purge]          remove; --purge also deletes data
+#   realityengine trust-ca                     trust the install's local CA (Keychain)
+#   realityengine machines list                the Load Machines catalog, by domain
+#   realityengine machines sync [--ref REF]    refresh the catalog from RealityEngine_Machines
+#                                              on GitHub (default main), validated first
+#   realityengine machines load --domain D | --machine M | --all
+#                                              load catalog machines into every engine
+#
+# Options for install/up/upgrade:
+#   --dir DIR        install directory (default ~/.realityengine)
+#   --images FILE    the release's images file (digests); a release install uses it
+#   --local          use images already loaded in Docker, never pull (development)
+#   --registry REG   image registry (default ghcr.io/jateeter)
+#
+# Runs on the stock macOS /bin/bash (3.2): a clean Mac has nothing else. All the
+# configuration is made by the re-init image (ReleaseRoadmap C2, C3); this script
+# only checks the Mac, runs re-init, and drives docker compose.
+set -eu
+
+PROG=realityengine
+DIR="${REALITYENGINE_DIR:-$HOME/.realityengine}"
+REGISTRY="ghcr.io/jateeter"
+VERSION=""
+ENGINES=""
+IMAGES=""
+LOCAL=false
+PURGE=false
+TO=""
+REF="main"
+ALL=false
+LOAD_ARGS=""
+MIN_MACOS=26
+MIN_DOCKER_MEM_GB=8
+
+say()  { printf '\033[0;36m[%s]\033[0m %s\n' "$PROG" "$*"; }
+ok()   { printf '\033[0;32m[ok]\033[0m   %s\n' "$*"; }
+warn() { printf '\033[1;33m[warn]\033[0m %s\n' "$*" >&2; }
+die()  { printf '\033[0;31m[error]\033[0m %s\n' "$*" >&2; exit 1; }
+
+usage() { sed -n '2,20p' "$0" | sed 's/^# \{0,1\}//'; exit "${1:-0}"; }
+
+# ── arguments ────────────────────────────────────────────────────────────────
+CMD="${1:-}"; [ -n "$CMD" ] || usage 1; shift
+while [ $# -gt 0 ]; do
+  case "$1" in
+    --version) VERSION="$2"; shift 2 ;;
+    --version=*) VERSION="${1#*=}"; shift ;;
+    --engines) ENGINES="$2"; shift 2 ;;
+    --engines=*) ENGINES="${1#*=}"; shift ;;
+    --dir) DIR="$2"; shift 2 ;;
+    --dir=*) DIR="${1#*=}"; shift ;;
+    --images) IMAGES="$2"; shift 2 ;;
+    --images=*) IMAGES="${1#*=}"; shift ;;
+    --registry) REGISTRY="$2"; shift 2 ;;
+    --registry=*) REGISTRY="${1#*=}"; shift ;;
+    --to) TO="$2"; shift 2 ;;
+    --to=*) TO="${1#*=}"; shift ;;
+    --local) LOCAL=true; shift ;;
+    --ref) REF="$2"; shift 2 ;;
+    --ref=*) REF="${1#*=}"; shift ;;
+    --domain) LOAD_ARGS="$LOAD_ARGS --domain $2"; shift 2 ;;
+    --domain=*) LOAD_ARGS="$LOAD_ARGS --domain ${1#*=}"; shift ;;
+    --machine) LOAD_ARGS="$LOAD_ARGS --machine $2"; shift 2 ;;
+    --machine=*) LOAD_ARGS="$LOAD_ARGS --machine ${1#*=}"; shift ;;
+    --all) ALL=true; shift ;;
+    --purge) PURGE=true; shift ;;
+    -h|--help) usage 0 ;;
+    *) ARGS_REST="${ARGS_REST:-} $1"; shift ;;
+  esac
+done
+
+CONF="$DIR/cli.conf"
+# What the install was made with; flags override it.
+if [ -f "$CONF" ]; then
+  # shellcheck disable=SC1090
+  . "$CONF"
+  VERSION="${VERSION:-${CONF_VERSION:-}}"
+  ENGINES="${ENGINES:-${CONF_ENGINES:-}}"
+  IMAGES="${IMAGES:-${CONF_IMAGES:-}}"
+  [ "$LOCAL" = true ] || LOCAL="${CONF_LOCAL:-false}"
+  REGISTRY="${CONF_REGISTRY:-$REGISTRY}"
+fi
+ENGINES="${ENGINES:-cpp:1,lsp:1,scala:1}"
+
+# From the install directory: COMPOSE_FILE in its .env is relative, and compose
+# resolves it against the working directory.
+compose() { (cd "$DIR" && docker compose "$@"); }
+
+save_conf() {
+  mkdir -p "$DIR"
+  {
+    echo "CONF_VERSION=$VERSION"
+    echo "CONF_ENGINES=$ENGINES"
+    echo "CONF_IMAGES=$IMAGES"
+    echo "CONF_LOCAL=$LOCAL"
+    echo "CONF_REGISTRY=$REGISTRY"
+  } > "$CONF"
+}
+
+# ── checks ───────────────────────────────────────────────────────────────────
+preflight() {
+  say "Checking this Mac"
+  [ "$(uname -s)" = Darwin ] || die "RealityEngine release installs run on macOS."
+  major="$(sw_vers -productVersion | cut -d. -f1)"
+  [ "$major" -ge "$MIN_MACOS" ] || die "macOS $MIN_MACOS or later is required (this Mac runs $(sw_vers -productVersion))."
+  [ "$(uname -m)" = arm64 ] || die "An Apple Silicon Mac (M1 or later) is required; the images are linux/arm64 only."
+  ok "macOS $(sw_vers -productVersion), Apple Silicon"
+
+  command -v docker >/dev/null 2>&1 || die "Docker Desktop is required: https://www.docker.com/products/docker-desktop/"
+  docker info >/dev/null 2>&1 || die "Docker is installed but not running. Start Docker Desktop and try again."
+  docker compose version >/dev/null 2>&1 || die "docker compose v2 is required (it ships with Docker Desktop)."
+  os="$(docker info --format '{{.OperatingSystem}}' 2>/dev/null || true)"
+  case "$os" in
+    *"Docker Desktop"*) ok "Docker Desktop $(docker version --format '{{.Server.Version}}' 2>/dev/null)" ;;
+    *) warn "The container runtime is '$os'. Only Docker Desktop is tested (A5)." ;;
+  esac
+  mem_gb=$(( $(docker info --format '{{.MemTotal}}' 2>/dev/null || echo 0) / 1073741824 ))
+  if [ "$mem_gb" -lt "$MIN_DOCKER_MEM_GB" ]; then
+    warn "Docker Desktop has ${mem_gb} GB of memory; give it at least ${MIN_DOCKER_MEM_GB} GB (Settings > Resources) for $ENGINES."
+  else
+    ok "Docker memory ${mem_gb} GB"
+  fi
+  free_gb=$(df -g "$HOME" | awk 'NR==2 {print $4}')
+  [ "${free_gb:-0}" -ge 20 ] || warn "Only ${free_gb} GB free on disk; the images need about 20 GB."
+
+  check_ollama
+}
+
+check_ollama() {
+  # Ollama runs natively on the Mac, for the Apple GPU (A6).
+  v="$(curl -fsS --max-time 3 http://127.0.0.1:11434/api/version 2>/dev/null || true)"
+  case "$v" in
+    *'"version"'*) ok "Ollama $(printf '%s' "$v" | sed 's/.*"version":"\([^"]*\)".*/\1/') on :11434" ;;
+    *) warn "Ollama is not answering on 127.0.0.1:11434. Install it (https://ollama.com or 'brew install ollama'), start it, and run 'ollama pull llama3.1:8b'. The suite starts without it, but local AI will report it unreachable."; return 0 ;;
+  esac
+  if curl -fsS --max-time 5 http://127.0.0.1:11434/api/tags 2>/dev/null | grep -q '"llama3.1:8b"'; then
+    ok "model llama3.1:8b present"
+  else
+    warn "Model llama3.1:8b is missing. Run: ollama pull llama3.1:8b"
+  fi
+}
+
+port_in_use() { lsof -nP -iTCP:"$1" -sTCP:LISTEN >/dev/null 2>&1; }
+
+check_ports() {
+  # Ports held by this install's own containers are fine (an `up` over a running
+  # install); anything else holding one is a conflict.
+  busy=""
+  for p in "${RE_PORT_MANAGER_UI:-5173}" "${RE_PORT_MANAGER_API:-3001}" "${RE_PORT_LOCALAI:-4000}" \
+           "${RE_PORT_OPENCLAW:-18789}" "${RE_PORT_WEBUI:-8080}" "${RE_PORT_PIM:-8090}" \
+           "${RE_PORT_CSS:-13000}" "${RE_PORT_MCP:-7331}" "${RE_PORT_REGISTRY:-5999}" \
+           "${RE_PORT_GRAFANA:-3002}" "${RE_PORT_PROMETHEUS:-9090}" "${RE_PORT_QDRANT:-4333}"; do
+    if port_in_use "$p" && ! compose ps --format '{{.Ports}}' 2>/dev/null | grep -q ":$p->"; then
+      busy="$busy $p"
+    fi
+  done
+  [ -z "$busy" ] || die "Port(s)$busy are in use by something else. Stop it, or move a port: RE_PORT_<NAME>=<port> (see INSTALL.md)."
+}
+
+host_ip() {
+  ip="$(ipconfig getifaddr en0 2>/dev/null || true)"
+  [ -n "$ip" ] || ip="$(ipconfig getifaddr en1 2>/dev/null || true)"
+  printf '%s' "${ip:-127.0.0.1}"
+}
+
+init_image() {
+  if [ -n "$IMAGES" ] && [ -f "$IMAGES" ]; then
+    ref="$(sed -n 's/.*"ref": *"\([^"]*re-init\)".*/\1/p' "$IMAGES" | head -1)"
+    dg="$(awk '/"name": *"re-init"/{f=1} f && /"digest"/{print; exit}' "$IMAGES" | sed 's/.*"digest": *"\([^"]*\)".*/\1/')"
+    if [ -n "$ref" ] && [ -n "$dg" ] && [ "$dg" != null ]; then printf '%s@%s' "$ref" "$dg"; return; fi
+  fi
+  printf '%s/re-init:%s' "$REGISTRY" "$VERSION"
+}
+
+# ── steps ────────────────────────────────────────────────────────────────────
+configure() {
+  [ -n "$VERSION" ] || die "No version. Pass --version (for example --version release-v0.0.1)."
+  mkdir -p "$DIR"
+  img="$(init_image)"
+  if [ "$LOCAL" != true ]; then
+    say "Pulling $img"
+    docker pull -q "$img" >/dev/null || die "Cannot pull $img. Check the version and your network."
+  fi
+  if [ -n "$IMAGES" ]; then
+    [ -f "$IMAGES" ] || die "Images file not found: $IMAGES"
+    cp "$IMAGES" "$DIR/images.json"
+  fi
+  say "Configuring $ENGINES ($VERSION) in $DIR"
+  # As root: configure writes the install directory and sets ownership the
+  # gateway and the engines need. The image itself runs unprivileged.
+  set -- docker run --rm --user 0:0 -v "$DIR:/install" -e "HOST_IP=$(host_ip)"
+  for v in $(env | sed -n 's/^\(RE_PORT_[A-Z_]*\)=.*/\1/p'); do set -- "$@" -e "$v"; done
+  set -- "$@" "$img" configure --install /install --engines "$ENGINES" --version "$VERSION" --registry "$REGISTRY"
+  [ -f "$DIR/images.json" ] && set -- "$@" --images /install/images.json
+  "$@"
+  save_conf
+}
+
+pull_images() {
+  if [ "$LOCAL" = true ]; then return 0; fi
+  say "Pulling the release images (the first install downloads about 15 GB)"
+  compose pull --quiet || die "Pulling the images failed."
+}
+
+start() {
+  say "Starting"
+  compose up -d --remove-orphans
+  wait_healthy
+  # Engines boot the shipped corpus; machines loaded since are reloaded.
+  machines_run machines-load --replay || warn "Reloading the machines loaded earlier reported failures."
+}
+
+# re-init's machine commands run on the install's network, with its catalog
+# volume, so they reach Manager and every engine by their container names.
+machines_run() {
+  # shellcheck disable=SC1091
+  . "$DIR/.env"
+  docker run --rm --user 0:0 --network "$COMPOSE_PROJECT_NAME" -v "$DIR:/install" \
+    -v "${COMPOSE_PROJECT_NAME}_corpus-catalog:/volumes/catalog" "$RE_IMAGE_INIT" "$@"
+}
+
+wait_healthy() {
+  say "Waiting for every service to be ready (a first start takes several minutes)"
+  deadline=$(( $(date +%s) + ${REALITYENGINE_WAIT:-900} ))
+  while :; do
+    # '|'-separated: a service with no health check has an empty Health, which
+    # whitespace splitting would collapse into the next field.
+    states="$(compose ps -a --format '{{.Service}}|{{.State}}|{{.Health}}|{{.ExitCode}}' 2>/dev/null)"
+    pending="$(printf '%s\n' "$states" \
+      | awk -F'|' '($2=="running" && $3!="" && $3!="healthy") || $2=="created" || $2=="restarting" {print $1}' \
+      | tr '\n' ' ')"
+    failed="$(printf '%s\n' "$states" | awk -F'|' '$2=="exited" && $4!="0" {print $1}' | tr '\n' ' ')"
+    [ -z "$failed" ] || die "Service(s) failed: $failed. See: $PROG logs <service>"
+    [ -n "$pending" ] || break
+    [ "$(date +%s)" -lt "$deadline" ] || die "Still not ready after ${REALITYENGINE_WAIT:-900}s: $pending. See: $PROG status"
+    sleep 5
+  done
+  ok "All services are ready"
+}
+
+urls() {
+  # shellcheck disable=SC1091
+  . "$DIR/.env"
+  cat <<EOF
+
+  Manager (Visualizer)   https://localhost:${RE_PORT_MANAGER_UI}
+  Instance registry      http://localhost:${RE_PORT_REGISTRY}/re-registry.json
+  localAI API            http://localhost:${RE_PORT_LOCALAI}
+  OpenClaw gateway       http://localhost:${RE_PORT_OPENCLAW}
+  Open WebUI             http://localhost:${RE_PORT_WEBUI}   (${WEBUI_ADMIN_EMAIL})
+  PIM                    http://localhost:${RE_PORT_PIM}
+  Grafana                http://localhost:${RE_PORT_GRAFANA}  (admin)
+  MCP                    http://localhost:${RE_PORT_MCP}
+
+  Engines ($RE_ENGINES): see '$PROG status'. Passwords: $DIR/state/secrets.json
+  Trust the local CA so browsers accept https://localhost: $PROG trust-ca
+EOF
+}
+
+status() {
+  [ -f "$DIR/release.json" ] || die "Nothing is installed in $DIR."
+  say "Installed: $(sed -n 's/.*"version": *"\([^"]*\)".*/\1/p' "$DIR/release.json" | head -1), engines $(sed -n 's/.*"engines": *"\([^"]*\)".*/\1/p' "$DIR/release.json" | head -1)"
+  compose ps -a --format 'table {{.Service}}\t{{.Status}}\t{{.Ports}}'
+}
+
+# ── commands ─────────────────────────────────────────────────────────────────
+case "$CMD" in
+  install)
+    VERSION="${VERSION:-release-v0.0.1}"
+    preflight; check_ports; configure; pull_images; start; urls ;;
+  up)
+    [ -f "$CONF" ] || die "Nothing is installed in $DIR. Run: $PROG install"
+    configure; pull_images; start; urls ;;
+  down)
+    compose down; ok "Stopped. Data is kept; '$PROG up' starts it again." ;;
+  status) status ;;
+  logs)
+    # shellcheck disable=SC2086  # the service names, split on purpose
+    compose logs --tail 200 ${ARGS_REST:-} ;;
+  upgrade)
+    [ -n "$TO" ] || die "Pass --to VERSION."
+    VERSION="$TO"; check_ollama; configure; pull_images; start; urls ;;
+  uninstall)
+    if [ "$PURGE" = true ]; then
+      compose down -v --remove-orphans || true
+      rm -rf "$DIR"; ok "Removed the install and all its data."
+    else
+      compose down --remove-orphans || true
+      ok "Removed the containers. Data and configuration are kept in $DIR and the Docker volumes; '--purge' deletes them."
+    fi ;;
+  trust-ca)
+    [ -f "$DIR/certs/ca.crt" ] || die "No CA in $DIR/certs."
+    say "Adding $DIR/certs/ca.crt to your login keychain as trusted (macOS will ask for your password)"
+    security add-trusted-cert -r trustRoot -k "$HOME/Library/Keychains/login.keychain-db" "$DIR/certs/ca.crt"
+    ok "Trusted. Restart your browser." ;;
+  machines)
+    [ -f "$DIR/.env" ] || die "Nothing is installed in $DIR."
+    sub="$(printf '%s' "${ARGS_REST:-}" | awk '{print $1}')"
+    case "$sub" in
+      list) machines_run machines-list ;;
+      sync) machines_run machines-sync --ref "$REF"
+            ok "Catalog refreshed. Load machines from it with: $PROG machines load --domain <name>" ;;
+      load) if [ "$ALL" = true ]; then LOAD_ARGS="$LOAD_ARGS --all"; fi
+            [ -n "$LOAD_ARGS" ] || die "Name what to load: --domain <name>, --machine <id> or --all."
+            # shellcheck disable=SC2086  # the flags, split on purpose
+            machines_run machines-load $LOAD_ARGS ;;
+      *) die "Usage: $PROG machines list | sync [--ref REF] | load --domain D | --machine M | --all" ;;
+    esac ;;
+  -h|--help|help) usage 0 ;;
+  *) usage 1 ;;
+esac

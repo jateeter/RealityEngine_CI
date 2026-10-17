@@ -1,0 +1,46 @@
+# Prometheus for a RealityEngine release install. re-init copies this into the
+# install's config/ and writes the per-instance targets into config/file_sd/:
+# every engine instance of the spec, scraped on the container network, with
+# the runtime/engine/instance/component labels the dashboards query
+# (the native lane's startUniverse.sh writes the same labels).
+
+global:
+  scrape_interval:     15s
+  evaluation_interval: 15s
+  external_labels:
+    cluster:     reality-engine
+    environment: release
+
+scrape_configs:
+  # Engine metric bodies are large and the Scala RE renders slowly under load;
+  # the interval and timeout are CI#557's (30s/25s).
+  - job_name:     reality-engine-registry
+    metrics_path: /api/metrics
+    scrape_interval: 30s
+    scrape_timeout:  25s
+    honor_labels: true
+    file_sd_configs:
+      - files: [/etc/prometheus/file_sd/reality-engine-targets.json]
+        refresh_interval: 10s
+
+  - job_name:     perception-engine-registry
+    metrics_path: /api/metrics
+    scrape_interval: 30s
+    scrape_timeout:  25s
+    honor_labels: true
+    file_sd_configs:
+      - files: [/etc/prometheus/file_sd/perception-engine-targets.json]
+        refresh_interval: 10s
+
+  - job_name:     qdrant
+    metrics_path: /metrics
+    honor_labels: true
+    static_configs:
+      - targets: [qdrant:6333]
+        labels:
+          component: qdrant
+          source:    compose
+
+  - job_name: prometheus
+    static_configs:
+      - targets: [localhost:9090]

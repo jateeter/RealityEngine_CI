@@ -66,6 +66,18 @@ def revision(workspace: pathlib.Path, repo: str, allow_dirty: bool) -> str:
     return git(root, "rev-parse", "HEAD")
 
 
+def expand(value: str, workspace: pathlib.Path, out: pathlib.Path) -> str:
+    """Catalog placeholders: {ws} the workspace, {ci} this repo, {out} a scratch
+    directory for this image's build. Anything else is a workspace-relative path
+    (repo/sub/path) when it names a repo, else left as it is."""
+    v = value.replace("{ws}", str(workspace)).replace("{ci}", str(CI_DIR)).replace("{out}", str(out))
+    if not v.startswith("/"):
+        head = v.split("/", 1)[0]
+        if head == "RealityEngine_CI" or (workspace / head).is_dir():
+            return str(ws_path(workspace, v))
+    return v
+
+
 def build_one(img: dict, args, workspace: pathlib.Path, registry: str, platform: str) -> dict:
     name = img["name"]
     rev = revision(workspace, img["repo"], args.allow_dirty)
@@ -85,7 +97,15 @@ def build_one(img: dict, args, workspace: pathlib.Path, registry: str, platform:
         labels[f"org.realityengine.source.{r}"] = sha
 
     with tempfile.TemporaryDirectory() as tmp:
-        meta = pathlib.Path(tmp) / "metadata.json"
+        out = pathlib.Path(tmp)
+        meta = out / "metadata.json"
+        # An image assembled from generated content (re-corpus) runs its
+        # prepare command first; its output reaches the build as a named context.
+        if img.get("prepare"):
+            prep = [expand(a, workspace, out) for a in img["prepare"]]
+            print(f"   prepare: {' '.join(prep)}", flush=True)
+            if not args.dry_run:
+                run(prep, stdout=subprocess.DEVNULL)
         cmd = ["docker", "buildx", "build", "--platform", platform,
                "-f", str(ws_path(workspace, img["dockerfile"])),
                "--metadata-file", str(meta)]
@@ -95,6 +115,8 @@ def build_one(img: dict, args, workspace: pathlib.Path, registry: str, platform:
             cmd += ["--label", f"{k}={v}"]
         for k, v in (img.get("build_args") or {}).items():
             cmd += ["--build-arg", f"{k}={v}"]
+        for k, v in (img.get("build_contexts") or {}).items():
+            cmd += ["--build-context", f"{k}={expand(v, workspace, out)}"]
         if args.push:
             cmd += ["--push", "--provenance=mode=max", "--sbom=true"]
         else:

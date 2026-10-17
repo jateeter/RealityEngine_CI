@@ -80,6 +80,14 @@ npm run test:deployment
     run. The resulting three-engine divergence was investigated and filed as an
     engine defect before the build skew was found.
 
+## Release bundle
+
+`release/` turns a certified commit set into the images a Mac installs
+(`docs/ReleaseRoadmap.md`, `RELEASE.md`, `INSTALL.md`; see `release/CLAUDE.md`).
+`release/build-images.py` builds them natively for linux/arm64; `re-init`
+generates an install's engine services per instance spec, its instance UUIDs (lane
+`release`) and instance registry; `release/realityengine` is the installer CLI.
+
 ## Editing Rules
 
 - Do not stage generated `e2e-report`, `test-results`, local runtime manifests, or logs unless explicitly requested.

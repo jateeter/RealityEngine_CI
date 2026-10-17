@@ -93,13 +93,13 @@ jobs:
           dockerfile: RealityEngine_CI/Dockerfile
         continue-on-error: true
 
-      - name: Lint all docker/ Dockerfiles
+      - name: Lint all docker/ and release/ Dockerfiles
         run: |
           REPO_DIR="${{ github.workspace }}/RealityEngine_CI"
           dockerfiles=()
           while IFS= read -r f; do
             dockerfiles+=("/repo/${f#"$REPO_DIR/"}")
-          done < <(find "$REPO_DIR/docker" -name 'Dockerfile*' 2>/dev/null)
+          done < <(find "$REPO_DIR/docker" "$REPO_DIR/release" -name 'Dockerfile*' 2>/dev/null)
           if [ ${#dockerfiles[@]} -eq 0 ]; then
             echo "No Dockerfiles found in docker/ directory, skipping."
             exit 0
@@ -476,6 +476,10 @@ jobs:
       - name: Run release image catalog unit tests
         working-directory: RealityEngine_CI
         run: bash scripts/tests/test-release-images.sh
+
+      - name: Run release init unit tests
+        working-directory: RealityEngine_CI
+        run: bash scripts/tests/test-release-init.sh
 
       # One version of every image more than one repo declares, and no floating
       # tag (ReleaseRoadmap B3). Reads every sibling checked out above.

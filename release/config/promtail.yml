@@ -1,0 +1,46 @@
+# Promtail for a RealityEngine release install: every container of this compose
+# project, read through the Docker API, so no logging plugin is needed on the
+# Mac. Labels follow the native lane's (service, runtime, instance, component),
+# which the Native Runtime Logs dashboard queries.
+
+server:
+  http_listen_port: 9080
+  grpc_listen_port: 0
+
+positions:
+  filename: /tmp/promtail-positions.yaml
+
+clients:
+  - url: https://loki:3100/loki/api/v1/push
+    tls_config:
+      insecure_skip_verify: true
+
+scrape_configs:
+  - job_name: containers
+    docker_sd_configs:
+      - host: unix:///var/run/docker.sock
+        refresh_interval: 10s
+        filters:
+          - name: label
+            values: ["com.docker.compose.project"]
+    relabel_configs:
+      # Only this install's project.
+      - source_labels: [__meta_docker_container_label_com_docker_compose_project]
+        regex: ${COMPOSE_PROJECT_NAME:-realityengine}
+        action: keep
+      - source_labels: [__meta_docker_container_label_com_docker_compose_service]
+        target_label: service
+      - source_labels: [__meta_docker_container_label_org_realityengine_runtime]
+        target_label: runtime
+      - source_labels: [__meta_docker_container_label_org_realityengine_instance]
+        target_label: instance
+      - source_labels: [__meta_docker_container_label_com_docker_compose_service]
+        regex: engine-.*-re
+        replacement: reality-engine
+        target_label: component
+      - source_labels: [__meta_docker_container_label_com_docker_compose_service]
+        regex: engine-.*-pe
+        replacement: perception-engine
+        target_label: component
+      - target_label: source
+        replacement: compose
