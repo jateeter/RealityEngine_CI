@@ -42,11 +42,9 @@ storage_config:
   boltdb_shipper:
     active_index_directory: /loki/boltdb-index
     cache_location:         /loki/boltdb-cache
-    shared_store:           filesystem
   tsdb_shipper:
     active_index_directory: /loki/tsdb-index
     cache_location:         /loki/tsdb-cache
-    shared_store:           filesystem
   filesystem:
     directory: /loki/chunks
 
@@ -66,7 +64,8 @@ limits_config:
 
 compactor:
   working_directory:         /loki/compactor
-  shared_store:              filesystem
+  # Loki 3.x removed compactor.shared_store; deletes are stored here instead.
+  delete_request_store:      filesystem
   compaction_interval:       10m
   retention_enabled:         true
   retention_delete_delay:    2h

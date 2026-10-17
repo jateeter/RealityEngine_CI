@@ -1,0 +1,119 @@
+{
+  "$comment": [
+    "The release image catalog (docs/ReleaseRoadmap.md B1). Every first-party image",
+    "a release ships, the repo it is built from, and the one Dockerfile that builds it.",
+    "",
+    "Paths are relative to the workspace root, the directory that holds the sibling",
+    "repos: `context` is the build context, `dockerfile` the file, and `repo` the",
+    "repo whose pinned commit the image is built from (RELEASE.md, A2). An image",
+    "built from more than one repo lists the others under `also_from`; its",
+    "`revision` label is the primary repo's commit and the others are recorded in",
+    "the release manifest.",
+    "",
+    "`status: planned` marks an image whose Dockerfile is not built yet; the",
+    "catalog check allows a planned image's Dockerfile to be missing and nothing",
+    "else. scripts/check-release-images.py validates this file."
+  ],
+  "registry": "ghcr.io/jateeter",
+  "platform": "linux/arm64",
+  "images": [
+    {
+      "name": "re-cpp",
+      "repo": "RealityEngine_CPP",
+      "context": "RealityEngine_CPP",
+      "dockerfile": "RealityEngine_CI/docker/cpp/Dockerfile",
+      "roles": ["reality-engine", "perception-engine"]
+    },
+    {
+      "name": "re-lsp",
+      "repo": "RealityEngine_LSP",
+      "context": "RealityEngine_LSP",
+      "dockerfile": "RealityEngine_CI/docker/lsp/Dockerfile",
+      "roles": ["reality-engine", "perception-engine"]
+    },
+    {
+      "name": "re-scala",
+      "repo": "RealityEngine_Scala",
+      "context": "RealityEngine_Scala",
+      "dockerfile": "RealityEngine_CI/docker/scala/Dockerfile",
+      "roles": ["reality-engine"]
+    },
+    {
+      "name": "re-scala-pe",
+      "repo": "RealityEngine_Scala",
+      "context": "RealityEngine_Scala/perception-engine",
+      "dockerfile": "RealityEngine_CI/docker/scala-perception-engine/Dockerfile",
+      "roles": ["perception-engine"]
+    },
+    {
+      "name": "re-visualizer-backend",
+      "repo": "RealityEngine_Manager",
+      "context": "RealityEngine_Manager/visualizer/backend",
+      "dockerfile": "RealityEngine_Manager/visualizer/backend/Dockerfile",
+      "roles": ["manager"]
+    },
+    {
+      "name": "re-visualizer-frontend",
+      "repo": "RealityEngine_Manager",
+      "context": "RealityEngine_Manager/visualizer/frontend",
+      "dockerfile": "RealityEngine_Manager/visualizer/frontend/Dockerfile",
+      "roles": ["manager"]
+    },
+    {
+      "name": "re-localai-api",
+      "repo": "localAIStack",
+      "context": "localAIStack/services/api",
+      "dockerfile": "localAIStack/services/api/Dockerfile",
+      "roles": ["localai"]
+    },
+    {
+      "name": "re-mcp",
+      "repo": "RealityEngine_CI",
+      "context": "RealityEngine_CI/mcp",
+      "dockerfile": "RealityEngine_CI/mcp/Dockerfile",
+      "roles": ["mcp"]
+    },
+    {
+      "name": "re-openclaw-gateway",
+      "repo": "localOpenClawStack",
+      "context": "localOpenClawStack",
+      "dockerfile": "localOpenClawStack/Dockerfile.openclaw-gateway",
+      "build_args": {
+        "OPENCLAW_VERSION": "2026.6.34",
+        "NODE_IMAGE": "node:26.8-bookworm-slim"
+      },
+      "roles": ["openclaw"]
+    },
+    {
+      "name": "re-pim",
+      "repo": "OpenCommons-Health---Personal-Information-Management",
+      "context": "OpenCommons-Health---Personal-Information-Management",
+      "dockerfile": "OpenCommons-Health---Personal-Information-Management/Dockerfile",
+      "roles": ["pim"]
+    },
+    {
+      "name": "re-css",
+      "repo": "OpenCommons-Health---Personal-Information-Management",
+      "context": "OpenCommons-Health---Personal-Information-Management",
+      "dockerfile": "OpenCommons-Health---Personal-Information-Management/Dockerfile.css",
+      "roles": ["solid-server"]
+    },
+    {
+      "name": "re-init",
+      "repo": "RealityEngine_CI",
+      "context": "RealityEngine_CI",
+      "dockerfile": "RealityEngine_CI/release/init/Dockerfile",
+      "roles": ["init", "instance-registry"],
+      "status": "planned"
+    },
+    {
+      "name": "re-corpus",
+      "repo": "RealityEngine_Machines",
+      "also_from": ["localAIStack", "RealityEngine_CI"],
+      "context": "RealityEngine_CI/release/corpus",
+      "dockerfile": "RealityEngine_CI/release/corpus/Dockerfile",
+      "roles": ["corpus"],
+      "status": "planned"
+    }
+  ]
+}
