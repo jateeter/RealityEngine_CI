@@ -63,7 +63,7 @@ services:
   # Port 3100 kept bound to host: the Docker logging driver runs on the host
   # daemon and needs localhost:3100 to push logs into the container network.
   loki:
-    image: grafana/loki:2.9.3
+    image: grafana/loki:3.4.2
     container_name: reality-engine-loki
     ports:
       - "3100:3100"
@@ -86,7 +86,7 @@ services:
   # the host via host.docker.internal, plus Docker-compose services internally.
   # All runtimes emit identical metric names; a runtime= label distinguishes them.
   prometheus:
-    image: prom/prometheus:v2.51.2
+    image: prom/prometheus:v2.53.4
     container_name: reality-engine-prometheus
     command:
       - --config.file=/etc/prometheus/prometheus.yml
@@ -112,7 +112,7 @@ services:
 
   # Grafana - accessed via TLS proxy at https://localhost:3000
   grafana:
-    image: grafana/grafana:10.2.3
+    image: grafana/grafana:11.6.1
     container_name: reality-engine-grafana
     environment:
       - GF_AUTH_ANONYMOUS_ENABLED=true
@@ -652,7 +652,7 @@ services:
   # logging driver.  Runs alongside the compose stack; processes that are not
   # running simply produce no log lines.
   promtail:
-    image: grafana/promtail:2.9.3
+    image: grafana/promtail:3.4.2
     container_name: reality-engine-promtail
     command: -config.file=/etc/promtail/promtail-config.yml
     volumes:

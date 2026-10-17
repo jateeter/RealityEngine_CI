@@ -82,9 +82,9 @@ needing no source checkout, compiler or build toolchain on the Mac:
 | **A9** | Scala, LSP and C++ instances all in the release | owner | — | decided 2026-10-17 | |
 | **A10** | HealthKit bridge as an untested Xcode development deployment | owner | — | decided 2026-10-17 | |
 | **A11** | #562/#563/#564/#317 are next-release features | owner | — | decided 2026-10-17 | |
-| **B1** | One Dockerfile per image, and the image catalog | CI + repos | A2 | open | |
+| **B1** | One Dockerfile per image, and the image catalog | CI + repos | A2 | in progress | |
 | **B2** | Self-contained images | CI + repos | B1 | open | |
-| **B3** | Pin and unify third-party images | CI + repos | — | open | |
+| **B3** | Pin and unify third-party images | CI + repos | — | in progress | OCS#58, localAIStack#129, PIM#84 |
 | **B4** | Native arm64 builds | CI | A4, B1 | open | |
 | **B5** | Release image workflow | CI | A3, B4 | open | |
 | **B6** | Image hygiene | all | B1 | open | |
@@ -170,6 +170,11 @@ Each is reflected in `RELEASE.md` where it changes the process.
     `re-registry` (C2), and `re-corpus` (A8).
   - **Done:** the catalog is committed, and each image builds from exactly one
     Dockerfile.
+  - **Progress (2026-10-17):** `release/images.json` is committed with 13
+    images, validated by `scripts/check-release-images.py` and its unit test in
+    the Scripts Unit Tests job. CI's unused `docker/visualizer-*` and
+    `docker/perception-engine-*` are removed, and Scala's own drifted copies
+    (RealityEngine_Scala#189, merged).
 - [ ] **B2 — Self-contained images.**
   - Bake configuration, nginx configuration and Grafana dashboards into the
     images.
@@ -195,6 +200,27 @@ Each is reflected in `RELEASE.md` where it changes the process.
     runtime).
   - **Done:** the checker passes and runs on every PR; no floating tag in any
     release image or compose file.
+  - **Progress (2026-10-17):**
+    - CI's compose is on Loki/Promtail 3.4.2, Grafana 11.6.1 and Prometheus
+      v2.53.4. `config/loki-config.yml` is migrated for 3.x (`shared_store`
+      removed, `delete_request_store` added). Verified in an isolated compose
+      project: Loki 3.4.2 starts on fresh storage and on a copy of the existing
+      2.9 volume, a pushed line queries back, Promtail ships the native cpp,
+      lsp and scala logs, Grafana loads all 8 dashboards, and both data sources
+      connect.
+    - `Dockerfile.qdrant` was used by no compose file and is removed; the
+      engines use localAIStack's Qdrant.
+    - Open WebUI is v0.11.3 everywhere: localOpenClawStack#58 (merged; v0.11.3
+      migrates a copy of the v0.9.6 data and keeps what `sync-webui-admin.sh`
+      needs) and localAIStack#129 (merged; `:main` already reported 0.11.3).
+      The checker passes across all ten repos.
+    - The checker now always scans its own repo, says which repos it scanned,
+      and includes PIM. It used to resolve the workspace from the real path,
+      so a worktree run scanned nothing and passed. It runs in the Scripts
+      Unit Tests job.
+    - PIM on Node 26.8, non-root with a health check, runners pinned
+      (PIM#84).
+    - **Open:** digest pins in the release compose (C1).
 - [ ] **B4 — Native arm64 builds** (A4). Build every image on `ubuntu-24.04-arm`,
   available to these public repos. No QEMU emulation and no amd64 image. Fix
   PIM's `ubuntu-latest` runner pin.

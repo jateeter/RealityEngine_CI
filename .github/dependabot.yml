@@ -8,16 +8,15 @@ version: 2
 # is told about is not a decision, it is drift — which is precisely how
 # `grafana/loki` reached 3.4.2 in localAIStack by hand.
 #
-# **One major in this repo is a known config migration, not a version change.**
-# `docker-compose.yml` pins `grafana/loki:2.9.3` and `grafana/promtail:2.9.3`,
-# and `config/loki-config.yml` uses `shared_store` in three places — valid in
-# 2.x, removed in 3.x. When the loki 3.x PR arrives, Loki will reject this
-# config on every boot and crash-loop *quietly*, because a logging sidecar
-# fails without failing anything else; localAIStack#77 sat that way for weeks
-# and only surfaced when `api`'s depends_on turned it into a failed stack
-# start. Migrate `config/loki-config.yml` in the same PR
-# (`shared_store` -> `delete_request_store`, all three occurrences) or the
-# green checks will not mean what they appear to.
+# **The Loki 2.x -> 3.x migration is done** (2026-10-17, ReleaseRoadmap B3):
+# `docker-compose.yml` pins `grafana/loki:3.4.2` and `grafana/promtail:3.4.2`,
+# and `config/loki-config.yml` uses `delete_request_store` in place of the
+# `shared_store` keys 3.x removed. Keep a future Loki major the same way: the
+# config migrates in the same PR, because Loki rejects a stale config on every
+# boot and crash-loops *quietly* (a logging sidecar fails without failing
+# anything else; localAIStack#77 sat that way for weeks). Versions here must
+# match config/shared-service-versions.json, which the Scripts Unit Tests job
+# checks.
 
 updates:
 
@@ -47,15 +46,6 @@ updates:
 
   - package-ecosystem: docker
     directory: /docker/scala
-    schedule:
-      interval: weekly
-      day: monday
-      time: "06:00"
-      timezone: America/Chicago
-    open-pull-requests-limit: 3
-
-  - package-ecosystem: docker
-    directory: /docker/perception-engine-frontend
     schedule:
       interval: weekly
       day: monday

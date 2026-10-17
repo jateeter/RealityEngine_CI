@@ -441,6 +441,14 @@ jobs:
           repository: jateeter/localHealthkitBridge
           path: localHealthkitBridge
 
+      # The release image catalog names PIM's Dockerfiles, and the shared-service
+      # version check scans it; without the checkout both would skip it.
+      - name: Checkout OpenCommons-Health---Personal-Information-Management
+        uses: actions/checkout@v7
+        with:
+          repository: jateeter/OpenCommons-Health---Personal-Information-Management
+          path: OpenCommons-Health---Personal-Information-Management
+
       # The parity-surface test imports the TypeScript module the e2e spec uses,
       # which needs the type stripping Node enables by default from 23. Pinned to
       # the same 26.8 the other jobs use rather than trusting the runner default.
@@ -464,6 +472,16 @@ jobs:
       - name: Run release-manifest unit tests
         working-directory: RealityEngine_CI
         run: bash scripts/tests/test-release-manifest.sh
+
+      - name: Run release image catalog unit tests
+        working-directory: RealityEngine_CI
+        run: bash scripts/tests/test-release-images.sh
+
+      # One version of every image more than one repo declares, and no floating
+      # tag (ReleaseRoadmap B3). Reads every sibling checked out above.
+      - name: Check shared service versions
+        working-directory: RealityEngine_CI
+        run: python3 scripts/check-shared-service-versions.py
 
       - name: Run local-AI probe unit tests
         working-directory: RealityEngine_CI

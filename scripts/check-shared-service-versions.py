@@ -23,12 +23,15 @@ Usage:
 from __future__ import annotations
 
 import argparse
+import os
 import json
 import pathlib
 import re
 import sys
 
-CI_DIR = pathlib.Path(__file__).resolve().parent.parent
+# Not resolve(): a workspace of symlinked checkouts must find its siblings
+# beside the link, not beside the link's target.
+CI_DIR = pathlib.Path(os.path.abspath(__file__)).parent.parent
 WORKSPACE = CI_DIR.parent
 MANIFEST = CI_DIR / "config" / "shared-service-versions.json"
 
@@ -38,6 +41,7 @@ REPOS = [
     "RealityEngine_CI", "RealityEngine_Manager", "RealityEngine_Machines",
     "RealityEngine_CPP", "RealityEngine_LSP", "RealityEngine_Scala",
     "localAIStack", "localOpenClawStack", "localHealthkitBridge",
+    "OpenCommons-Health---Personal-Information-Management",
 ]
 
 # Where a declaration can hide. Compose files and Dockerfiles are the obvious
@@ -48,17 +52,27 @@ FILE_GLOBS = ["docker-compose*.yml", "docker-compose*.yaml", "Dockerfile*", ".en
 SKIP_DIRS = {"node_modules", ".regression-tests", ".git", "target", "build", ".venv"}
 
 
-def iter_candidate_files():
+def repo_roots():
+    """(name, root) for every repo present. This repo is always scanned from where
+    it is, whatever its directory is called (a worktree, a CI checkout path), so
+    the check can never pass having scanned nothing."""
+    roots = [("RealityEngine_CI", CI_DIR)]
     for repo in REPOS:
         root = WORKSPACE / repo
-        if not root.is_dir():
+        if repo == "RealityEngine_CI" or not root.is_dir() or root.resolve() == CI_DIR.resolve():
             continue
+        roots.append((repo, root))
+    return roots
+
+
+def iter_candidate_files():
+    for _repo, root in repo_roots():
         for pattern in FILE_GLOBS:
             for path in root.rglob(pattern):
                 if any(part in SKIP_DIRS for part in path.parts):
                     continue
                 if path.is_file():
-                    yield path
+                    yield root, path
 
 
 def scan(image: str):
@@ -68,7 +82,7 @@ def scan(image: str):
     pat = re.compile(
         re.escape(image) + r"(?:@(?P<digest>sha256:[0-9a-f]{64})|:(?P<tag>[A-Za-z0-9._-]+))?"
     )
-    for path in iter_candidate_files():
+    for root, path in iter_candidate_files():
         try:
             text = path.read_text(encoding="utf-8", errors="replace")
         except OSError:
@@ -82,7 +96,7 @@ def scan(image: str):
             tag = m.group("tag")
             if m.group("digest"):
                 tag = "@" + m.group("digest")[:14] + "…"
-            yield path.relative_to(WORKSPACE), lineno, tag
+            yield pathlib.Path(dict((str(r), n) for n, r in repo_roots())[str(root)]) / path.relative_to(root), lineno, tag
 
 
 FLOATING = {None, "latest", "main", "master", "stable", "edge"}
@@ -97,6 +111,8 @@ def main() -> int:
     manifest = json.loads(MANIFEST.read_text(encoding="utf-8"))["services"]
     problems: list[str] = []
     print("shared service versions — declared vs canonical\n")
+    scanned = [name for name, _root in repo_roots()]
+    print(f"  scanned {len(scanned)} repo(s): {', '.join(scanned)}\n")
 
     for image, spec in manifest.items():
         canonical = spec["version"]

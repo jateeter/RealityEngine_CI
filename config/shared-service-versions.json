@@ -49,10 +49,9 @@
     "qdrant/qdrant": {
       "version": "v1.14.1",
       "declared_in": [
-        "RealityEngine_CI/Dockerfile.qdrant",
         "localAIStack/docker-compose.yml"
       ],
-      "migration_note": "One instance is shared at runtime. RealityEngine_CI/Dockerfile.qdrant exists only to add a healthcheck binary that v1.9.7 lacked; re-check whether that is still required."
+      "migration_note": "One instance is shared at runtime: the engines reach localAIStack's Qdrant on host port 4333. RealityEngine_CI/Dockerfile.qdrant, which only added a healthcheck binary v1.9.7 lacked, was used by no compose file and was removed (2026-10-17)."
     },
     "ghcr.io/open-webui/open-webui": {
       "version": "v0.11.3",
