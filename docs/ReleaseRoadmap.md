@@ -1,6 +1,6 @@
-# Release Roadmap: Release 0.01 / MVP
+# Release Roadmap: Release 0.01 / MVP (`release-v0.0.1`)
 
-Last reviewed: 2026-10-12
+Last reviewed: 2026-10-17
 
 This is the task tracker for the first MVP release of the integrated RealityEngine
 application. It is the one place where release work is listed, ordered and
@@ -9,24 +9,27 @@ dependencies and a definition of done.
 
 [`MVP_ROADMAP.md`](MVP_ROADMAP.md) keeps the gate history (G1–G4) and the
 evidence behind it. [`../RELEASE.md`](../RELEASE.md) defines how a release is
-certified, cut and rolled back. This file brings the evaluation tasks R01–R15
-(drafted in PR #560, not merged) into one sequence together with the work the
-primary target adds; the [mapping](#mapping-from-r01r15) shows where each R-task
-went.
+built, certified, cut, installed and rolled back. This file brings the
+evaluation tasks R01–R15 (drafted in PR #560, not merged) into one sequence
+together with the work the primary target adds; the
+[mapping](#mapping-from-r01r15) shows where each R-task went.
+
+**Decisions A1–A11 were made on 2026-10-17** (below). Work proceeds A → B → C →
+D → E → F, followed by the full release documentation.
 
 ## The release target
 
-> **A Mac running macOS 26 or later can download versioned RealityEngine Docker
-> images and install, with one command, a full working deployment of the
-> RealityEngine suite.**
+> **A Mac with Apple Silicon running macOS 26 or later can download versioned
+> RealityEngine Docker images and install, with one command, a full working
+> deployment of the RealityEngine suite.**
 
 A full deployment means all of the following, running from published images and
 needing no source checkout, compiler or build toolchain on the Mac:
 
 | Component | Runs as |
 |---|---|
-| C++, Common Lisp and Scala Reality Engines and Perception Engines (`cpp-1`, `lsp-1`, `scala-1`) | containers |
-| Machine corpus (regression corpus; full corpus optional, A8) | data image |
+| C++, Common Lisp and Scala Reality Engines and Perception Engines, **as many instances of each as the operator configures at start-up** (A7, A9) | containers |
+| Machine corpus: the **regression corpus**, plus dynamic loading of further machines from `RealityEngine_Machines` after deployment (A8) | data image and a catalog volume |
 | Instance registry, MCP server, integrations config, instance UUID allocation | containers (today host processes, C2) |
 | Manager: Visualizer backend and frontend | containers |
 | localAIStack API, Qdrant, Redis | containers |
@@ -34,8 +37,8 @@ needing no source checkout, compiler or build toolchain on the Mac:
 | PIM and the Solid Community Server (the authoritative POD) | containers |
 | Prometheus, Loki, Promtail, Grafana (one stack) | containers |
 | TLS front end | container |
-| Ollama with `llama3.1:8b` | **native on the host** for Metal acceleration (A6) |
-| HealthKit bridge | iPhone app, built and installed separately (A10) |
+| Ollama with `llama3.1:8b` | **native on the host**, so it uses the Apple GPU (A6) |
+| HealthKit bridge | iPhone app built with Xcode: an **untested development deployment** in this release (A10) |
 
 ## Where we are, 2026-10-12
 
@@ -47,12 +50,9 @@ needing no source checkout, compiler or build toolchain on the Mac:
 | Local-lane certification | **Last candidate predates current main.** `20261008T215059Z` passed 17 live stages and skipped 3 (iPhone, Yuma, arbiter sweep), with the deployment suite not run. CI#561, Manager#257 and localAIStack#122/#123 merged after it | `.regression-tests/runs/20261008T215059Z/` |
 | **Downloadable images** | **None.** Every RealityEngine image builds from a sibling checkout (`build: ../RealityEngine_*`). No image is published, except PIM's `:latest` on main. localAIStack's release workflow builds with `push: false` | `docker-compose.yml`; workflows |
 | **Self-contained deployment** | **No.** The Docker path needs `MACHINES_DIR` and bind-mounts `./config`, `./certs`, `nginx/` and `../localAIStack/data/machines`. The instance registry, MCP and Ollama run on the host | `startUniverse.sh`, `docker-compose.yml` |
-| **One deployment** | **No: four compose stacks** (CI, localAIStack, localOpenClawStack, PIM). Two monitoring stacks at different versions (Loki 2.9.3/3.4.2, Grafana 10.2.3/11.6.1, Prometheus 2.51.2/2.53.4). Qdrant 1.19.1/1.14.1. Open WebUI twice, once unpinned (`:main`) | compose files |
-| Engines in containers | **Fixed trio only.** The Docker path runs `cpp:1,lsp:1,scala:1`, live-verified on this Mac on 2026-10-03 (#516). Multi-instance and every parity certification are native | CI#518 record, CI#165 |
-| Release model | **Commits, not artifacts.** `RELEASE.md`: a release "is not a build artifact" | `RELEASE.md` §What a release is |
-
-The primary target therefore changes what a release *is*: from a certified
-commit set to a certified commit set **plus the images built from it** (A2).
+| **One deployment** | **No: four compose stacks** (CI, localAIStack, localOpenClawStack, PIM). `scripts/check-shared-service-versions.py` reports 8 divergences from `config/shared-service-versions.json`: Loki, Promtail, Grafana and Prometheus in CI's compose, Qdrant in `Dockerfile.qdrant`, and Open WebUI (`:main` in localAIStack, v0.9.6 in localOpenClawStack). No workflow runs the checker | compose files; the checker |
+| Engines in containers | **Fixed trio only.** The Docker path runs `cpp:1,lsp:1,scala:1` as six hand-written services, live-verified on this Mac on 2026-10-03 (#516). Multi-instance is native-only | `docker-compose.yml`, CI#165 |
+| Release model | **Commits, not artifacts**, until 2026-10-17. `RELEASE.md` is now revised for A2 | `RELEASE.md` §What a release is |
 
 ## How to track this file
 
@@ -71,32 +71,33 @@ commit set to a certified commit set **plus the images built from it** (A2).
 
 | ID | Task | Area | Depends on | Status | Tracking |
 |---|---|---|---|---|---|
-| **A1** | Release version tag | owner | — | open | |
-| **A2** | A release includes its images | owner | — | open | |
-| **A3** | Image registry and visibility | owner | A2 | open | |
-| **A4** | Supported architectures | owner | — | open | |
-| **A5** | Supported container runtime on macOS | owner | — | open | |
-| **A6** | Ollama placement | owner | — | open | |
-| **A7** | Engine topology in the image release | owner | — | open | |
-| **A8** | Corpus shipped | owner | — | open | |
-| **A9** | Legacy TLS-proxied Scala + TypeScript PE pair | owner | — | open | |
-| **A10** | HealthKit bridge delivery and device proof | owner | — | open | |
-| **A11** | Release boundary for CI#562/#563/#564/#317 | owner | — | open | |
-| **B1** | One Dockerfile per image | CI + repos | A2 | open | |
+| **A1** | Release version: `release-v0.0.1` | owner | — | decided 2026-10-17 | |
+| **A2** | A release includes its images | owner | — | decided 2026-10-17 | |
+| **A3** | Public GHCR, `ghcr.io/jateeter/re-<component>` | owner | A2 | decided 2026-10-17 | |
+| **A4** | Apple Silicon only | owner | — | decided 2026-10-17 | |
+| **A5** | Docker Desktop | owner | — | decided 2026-10-17 | |
+| **A6** | Ollama native on the host | owner | — | decided 2026-10-17 | |
+| **A7** | Instances configured at each start | owner | — | decided 2026-10-17 | |
+| **A8** | Regression corpus shipped; dynamic loading from Machines | owner | — | decided 2026-10-17 | |
+| **A9** | Scala, LSP and C++ instances all in the release | owner | — | decided 2026-10-17 | |
+| **A10** | HealthKit bridge as an untested Xcode development deployment | owner | — | decided 2026-10-17 | |
+| **A11** | #562/#563/#564/#317 are next-release features | owner | — | decided 2026-10-17 | |
+| **B1** | One Dockerfile per image, and the image catalog | CI + repos | A2 | open | |
 | **B2** | Self-contained images | CI + repos | B1 | open | |
-| **B3** | Pin and unify third-party images | CI | — | open | |
-| **B4** | Native multi-arch builds | CI | A4, B1 | open | |
+| **B3** | Pin and unify third-party images | CI + repos | — | open | |
+| **B4** | Native arm64 builds | CI | A4, B1 | open | |
 | **B5** | Release image workflow | CI | A3, B4 | open | |
 | **B6** | Image hygiene | all | B1 | open | |
-| **C1** | One release compose file | CI | B2, B3 | open | |
+| **C1** | Release compose, engines generated from the instance spec | CI | B2, B3 | open | |
 | **C2** | Instance registry, MCP, config and UUIDs in containers | CI | B2 | open | |
 | **C3** | Installer CLI | CI | C1, C2, A5, A6 | open | |
 | **C4** | Persistence and lifecycle | CI | C1 | open | |
-| **C5** | Install and release documentation | CI/docs | C3, A2 | open | |
-| **D1** | Runtime and observability soak | CI/engines | C3 | open | |
+| **C5** | Install documentation | CI/docs | C3, A2 | open | |
+| **C6** | Dynamic machine loading from `RealityEngine_Machines` | CI + Manager | C2 | open | |
+| **D1** | Runtime and observability soak, multi-instance | CI/engines | C3 | open | |
 | **D2** | 2D/3D UI acceptance | Manager | C3 | open | |
 | **D3** | localAI reaches every engine | localAI/CI | C2 | open | |
-| **D4** | iPhone → containerized PE, PIM mirror | bridge/PIM | C3, A10 | open | |
+| **D4** | PIM mirror in the deployment; bridge as development deployment | PIM/bridge | C3, A10 | open | |
 | **D5** | MQTT disposition | CI/MQTT | A11 | open | |
 | **D6** | Release asset checks | Machines/OpenClaw/CI | A8 | in progress | |
 | **D7** | Deployment suite | CI | C3 | open | |
@@ -104,114 +105,110 @@ commit set to a certified commit set **plus the images built from it** (A2).
 | **E2** | Native vs containerized comparison | CI | E1 | open | |
 | **E3** | Clean-Mac install test | CI/operator | B5, C3, C4 | open | |
 | **E4** | Release eligibility enforced | CI tooling | A1, A2, B5 | open | |
-| **E5** | Release documentation aligned | CI/docs | A1, A2 | open | |
+| **E5** | Release documentation aligned | CI/docs | A1, A2 | in progress: `RELEASE.md` revised for A1–A11 | |
 | **F1** | Freeze and final certification | release operator | D*, E1–E5 | open | |
 | **F2** | Versioned manifest with image digests | release operator | F1 | open | |
 | **F3** | Cut rehearsal | release operator | F2 | open | |
 | **F4** | Publish tags and images | release owner | F3 | open | |
-| **F5** | Release notes and released-set smoke | CI/docs | F4 | open | |
+| **F5** | Release notes, full release documentation, released-set smoke | CI/docs | F4 | open | |
 
 ---
 
-## A. Decisions
+## A. Decisions, made 2026-10-17
 
-These come first; they shape everything after. Each has a recommendation. A
-decision is recorded here, with its date, and in `RELEASE.md` where it changes
-the process.
+Each is reflected in `RELEASE.md` where it changes the process.
 
-- [ ] **A1 — Version tag.** D1 (2026-09-25) fixed the namespace as
-  `release-vN.M.Z`. **Recommended:** tag `release-v0.1.0` and use "Release 0.01"
-  as the milestone name. If 0.01 means SemVer `0.0.1`, tag `release-v0.0.1` and
-  record the revision. Don't treat the two as the same.
-- [ ] **A2 — A release includes its images.** **Recommended:** a release is the
-  certified commit set **plus** the images built from exactly those commits,
-  each pinned by digest in the release manifest. This revises `RELEASE.md`
-  ("not a build artifact").
-- [ ] **A3 — Image registry and visibility.** **Recommended:** public GitHub
-  Container Registry, `ghcr.io/jateeter/re-<component>`. The repos are already
-  public, and public images need no login on the Mac.
-- [ ] **A4 — Architectures.** **Recommended:** `linux/arm64` (Apple Silicon) is
-  required and certified. `linux/amd64` is built, since the hosted lane runs on
-  amd64 and macOS 26 still supports some Intel Macs, but it is certified only by
-  the hosted lane.
-- [ ] **A5 — Container runtime on macOS.** **Recommended:** Docker Desktop is
-  supported, with a minimum version set by E3. OrbStack, Colima and Apple's
-  `container` are best-effort and not certified.
-- [ ] **A6 — Ollama.** **Recommended:** native on the host (`brew install
-  ollama`), reached from containers via `host.docker.internal:11434`, as
-  localAIStack does today. Ollama in a container on a Mac gets no Metal GPU. The
-  installer checks it and pulls `llama3.1:8b`, the model the local lane pins.
-- [ ] **A7 — Engine topology.** **Recommended:** the image release runs the
-  fixed trio `cpp:1,lsp:1,scala:1`, the same set the Docker path runs today.
-  Six instances (`cpp:2,lsp:2,scala:2`) stays a native-lane proof (D1) and is
-  not a promise the images make.
-- [ ] **A8 — Corpus.** **Recommended:** ship the regression corpus
-  (`config/regression-corpus.txt`) by default, and the full corpus (1,327
-  machines) as an opt-in. Both go in a corpus data image tagged with the corpus
-  fingerprint, so the engines and the OpenClaw agents load the same corpus.
-- [ ] **A9 — Legacy pair.** The Scala `reality-engine` plus TypeScript PE behind
-  `tls-proxy` is Manager's, not an engine instance (#363). **Recommended:**
-  leave it out of the release bundle; keep it in the development compose.
-- [ ] **A10 — HealthKit bridge.** It is an iOS app, not an image.
-  **Recommended:** ship it as a source build with step-by-step signing and
-  install instructions (TestFlight later). Prove it on a physical iPhone against
-  the containerized PE (D4), or record it as a limitation. Never use the
-  simulator (owner, 2026-10-06).
-- [ ] **A11 — Release boundary.**
-  - **#562** (difference-net training) and **#563** (drift record in a full
-    universe, file cap) are post-MVP. Drift can't be evaluated until Reality
-    Events and LLM Nodes have an isomorphic relationship, which is not part of
-    this release (owner, 2026-10-09).
-  - **#564** (gate order) must be resolved only if the release gate runs on a
-    reused stack.
-  - **#317** (deterministic MQTT stage) is out of scope, as long as the release
-    makes no MQTT-parity claim.
+- [x] **A1 — Version: SemVer `0.0.1`, tagged `release-v0.0.1`.** The milestone
+  name is "Release 0.01". The tag is inside D1's `release-vN.M.Z` namespace, so
+  `release-manifest.py` and `cut-release.sh` accept it unchanged; it cannot
+  collide with the local `v0.0.1-baseline` tag.
+- [x] **A2 — A release is the certified commit set plus the images built from
+  those commits, pinned by digest in the release manifest.** `RELEASE.md` is
+  revised accordingly.
+- [x] **A3 — Public GHCR, `ghcr.io/jateeter/re-<component>`.** Public images
+  need no login on the Mac. A new GHCR package is private until its visibility
+  is changed once in the package settings; that is an owner step the first
+  time each image is pushed (B5).
+- [x] **A4 — Apple Silicon only (M1 and later).** Images are `linux/arm64`; no
+  `amd64` image is released, and an Intel Mac is not supported.
+- [x] **A5 — Docker Desktop.** The minimum version is set by E3. Other runtimes
+  are not tested.
+- [x] **A6 — Ollama native, not in Docker,** so it uses the Apple GPU. Containers
+  reach it at `host.docker.internal:11434`. The installer checks for it and pulls
+  `llama3.1:8b`, the model the local lane pins.
+- [x] **A7 — Not a fixed trio: each start-up configures its own instance
+  deployment,** as `startUniverse.sh --engines=cpp:N,lsp:N,scala:N` does
+  natively. The engine services are generated from that spec (C1), each
+  instance with its own UUID (#296) and instance-registry entry (C2).
+- [x] **A8 — The shipped corpus is the regression corpus**
+  (`config/regression-corpus.txt`). After deployment, machines can be loaded
+  dynamically from `RealityEngine_Machines`, which is expected to grow and
+  change over time (C6).
+- [x] **A9 — Scala, LSP and C++ instances are all available in the release.**
+  The legacy TLS-proxied pair (Scala `reality-engine` plus the TypeScript PE) is
+  not an engine instance (#363) and stays in the development compose only.
+- [x] **A10 — The HealthKit bridge is a Swift app for the iPhone, released now as
+  an untested development deployment that needs Xcode to build and install.**
+  The iPhone leg is not a release requirement; the PIM mirror it feeds stays
+  release-blocking (decision D2 in `MVP_ROADMAP.md`).
+- [x] **A11 — #562, #563, #564 and #317 are feature enhancements prepared for
+  the next release.** None is part of `release-v0.0.1`. The release makes no
+  LLM-drift-evaluation or MQTT-parity claim.
 
 ## B. Images: build and publish
 
-- [ ] **B1 — One Dockerfile per image.** List every image with its source repo
-  and the owner of its Dockerfile, and remove the duplicates: CI `docker/scala`
-  vs `RealityEngine_Scala/Dockerfile`, CI `docker/scala-perception-engine` vs
-  Scala's `perception-engine/Dockerfile`, and CI `docker/visualizer-*` and
-  `docker/perception-engine-*` vs Manager's own.
+- [ ] **B1 — One Dockerfile per image, and the image catalog.** Commit
+  `release/images.json`: for every image, its name, source repo, build context,
+  Dockerfile and the commit it is built from. Remove the duplicates: CI
+  `docker/visualizer-*` and `docker/perception-engine-*` (Manager's own
+  Dockerfiles are the ones the compose uses), and `RealityEngine_Scala/Dockerfile`
+  and Scala's `perception-engine/Dockerfile` (CI's `docker/scala*` are the ones
+  the compose uses).
   - Image set: `re-cpp`, `re-lsp`, `re-scala`, `re-scala-pe`,
     `re-visualizer-backend`, `re-visualizer-frontend`, `re-localai-api`,
-    `re-mcp`, `re-openclaw-gateway`, `re-pim`, `re-css`, `re-init` (C2),
-    `re-corpus` (A8).
-  - **Done:** the image table is committed and each image builds from one
+    `re-mcp`, `re-openclaw-gateway`, `re-pim`, `re-css`, `re-init` and
+    `re-registry` (C2), and `re-corpus` (A8).
+  - **Done:** the catalog is committed, and each image builds from exactly one
     Dockerfile.
 - [ ] **B2 — Self-contained images.**
   - Bake configuration, nginx configuration and Grafana dashboards into the
     images.
+  - `re-corpus` carries the regression corpus, materialized by
+    `scripts/materialize-machine-corpus.sh` from `RealityEngine_Machines` and
+    `localAIStack/data/machines` at the release pins. Engines and the OpenClaw
+    agents load the same corpus from it.
   - Replace the bind mounts (`MACHINES_DIR`, `./config`, `nginx/`,
-    `../localAIStack/data/machines`) with the corpus data image and named
-    volumes.
+    `../localAIStack/data/machines`) with `re-corpus` and named volumes.
   - Generate certificates and secrets at first run (C3); never put them in a
     layer.
   - **Done:** every image starts with no host path mounted except named volumes
     and the generated certificate and secret volume.
 - [ ] **B3 — Pin and unify third-party images.**
-  - One version, pinned by digest, of each: Loki, Prometheus, Promtail,
-    Grafana, Qdrant, Redis, Open WebUI (not `:main`), nginx and the OpenClaw
-    browser.
+  - Converge every declaration on `config/shared-service-versions.json`. Today
+    there are 8 divergences: CI's Loki, Promtail, Grafana and Prometheus;
+    `Dockerfile.qdrant`; Open WebUI in localAIStack (`:main`) and
+    localOpenClawStack. Then pin each by digest in the release compose.
+  - Wire `scripts/check-shared-service-versions.py` into a workflow so a new
+    divergence or floating tag fails a PR.
   - Base images follow the owner's rules: PIM moves from `node:22` to Node 26.8.
     Check the Scala builder/runtime JDK pairing (Temurin 17 builder, Temurin 25
     runtime).
-  - **Done:** no floating tag in any release image or compose file. The
-    version-check script, or a new gate, fails a floating tag.
-- [ ] **B4 — Native multi-arch builds.** Build arm64 on `ubuntu-24.04-arm` and
-  amd64 on `ubuntu-24.04` (both available to these public repos), then join them
-  into one multi-arch manifest. Don't build under QEMU: the SBCL (LSP) and sbt
-  builds are the risk. Fix PIM's `ubuntu-latest` runner pin.
-  - **Done:** every image has arm64 and amd64 variants built natively, and the
-    arm64 build is green on a hosted run.
-- [ ] **B5 — Release image workflow.** Triggered by the release (F4), it builds
-  each image from the commit the release manifest pins and tags it
-  `release-vX.Y.Z` and with the commit SHA. It adds OCI labels (`source`,
-  `revision`, `version`), SBOM and provenance attestations, and writes every
-  image digest back into the release manifest. Pull-request builds don't push.
-  - **Done:** a dry run against a candidate manifest produces images whose
-    `revision` labels equal the manifest's pins.
+  - **Done:** the checker passes and runs on every PR; no floating tag in any
+    release image or compose file.
+- [ ] **B4 — Native arm64 builds** (A4). Build every image on `ubuntu-24.04-arm`,
+  available to these public repos. No QEMU emulation and no amd64 image. Fix
+  PIM's `ubuntu-latest` runner pin.
+  - **Done:** every image builds green on a hosted arm64 run.
+- [ ] **B5 — Release image workflow** (`release-images.yml`). From a candidate
+  manifest it checks out each repo at its pinned commit and builds every image
+  in the catalog. It pushes to `ghcr.io/jateeter/re-<component>` tagged with
+  the candidate tag (`release-v0.0.1-rcN`) and the commit SHA. It adds OCI
+  labels (`source`, `revision`, `version`), SBOM and provenance attestations,
+  and writes every digest to `images.json`. A `promote` mode retags certified
+  candidate digests as `release-v0.0.1` without rebuilding. Pull-request builds
+  don't push.
+  - **Done:** a candidate build produces images whose `revision` labels equal
+    the manifest's pins, and every package is public (A3).
 - [ ] **B6 — Image hygiene.** Each image runs as a non-root user, has a
   `HEALTHCHECK`, contains no secrets, and stays within a size budget recorded
   per image. Today localAI is 1.44 GB and the OpenClaw browser 4.4 GB.
@@ -219,105 +216,146 @@ the process.
 
 ## C. Install bundle for macOS
 
-- [ ] **C1 — One release compose file** (`release/compose.yml`). It references
-  images by digest only, with no `build:` and no sibling path. It merges the CI,
-  localAIStack, localOpenClawStack and PIM stacks into one project, with one
-  monitoring stack, one Open WebUI and one Qdrant. The host ports are those of
-  the expected live surfaces (root `CLAUDE.md`), and the file avoids the ports
-  macOS holds (5000/7000, AirPlay Receiver).
-  - **Done:** `docker compose -f release/compose.yml config` validates, and
-    `up` brings every service healthy with nothing but images and volumes.
+- [ ] **C1 — Release compose, with the engines generated from the instance
+  spec.**
+  - `release/compose.yml` holds the fixed services, by image digest only, with
+    no `build:` and no sibling path. It merges the CI, localAIStack,
+    localOpenClawStack and PIM stacks into one project, with one monitoring
+    stack, one Open WebUI and one Qdrant.
+  - The engine services are not hand-written. `re-init` generates them from the
+    operator's spec (`--engines=cpp:2,lsp:1,scala:1`, default
+    `cpp:1,lsp:1,scala:1`) as `compose.engines.yml`. It writes one RE and one PE
+    service per instance (`engine-cpp-1-re`, `engine-cpp-1-pe`, …) and the
+    matching Prometheus targets.
+  - **Ports:** published in bands per engine type and stride 10 per instance
+    (PE then RE): scala 6100/6101, 6110/6111, …; cpp 6300/6301, …; lsp
+    6600/6601, …. That allows up to 20 instances of a type without overlap, and
+    the bands avoid what macOS holds (5000/7000, AirPlay Receiver).
+  - **Done:** `docker compose config` validates for several specs, and `up`
+    brings every service healthy with nothing but images and volumes.
 - [ ] **C2 — Instance registry, MCP, config and UUIDs in containers.** Today
   `startUniverse.sh` serves the instance registry from a host shim, runs MCP as
   a host `node` process, generates `config/integrations.json`, and allocates
   instance UUIDs (`scripts/lib/instance_uuids.py`) into `~/.reality-engine/`.
-  Move all of it into `re-init` (a one-shot job) plus a small instance-registry
-  service.
-  - UUIDs persist in a named volume; the rules of #296 still hold: one UUID per
-    instance, never shared, kept across restarts.
-  - The instance registry's address is published the same way it is today, so
-    `registry_url()` and its helpers resolve it unchanged.
-  - **Done:** the instance registry lists `cpp-1`, `lsp-1` and `scala-1` with
-    their UUIDs and no host process; `instance_uuids.py check-registry` passes.
+  - Move all of it into `re-init`, a one-shot job, plus `re-registry`, a small
+    instance-registry service. `re-init` reuses `instance_uuids.py` and the
+    `registry_add` entry shape unchanged.
+  - UUIDs persist in a named volume, and #296's rules still hold: one UUID per
+    instance, never shared, kept across restarts. An instance removed from the
+    spec keeps its UUID for when it returns.
+  - The instance registry is served in two views of the same instances: host
+    addresses (`localhost:<port>`) at `/re-registry.json`, which
+    `registry_url()` and its helpers resolve, and container-network addresses
+    for the services inside the deployment.
+  - **Done:** for a multi-instance spec, the instance registry lists every
+    instance with its UUID and no host process; `instance_uuids.py
+    check-registry` passes.
 - [ ] **C3 — Installer CLI** (`realityengine install | up | down | status |
-  upgrade | uninstall`).
-  - **Checks first:** macOS ≥ 26, the architecture, the Docker runtime and its
-    version (A5), the memory and disk given to Docker, and free ports.
+  upgrade | uninstall | machines`).
+  - It is a small shell script that runs on the stock macOS `/bin/bash` (3.2),
+    because a clean Mac has nothing else; the logic runs in `re-init`.
+  - **Checks first:** macOS ≥ 26, Apple Silicon, Docker Desktop and its version
+    (A5), the memory and disk given to Docker, and free ports.
   - **First run:**
     - Generate the local CA and certificates (from
       `certs/generate-dev-certs.sh`) and offer to trust the CA in the Keychain.
     - Generate the secrets: the HealthKit ingest token, the OpenClaw gateway
       token and the Grafana admin login.
-    - Check Ollama and pull the model (A6).
-    - `docker compose pull`, `up`, wait for health, and print the URLs.
+    - Check native Ollama and pull the model (A6).
+    - Run `re-init` for the instance spec, then `docker compose pull`, `up`,
+      wait for health, and print the URLs.
   - It never writes into a source checkout. The incident behind the rule "never
     run workflow setup on the real checkout" is the reason.
   - **Done:** on a prepared Mac, `realityengine install` reaches a healthy suite
-    and `status` reports every component.
+    and `status` reports every component and instance.
 - [ ] **C4 — Persistence and lifecycle.**
   - Named volumes for instance UUIDs and clocks, the localAI state directory
     (`llm-drift.jsonl` and the removal record), Qdrant, Redis, the PIM/Solid
-    PODs, Grafana and Prometheus.
-  - `upgrade` moves to new digests and keeps the data; `upgrade --to <previous>`
+    PODs, Grafana, Prometheus and the machine catalog (C6).
+  - `up --engines=` changes the instance spec of an installed release.
+    `upgrade` moves to new digests and keeps the data; `upgrade --to <previous>`
     rolls back; `uninstall` keeps the data unless `--purge` is given.
-  - **Done:** upgrading from a candidate to the release, and rolling back, keep
-    the UUIDs and the POD contents.
+  - **Done:** changing the spec, upgrading from a candidate to the release, and
+    rolling back all keep the UUIDs and the POD contents.
 - [ ] **C5 — Install documentation.** `INSTALL.md`: prerequisites, install,
-  first run, URLs, troubleshooting (ports, Docker memory, Ollama, certificate
-  trust), upgrade, uninstall. `DOCKER_QUICKSTART.md` becomes the development
-  path and points to `INSTALL.md` for users.
+  first run, choosing instances, URLs, loading machines (C6), troubleshooting
+  (ports, Docker memory, Ollama, certificate trust), upgrade, uninstall, and the
+  HealthKit bridge as an Xcode development deployment (A10).
+  `DOCKER_QUICKSTART.md` becomes the development path and points to
+  `INSTALL.md` for users.
   - **Done:** reviewed, and followed word for word in E3.
+- [ ] **C6 — Dynamic machine loading from `RealityEngine_Machines`** (A8).
+  - `realityengine machines sync [--ref <git ref>]` downloads
+    `RealityEngine_Machines` at a ref (default `main`) from GitHub into the
+    catalog volume. It validates the machines against the schema before
+    accepting them. No git or checkout is needed on the Mac.
+  - Manager's Load Machines modal offers the whole catalog, every domain, from
+    that volume (`MACHINES_CATALOG_DIR`, Manager#257).
+  - `realityengine machines load <name…> | --domain <d> | --all` loads machines
+    into **every** running engine through the RE API, as
+    `RealityEngine_Machines/scripts/seed-machines.sh` does, then refreshes PE
+    sources (`scripts/pe-source-bootstrap.sh`). Loading the same set into every
+    instance keeps the engines in parity.
+  - The installed state records the catalog's ref and commit, and which
+    machines were loaded beyond the shipped corpus.
+  - **Done:** a machine merged to Machines `main` after the release is synced,
+    loaded into a running multi-instance install, and reported identically by
+    every engine.
 
 ## D. Product acceptance, run on the installed images
 
-- [ ] **D1 — Runtime and observability soak** (was R04).
-  - **Checks:** all six RE/PE health endpoints of the trio, unique stable
-    instance UUIDs, machine-load counts, and that the running image digests
-    match the manifest.
+- [ ] **D1 — Runtime and observability soak, multi-instance** (was R04).
+  - **Spec:** the default `cpp:1,lsp:1,scala:1` and a multi-instance spec,
+    `cpp:2,lsp:2,scala:2` (A7).
+  - **Checks:** every RE/PE health endpoint, unique stable instance UUIDs,
+    machine-load counts, and that the running image digests match the manifest.
   - **Soak:** at least ten minutes of stepping, stream heartbeats and metric
     scrapes with no stream loss, health starvation or orphaned container.
-  - **Observability:** Prometheus targets are up, engine logs reach Loki, and
-    the Grafana panels show live data (CI#557/#558); idle or disabled panels are
-    explained.
-  - The six-instance proof stays on the native lane (A7).
-  - **Done:** a soak log and an endpoint/UUID inventory tied to the image
-    digests.
+  - **Observability:** Prometheus targets are up for every instance, engine logs
+    reach Loki, and the Grafana panels show live data (CI#557/#558); idle or
+    disabled panels are explained.
+  - **Done:** a soak log and an endpoint/UUID inventory for both specs, tied to
+    the image digests.
 - [ ] **D2 — 2D/3D UI acceptance** (was R05). Engine switching across cpp, lsp
-  and scala in both views; arcs and arrowheads, state changes, popup placement,
-  no stale activity after a switch. Across themes and small viewports.
+  and scala instances in both views; arcs and arrowheads, state changes, popup
+  placement, no stale activity after a switch. Across themes and small
+  viewports.
   - **Criteria:** arc/arrowhead contrast ≥ 3:1 and labels ≥ 4.5:1.
   - **Manager#254's gaps:** the matched ring is 2.4:1 under Light, 32×32 nodes
     open no tooltip, and Firefox/WebKit are untested.
-  - The Load Machines modal offers the full corpus and every domain (Manager#257).
+  - The Load Machines modal offers the whole catalog and every domain (C6,
+    Manager#257).
   - **Done:** a matrix with screenshots; each gap fixed or recorded as a
     limitation.
 - [ ] **D3 — localAI reaches every engine** (was R06). localAI fans out to every
-  engine on the container network. `verify_localai_reach` passes: every engine
-  holds the same localAI machines and sensors, and `bridge_engines` equals the
-  instance registry.
+  engine instance on the container network. `verify_localai_reach` passes:
+  every engine holds the same localAI machines and sensors, and
+  `bridge_engines` equals the instance registry.
   - An in-scope 3-of-3 disagreement on identical deterministic input blocks
     the release.
   - LLM drift is collected (`/observations/drift`) but not evaluated (A11).
-  - **Done:** the check passes on the containerized lane.
-- [ ] **D4 — iPhone → containerized PE, and the PIM mirror** (was R07). The phone
-  must reach the published PE port and trust the generated CA.
-  - **Mirror cases:** an approved batch is written; a conflict leaves the POD
-    unchanged; no owner approval gives 403; changing the metric scope at run
-    time is honoured.
-  - Check that the shipping app actually wires in the mirror client before
-    claiming an automatic device-to-POD flow.
-  - **Done:** device build, install and ingest evidence plus green mirror
-    results at the release commits, or a recorded limitation (A10).
+  - **Done:** the check passes on the containerized lane for both D1 specs.
+- [ ] **D4 — PIM mirror in the deployment; the bridge as a development
+  deployment** (was R07).
+  - **Mirror cases, required (D2):** an approved batch is written; a conflict
+    leaves the POD unchanged; no owner approval gives 403; changing the metric
+    scope at run time is honoured. Run against the containerized PIM and Solid
+    server.
+  - **Bridge (A10):** document building and installing it from source with
+    Xcode against the installed PE, including the TLS/CA trust and the ingest
+    token. Not tested for this release; an iPhone run, if one happens, is
+    recorded as extra evidence.
+  - **Done:** green mirror results at the release commits, and the bridge's
+    development-deployment instructions in `INSTALL.md`.
 - [ ] **D5 — MQTT disposition** (was R08). Yuma has timed out on every nightly
-  and on the last local run. Re-probe it on its own: record a pass, or approve a
-  named external-broker limitation.
-  - No MQTT-parity claim unless #317 is done (A11).
+  and on the last local run. Re-probe it on its own: record a pass, or record
+  the named external-broker limitation. No MQTT-parity claim (A11).
   - **Done:** a Yuma result or limitation recorded at the release commits.
 - [ ] **D6 — Release asset checks** (was R09). All eight families at the release
   corpus fingerprint: corpus validation (ROBOT, SHACL, QUDT, nothing skipped),
   JSON Schema, oracles, cesgen bindings, OpenAPI and its mirrors, CES contract
-  shards, OWL baselines, and the OpenClaw agent index (`--require-current-digest`).
-  Plus full-corpus load evidence if A8 ships the full corpus.
+  shards, OWL baselines, and the OpenClaw agent index
+  (`--require-current-digest`).
   - Count corpus machines (1,327) and JSON artifacts (1,337) separately.
   - **In progress:** the weekly cycle of 2026-10-11 (run 38113606637) is current
     full-corpus evidence: static sweep, load parity and agent corpus. It is not
@@ -333,19 +371,21 @@ the process.
 
 - [ ] **E1 — `local-containerized` lane on published images** (CI#165).
   `scripts/regression-test.sh --profile local-containerized`. It installs the
-  candidate's **published** images through C3, not local builds, then runs the
-  local lane's stages. Same corpus and instance registry contract as the
-  native lane.
+  candidate's **published** images through C3, not local builds, for the given
+  `--engines=` spec, then runs the local lane's stages. Same corpus and instance
+  registry contract as the native lane.
   - **Done:** a green run that recorded the image digests it ran.
 - [ ] **E2 — Native vs containerized comparison.** Run the native local lane
-  and E1 at the same commits on the same Mac and compare the parity stages.
+  and E1 at the same commits and spec on the same Mac and compare the parity
+  stages.
   - A disagreement that is still there after a re-run blocks the release; this
     comparison is the evidence that the images are the product.
   - **Done:** a comparison report with no unexplained difference.
-- [ ] **E3 — Clean-Mac install test.** A macOS 26 Mac (Apple Silicon) with no
-  checkouts, toolchains or cached images, and only the A5/A6 prerequisites.
-  Follow `INSTALL.md` word for word, run the smoke tests and D7, then upgrade,
-  roll back and uninstall.
+- [ ] **E3 — Clean-Mac install test.** A Mac with Apple Silicon on macOS 26 with
+  no checkouts, toolchains or cached images, and only Docker Desktop and native
+  Ollama installed. Follow `INSTALL.md` word for word, run the smoke tests and
+  D7, sync and load a machine (C6), then change the spec, upgrade, roll back
+  and uninstall.
   - Use a second Mac or a clean user account with the Docker data reset;
     Docker inside a macOS VM is not reliable on Apple Silicon.
   - **Done:** a timed transcript, with the Docker Desktop minimum version
@@ -354,18 +394,27 @@ the process.
   cutter refuses when:
   - an image digest is missing, or an image's `revision` differs from its pin;
   - the E1 lane is missing or not green;
-  - the `pim-mirror` stage is skipped or failed (decision D2 in `MVP_ROADMAP.md`, 2026-09-25);
-  - a required stage is missing, or the run is provisional.
+  - the `pim-mirror` stage is skipped or failed (decision D2 in
+    `MVP_ROADMAP.md`, 2026-09-25);
+  - a required stage is missing, or the run is provisional. Stage status comes
+    from the structured stage results, never from `stage-results.tsv`, which
+    records a skipped stage's wrapper exit as success;
+  - the parity stages in the run summary are missing from the manifest's stage
+    map.
   - Tag text is generated from the manifest; today `cut-release.sh` always
     writes "hosted profile".
+  - Tag collisions are checked on every remote, not only locally, and image-tag
+    collisions in GHCR.
   - Failed tag or image pushes are aggregated into a nonzero result.
   - **Done:** positive and refusal tests for each case.
 - [ ] **E5 — Release documentation aligned** (was R02). `RELEASE.md` covers the
-  ten-repo inventory (it lists eight), the image model (A2), the two
+  ten-repo inventory, the image model (A2), the platform (A4–A6), the two
   certifying lanes, and the command order. `docs/README.md` indexes this file
   and `INSTALL.md`.
-  - **Done:** one reviewed docs PR, with no contradiction between `RELEASE.md`,
-    this file and `MVP_ROADMAP.md`.
+  - **In progress:** `RELEASE.md` revised for A1–A11 on 2026-10-17; steps whose
+    tooling is not yet built are marked *pending* with their task.
+  - **Done:** no step marked pending, and no contradiction between
+    `RELEASE.md`, this file and `MVP_ROADMAP.md`.
 
 ## F. Freeze, cut and publish
 
@@ -373,40 +422,45 @@ the process.
   merged; every repo is clean and current with `origin/main`. Then run, at the
   same commits:
   - the native local lane:
-    `RE_FREE_PORTS=true bash scripts/regression-test.sh --execute --profile local --run-id <final>`
-    (with the iPhone connected if D4 requires its pass);
+    `RE_FREE_PORTS=true bash scripts/regression-test.sh --execute --profile local --run-id <final>`;
   - E1 on the candidate images built from those commits.
   - **Done:** both runs are non-provisional, with no required skip or failure,
     clean provenance, and a recorded decision for every optional omission.
     Any runtime change after this needs recertification.
 - [ ] **F2 — Versioned manifest** (was R12). Run
-  `scripts/release-manifest.py generate --run-dir .regression-tests/runs/<final> --version <A1 tag> --out releases/<A1 tag>.json`,
-  extended to record every image digest.
+  `scripts/release-manifest.py generate --run-dir .regression-tests/runs/<final> --images <candidate images.json> --version release-v0.0.1 --out releases/release-v0.0.1.json`.
+  `--images` records every image digest and is added for this task.
   - Never hand-edit a pin, and never pass `--allow-unverified`.
+  - Keep the certifying runs' evidence somewhere run-history pruning can't reach;
+    that is how `main-1007` was lost.
   - `releases/v0.1.0-rc1.json` (8 repos, 2026-08-09) is historical and is
     superseded.
   - **Done:** ten full SHAs and every image digest, with no provisional marker.
 - [ ] **F3 — Cut rehearsal** (was R13). `release-manifest.py verify` and the
-  cutter without `--execute`. Check for tag collisions locally and on all ten
-  remotes, and for image-tag collisions in the image registry.
+  cutter without `--execute`, with E4's collision checks.
   - Generate the manifest without moving CI's HEAD; the record is committed
     after the cut through a docs PR.
-  - **Done:** no drift, no conflicting tag, and the dry run names the certified
-    set.
+  - **Done:** no drift, no conflicting tag or image, and the dry run names the
+    certified set.
 - [ ] **F4 — Publish tags and images** (was R14). Create the tags with
   `--execute` and review them; push with `--execute --push`; promote the
-  candidate images to the release tag by digest, without rebuilding.
+  candidate images to `release-v0.0.1` by digest, without rebuilding. Attach the
+  installer to the GitHub release.
   - **Done:** every remote tag resolves to its manifest SHA and every release
     image to its manifest digest. A partial publication is not a release.
-- [ ] **F5 — Release notes and released-set smoke** (was R15). Publish:
-  - install instructions (`INSTALL.md`);
-  - the manifest and the certifying run IDs;
-  - the evidence for D1–D7 and E1–E3;
-  - the known limitations below.
+- [ ] **F5 — Release notes, full release documentation, and released-set
+  smoke** (was R15).
+  - Publish the release notes: the manifest and the certifying run IDs, the
+    evidence for D1–D7 and E1–E3, and the known limitations below.
+  - Complete the release documentation set: `INSTALL.md` (C5), `RELEASE.md`
+    (E5), an operator guide (instances, machine loading, monitoring, data and
+    backup, upgrade and rollback), the HealthKit bridge development-deployment
+    guide (A10), the architecture and service map of the deployment, and the
+    API references (`docs/openapi/`).
   - Smoke-test the released set by repeating E3 from the published release.
-    Document how to recover the previous release (C4 rollback).
-  - **Done:** all ten tags and every image verified, the notes published, and
-    G1–G4 in `MVP_ROADMAP.md` marked accepted with references.
+  - **Done:** all ten tags and every image verified, the notes and
+    documentation published, and G1–G4 in `MVP_ROADMAP.md` marked accepted with
+    references.
 
 ---
 
@@ -414,41 +468,48 @@ the process.
 
 | Phase | Tasks | Exit |
 |---|---|---|
-| 0. Decide | A1–A11 | every decision recorded here |
-| 1. Build and package | B1–B6, C1–C2, then C3–C5 | the bundle installs from images on the developer Mac |
-| 2. Certify the containers | E1, E2, E4, E5 (D6 can run any time) | `local-containerized` green; native and containerized agree |
-| 3. Accept | D1–D7, E3 | acceptance evidence or a recorded limitation for each |
-| 4. Release | F1 → F2 → F3 → F4 → F5 | tags and images published and verified |
+| A. Decide | A1–A11 | **done 2026-10-17** |
+| B. Images | B1–B6 | every image builds natively on arm64 and is pushed as a candidate |
+| C. Install bundle | C1–C2, then C3–C6 | the bundle installs from images on the developer Mac, for any instance spec |
+| D. Accept | D1–D7 | acceptance evidence or a recorded limitation for each |
+| E. Certify | E1–E5 | `local-containerized` green; native and containerized agree; clean-Mac install passes |
+| F. Release | F1 → F2 → F3 → F4 → F5 | tags and images published and verified; full documentation published |
 
 **Biggest risks**, each unproven today, so start with them:
 1. **C2:** the deployment has never run without the host-side instance
    registry shim, MCP process and config generation.
-2. **B4:** the LSP (SBCL) and Scala builds on hosted arm64 runners.
-3. **D4:** an iPhone reaching TLS endpoints inside containers and trusting a
-   locally generated CA.
+2. **C1:** engine services generated per instance have never run; the Docker
+   path has only ever run the fixed trio.
+3. **B4:** the LSP (SBCL) and Scala builds on hosted arm64 runners.
 4. **E3:** the first install on a Mac that has never seen a checkout.
 
 ## Known limitations for the release notes
 
+- Apple Silicon Macs on macOS 26 or later only; no Intel or Linux images (A4).
+- Docker Desktop is the only tested container runtime (A5).
+- Ollama runs natively on the host and must be installed first (A6).
+- The HealthKit bridge is an untested development deployment, built and
+  installed with Xcode (A10).
 - Hosted checks don't cover Ollama, OpenClaw, the PIM mirror or the iPhone.
-  Certification comes from the local and containerized lanes (decision D3 in `MVP_ROADMAP.md`).
-- MQTT Yuma availability is external (D5).
-- The image release runs one instance per engine type (A7). Multi-instance is
-  native-only.
-- Ollama runs on the host (A6).
+  Certification comes from the local and containerized lanes.
+- MQTT Yuma availability is external (D5); no MQTT-parity claim (A11).
 - LLM drift is recorded but not evaluated (A11).
-- The HealthKit bridge is a separate iPhone app (A10).
 
-## Post-MVP (excluded unless an A-decision brings it in)
+## Next release (A11) and backlog
+
+**Prepared for the next release** (feature enhancements, owner 2026-10-17):
 
 - CI#562: difference-net training, after the Reality Event ↔ LLM Node
   isomorphism.
 - CI#563: drift record in a full universe; cap the drift file.
+- CI#564: gate order: `dynamic_validation_test` and MCP calls from later suites.
+- CI#317: the deterministic MQTT parity stage.
+
+**Backlog, not scheduled:**
+
 - CI#526: unnamed-provider review and trust ranking.
 - CI#287: engine snapshots, phase 2.
 - CI#256: the two-stage fold.
-- CI#317: the broader deterministic MQTT stage.
-- Six instances in containers.
 - PIM #68/#69 (UX).
 - localHealthkitBridge#40 (silence watchdog).
 - localAIStack#113 (Lang* docs).
@@ -458,9 +519,9 @@ the process.
 | Draft task (PR #560) | Here |
 |---|---|
 | R01 version and scope | A1, A7, A10, A11 |
-| R02 release docs | E5, C5 |
+| R02 release docs | E5, C5, F5 |
 | R03 enforced eligibility | E4 |
-| R04 six-instance soak | D1 (trio on images); six instances stay native |
+| R04 six-instance soak | D1 (on images, default and multi-instance specs) |
 | R05 2D/3D acceptance | D2 |
 | R06 CI#518 disposition | D3; #518 closed 2026-10-09, follow-ups in A11 |
 | R07 iPhone and PIM | D4, A10 |
