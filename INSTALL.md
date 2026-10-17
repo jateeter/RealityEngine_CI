@@ -97,6 +97,7 @@ has a 3 GB heap and the PE a 2 GB heap.
 | PIM | http://localhost:8090 |
 | Grafana | http://localhost:3002 (user `admin`) |
 | Prometheus | http://localhost:9090 |
+| Qdrant | http://localhost:4333 |
 | MCP | http://localhost:7331 |
 
 The generated passwords (Open WebUI admin, Grafana admin, the Solid account) and
@@ -201,7 +202,7 @@ PIM → Solid pod) is tested from the Mac.
 holds. Stop that program, or move a port by setting it before `install` or
 `up`, for example `RE_PORT_WEBUI=18080 ./realityengine up`. The names are
 `MANAGER_UI`, `MANAGER_API`, `LOCALAI`, `OPENCLAW`, `WEBUI`, `PIM`, `CSS`,
-`MCP`, `REGISTRY`, `GRAFANA` and `PROMETHEUS`. macOS's AirPlay Receiver holds
+`MCP`, `REGISTRY`, `GRAFANA`, `PROMETHEUS` and `QDRANT`. macOS's AirPlay Receiver holds
 5000 and 7000, which the release does not use.
 
 **Something stays "not ready".** Check `./realityengine status` and

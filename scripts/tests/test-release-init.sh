@@ -59,6 +59,14 @@ assert_eq "$(json "$INSTALL/registry/re-registry.json" "d['instances'][2]['pe_ur
 assert_eq "$(json "$INSTALL/registry/re-registry.internal.json" "d['instances'][2]['pe_url']")" "http://engine-cpp-2-pe:3004" "internal view: container addresses"
 assert_eq "$(json "$INSTALL/registry/re-registry.json" "d['host']")" "192.0.2.10" "the registry's host is the Mac's LAN address"
 
+echo "the services block is the native instance registry's contract"
+assert_eq "$(json "$INSTALL/registry/re-registry.json" "sorted(d['services'])")" \
+  "['localai_api', 'manager_backend', 'manager_frontend', 'mcp', 'openclaw_gateway', 'qdrant', 'registry']" "host view service names"
+assert_eq "$(json "$INSTALL/registry/re-registry.json" "d['services']['localai_api']")" \
+  "{'url': 'http://localhost:4000', 'port': 4000}" "each service is {url, port}"
+assert_eq "$(json "$INSTALL/registry/re-registry.internal.json" "d['services']['localai_api']['url']")" \
+  "http://localai-api:8000" "internal view: container address"
+
 echo "instance UUIDs (#296)"
 U1="$(json "$INSTALL/registry/re-registry.json" "[i['instance_uuid'] for i in d['instances']]")"
 assert_eq "$(json "$INSTALL/registry/re-registry.json" "len(set(i['instance_uuid'] for i in d['instances']))")" 4 "four instances, four UUIDs"
@@ -87,7 +95,8 @@ try:
 except ImportError:
     sys.exit(0)
 d = yaml.safe_load(open(sys.argv[1]))
-assert len(d["services"]) == 8, d["services"].keys()
+assert len(d["services"]) == 9, d["services"].keys()
+assert set(d["services"]["localai-api"]["depends_on"]) == {s for s in d["services"] if s.endswith("-pe")}
 PY
 
 echo "Prometheus targets follow the spec"
@@ -100,7 +109,8 @@ ENV="$(cat "$INSTALL/.env")"
 assert_contains "$ENV" "COMPOSE_FILE=compose.yml:compose.engines.yml" "COMPOSE_FILE joins both files"
 assert_contains "$ENV" "RE_IMAGE_CPP=ghcr.io/jateeter/re-cpp:dev" "without an images file, images are by tag"
 assert_contains "$ENV" "HEALTHKIT_PE_SCOPE_URLS=http://engine-scala-1-pe:3004,http://engine-cpp-1-pe:3004" "PIM reaches every PE"
-assert_eq "$(stat -f %Lp "$INSTALL/.env" 2>/dev/null || stat -c %a "$INSTALL/.env")" 600 ".env is 0600"
+# GNU stat first: on Linux, BSD `stat -f` is a filesystem query that succeeds.
+assert_eq "$(stat -c %a "$INSTALL/.env" 2>/dev/null || stat -f %Lp "$INSTALL/.env")" 600 ".env is 0600"
 S1="$(json "$INSTALL/state/secrets.json" "d['OPENCLAW_GATEWAY_TOKEN']")"
 reinit configure --install "$INSTALL" --engines cpp:1 --version dev --skip-openclaw
 assert_eq "$(json "$INSTALL/state/secrets.json" "d['OPENCLAW_GATEWAY_TOKEN']")" "$S1" "secrets are generated once and kept"

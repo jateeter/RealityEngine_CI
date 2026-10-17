@@ -158,7 +158,7 @@ check_ports() {
   for p in "${RE_PORT_MANAGER_UI:-5173}" "${RE_PORT_MANAGER_API:-3001}" "${RE_PORT_LOCALAI:-4000}" \
            "${RE_PORT_OPENCLAW:-18789}" "${RE_PORT_WEBUI:-8080}" "${RE_PORT_PIM:-8090}" \
            "${RE_PORT_CSS:-13000}" "${RE_PORT_MCP:-7331}" "${RE_PORT_REGISTRY:-5999}" \
-           "${RE_PORT_GRAFANA:-3002}" "${RE_PORT_PROMETHEUS:-9090}"; do
+           "${RE_PORT_GRAFANA:-3002}" "${RE_PORT_PROMETHEUS:-9090}" "${RE_PORT_QDRANT:-4333}"; do
     if port_in_use "$p" && ! compose ps --format '{{.Ports}}' 2>/dev/null | grep -q ":$p->"; then
       busy="$busy $p"
     fi
@@ -195,7 +195,9 @@ configure() {
     cp "$IMAGES" "$DIR/images.json"
   fi
   say "Configuring $ENGINES ($VERSION) in $DIR"
-  set -- docker run --rm -v "$DIR:/install" -e "HOST_IP=$(host_ip)"
+  # As root: configure writes the install directory and sets ownership the
+  # gateway and the engines need. The image itself runs unprivileged.
+  set -- docker run --rm --user 0:0 -v "$DIR:/install" -e "HOST_IP=$(host_ip)"
   for v in $(env | sed -n 's/^\(RE_PORT_[A-Z_]*\)=.*/\1/p'); do set -- "$@" -e "$v"; done
   set -- "$@" "$img" configure --install /install --engines "$ENGINES" --version "$VERSION" --registry "$REGISTRY"
   [ -f "$DIR/images.json" ] && set -- "$@" --images /install/images.json
@@ -222,7 +224,7 @@ start() {
 machines_run() {
   # shellcheck disable=SC1091
   . "$DIR/.env"
-  docker run --rm --network "$COMPOSE_PROJECT_NAME" -v "$DIR:/install" \
+  docker run --rm --user 0:0 --network "$COMPOSE_PROJECT_NAME" -v "$DIR:/install" \
     -v "${COMPOSE_PROJECT_NAME}_corpus-catalog:/volumes/catalog" "$RE_IMAGE_INIT" "$@"
 }
 

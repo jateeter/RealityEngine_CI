@@ -78,7 +78,7 @@ LANE = "release"
 HOST_PORTS = {
     "MANAGER_UI": 5173, "MANAGER_API": 3001, "LOCALAI": 4000, "OPENCLAW": 18789,
     "WEBUI": 8080, "PIM": 8090, "CSS": 13000, "MCP": 7331, "REGISTRY": 5999,
-    "GRAFANA": 3002, "PROMETHEUS": 9090,
+    "GRAFANA": 3002, "PROMETHEUS": 9090, "QDRANT": 4333,
 }
 
 SPEC_RE = re.compile(r"^(scala|cpp|lsp):([0-9]+)$")
@@ -248,6 +248,11 @@ def engine_services(insts: list[dict]) -> dict:
                            "JAVA_TOOL_OPTIONS": "${ENGINE_SCALA_PE_JAVA_OPTS:--Xmx2g}"})
         services[re_svc] = re_svc_def
         services[pe_svc] = pe_svc_def
+    # localAI registers its machines and sensors with every engine when it
+    # starts, and does not retry a PE that was not up yet: on a fresh `up` it
+    # could start first and leave the PEs without its RAG sensors. It waits for
+    # every PE of the spec (compose merges this with its own depends_on).
+    services["localai-api"] = {"depends_on": {i["pe_service"]: {"condition": "service_healthy"} for i in insts}}
     return services
 
 
@@ -297,20 +302,37 @@ def registries(insts: list[dict], ip: str, ports: dict[str, int]) -> tuple[dict,
                 "re_port": re_port, "pe_port": pe_port, "pid_re": None, "pid_pe": None,
                 "instance_uuid": inst["instance_uuid"], "started_at": started, "status": "running"}
 
+    # The `services` block is the native instance registry's contract
+    # (scripts/registry.sh registry_set_service; startUniverse.sh publishes
+    # these names), {name: {url, port}}, so every live spec that resolves a
+    # support service from the instance registry finds it here too.
+    def svc(url: str) -> dict:
+        try:
+            port = int(url.rsplit(":", 1)[-1].split("/")[0])
+        except ValueError:
+            port = 0
+        return {"url": url, "port": port}
+
     host = {"host": ip, "lane": LANE, "instances": [
         entry(i, f"http://localhost:{i['re_port']}", f"http://localhost:{i['pe_port']}", i["re_port"], i["pe_port"])
         for i in insts], "services": {
-        "manager": f"https://localhost:{ports['MANAGER_UI']}",
-        "manager-api": f"https://localhost:{ports['MANAGER_API']}",
-        "registry": f"http://localhost:{ports['REGISTRY']}",
-        "mcp": f"http://localhost:{ports['MCP']}",
-        "localai": f"http://localhost:{ports['LOCALAI']}",
+        "manager_backend": svc(f"https://localhost:{ports['MANAGER_API']}"),
+        "manager_frontend": svc(f"https://localhost:{ports['MANAGER_UI']}"),
+        "localai_api": svc(f"http://localhost:{ports['LOCALAI']}"),
+        "qdrant": svc(f"http://localhost:{ports['QDRANT']}"),
+        "openclaw_gateway": svc(f"http://localhost:{ports['OPENCLAW']}"),
+        "mcp": svc(f"http://localhost:{ports['MCP']}"),
+        "registry": svc(f"http://localhost:{ports['REGISTRY']}"),
     }}
     internal = {"host": ip, "lane": LANE, "instances": [
         entry(i, f"http://{i['re_service']}:{RE_PORT}", f"http://{i['pe_service']}:{PE_PORT}", RE_PORT, PE_PORT)
         for i in insts], "services": {
-        "manager-api": "https://visualizer-backend:3001", "registry": "http://registry:8000",
-        "mcp": "http://mcp:7331", "localai": "http://localai-api:8000",
+        "manager_backend": svc("https://visualizer-backend:3001"),
+        "localai_api": svc("http://localai-api:8000"),
+        "qdrant": svc("http://qdrant:6333"),
+        "openclaw_gateway": svc("http://openclaw-gateway:18789"),
+        "mcp": svc("http://mcp:7331"),
+        "registry": svc("http://registry:8000"),
     }}
     return host, internal
 

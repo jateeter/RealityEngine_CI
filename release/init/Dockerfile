@@ -37,9 +37,12 @@ COPY --from=ocs machine-behaviors/ /opt/ocs/machine-behaviors/
 COPY release/init/reinit.py /usr/local/bin/reinit
 RUN chmod 755 /usr/local/bin/reinit /opt/release/realityengine
 
-# Runs as root: it writes the install directory and sets ownership of what the
-# gateway (node, 1000) and the engines' clock volume must own.
-# hadolint ignore=DL3002
-USER 0
+# Unprivileged by default: that is how the instance-registry service runs it.
+# The one-shot jobs (configure, prepare-volumes, machines-*) write the install
+# directory and set ownership the gateway (node, 1000) and the engines' clock
+# volume need, so the release compose and the installer run those as root,
+# explicitly, per job.
+RUN groupadd -r -g 1001 reinit && useradd -r -u 1001 -g reinit reinit
+USER 1001
 ENTRYPOINT ["/usr/local/bin/reinit"]
 CMD ["--help"]

@@ -47,7 +47,8 @@ RUN printf '%s\n' \
   'echo "corpus: $(cat /corpus/boot/machine-count.txt) boot machine(s)"' \
   > /usr/local/bin/seed-corpus && chmod 755 /usr/local/bin/seed-corpus
 
-# Data only; the seed step needs to write the volumes as whoever owns them.
-# hadolint ignore=DL3002
-USER 0
+# Data only, unprivileged by default. The seed step writes the volumes, so the
+# release compose runs it as root, explicitly.
+RUN addgroup -S -g 1001 corpus && adduser -S -u 1001 -G corpus corpus
+USER 1001
 CMD ["/usr/local/bin/seed-corpus"]
