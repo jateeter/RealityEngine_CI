@@ -21,12 +21,12 @@ Examples
     # Pin from a local regression run
     scripts/release-manifest.py generate \\
         --run-dir .regression-tests/runs/gha-31297685782-1 \\
-        --version release-v0.1.0 --out release-manifest.json
+        --version release-v0.0.1 --out release-manifest.json
 
     # Pin from a downloaded CI artifact
     scripts/release-manifest.py generate \\
         --manifest ./artifacts/gha-123-1/manifest.json \\
-        --version release-v0.1.0 --out release-manifest.json
+        --version release-v0.0.1 --out release-manifest.json
 
     # Confirm a workspace matches
     scripts/release-manifest.py verify --manifest release-manifest.json
