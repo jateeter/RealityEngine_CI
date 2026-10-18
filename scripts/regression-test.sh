@@ -1274,8 +1274,15 @@ start_universe() {
   )
   [ "$LOCAL_AI" = true ] || args+=("--no-local-ai")
   [ -n "$MACHINE_CORPUS_MANIFEST" ] && args+=("--machine-corpus-manifest=$MACHINE_CORPUS_MANIFEST")
-  [ -n "$MQTT_BROKER_URL" ] && args+=("--mqtt-broker-url=$MQTT_BROKER_URL")
-  [ -n "$MQTT_MAPPINGS" ] && args+=("--mqtt-mappings=$MQTT_MAPPINGS")
+  # The universe boots with NO MQTT broker, whatever the run's broker is. The
+  # MQTT stage connects its own bridge (test-mqtt-yuma.sh POSTs /api/mqtt/enable
+  # with the broker and mappings) and mutes it again (#307), so no stage needs a
+  # broker at boot. Booting with one let a live broker's retained messages reach
+  # the engines in the window before `mqtt_bridges mute`: on 2026-10-18, the
+  # first night Yuma answered since early October, Scala ingested them before
+  # the mute and C++ and LSP did not, which failed boot-source-declaration,
+  # export-parity and trajectory-parity. A run whose broker did not answer
+  # already booted this way, and those nights are the green ones.
   run_cmd "$label" bash -lc "cd '$ci' && ./startUniverse.sh ${args[*]}"
 }
 

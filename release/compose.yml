@@ -109,7 +109,10 @@ services:
       QDRANT_PORT: "6333"
       REDIS_URL: redis://redis:6379
       LLM_MODEL: ${LLM_MODEL:-llama3.1:8b}
-      EMBED_MODEL: ${EMBED_MODEL:-ternary-bonsai:4}
+      # localAIStack's model registry default (config/models.registry.json). Its
+      # config.py fallback, ternary-bonsai:4, is not an embedding model: Ollama
+      # answers 501 and every retrieval fails.
+      EMBED_MODEL: ${EMBED_MODEL:-nomic-embed-text}
       EMBED_DIM: ${EMBED_DIM:-768}
       COLLECTION_NAME: localai_docs
       LOG_LEVEL: info
