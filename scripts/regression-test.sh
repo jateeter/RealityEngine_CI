@@ -2229,9 +2229,10 @@ if [ "$LIVE_TESTS" = true ]; then
   # start_universe stays fatal: with no universe the later stages have nothing
   # to measure, and their failures would say nothing about the runtimes.
   start_universe
-  # From here every stage is a measurement and gets exclusivity: the bridges,
-  # live against the Yuma broker since boot, are muted, and run_mqtt_yuma
-  # restores its own bridge and re-mutes when it is done (#307).
+  # From here every stage is a measurement and gets exclusivity. The universe
+  # booted with no broker (start_universe), so no bridge is live; the mute is
+  # kept as a guarantee. run_mqtt_yuma, measured last, enables its own bridge
+  # and re-mutes when it is done (#307).
   mqtt_bridges mute
   run_stage "service-inventory" run_service_inventory
   # First of the measurements: every later stage may reset, and a reset repairs
@@ -2251,7 +2252,6 @@ if [ "$LIVE_TESTS" = true ]; then
   run_stage "trajectory-parity" run_trajectory_parity
   run_stage "arbiter-sweep"     run_arbiter_rule_sweep
   run_stage "universal-vectors" run_universal_vectors
-  run_stage "mqtt-yuma"         run_mqtt_yuma
   run_stage "mcp"               run_mcp
   run_stage "arbiter"           run_arbiter
   # Beside the arbiter, on the same fixture: retention keyed by step, the legacy
@@ -2280,6 +2280,15 @@ if [ "$LIVE_TESTS" = true ]; then
   run_stage "localai-machines"  run_localai_machines
   run_stage "local-ai"          run_local_ai
   run_stage "openclaw"          run_openclaw
+  # After every stage that measures the universe. A live MQTT session leaves
+  # sources behind that muting does not remove, and the runtimes do not leave
+  # the same ones: Scala declares a source per mapping when the bridge is
+  # enabled, C++ and LSP on a mapping's first message. Run mid-sequence, that
+  # residue reached reset-contract (2026-10-18, the first night Yuma answered
+  # since early October). MQTT parity itself is the deterministic stage of #317,
+  # deferred to the next release (ReleaseRoadmap A11); this stage is the live
+  # Yuma ingest check, and is measured last so it measures only itself.
+  run_stage "mqtt-yuma"         run_mqtt_yuma
   # Independent of the universe: its own CSS and PIM, torn down on exit.
   run_stage "pim-mirror"        run_pim_mirror
   # Last: it drives a simulator and is the slowest stage, so a failure here

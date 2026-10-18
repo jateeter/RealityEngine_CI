@@ -224,7 +224,10 @@ def engine_services(insts: list[dict]) -> dict:
             "volumes": ["corpus-boot:/app/corpus:ro", "localai-machines:/app/localai-machines:ro",
                         "./config/integrations.json:/app/config/integrations.json:ro"],
             "ports": [f"{inst['pe_port']}:{PE_PORT}"],
-            "depends_on": {re_svc: {"condition": "service_healthy"}},
+            # restart: a PE must restart when its RE is recreated (an image
+            # upgrade): it holds sources derived from the RE's machines, and a
+            # PE that outlived its RE kept them for ids the new RE no longer has.
+            "depends_on": {re_svc: {"condition": "service_healthy", "restart": True}},
             "healthcheck": {"test": ["CMD", "wget", "-qO-", f"http://127.0.0.1:{PE_PORT}/api/health"],
                             "interval": "10s", "timeout": "5s", "retries": 18, "start_period": "30s"},
         }
@@ -252,7 +255,10 @@ def engine_services(insts: list[dict]) -> dict:
     # starts, and does not retry a PE that was not up yet: on a fresh `up` it
     # could start first and leave the PEs without its RAG sensors. It waits for
     # every PE of the spec (compose merges this with its own depends_on).
-    services["localai-api"] = {"depends_on": {i["pe_service"]: {"condition": "service_healthy"} for i in insts}}
+    # restart: likewise localAI restarts whenever a PE is recreated, so it
+    # registers again with the new one; otherwise the new PE lacked its sensors.
+    services["localai-api"] = {"depends_on": {i["pe_service"]: {"condition": "service_healthy", "restart": True}
+                                              for i in insts}}
     return services
 
 
