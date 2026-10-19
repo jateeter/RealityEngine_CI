@@ -86,7 +86,7 @@ needing no source checkout, compiler or build toolchain on the Mac:
 | **B2** | Self-contained images | CI + repos | B1 | open | |
 | **B3** | Pin and unify third-party images | CI + repos | — | in progress | OCS#58, localAIStack#129, PIM#84 |
 | **B4** | Native arm64 builds | CI | A4, B1 | in progress | |
-| **B5** | Release image workflow | CI | A3, B4 | in progress | |
+| **B5** | Release image workflow | CI | A3, B4 | done: `release-v0.0.1-rc1` pushed, 13 images, all public | run 39300675853 |
 | **B6** | Image hygiene | all | B1 | open | |
 | **C1** | Release compose, engines generated from the instance spec | CI | B2, B3 | in progress: live on the developer Mac |  |
 | **C2** | Instance registry, MCP, config and UUIDs in containers | CI | B2 | in progress: live on the developer Mac |  |
@@ -101,7 +101,7 @@ needing no source checkout, compiler or build toolchain on the Mac:
 | **D5** | MQTT disposition | CI/MQTT | A11 | in progress: Yuma answering; stage passes | CI#578 |
 | **D6** | Release asset checks | Machines/OpenClaw/CI | A8 | in progress | |
 | **D7** | Deployment suite | CI | C3 | in progress: live suites green on the install | CPP#171, Scala#190, LSP#164, Machines#217 |
-| **E1** | `local-containerized` lane on published images | CI | B5, C3 | in progress: development form green, 20/20 (`e1-20261019f`); certifying form needs an `-rc` push | CI#165 |
+| **E1** | `local-containerized` lane on published images | CI | B5, C3 | in progress: development form green, 20/20 (`e1-20261019f`); certifying form unblocked by `release-v0.0.1-rc1` | CI#165 |
 | **E2** | Native vs containerized comparison | CI | E1 | done for the development form: 53/56 identical, 3 explained (`e1-20261019f`); repeat at F1 | |
 | **E3** | Clean-Mac install test | CI/operator | B5, C3, C4 | open | |
 | **E4** | Release eligibility enforced | CI tooling | A1, A2, B5 | open | |
@@ -236,7 +236,7 @@ Each is reflected in `RELEASE.md` where it changes the process.
     Manager's Dockerfiles should move from `npm install` to `npm ci` (B6).
     `release-images.yml` builds every image on `ubuntu-24.04-arm` for any PR
     that touches the image build.
-- [ ] **B5 — Release image workflow** (`release-images.yml`). From a candidate
+- [x] **B5 — Release image workflow** (`release-images.yml`). From a candidate
   manifest it checks out each repo at its pinned commit and builds every image
   in the catalog. It pushes to `ghcr.io/jateeter/re-<component>` tagged with
   the candidate tag (`release-v0.0.1-rcN`) and the commit SHA. It adds OCI
@@ -251,8 +251,17 @@ Each is reflected in `RELEASE.md` where it changes the process.
     from `pins` (default: each repo's main), pushes with SBOM and provenance,
     and uploads the images file. A dispatch with `promote_from` retags the
     candidates by digest and refuses to move an existing release tag. A
-    release tag can only be promoted, never built. Not yet run with a push:
-    that needs the first dispatch on main and the packages made public.
+    release tag can only be promoted, never built.
+  - **Done (2026-10-19):** run 39300675853 pushed `release-v0.0.1-rc1`, 13
+    images for linux/arm64, from each repo's `origin/main` at dispatch (owner's
+    choice, rather than `e1-20261019f`'s pins: since that run the mains took
+    only Dependabot bumps and Node 26.12; CPP, LSP and Scala are unchanged).
+    Every image's `revision` equals its pin, and every package answers an
+    anonymous manifest pull, so all are public. The images file is the run's
+    `release-images-release-v0.0.1-rc1` artifact. Pins: CI `7de8f8c`, CPP
+    `9704061`, LSP `45b721e`, Scala `f02cd03`, Machines `b77bf98`, Manager
+    `65eb0dc`, localAIStack `d0c9cf6`, localOpenClawStack `1b876c0`, PIM
+    `521e1d9`.
 - [ ] **B6 — Image hygiene.** Each image runs as a non-root user, has a
   `HEALTHCHECK`, contains no secrets, and stays within a size budget recorded
   per image. Today localAI is 1.44 GB and the OpenClaw browser 4.4 GB.
@@ -348,7 +357,7 @@ Found and fixed on the way:
   had an empty nginx config and site, with the build reporting success.
   Rebuilt.
 
-**Open:** the image registry pull path (B5's first push), a clean Mac (E3),
+**Open:** a clean Mac (E3), now being prepared, pulling `release-v0.0.1-rc1`,
 and `upgrade` between two published versions.
 - [ ] **C3 — Installer CLI** (`realityengine install | up | down | status |
   upgrade | uninstall | machines`).
@@ -574,8 +583,8 @@ source, the image rebuilt, and the check re-run.
       now removes its compose project by label (CI#582).
     - Run `e1-20261019f`: 20/20 again, with `local-ai` genuinely passing (4
       models listed).
-    - Next: the certifying form, `--images` against a pushed `-rc`
-      candidate. Pushing to GHCR waits for the owner.
+    - Next: the certifying form, `--images` with the images file of
+      `release-v0.0.1-rc1` (pushed 2026-10-19, run 39300675853, B5).
 - [ ] **E2 — Native vs containerized comparison.** Run the native local lane
   and E1 at the same commits and spec on the same Mac and compare the parity
   stages.
