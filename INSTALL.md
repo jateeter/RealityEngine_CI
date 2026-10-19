@@ -32,7 +32,7 @@ Ollama runs natively on your Mac, outside Docker, so it can use the Apple GPU.
 | Memory | 16 GB. Give Docker Desktop at least **8 GB** (Settings → Resources); the default `cpp:1,lsp:1,scala:1` uses about 4 GB when idle, and more under load. Ollama needs about 5 GB of its own for `llama3.1:8b` |
 | Disk | 25 GB free: the images, about 15 GB, plus the data |
 | Docker | [Docker Desktop](https://www.docker.com/products/docker-desktop/), running. Other container runtimes are not tested |
-| Ollama | [Ollama](https://ollama.com) (`brew install ollama`), running, with the model pulled: `ollama pull llama3.1:8b` |
+| Ollama | [Ollama](https://ollama.com) (`brew install ollama`), running, with both models pulled: `ollama pull llama3.1:8b` and `ollama pull nomic-embed-text` (localAI's embedding model) |
 
 ## Install
 

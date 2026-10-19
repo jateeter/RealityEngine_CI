@@ -591,6 +591,29 @@ it will not fire until something targets its new input region. It is ingested,
 resident and inert — which is a different state from ingested and wrong, and the
 response is what distinguishes them.
 
+##### POST /api/machines keeps a declared id
+
+A machine whose body declares an `id` is ingested **under that id when no
+resident machine holds it**. Otherwise — the id is held, or none is declared —
+the engine mints one (`machine-<uuid>`). Decided by the owner on 2026-10-18 for
+`POST` only: loading at boot is unchanged, and every runtime still derives
+`machine-<file stem>` there.
+
+Both halves were violated, in opposite directions, and only machines loaded at
+runtime reach them, which the regression corpus never does (none of its machines
+declares an id; 10 of 1,328 corpus machines do):
+
+- **C++ and Scala minted for every POST**, so a runtime-loaded machine had a
+  different id on each engine and `GET /api/machine-graph` differed in bytes
+  across the quorum (found by the release install, ReleaseRoadmap C6).
+- **LSP reused a held id.** Its machine table is keyed by id, so re-posting a
+  file that declares one replaced the resident machine with the versioned copy —
+  the replacement *POST /api/machines always ingests* forbids.
+
+A minted id still marks itself by shape, so the byte comparisons normalise it
+as before (`minted:<kind>`); a kept declared id is corpus identity and is
+compared byte for byte.
+
 ##### POST /api/machines takes either the Machine object or the corpus envelope
 
 Two accepted request bodies, disambiguated by an **object-valued `machine`

@@ -224,7 +224,10 @@ def engine_services(insts: list[dict]) -> dict:
             "volumes": ["corpus-boot:/app/corpus:ro", "localai-machines:/app/localai-machines:ro",
                         "./config/integrations.json:/app/config/integrations.json:ro"],
             "ports": [f"{inst['pe_port']}:{PE_PORT}"],
-            "depends_on": {re_svc: {"condition": "service_healthy"}},
+            # restart: a PE must restart when its RE is recreated (an image
+            # upgrade): it holds sources derived from the RE's machines, and a
+            # PE that outlived its RE kept them for ids the new RE no longer has.
+            "depends_on": {re_svc: {"condition": "service_healthy", "restart": True}},
             "healthcheck": {"test": ["CMD", "wget", "-qO-", f"http://127.0.0.1:{PE_PORT}/api/health"],
                             "interval": "10s", "timeout": "5s", "retries": 18, "start_period": "30s"},
         }
@@ -252,7 +255,10 @@ def engine_services(insts: list[dict]) -> dict:
     # starts, and does not retry a PE that was not up yet: on a fresh `up` it
     # could start first and leave the PEs without its RAG sensors. It waits for
     # every PE of the spec (compose merges this with its own depends_on).
-    services["localai-api"] = {"depends_on": {i["pe_service"]: {"condition": "service_healthy"} for i in insts}}
+    # restart: likewise localAI restarts whenever a PE is recreated, so it
+    # registers again with the new one; otherwise the new PE lacked its sensors.
+    services["localai-api"] = {"depends_on": {i["pe_service"]: {"condition": "service_healthy", "restart": True}
+                                              for i in insts}}
     return services
 
 
@@ -448,6 +454,18 @@ def image_refs(version: str, images_file: pathlib.Path | None, registry: str) ->
     return refs
 
 
+def deployed_manifest(install: pathlib.Path) -> pathlib.Path:
+    """The deployed corpus as a manifest: the shipped regression corpus plus
+    every machine loaded since (machines-load). OpenClaw's agents follow it, as
+    they follow the deployed corpus on every lane."""
+    return install / "state" / "deployed-corpus.txt"
+
+
+def agent_profile(install: pathlib.Path) -> str:
+    m = deployed_manifest(install)
+    return f"manifest:{m}" if m.exists() else "regression"
+
+
 def configure_openclaw(install: pathlib.Path, sec: dict[str, str]) -> None:
     """The gateway home, made by localOpenClawStack's own scripts at the release
     commit: the hardened config (harden-config.sh), the regression corpus's
@@ -470,9 +488,26 @@ def configure_openclaw(install: pathlib.Path, sec: dict[str, str]) -> None:
         "OLLAMA_BASE_URL=http://host.docker.internal:11434\n"
         "OPENCLAW_DEFAULT_MODEL=ollama/llama3.1:8b\n"
         "LOCAL_OWNER=1000\nLOCAL_GROUP=1000\n")
-    env = {**os.environ, "OPENCLAW_AGENT_PROFILE": "regression"}
-    index = subprocess.run(["bash", str(OCS / "scripts" / "agent-profile.sh"), "regression"],
-                           check=True, capture_output=True, text=True, env=env).stdout.strip()
+    profile = agent_profile(install)
+    env = {**os.environ, "OPENCLAW_AGENT_PROFILE": profile}
+    if profile.startswith("manifest:"):
+        # Loaded machines resolve against the catalog the installer synced.
+        env["OPENCLAW_CORPUS_MACHINES_ROOT"] = "/volumes/catalog/machines"
+    p = subprocess.run(["bash", str(OCS / "scripts" / "agent-profile.sh"), profile],
+                       capture_output=True, text=True, env=env)
+    if p.returncode != 0 and profile != "regression":
+        # A machine synced from a newer RealityEngine_Machines than this release
+        # has no agent in the release's agent corpus. Keep the agents of the
+        # shipped corpus rather than failing, and say which.
+        log("OpenClaw: some loaded machines have no agent in this release's agent corpus; "
+            "keeping the regression agents. " + (p.stderr.strip().splitlines() or [""])[-1][:200])
+        profile, env["OPENCLAW_AGENT_PROFILE"] = "regression", "regression"
+        p = subprocess.run(["bash", str(OCS / "scripts" / "agent-profile.sh"), "regression"],
+                           capture_output=True, text=True, env=env)
+    if p.returncode != 0:
+        sys.stderr.write(p.stderr)
+        raise SystemExit("OpenClaw agent profile failed")
+    index = p.stdout.strip()
     env["OPENCLAW_AGENT_INDEX_PATH"] = index
     for script in ("harden-config.sh", "sync-machine-agents.sh", "verify-openclaw-config.sh"):
         p = subprocess.run(["bash", str(OCS / "scripts" / script)], capture_output=True, text=True, env=env,
@@ -481,7 +516,7 @@ def configure_openclaw(install: pathlib.Path, sec: dict[str, str]) -> None:
             sys.stderr.write(p.stdout + p.stderr)
             raise SystemExit(f"OpenClaw {script} failed")
     total = json.loads(pathlib.Path(index).read_text()).get("total")
-    write_json(install / "openclaw-agents.json", {"profile": "regression", "agents": total})
+    write_json(install / "openclaw-agents.json", {"profile": profile, "agents": total})
     env_file.unlink(missing_ok=True)
     # The gateway runs as the node user (1000); it must own its home.
     for root, dirs, files in os.walk(home):
@@ -492,7 +527,7 @@ def configure_openclaw(install: pathlib.Path, sec: dict[str, str]) -> None:
                 pass
     os.chown(home, 1000, 1000)
     os.chmod(home, 0o700)
-    log(f"OpenClaw configured with the regression profile ({total} machine agents)")
+    log(f"OpenClaw configured with profile {profile.split('/')[-1]} ({total} machine agents)")
 
 
 def copy_config(install: pathlib.Path) -> None:
@@ -725,7 +760,21 @@ def cmd_machines_load(args) -> int:
     if not args.replay:
         state["domains"] = sorted(set(state["domains"]) | set(domains))
         state["machineIds"] = sorted(set(state["machineIds"]) | set(ids))
+        # Catalog paths of what was loaded, for OpenClaw's agents. Entries from
+        # the extra roots (corpus/<category>, localAI's own) carry no agent.
+        loaded_files = {r["relFile"] for r in res.get("results", [])
+                        if r.get("relFile") and r.get("status") in ("loaded", "skipped")}
+        state["files"] = sorted(set(state.get("files", [])) | loaded_files)
         write_json(loaded_path(), state)
+        boot = [ln.strip() for ln in (CI / "config" / "regression-corpus.txt").read_text().splitlines()
+                if ln.strip() and not ln.lstrip().startswith("#")]
+        write(deployed_manifest(pathlib.Path("/install")),
+              "# Generated by re-init machines-load: the shipped regression corpus plus every\n"
+              "# machine loaded since. OpenClaw's agents follow it.\n"
+              + "\n".join(dict.fromkeys(boot + [f for f in state["files"] if not f.startswith("corpus/")])) + "\n")
+        sec = secrets_env(pathlib.Path("/install"))
+        configure_openclaw(pathlib.Path("/install"), sec)
+        log("OpenClaw's agents now follow the deployed corpus; the gateway restarts to load them")
     return 1 if failed else 0
 
 

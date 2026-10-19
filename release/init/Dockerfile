@@ -8,9 +8,10 @@
 #   docker buildx build -f release/init/Dockerfile --build-context ocs=../localOpenClawStack .
 FROM python:3.12-slim@sha256:a6e34c598f2467ed0e9a8d349809fcd8b5c603269512df273a0bb1784edc11b1
 
-# jq and bash for localOpenClawStack's scripts; openssl for the local CA.
+# jq, bash and perl's shasum for localOpenClawStack's scripts (agent-profile.sh
+# hashes a corpus manifest with shasum); openssl for the local CA.
 RUN apt-get update \
-    && apt-get install -y --no-install-recommends bash jq openssl ca-certificates \
+    && apt-get install -y --no-install-recommends bash jq perl openssl ca-certificates \
     && rm -rf /var/lib/apt/lists/*
 
 # What a release install is made of.

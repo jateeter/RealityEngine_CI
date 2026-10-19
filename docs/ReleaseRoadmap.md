@@ -94,13 +94,13 @@ needing no source checkout, compiler or build toolchain on the Mac:
 | **C4** | Persistence and lifecycle | CI | C1 | in progress: down/up and spec change verified |  |
 | **C5** | Install documentation | CI/docs | C3, A2 | in progress: `INSTALL.md` drafted |  |
 | **C6** | Dynamic machine loading from `RealityEngine_Machines` | CI + Manager | C2 | in progress: live on the developer Mac | Manager#276 |
-| **D1** | Runtime and observability soak, multi-instance | CI/engines | C3 | open | |
+| **D1** | Runtime and observability soak, multi-instance | CI/engines | C3 | in progress: multi-instance soak passed | LSP#165, Scala#191 |
 | **D2** | 2D/3D UI acceptance | Manager | C3 | open | |
-| **D3** | localAI reaches every engine | localAI/CI | C2 | open | |
-| **D4** | PIM mirror in the deployment; bridge as development deployment | PIM/bridge | C3, A10 | open | |
-| **D5** | MQTT disposition | CI/MQTT | A11 | open | |
+| **D3** | localAI reaches every engine | localAI/CI | C2 | in progress: passes on the install | |
+| **D4** | PIM mirror in the deployment; bridge as development deployment | PIM/bridge | C3, A10 | in progress: mirror passes on the install | |
+| **D5** | MQTT disposition | CI/MQTT | A11 | in progress: Yuma answering; stage passes | CI#578 |
 | **D6** | Release asset checks | Machines/OpenClaw/CI | A8 | in progress | |
-| **D7** | Deployment suite | CI | C3 | open | |
+| **D7** | Deployment suite | CI | C3 | in progress: live suites green on the install | CPP#171, Scala#190, LSP#164, Machines#217 |
 | **E1** | `local-containerized` lane on published images | CI | B5, C3 | open | CI#165 |
 | **E2** | Native vs containerized comparison | CI | E1 | open | |
 | **E3** | Clean-Mac install test | CI/operator | B5, C3, C4 | open | |
@@ -466,6 +466,59 @@ and `upgrade` between two published versions.
   registry alignment, contract parity, byte equivalence and integration success
   separately, and let no in-scope failure hide behind a summary pass.
   - **Done:** an exact-pin report attached to the release evidence.
+
+**Phase D progress, 2026-10-18/19**, on the install (`cpp:2,lsp:1,scala:1`),
+from images built at the current mains. Each defect found was fixed at the
+source, the image rebuilt, and the check re-run.
+
+- **D7, the live suites, all green:**
+  - CI multi-engine e2e: 26 passed, 0 failed, including every byte-equivalence
+    surface of `tree-to-pe-manager-equivalence`.
+  - RealityEngine_Machines smoke, integration and e2e: 63 passed, 0 failed,
+    including the new declared-id 3-of-3.
+  - Manager frontend e2e: all pass, `openclaw-portal` 6/6 against the
+    install's own OpenClaw config.
+  - Not exercised on this lane: `pe-source-arcs` (3 tests) posts to Manager's
+    reported `pe_url`, the instance registry's container view, and Manager
+    has no proxy route for `/api/sensors`.
+- **Defects the suites found, fixed:**
+  - C++ and Scala minted an id for every POST, while LSP reused a held one,
+    replacing the resident machine. Owner rule 2026-10-18, "POST
+    /api/machines keeps a declared id": CPP#171, Scala#190, LSP#164; 3-of-3
+    guard Machines#217.
+  - Scala's runtime lost machines under concurrent loads, from an
+    unsynchronized machine map (Scala#191).
+  - localAI's embed model: `ternary-bonsai:4` is not an embedding model, so
+    the release uses `nomic-embed-text`.
+  - PEs and localAI did not restart when their dependency was recreated; they
+    now do (`restart: true`).
+  - OpenClaw's agents did not follow machines loaded at runtime; they now do.
+  - The CLI's port check was missing on `up`.
+- **D1, the 10-minute soak, passed with 0 problems** (`release/soak.py`):
+  - every PE push succeeded, median 63 ms on C++ and Scala and 231 ms on LSP;
+  - every RE streamed 600–641 frames, with a longest gap of 3.1 s;
+  - health clean, clocks monotonic, no container restarted, every engine
+    target up in Prometheus;
+  - peak memory 4.77 GiB. The Scala RE (832 MiB) and the LSP RE (760 MiB) grew
+    toward their heap limits; a longer soak decides whether that is warm-up.
+  - The soak's first run found **LSP's SSE streams sent nothing at all**: text
+    written to Hunchentoot's binary stream, and `"\n"` is not an escape in Lisp.
+    So Manager never saw LSP's live activity (LSP#165).
+- **D3:** `verify_localai_reach`'s conditions hold. Every engine holds
+  localAI's machines and sensors, and `bridge_engines` equals the instance
+  registry, including after a spec change and after an engine image upgrade.
+- **D4:** the bridge's `PIMWireTests` pass against the installed PIM and CSS:
+  the approved batch, the conflict leaving the POD unchanged, no approval 403,
+  a stale set 409, and a wrong token 401. The POD status counts the mirrored
+  records, and every PE holds PIM's scope generation (D2b).
+- **D5:** Yuma answers again (CONNACK in 0.3 s). The universe now boots without
+  a broker, and the live MQTT stage runs after every universe measurement
+  (CI#578). Branch run 39140096263, with Yuma live, passed, and the MQTT stage
+  passed on all three engines. Noticed for #317: Scala declares a source per
+  mapping when enabled, C++ and LSP on a mapping's first message.
+- **Open:** D2 (UI matrix; noticed: the engine switcher shows container
+  addresses), D6 at the release pins (the weekly cycle of 2026-10-18 at CI
+  `f415302` is green), and a soak on the default trio.
 
 ## E. Certify the image product
 

@@ -28,6 +28,9 @@ set -eu
 
 PROG=realityengine
 DIR="${REALITYENGINE_DIR:-$HOME/.realityengine}"
+# The compose project, fixed at the first configure: a second install (the
+# regression lane's re-regression) needs its own volumes and network.
+PROJECT="${REALITYENGINE_PROJECT:-realityengine}"
 REGISTRY="ghcr.io/jateeter"
 VERSION=""
 ENGINES=""
@@ -142,11 +145,15 @@ check_ollama() {
     *'"version"'*) ok "Ollama $(printf '%s' "$v" | sed 's/.*"version":"\([^"]*\)".*/\1/') on :11434" ;;
     *) warn "Ollama is not answering on 127.0.0.1:11434. Install it (https://ollama.com or 'brew install ollama'), start it, and run 'ollama pull llama3.1:8b'. The suite starts without it, but local AI will report it unreachable."; return 0 ;;
   esac
-  if curl -fsS --max-time 5 http://127.0.0.1:11434/api/tags 2>/dev/null | grep -q '"llama3.1:8b"'; then
-    ok "model llama3.1:8b present"
-  else
-    warn "Model llama3.1:8b is missing. Run: ollama pull llama3.1:8b"
-  fi
+  # The engines' and OpenClaw's model, and localAI's embedding model.
+  tags="$(curl -fsS --max-time 5 http://127.0.0.1:11434/api/tags 2>/dev/null || true)"
+  for m in llama3.1:8b nomic-embed-text; do
+    if printf '%s' "$tags" | grep -q "\"$m\(:latest\)\{0,1\}\""; then
+      ok "model $m present"
+    else
+      warn "Model $m is missing. Run: ollama pull $m"
+    fi
+  done
 }
 
 port_in_use() { lsof -nP -iTCP:"$1" -sTCP:LISTEN >/dev/null 2>&1; }
@@ -197,9 +204,14 @@ configure() {
   say "Configuring $ENGINES ($VERSION) in $DIR"
   # As root: configure writes the install directory and sets ownership the
   # gateway and the engines need. The image itself runs unprivileged.
-  set -- docker run --rm --user 0:0 -v "$DIR:/install" -e "HOST_IP=$(host_ip)"
+  # The catalog and localAI's machines, for OpenClaw's agents when machines
+  # were loaded beyond the shipped corpus (created empty on a first install).
+  proj="$PROJECT"
+  [ -f "$DIR/.env" ] && proj="$(sed -n 's/^COMPOSE_PROJECT_NAME=//p' "$DIR/.env")"
+  set -- docker run --rm --user 0:0 -v "$DIR:/install" -e "HOST_IP=$(host_ip)" \
+    -v "${proj}_corpus-catalog:/volumes/catalog:ro" -v "${proj}_localai-machines:/opt/localAIStack/data/machines:ro"
   for v in $(env | sed -n 's/^\(RE_PORT_[A-Z_]*\)=.*/\1/p'); do set -- "$@" -e "$v"; done
-  set -- "$@" "$img" configure --install /install --engines "$ENGINES" --version "$VERSION" --registry "$REGISTRY"
+  set -- "$@" "$img" configure --install /install --engines "$ENGINES" --version "$VERSION" --registry "$REGISTRY" --project "$proj"
   [ -f "$DIR/images.json" ] && set -- "$@" --images /install/images.json
   "$@"
   save_conf
@@ -225,7 +237,8 @@ machines_run() {
   # shellcheck disable=SC1091
   . "$DIR/.env"
   docker run --rm --user 0:0 --network "$COMPOSE_PROJECT_NAME" -v "$DIR:/install" \
-    -v "${COMPOSE_PROJECT_NAME}_corpus-catalog:/volumes/catalog" "$RE_IMAGE_INIT" "$@"
+    -v "${COMPOSE_PROJECT_NAME}_corpus-catalog:/volumes/catalog" \
+    -v "${COMPOSE_PROJECT_NAME}_localai-machines:/opt/localAIStack/data/machines:ro" "$RE_IMAGE_INIT" "$@"
 }
 
 wait_healthy() {
@@ -279,7 +292,9 @@ case "$CMD" in
     preflight; check_ports; configure; pull_images; start; urls ;;
   up)
     [ -f "$CONF" ] || die "Nothing is installed in $DIR. Run: $PROG install"
-    configure; pull_images; start; urls ;;
+    # A port held by something else makes compose leave that container half
+    # created, without its network; refuse before starting anything.
+    check_ports; configure; pull_images; start; urls ;;
   down)
     compose down; ok "Stopped. Data is kept; '$PROG up' starts it again." ;;
   status) status ;;
@@ -288,7 +303,7 @@ case "$CMD" in
     compose logs --tail 200 ${ARGS_REST:-} ;;
   upgrade)
     [ -n "$TO" ] || die "Pass --to VERSION."
-    VERSION="$TO"; check_ollama; configure; pull_images; start; urls ;;
+    VERSION="$TO"; check_ollama; check_ports; configure; pull_images; start; urls ;;
   uninstall)
     if [ "$PURGE" = true ]; then
       compose down -v --remove-orphans || true
@@ -311,8 +326,12 @@ case "$CMD" in
             ok "Catalog refreshed. Load machines from it with: $PROG machines load --domain <name>" ;;
       load) if [ "$ALL" = true ]; then LOAD_ARGS="$LOAD_ARGS --all"; fi
             [ -n "$LOAD_ARGS" ] || die "Name what to load: --domain <name>, --machine <id> or --all."
+            rc=0
             # shellcheck disable=SC2086  # the flags, split on purpose
-            machines_run machines-load $LOAD_ARGS ;;
+            machines_run machines-load $LOAD_ARGS || rc=$?
+            # OpenClaw's agents were regenerated for the deployed corpus.
+            compose restart openclaw-gateway >/dev/null 2>&1 || warn "Could not restart the OpenClaw gateway."
+            exit "$rc" ;;
       *) die "Usage: $PROG machines list | sync [--ref REF] | load --domain D | --machine M | --all" ;;
     esac ;;
   -h|--help|help) usage 0 ;;

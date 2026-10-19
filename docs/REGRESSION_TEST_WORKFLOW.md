@@ -334,7 +334,8 @@ The executable automation lives in
 
 ## Two Lanes
 
-Regression runs in one of two lanes, selected by `--profile`. They are not
+Regression runs in one of two lanes, selected by `--profile`, and the local lane
+also runs containerized (below). They are not
 depth settings of one another: three things never run on a hosted runner, by
 decision rather than by circumstance.
 
@@ -360,6 +361,30 @@ The hosted profile **refuses** a flag that contradicts it — `--openclaw`,
 `--local-ai` or `--machine-corpus=full` exit 2 with the conflict named. It does
 not silently correct them. A quietly-enabled Ollama on a hosted runner does not
 present as a mistake; it presents as a 350-minute timeout.
+
+### The containerized lane (`--profile local-containerized`)
+
+The release ships images (ReleaseRoadmap A2), so the release is certified
+against an install of those images, not only against native processes.
+`--profile local-containerized` is the local lane with the engines, Manager,
+localAI and OpenClaw replaced by `release/realityengine install` of the release
+images (`scripts/lib/containerized-lane.sh`, #165):
+
+- **Build.** Without `--images`, `release/build-images.py` builds every image
+  from the run's worktrees as `dev-<run id>`; with `--images FILE`, that images
+  file (a published candidate, by digest) is installed instead, which is the
+  certifying form. Either way each image's `org.opencontainers.image.revision`
+  must equal the commit the run pinned for its repo, or the build fails. The
+  native engine, Manager and localAI/OpenClaw builds do not run; the corpus
+  checks, typechecks, PIM and the HealthKit bridge do.
+- **Start.** The install goes to `<run>/install` under compose project
+  `re-regression`; an earlier run's install of that project is removed first.
+  The stages read that install's instance registry (`REGISTRY_FILE`). Nothing
+  of the operator's is stopped; a held port fails the install and is named.
+- **Stages.** The same as the local lane. `--arbiter-sweep` is skipped with a
+  reason, because it restarts a native universe once per rule.
+- **End.** The install is left running, like the native universe;
+  `RE_REGRESSION_KEEP=0` removes it.
 
 The workflow picks the lane from `runner.environment`, so registering a
 self-hosted runner is sufficient to move a run to the local lane. Each run

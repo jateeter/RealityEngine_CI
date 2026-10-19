@@ -34,7 +34,7 @@ chmod +x "$TMP/bin/xcrun" "$TMP/bin/xcodegen"
 
 stage() {  # [env assignments...] -> "skip:<reason>" or "run:<args>"
   rm -f "$TMP/skip" "$TMP/run"
-  env PATH="$TMP/bin:$PATH" "$@" CI_DIR="$TMP/ci" PROFILE=local BRIDGE="$TMP/bridge" OUTDIR="$TMP" \
+  env PATH="$TMP/bin:$PATH" "$@" CI_DIR="$TMP/ci" PROFILE=local LOCAL_LANE=true BRIDGE="$TMP/bridge" OUTDIR="$TMP" \
     HEALTHKIT_BRIDGE_TOKEN=tok bash -c '
       step() { :; }; log() { :; }
       write_skip_report() { printf "%s" "$2" > "$OUTDIR/skip"; }
