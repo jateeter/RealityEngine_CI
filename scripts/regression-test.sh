@@ -104,6 +104,12 @@ NODE_ACTIVATE='export NVM_DIR="${NVM_DIR:-$HOME/.nvm}"; \
     nvm use '"$NODE_VERSION"' >/dev/null 2>&1 || nvm install '"$NODE_VERSION"' >/dev/null 2>&1; fi; '
 
 ENGINES_SPEC="cpp:1,lsp:1,scala:1"
+# The instance registry file the stages read. startUniverse.sh writes it here;
+# the local-containerized lane points it at its install (scripts/lib/containerized-lane.sh).
+REGISTRY_FILE="/tmp/re-registry/re-registry.json"
+# --profile local-containerized: the images file to install. Empty builds the
+# images from the run's worktrees instead.
+RELEASE_IMAGES_FILE=""
 RETAIN=20
 COMPARE_RUN=""
 # Baseline for the run-over-run comparison. Empty means "look for a previous run
@@ -211,6 +217,8 @@ while [ $# -gt 0 ]; do
     --build-only) START=false; LIVE_TESTS=false; RUN_SHAPING+=("$1"); shift ;;
     --engines=*) ENGINES_SPEC="${1#*=}"; shift ;;
     --engines) ENGINES_SPEC="$2"; shift 2 ;;
+    --images=*) RELEASE_IMAGES_FILE="${1#*=}"; shift ;;
+    --images) RELEASE_IMAGES_FILE="$2"; shift 2 ;;
     --mqtt-broker-url=*) MQTT_BROKER_URL="${1#*=}"; shift ;;
     --mqtt-broker-url) MQTT_BROKER_URL="$2"; shift 2 ;;
     --mqtt-mappings=*) MQTT_MAPPINGS="${1#*=}"; shift ;;
@@ -300,8 +308,12 @@ case "$PROFILE" in
       exit 2
     fi
     ;;
-  local)
+  local|local-containerized)
+    # local-containerized runs the local lane's stages against an install of
+    # the release images instead of native processes (ReleaseRoadmap E1,
+    # #165). It has no --fresh: the install is removed and recreated per run.
     FRESH_FLAG="--fresh"
+    [ "$PROFILE" = "local" ] || FRESH_FLAG=""
     [ "$OPENCLAW_SET" = true ]       || OPENCLAW_FLAG="--openclaw"
     [ "$LOCAL_AI_SET" = true ]       || LOCAL_AI=true
     # Same corpus as hosted. --machine-corpus=full stays available here as an
@@ -322,10 +334,28 @@ case "$PROFILE" in
     export OLLAMA_MODEL
     ;;
   *)
-    echo "Unsupported --profile: $PROFILE (hosted|local)" >&2
+    echo "Unsupported --profile: $PROFILE (hosted|local|local-containerized)" >&2
     exit 2
     ;;
 esac
+
+# LOCAL_LANE: operator hardware (Docker, Xcode, a phone), true on both local
+# profiles. CONTAINERIZED: the engines, Manager, localAI and OpenClaw come from
+# the release images, not from native builds.
+LOCAL_LANE=false
+CONTAINERIZED=false
+case "$PROFILE" in
+  local) LOCAL_LANE=true ;;
+  local-containerized)
+    LOCAL_LANE=true
+    CONTAINERIZED=true
+    # shellcheck source=scripts/lib/containerized-lane.sh
+    . "$CI_DIR/scripts/lib/containerized-lane.sh" ;;
+esac
+if [ -n "$RELEASE_IMAGES_FILE" ] && [ "$CONTAINERIZED" = false ]; then
+  echo "error: --images applies to --profile local-containerized only" >&2
+  exit 2
+fi
 
 # Any manifest in config/ is a corpus, not just the two that were hardcoded.
 #
@@ -814,6 +844,13 @@ foreign_port_blockers() {
 }
 
 prepare_docker() {
+  if [ "$CONTAINERIZED" = true ]; then
+    # Nothing of the operator's is stopped: the installer refuses a held port
+    # (realityengine check_ports), naming it, before it starts anything.
+    step "Docker preflight"
+    start_docker_daemon || { log "The containerized lane cannot run without Docker."; exit 1; }
+    return 0
+  fi
   [ "$PROFILE" = "local" ] || return 0
   step "Docker preflight"
   start_docker_daemon || {
@@ -1013,6 +1050,12 @@ build_repos() {
   run_repo_cmd "RealityEngine_CI" "build" "build-ci-mcp-routes-regen" bash -lc \
     "cd '$(repo_root RealityEngine_CI)/mcp' && REALITY_ENGINE_CPP_DIR='$(repo_root RealityEngine_CPP)' node scripts/gen-engine-routes.mjs --require-source"
   run_repo_cmd "RealityEngine_CI" "build" "build-ci-mcp-test" bash -lc "cd '$(repo_root RealityEngine_CI)/mcp' && npm install && npm test"
+  if [ "$CONTAINERIZED" = true ]; then
+    # The engines, Manager, localAI and OpenClaw run from the release images,
+    # so the images are what this lane builds and checks; the native builds
+    # belong to the local lane.
+    containerized_build_images || { log "Release images failed; nothing to install."; exit 1; }
+  else
   run_repo_cmd "RealityEngine_CPP" "build" "build-cpp" bash -lc "cd '$(repo_root RealityEngine_CPP)' && make all"
   # RealityEngine_LSP/quicklisp/ is untracked, so a cold-start worktree never
   # has it and `make build` dies with "Missing Quicklisp". The hosted lane only
@@ -1043,6 +1086,7 @@ build_repos() {
     "cd '$(repo_root RealityEngine_Scala)' && sbt clean assembly"
   run_repo_cmd "RealityEngine_Scala" "build" "build-scala-pe" bash -lc \
     "cd '$(repo_root RealityEngine_Scala)/perception-engine' && sbt clean assembly"
+  fi
   # validate-corpus.sh prints "<check>: SKIPPED" and exits 0 when a tool or
   # input is missing. The wrapper supplies ajv and the QUDT vocabulary and
   # fails on any skip, so this stage passing means every corpus check ran. The
@@ -1061,8 +1105,14 @@ build_repos() {
     "visualizer/frontend" \
     "perception-engine/backend" \
     "perception-engine/frontend"; do
+    if [ "$CONTAINERIZED" = true ]; then
+      # Built in its image; the typecheck below still needs the dependencies.
+      run_repo_cmd "RealityEngine_Manager" "build" "install-manager-${package_dir//\//-}" bash -lc \
+        "cd '$(repo_root RealityEngine_Manager)/$package_dir' && npm ci"
+    else
     run_repo_cmd "RealityEngine_Manager" "build" "build-manager-${package_dir//\//-}" bash -lc \
       "cd '$(repo_root RealityEngine_Manager)/$package_dir' && npm ci && npm run build"
+    fi
     run_repo_cmd "RealityEngine_Manager" "build" "typecheck-manager-${package_dir//\//-}" bash -lc \
       "cd '$(repo_root RealityEngine_Manager)/$package_dir' && npm run typecheck"
   done
@@ -1085,7 +1135,7 @@ build_repos() {
   # hosted lane has neither in a usable form, so these build on the local lane
   # and record why they did not on the hosted one. A build that quietly does
   # not happen is the same failure as a stage that quietly does not run.
-  if [ "$PROFILE" = "local" ] && repo_present "OpenCommons-Health---Personal-Information-Management"; then
+  if [ "$LOCAL_LANE" = true ] && repo_present "OpenCommons-Health---Personal-Information-Management"; then
     # PIM's compose interpolates CSS_ACCOUNT_PASSWORD from .env, which is
     # gitignored and so absent from a cold-start worktree — the build fails
     # before a layer is read. Seed from .env.example, the same way this repo
@@ -1096,7 +1146,7 @@ build_repos() {
       "cd '$(repo_root OpenCommons-Health---Personal-Information-Management)' && { [ -f .env ] || cp .env.example .env; }"
     run_repo_cmd "OpenCommons-Health---Personal-Information-Management" "build" "build-pim-compose" bash -lc \
       "cd '$(repo_root OpenCommons-Health---Personal-Information-Management)' && docker compose build"
-  elif [ "$PROFILE" = "local" ]; then
+  elif [ "$LOCAL_LANE" = true ]; then
     write_skip_report "build-pim-compose-skipped.json" \
       "PIM is not checked out on this lane; nothing to build"
     log "SKIP PIM image rebuild — PIM not checked out"
@@ -1105,12 +1155,12 @@ build_repos() {
       "PIM image rebuild needs Docker; hosted lane runs typecheck only"
     log "SKIP PIM image rebuild — hosted profile"
   fi
-  if [ "$PROFILE" = "local" ] && repo_present "localHealthkitBridge"; then
+  if [ "$LOCAL_LANE" = true ] && repo_present "localHealthkitBridge"; then
     run_repo_cmd "localHealthkitBridge" "build" "build-healthkit-bridge" bash -lc \
       "cd '$(repo_root localHealthkitBridge)' && swift build"
     run_repo_cmd "localHealthkitBridge" "build" "test-healthkit-bridge" bash -lc \
       "cd '$(repo_root localHealthkitBridge)' && swift test"
-  elif [ "$PROFILE" = "local" ]; then
+  elif [ "$LOCAL_LANE" = true ]; then
     write_skip_report "build-healthkit-bridge-skipped.json" \
       "localHealthkitBridge is not checked out on this lane; nothing to build"
     log "SKIP HealthKit bridge build — bridge not checked out"
@@ -1126,14 +1176,18 @@ build_repos() {
   # ceiling unstructured==0.25.2 declares) failed this build and took the whole
   # scheduled run red before a single engine started. That break belongs to
   # localAIStack's own CI, which builds the same image on every push.
-  if [ "$LOCAL_AI" = true ]; then
+  if [ "$CONTAINERIZED" = true ]; then
+    log "localAI and OpenClaw: built above as release images"
+  elif [ "$LOCAL_AI" = true ]; then
     run_repo_cmd "localAIStack" "build" "build-localai-compose" bash -lc "cd '$(repo_root localAIStack)' && docker compose build"
   else
     write_skip_report "build-localai-compose-skipped.json" \
       "this lane does not run localAI; its image is built by localAIStack CI"
     log "SKIP localAI image build — lane does not run localAI"
   fi
-  if [ "$OPENCLAW_FLAG" != "--no-openclaw" ]; then
+  if [ "$CONTAINERIZED" = true ]; then
+    :
+  elif [ "$OPENCLAW_FLAG" != "--no-openclaw" ]; then
     run_repo_cmd "localOpenClawStack" "build" "build-openclaw-compose" bash -lc "cd '$(repo_root localOpenClawStack)' && docker compose build"
   else
     write_skip_report "build-openclaw-compose-skipped.json" \
@@ -1167,6 +1221,8 @@ resolve_mqtt_mappings() {
 # runner: it dies at ".env not found" before the first engine.
 prepare_runtime_config() {
   [ "$START" = true ] || return 0
+  # The installer writes the install's own .env, certs and secrets.
+  [ "$CONTAINERIZED" = false ] || return 0
   step "Runtime config for the run worktree"
   local ci src_ci
   ci="$(repo_root RealityEngine_CI)"
@@ -1180,7 +1236,7 @@ prepare_runtime_config() {
 
   if [ -f "$ci/.env" ]; then
     log ".env already present"
-  elif [ "$PROFILE" = "local" ] && [ -f "$src_ci/.env" ]; then
+  elif [ "$LOCAL_LANE" = true ] && [ -f "$src_ci/.env" ]; then
     # The operator's .env carries what the local stack actually needs — broker
     # URLs, gateway session keys. Seeding from .env.example instead would
     # certify a universe other than the one being certified.
@@ -1206,7 +1262,7 @@ prepare_runtime_config() {
     log "SKIP OpenClaw .env: worktree not present"
   elif [ -f "$ocs/.env" ]; then
     log "OpenClaw .env already present"
-  elif [ "$PROFILE" = "local" ] && [ -f "$src_ocs/.env" ]; then
+  elif [ "$LOCAL_LANE" = true ] && [ -f "$src_ocs/.env" ]; then
     cp "$src_ocs/.env" "$ocs/.env"
     log "OpenClaw .env copied from $src_ocs"
   elif [ -f "$ocs/.env.example" ]; then
@@ -1238,6 +1294,12 @@ start_universe() {
   # that into "line 940: label: unbound variable" — the hosted regression lane
   # died at the cold-start step (#202).
   local label="start-universe${1:+-$1}"
+
+  if [ "$CONTAINERIZED" = true ]; then
+    # Provenance is the image revision labels, checked in the build phase.
+    containerized_start || { log "The release install failed; nothing to measure."; exit 1; }
+    return 0
+  fi
 
   # Fail here rather than after the universe is up. startUniverse.sh gates this
   # too, but by then the run has spent minutes on preflight and boot. It matters
@@ -1321,7 +1383,7 @@ run_export_parity() {
   local ci
   ci="$(repo_root RealityEngine_CI)"
   run_cmd "export-parity" python3 "$ci/scripts/regression-export-parity.py" \
-    --registry /tmp/re-registry/re-registry.json \
+    --registry "$REGISTRY_FILE" \
     --machines 24 \
     --out "$REPORT_DIR/export-parity.json"
 }
@@ -1331,7 +1393,7 @@ run_machine_set_parity() {
   local ci
   ci="$(repo_root RealityEngine_CI)"
   run_cmd "machine-set-parity" python3 "$ci/scripts/regression-machine-set-parity.py" \
-    --registry /tmp/re-registry/re-registry.json \
+    --registry "$REGISTRY_FILE" \
     --out "$REPORT_DIR/machine-set-parity.json"
 }
 
@@ -1340,7 +1402,7 @@ run_service_inventory() {
   local ci
   ci="$(repo_root RealityEngine_CI)"
   local args=(
-    "--registry" "/tmp/re-registry/re-registry.json"
+    "--registry" "$REGISTRY_FILE"
     "--engine-spec" "$ENGINES_SPEC"
     "--out" "$REPORT_DIR/service-inventory.json"
     "--manifest" "$RUN_DIR/manifest.json"
@@ -1440,12 +1502,18 @@ run_trajectory_parity() {
   # machine's region, and the stage arms them all and pushes — one push advances
   # every machine's sequence together. It walks the longest interned sequence.
   run_cmd "trajectory-parity" python3 "$ci/scripts/regression-trajectory-parity.py" \
-    --registry /tmp/re-registry/re-registry.json \
+    --registry "$REGISTRY_FILE" \
     --run-id "$RUN_ID" \
     --out "$RUN_DIR/responses/trajectory-parity"
 }
 
 run_arbiter_rule_sweep() {
+  if [ -n "$ARBITER_SWEEP" ] && [ "$CONTAINERIZED" = true ]; then
+    write_skip_report "arbiter-sweep-skipped.json" \
+      "the sweep restarts a native universe per rule; the containerized lane does not"
+    log "SKIP arbiter-sweep: native universe only"
+    return 0
+  fi
   step "Arbiter rule sweep — ISRE/OSRE parity under every declared rule"
   if [ -z "$ARBITER_SWEEP" ]; then
     write_skip_report "arbiter-sweep-skipped.json" \
@@ -1508,7 +1576,7 @@ run_arbiter_rule_sweep() {
       continue
     fi
     if ! python3 "$ci/scripts/regression-trajectory-parity.py" \
-        --registry /tmp/re-registry/re-registry.json \
+        --registry "$REGISTRY_FILE" \
         --run-id "$RUN_ID" \
         --arbiter-rule "$rule" \
         --out "$sweep_dir/$rule"; then
@@ -1541,7 +1609,7 @@ run_boot_source_declaration() {
   local ci
   ci="$(repo_root RealityEngine_CI)"
   run_cmd "boot-source-declaration" python3 "$ci/scripts/regression-reset-contract.py" \
-    --registry /tmp/re-registry/re-registry.json \
+    --registry "$REGISTRY_FILE" \
     --run-id "$RUN_ID" \
     --at-boot \
     --out "$RUN_DIR/responses/boot-source-declaration"
@@ -1555,7 +1623,7 @@ run_reset_contract() {
   # this stage reuses the same comparison as a module. Running it twice on the
   # same boot measures nothing new and doubles the slowest phase.
   run_cmd "reset-contract" python3 "$ci/scripts/regression-reset-contract.py" \
-    --registry /tmp/re-registry/re-registry.json \
+    --registry "$REGISTRY_FILE" \
     --run-id "$RUN_ID" \
     --skip-trajectory \
     --out "$RUN_DIR/responses/reset-contract"
@@ -1567,7 +1635,7 @@ run_universal_vectors() {
   ci="$(repo_root RealityEngine_CI)"
   machines="$(active_machines_dir)"
   run_cmd "universal-vectors" python3 "$ci/scripts/regression-universal-vectors.py" \
-    --registry /tmp/re-registry/re-registry.json \
+    --registry "$REGISTRY_FILE" \
     --machines "$machines" \
     --events 5 \
     --run-id "$RUN_ID" \
@@ -1575,7 +1643,7 @@ run_universal_vectors() {
 }
 
 registry_instance_lines() {
-  python3 - /tmp/re-registry/re-registry.json <<'PYEOF'
+  python3 - "$REGISTRY_FILE" <<'PYEOF'
 import json
 import sys
 from pathlib import Path
@@ -1728,7 +1796,7 @@ run_arbiter() {
       return 0 ;;
   esac
   run_cmd "arbiter" python3 "$ci/scripts/regression-arbiter.py" \
-    --registry /tmp/re-registry/re-registry.json \
+    --registry "$REGISTRY_FILE" \
     --contributions "$ci/config/arbiter-contributions.json" \
     --machines "$(repo_root RealityEngine_Machines)" \
     --lane "$PROFILE" \
@@ -1749,7 +1817,7 @@ run_arbitration_retention() {
       return 0 ;;
   esac
   run_cmd "arbitration-retention" python3 "$ci/scripts/regression-arbitration-retention.py" \
-    --registry /tmp/re-registry/re-registry.json \
+    --registry "$REGISTRY_FILE" \
     --out "$REPORT_DIR/arbitration-retention.json"
 }
 
@@ -1769,7 +1837,7 @@ run_engine_process_parity() {
   # expects to be driven, and a zero vector fires nothing, so gating on one
   # would assert that nothing happens.
   run_cmd "engine-process-parity" python3 "$ci/scripts/regression-engine-process-parity.py" \
-    --registry /tmp/re-registry/re-registry.json \
+    --registry "$REGISTRY_FILE" \
     --machines "$(repo_root RealityEngine_Machines)" \
     --out "$REPORT_DIR/engine-process-parity.json"
 
@@ -1782,7 +1850,7 @@ run_engine_process_parity() {
   # copy, so it cannot pass a universe that agrees with the gate while
   # disagreeing with the specification.
   run_cmd "engine-config-parity" python3 "$ci/scripts/regression-engine-config-parity.py" \
-    --registry /tmp/re-registry/re-registry.json \
+    --registry "$REGISTRY_FILE" \
     --json "$REPORT_DIR/engine-config-parity.json"
 }
 
@@ -1792,7 +1860,7 @@ run_mcp() {
   ci="$(repo_root RealityEngine_CI)"
   run_cmd "mcp-smoke" node "$ci/scripts/regression-mcp-smoke.mjs" \
     --mcp-url "$MCP_URL" \
-    --registry /tmp/re-registry/re-registry.json \
+    --registry "$REGISTRY_FILE" \
     --manifest "$ci/mcp/manifest.json" \
     --profile "$ci/mcp/openai-mcp-profile.json" \
     --out "$REPORT_DIR/mcp-smoke.json"
@@ -1832,7 +1900,7 @@ run_local_ai() {
   local ci
   ci="$(repo_root RealityEngine_CI)"
   run_cmd "local-ai-probe" python3 "$ci/scripts/regression-local-ai.py" \
-    --registry /tmp/re-registry/re-registry.json \
+    --registry "$REGISTRY_FILE" \
     --localai-url "$LOCAL_AI_URL" \
     --out "$REPORT_DIR/local-ai.json"
   # The curated invoke allow-list (INTEGRATION_ROADMAP §6 Q7) against what
@@ -1866,7 +1934,7 @@ run_pe_step_contract() {
   step "PE push response shape (SURFACE_SPEC)"
   local ci; ci="$(repo_root RealityEngine_CI)"
   run_cmd "pe-step-contract" python3 "$ci/scripts/regression-pe-step-contract.py" \
-    --registry /tmp/re-registry/re-registry.json \
+    --registry "$REGISTRY_FILE" \
     --machines "$(repo_root RealityEngine_Machines)/machines" \
     --out "$REPORT_DIR/pe-step-contract.json"
 }
@@ -1914,7 +1982,7 @@ run_localai_machines() {
 
 run_healthkit_bridge() {
   step "HealthKit bridge leg (physical iPhone)"
-  if [ "$PROFILE" != "local" ]; then
+  if [ "$LOCAL_LANE" != true ]; then
     log "SKIP HealthKit bridge: hosted profile refuses the bridge"
     write_skip_report "healthkit-bridge-skipped.json" "hosted profile refuses the HealthKit bridge"
     return 0
@@ -2030,7 +2098,7 @@ run_pim_mirror() {
   step "HealthKit → PIM → POD mirror leg"
   # MIRROR_CONTRACT §8. D2 makes the mirror block the MVP: a skip below is a
   # recorded reason, not a pass. Only pim-mirror.json with status passed is.
-  if [ "$PROFILE" != "local" ]; then
+  if [ "$LOCAL_LANE" != true ]; then
     log "SKIP pim-mirror: hosted profile has no Docker CSS or Swift toolchain"
     write_skip_report "pim-mirror-skipped.json" "hosted profile refuses the PIM mirror leg"
     return 0
@@ -2305,6 +2373,7 @@ else
 fi
 generate_regression_report
 retain_history
+[ "$CONTAINERIZED" = false ] || [ "$START" = false ] || containerized_finish
 
 log ""
 log "Regression workflow executed."

@@ -95,6 +95,32 @@ echo "repos"
 write_catalog '[{"name":"re-x","repo":"RealityEngine_AI","context":"RealityEngine_CI","dockerfile":"RealityEngine_CI/docker/cpp/Dockerfile"}]'; run
 assert_eq "$RC" 1 "a repo outside the release is refused"
 
+echo "the local-containerized regression lane (E1) — plan mode only"
+RT="$CI_DIR/scripts/regression-test.sh"
+set +e; OUT="$(bash "$RT" --profile local-containerized 2>&1)"; RC=$?; set -e
+assert_eq "$RC" 0 "regression-test.sh accepts --profile local-containerized"
+assert_contains "$OUT" "profile:      local-containerized" "and plans it"
+set +e; OUT="$(bash "$RT" --profile local --images x.json 2>&1)"; RC=$?; set -e
+assert_eq "$RC" 2 "--images outside the containerized lane is refused"
+set +e; OUT="$(bash "$RT" --profile nope 2>&1)"; RC=$?; set -e
+assert_contains "$OUT" "hosted|local|local-containerized" "an unknown profile names all three"
+
+echo "the containerized lane's image provenance check"
+LANE="$CI_DIR/scripts/lib/containerized-lane.sh"
+# The check is the heredoc inside containerized_build_images; run it alone.
+sed -n "/<<'PYEOF'/,/^PYEOF/p" "$LANE" | sed '1d;$d' > "$TMP/prov.py"
+prov() {
+  set +e; OUT="$(python3 "$TMP/prov.py" "$1" "$2" 2>&1)"; RC=$?; set -e
+}
+echo '{"repos":[{"name":"RealityEngine_CPP","worktreeSha":"aaa"}]}' > "$TMP/m.json"
+echo '{"images":[{"name":"re-cpp","repo":"RealityEngine_CPP","revision":"aaa"},{"name":"re-x","repo":"Other","revision":"z"}]}' > "$TMP/i.json"
+prov "$TMP/i.json" "$TMP/m.json"
+assert_eq "$RC" 0 "images built at the run's pins pass"
+echo '{"images":[{"name":"re-cpp","repo":"RealityEngine_CPP","revision":"bbb"}]}' > "$TMP/i.json"
+prov "$TMP/i.json" "$TMP/m.json"
+assert_eq "$RC" 1 "an image built from another commit fails"
+assert_contains "$OUT" "re-cpp: built from RealityEngine_CPP bbb" "and names the image"
+
 echo "the committed catalog"
 set +e; OUT="$(python3 "$TOOL" 2>&1)"; RC=$?; set -e
 assert_eq "$RC" 0 "release/images.json passes"

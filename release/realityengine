@@ -28,6 +28,9 @@ set -eu
 
 PROG=realityengine
 DIR="${REALITYENGINE_DIR:-$HOME/.realityengine}"
+# The compose project, fixed at the first configure: a second install (the
+# regression lane's re-regression) needs its own volumes and network.
+PROJECT="${REALITYENGINE_PROJECT:-realityengine}"
 REGISTRY="ghcr.io/jateeter"
 VERSION=""
 ENGINES=""
@@ -203,12 +206,12 @@ configure() {
   # gateway and the engines need. The image itself runs unprivileged.
   # The catalog and localAI's machines, for OpenClaw's agents when machines
   # were loaded beyond the shipped corpus (created empty on a first install).
-  proj="realityengine"
+  proj="$PROJECT"
   [ -f "$DIR/.env" ] && proj="$(sed -n 's/^COMPOSE_PROJECT_NAME=//p' "$DIR/.env")"
   set -- docker run --rm --user 0:0 -v "$DIR:/install" -e "HOST_IP=$(host_ip)" \
     -v "${proj}_corpus-catalog:/volumes/catalog:ro" -v "${proj}_localai-machines:/opt/localAIStack/data/machines:ro"
   for v in $(env | sed -n 's/^\(RE_PORT_[A-Z_]*\)=.*/\1/p'); do set -- "$@" -e "$v"; done
-  set -- "$@" "$img" configure --install /install --engines "$ENGINES" --version "$VERSION" --registry "$REGISTRY"
+  set -- "$@" "$img" configure --install /install --engines "$ENGINES" --version "$VERSION" --registry "$REGISTRY" --project "$proj"
   [ -f "$DIR/images.json" ] && set -- "$@" --images /install/images.json
   "$@"
   save_conf

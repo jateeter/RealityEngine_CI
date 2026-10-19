@@ -29,8 +29,11 @@ import sys
 import threading
 import time
 import urllib.request
+from pathlib import Path
 
-REGISTRY = "http://localhost:5999/re-registry.json"
+sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "scripts" / "lib"))
+from registry_url import registry_url  # noqa: E402
+
 PROMETHEUS = "http://localhost:9090"
 
 
@@ -108,13 +111,13 @@ def docker_mem(project: str) -> dict[str, float]:
 def main() -> int:
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument("--minutes", type=float, default=10)
-    ap.add_argument("--registry", default=REGISTRY)
+    ap.add_argument("--registry", default=None, help="instance registry URL (default: RE_REGISTRY_URL, then the shared resolver)")
     ap.add_argument("--project", default="realityengine")
     ap.add_argument("--max-stream-gap", type=float, default=30.0)
     ap.add_argument("--report", default=None)
     args = ap.parse_args()
 
-    _, reg = get(args.registry)
+    _, reg = get(args.registry or registry_url())
     insts = reg["instances"]
     stop = threading.Event()
     streams = {i["id"]: Stream(f"{i['re_url']}/api/engine/stream", stop) for i in insts}
