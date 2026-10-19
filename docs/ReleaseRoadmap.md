@@ -101,8 +101,8 @@ needing no source checkout, compiler or build toolchain on the Mac:
 | **D5** | MQTT disposition | CI/MQTT | A11 | in progress: Yuma answering; stage passes | CI#578 |
 | **D6** | Release asset checks | Machines/OpenClaw/CI | A8 | in progress | |
 | **D7** | Deployment suite | CI | C3 | in progress: live suites green on the install | CPP#171, Scala#190, LSP#164, Machines#217 |
-| **E1** | `local-containerized` lane on published images | CI | B5, C3 | in progress: development form green, 20/20 (`e1-20261019c`); certifying form needs an `-rc` push | CI#165 |
-| **E2** | Native vs containerized comparison | CI | E1 | in progress: 54/56 measurements identical, 2 explained (CI#581) | |
+| **E1** | `local-containerized` lane on published images | CI | B5, C3 | in progress: development form green, 20/20 (`e1-20261019f`); certifying form needs an `-rc` push | CI#165 |
+| **E2** | Native vs containerized comparison | CI | E1 | done for the development form: 53/56 identical, 3 explained (`e1-20261019f`); repeat at F1 | |
 | **E3** | Clean-Mac install test | CI/operator | B5, C3, C4 | open | |
 | **E4** | Release eligibility enforced | CI tooling | A1, A2, B5 | open | |
 | **E5** | Release documentation aligned | CI/docs | A1, A2 | in progress: `RELEASE.md` revised for A1–A11 | |
@@ -566,6 +566,14 @@ source, the image rebuilt, and the check re-run.
       Ollama's models at `host.docker.internal`, which the Mac does not
       resolve. Both are fixed in CI#581, as is the same status defect in
       `engine-process-parity`, which hid nothing in these runs.
+    - Runs `e1-20261019d` and `-e` did not reach the stages. In `-d`, the
+      native run's localAI, OpenClaw and observability stacks still held
+      their ports; `stopUniverse.sh` stops only the engines. In `-e`, PIM's
+      bootstrap got a CSS 403: run c's volumes outlived its pruned run
+      directory, so the lane's directory-based cleanup missed them. The lane
+      now removes its compose project by label (CI#582).
+    - Run `e1-20261019f`: 20/20 again, with `local-ai` genuinely passing (4
+      models listed).
     - Next: the certifying form, `--images` against a pushed `-rc`
       candidate. Pushing to GHCR waits for the owner.
 - [ ] **E2 — Native vs containerized comparison.** Run the native local lane
@@ -591,7 +599,18 @@ source, the image rebuilt, and the check re-run.
       - `service-inventory`: the release does not ship the Swagger UI or the
         host-side OpenClaw adapter metrics exporter (`bridge-metrics`, :7342,
         optional), which the native universe starts.
-    - Next: rerun both lanes after CI#581, expecting `local-ai` to match.
+    - After CI#581/#582, `e2-native-20261019b` against `e1-20261019f` (the same
+      commits except the CI harness fixes): 53 of 56 identical. All three
+      differences are explained:
+      - `service-inventory`: Swagger and `bridge-metrics`, as above;
+      - `local-ai`: localAI's bridge targets the first instance in the
+        instance registry, and the order differs by lane. Native follows the
+        `--engines` spec (cpp first); re-init orders by port band (scala
+        first). Noticed, not changed;
+      - `mqtt-yuma-cpp-1`: live Yuma broker traffic counts, which differ
+        between any two runs by design.
+    - **Done for the development form.** F1 repeats the comparison on the
+      certified candidate's images.
 - [ ] **E3 — Clean-Mac install test.** A Mac with Apple Silicon on macOS 26 with
   no checkouts, toolchains or cached images, and only Docker Desktop and native
   Ollama installed. Follow `INSTALL.md` word for word, run the smoke tests and
