@@ -142,7 +142,9 @@ if [ -f "$env_file" ] && command -v docker >/dev/null && docker info >/dev/null 
   digest="$(docker image inspect --format '{{index .RepoDigests 0}}' "$ref")"
   [[ "$digest" == *@sha256:* ]] || die "could not resolve a digest for $ref"
   cp -p "$env_file" "$env_file.bak-node-$FROM"
-  perl -pi -e "s|^NODE_IMAGE=.*|NODE_IMAGE=$digest|" "$env_file"
+  # Passed through the environment: in a perl replacement "@sha256" would
+  # interpolate as an (empty) array and drop the digest's separator.
+  D="$digest" perl -pi -e 's|^NODE_IMAGE=.*|NODE_IMAGE=$ENV{D}|' "$env_file"
   echo "local: localOpenClawStack .env NODE_IMAGE -> $digest ($ref; previous kept in .env.bak-node-$FROM)"
 else
   echo "local: localOpenClawStack .env NODE_IMAGE not re-pinned (no .env or Docker not running)"
