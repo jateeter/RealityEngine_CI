@@ -101,7 +101,7 @@ needing no source checkout, compiler or build toolchain on the Mac:
 | **D5** | MQTT disposition | CI/MQTT | A11 | in progress: Yuma answering; stage passes | CI#578 |
 | **D6** | Release asset checks | Machines/OpenClaw/CI | A8 | in progress | |
 | **D7** | Deployment suite | CI | C3 | in progress: live suites green on the install | CPP#171, Scala#190, LSP#164, Machines#217 |
-| **E1** | `local-containerized` lane on published images | CI | B5, C3 | open | CI#165 |
+| **E1** | `local-containerized` lane on published images | CI | B5, C3 | in progress: lane built (CI#578, #579); first run 15/20, release defects fixed (CI#580) | CI#165 |
 | **E2** | Native vs containerized comparison | CI | E1 | open | |
 | **E3** | Clean-Mac install test | CI/operator | B5, C3, C4 | open | |
 | **E4** | Release eligibility enforced | CI tooling | A1, A2, B5 | open | |
@@ -528,6 +528,37 @@ source, the image rebuilt, and the check re-run.
   `--engines=` spec, then runs the local lane's stages. Same corpus and instance
   registry contract as the native lane.
   - **Done:** a green run that recorded the image digests it ran.
+  - **Progress (2026-10-19).**
+    - The lane is in `scripts/lib/containerized-lane.sh` (CI#578, CI#579).
+      Without `--images` it builds the images from the run's worktrees as
+      `dev-<run id>` and installs them, the development form; with
+      `--images FILE` it installs a published candidate, the certifying form.
+      Either way each image's revision label must equal the run's pin.
+    - Run `e1-20261019b` (development form, `cpp:1,lsp:1,scala:1`): 15 of 20
+      stages passed, including machine-set, export, engine-process and
+      reset-contract parity, MCP, localAI, OpenClaw, MQTT and `pim-mirror`.
+      `healthkit-bridge` skipped: no iPhone connected.
+    - It found two release defects, fixed in CI#580:
+      - **No arbitration or semantic-bus registry in any engine image.** The
+        engines read `domains/` from beside `MACHINES_DIR`; natively they
+        found it only through a fallback to the sibling Machines checkout,
+        which a container does not have. Every engine booted with 0 of 2,837
+        arbitration entries, which failed `trajectory-parity` and
+        `arbitration-retention`. `materialize-machine-corpus.sh` now copies
+        `domains/`.
+      - **No engine PE could reach Ollama.** The PEs defaulted to
+        `localhost:11434`, the container itself. re-init now sets
+        `OLLAMA_BASE_URL` to the host.
+    - The other three failures were the lane assuming native paths:
+      - service inventory probed a Swagger UI the release does not ship; it is
+        now recorded as not checked, with the reason;
+      - `universal-vectors` read the native materialized corpus; the lane now
+        materializes its own;
+      - the arbiter refused the new lane name.
+    - Noticed, not chased: `local-ai` passed while every PE reported Ollama
+      unreachable, so that stage does not require PE reachability.
+    - Next: rerun the development form, then the certifying form against a
+      pushed `-rc` candidate.
 - [ ] **E2 — Native vs containerized comparison.** Run the native local lane
   and E1 at the same commits and spec on the same Mac and compare the parity
   stages.

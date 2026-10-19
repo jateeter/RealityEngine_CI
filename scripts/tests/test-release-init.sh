@@ -88,6 +88,8 @@ done
 assert_contains "$ENG" '"http://engine-cpp-2-re:3000"' "a PE is paired with its own RE"
 assert_contains "$ENG" '"6310:3004"' "and published on its band port"
 assert_contains "$ENG" '${RE_IMAGE_SCALA_PE}' "the Scala PE uses its own image"
+assert_eq "$(grep -c 'OLLAMA_BASE_URL.*host.docker.internal:11434' "$INSTALL/compose.engines.yml")" 4 \
+  "every PE reaches native Ollama on the host, not its own localhost"
 python3 - "$INSTALL/compose.engines.yml" <<'PY' && { echo "  PASS: compose.engines.yml parses as YAML"; PASS=$((PASS+1)); } || { echo "  FAIL: compose.engines.yml is not valid YAML"; FAIL=$((FAIL+1)); }
 import sys
 try:

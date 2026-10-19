@@ -1410,6 +1410,9 @@ run_service_inventory() {
     "--swagger-url" "$SWAGGER_URL"
   )
   [ "$OPENCLAW_FLAG" = "--openclaw" ] && args+=("--require-openclaw")
+  # The release images do not include the OpenAPI Swagger UI (release/images.json).
+  [ "$CONTAINERIZED" = false ] ||
+    args+=("--no-swagger" "the release images do not include the OpenAPI Swagger UI")
   run_cmd "service-inventory" python3 "$ci/scripts/regression-service-inventory.py" "${args[@]}"
 }
 

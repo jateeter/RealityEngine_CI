@@ -163,6 +163,8 @@ def main() -> int:
     parser.add_argument("--manifest", type=Path)
     parser.add_argument("--mcp-url", default="http://127.0.0.1:7331")
     parser.add_argument("--swagger-url", default="http://127.0.0.1:8088")
+    parser.add_argument("--no-swagger", metavar="REASON", default="",
+                        help="the deployment does not serve the OpenAPI Swagger UI; record why")
     parser.add_argument("--openclaw-url", default="http://localhost:18789")
     parser.add_argument("--require-openclaw", action="store_true")
     parser.add_argument("--require-service", action="append", default=[], choices=sorted(DEFAULT_OPTIONAL_SERVICES))
@@ -204,14 +206,20 @@ def main() -> int:
     if not mcp_health.get("ok"):
         failures.append(f"MCP HTTP health failed: {mcp_health.get('error') or mcp_health.get('status')}")
 
-    swagger_health = service_check("openapi-swagger", f"{args.swagger_url.rstrip('/')}/healthz", True, args.timeout, args.insecure_tls)
-    service_checks.append(swagger_health)
-    if not swagger_health.get("ok"):
-        failures.append(f"OpenAPI Swagger health failed: {swagger_health.get('error') or swagger_health.get('status')}")
+    if args.no_swagger:
+        # Recorded, not passed: the report says the check did not run and why.
+        service_checks.append({"name": "openapi-swagger", "required": False, "ok": None,
+                               "status": "skipped", "reason": args.no_swagger})
+        warnings.append(f"openapi-swagger not checked: {args.no_swagger}")
+    else:
+        swagger_health = service_check("openapi-swagger", f"{args.swagger_url.rstrip('/')}/healthz", True, args.timeout, args.insecure_tls)
+        service_checks.append(swagger_health)
+        if not swagger_health.get("ok"):
+            failures.append(f"OpenAPI Swagger health failed: {swagger_health.get('error') or swagger_health.get('status')}")
 
-    swagger_report, swagger_failures = swagger_proxy_checks(args.swagger_url, expected, args.timeout, args.insecure_tls)
-    service_checks.extend(swagger_report)
-    failures.extend(swagger_failures)
+        swagger_report, swagger_failures = swagger_proxy_checks(args.swagger_url, expected, args.timeout, args.insecure_tls)
+        service_checks.extend(swagger_report)
+        failures.extend(swagger_failures)
 
     required_optionals = set(args.require_service)
     for name, url in DEFAULT_OPTIONAL_SERVICES.items():

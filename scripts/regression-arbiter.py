@@ -383,7 +383,7 @@ def main() -> int:
                         help="how long to wait for a driven step's completion point")
     parser.add_argument("--machines", type=Path, required=True,
                         help="RealityEngine_Machines root, for the provider registry")
-    parser.add_argument("--lane", choices=("hosted", "local"), default="hosted",
+    parser.add_argument("--lane", choices=("hosted", "local", "local-containerized"), default="hosted",
                         help="local runs the full system (OpenClaw, Ollama, HealthKit "
                              "bridge), so 9b is in scope there and only there")
     args = parser.parse_args()
