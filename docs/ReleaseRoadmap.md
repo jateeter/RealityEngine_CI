@@ -101,8 +101,8 @@ needing no source checkout, compiler or build toolchain on the Mac:
 | **D5** | MQTT disposition | CI/MQTT | A11 | in progress: Yuma answering; stage passes | CI#578 |
 | **D6** | Release asset checks | Machines/OpenClaw/CI | A8 | in progress | |
 | **D7** | Deployment suite | CI | C3 | in progress: live suites green on the install | CPP#171, Scala#190, LSP#164, Machines#217 |
-| **E1** | `local-containerized` lane on published images | CI | B5, C3 | in progress: lane built (CI#578, #579); first run 15/20, release defects fixed (CI#580) | CI#165 |
-| **E2** | Native vs containerized comparison | CI | E1 | open | |
+| **E1** | `local-containerized` lane on published images | CI | B5, C3 | in progress: development form green, 20/20 (`e1-20261019c`); certifying form needs an `-rc` push | CI#165 |
+| **E2** | Native vs containerized comparison | CI | E1 | in progress: 54/56 measurements identical, 2 explained (CI#581) | |
 | **E3** | Clean-Mac install test | CI/operator | B5, C3, C4 | open | |
 | **E4** | Release eligibility enforced | CI tooling | A1, A2, B5 | open | |
 | **E5** | Release documentation aligned | CI/docs | A1, A2 | in progress: `RELEASE.md` revised for A1–A11 | |
@@ -557,14 +557,41 @@ source, the image rebuilt, and the check re-run.
       - the arbiter refused the new lane name.
     - Noticed, not chased: `local-ai` passed while every PE reported Ollama
       unreachable, so that stage does not require PE reachability.
-    - Next: rerun the development form, then the certifying form against a
-      pushed `-rc` candidate.
+    - Run `e1-20261019c`, after CI#580: all 20 stages passed (development
+      form), `healthkit-bridge` and `arbiter-sweep` skipped with reasons.
+      Trajectory parity ran over the 2,837 contended cells, and every PE
+      reaches Ollama.
+    - Its `local-ai` report said failed while the stage recorded passed: the
+      stage returned only its last command's status, and the probe listed
+      Ollama's models at `host.docker.internal`, which the Mac does not
+      resolve. Both are fixed in CI#581, as is the same status defect in
+      `engine-process-parity`, which hid nothing in these runs.
+    - Next: the certifying form, `--images` against a pushed `-rc`
+      candidate. Pushing to GHCR waits for the owner.
 - [ ] **E2 — Native vs containerized comparison.** Run the native local lane
   and E1 at the same commits and spec on the same Mac and compare the parity
   stages.
   - A disagreement that is still there after a re-run blocks the release; this
     comparison is the evidence that the images are the product.
   - **Done:** a comparison report with no unexplained difference.
+  - **Progress (2026-10-19).**
+    - `scripts/compare-lane-runs.py` (CI#581) compares what two runs measured,
+      not their stage statuses. `regression-report.py --compare-run` compares
+      statuses only, so it reports two lanes that pass the same stages as
+      identical whatever they measured. The script masks values that differ
+      between any two runs (times, epochs, UUIDs, origins, paths, run and
+      generated ids, previews) and sorts lists whose order is the instance
+      registry's.
+    - Native `e2-native-20261019b` (`RE_FREE_PORTS=true`: macOS AirPlay holds
+      5000, the Scala PE's fixed port) against containerized `e1-20261019c`,
+      the same commit in all 10 repos: 20/20 stages on both, and 54 of 56
+      shared reports and responses identical. Both remaining differences are
+      explained:
+      - `local-ai`: the probe defect above;
+      - `service-inventory`: the release does not ship the Swagger UI or the
+        host-side OpenClaw adapter metrics exporter (`bridge-metrics`, :7342,
+        optional), which the native universe starts.
+    - Next: rerun both lanes after CI#581, expecting `local-ai` to match.
 - [ ] **E3 — Clean-Mac install test.** A Mac with Apple Silicon on macOS 26 with
   no checkouts, toolchains or cached images, and only Docker Desktop and native
   Ollama installed. Follow `INSTALL.md` word for word, run the smoke tests and

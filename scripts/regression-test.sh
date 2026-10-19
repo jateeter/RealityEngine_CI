@@ -1826,7 +1826,7 @@ run_arbitration_retention() {
 
 run_engine_process_parity() {
   step "POST /api/engine/process parity across runtimes"
-  local ci; ci="$(repo_root RealityEngine_CI)"
+  local ci status=0; ci="$(repo_root RealityEngine_CI)"
   # Nothing compared this route until RealityEngine_CI#254 item 3, and that
   # absence is how two defects survived: Scala walked sequences instead of
   # machines, and C++ walked the server registry — whose copies carry
@@ -1842,7 +1842,7 @@ run_engine_process_parity() {
   run_cmd "engine-process-parity" python3 "$ci/scripts/regression-engine-process-parity.py" \
     --registry "$REGISTRY_FILE" \
     --machines "$(repo_root RealityEngine_Machines)" \
-    --out "$REPORT_DIR/engine-process-parity.json"
+    --out "$REPORT_DIR/engine-process-parity.json" || status=1
 
   # Configuration parity. /api/engine/config exists so configuration can be
   # compared, and until this stage nothing compared it — which is why
@@ -1854,7 +1854,9 @@ run_engine_process_parity() {
   # disagreeing with the specification.
   run_cmd "engine-config-parity" python3 "$ci/scripts/regression-engine-config-parity.py" \
     --registry "$REGISTRY_FILE" \
-    --json "$REPORT_DIR/engine-config-parity.json"
+    --json "$REPORT_DIR/engine-config-parity.json" || status=1
+  # Either failing fails the stage; see run_local_ai.
+  return "$status"
 }
 
 run_mcp() {
@@ -1900,18 +1902,23 @@ run_local_ai() {
     write_skip_report "local-ai-skipped.json" "local AI disabled (--profile $PROFILE)"
     return 0
   fi
-  local ci
+  local ci status=0
   ci="$(repo_root RealityEngine_CI)"
+  # Both checks run, and either failing fails the stage. A function returns its
+  # last command's status, so the probe's failure was lost behind a passing
+  # allow-list check: run e1-20261019c recorded local-ai passed while its
+  # report said failed.
   run_cmd "local-ai-probe" python3 "$ci/scripts/regression-local-ai.py" \
     --registry "$REGISTRY_FILE" \
     --localai-url "$LOCAL_AI_URL" \
-    --out "$REPORT_DIR/local-ai.json"
+    --out "$REPORT_DIR/local-ai.json" || status=1
   # The curated invoke allow-list (INTEGRATION_ROADMAP §6 Q7) against what
   # localAIStack actually serves. An allowed operation it no longer serves
   # fails; a served route that is not allowed is policy, printed, not failed.
   run_cmd "localai-allowed-operations" python3 "$ci/scripts/check-localai-operations.py" \
     --config "$ci/config/integrations.example.json" \
-    --base-url "$LOCAL_AI_URL"
+    --base-url "$LOCAL_AI_URL" || status=1
+  return "$status"
 }
 
 # localAIStack ships eight machine definitions of its own that the reality
