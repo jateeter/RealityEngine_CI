@@ -103,7 +103,7 @@
       "dockerfile": "localOpenClawStack/Dockerfile.openclaw-gateway",
       "build_args": {
         "OPENCLAW_VERSION": "2026.6.34",
-        "NODE_IMAGE": "node:26.8-bookworm-slim"
+        "NODE_IMAGE": "node:26.12-bookworm-slim"
       },
       "roles": [
         "openclaw"
