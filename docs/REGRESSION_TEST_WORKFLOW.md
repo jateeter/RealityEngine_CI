@@ -378,7 +378,8 @@ images (`scripts/lib/containerized-lane.sh`, #165):
   native engine, Manager and localAI/OpenClaw builds do not run; the corpus
   checks, typechecks, PIM and the HealthKit bridge do.
 - **Start.** The install goes to `<run>/install` under compose project
-  `re-regression`; an earlier run's install of that project is removed first.
+  `re-regression`; everything that project holds is removed first, found by
+  compose project label, since an earlier run's directory may already be pruned.
   The stages read that install's instance registry (`REGISTRY_FILE`). Nothing
   of the operator's is stopped; a held port fails the install and is named.
 - **Stages.** The same as the local lane. `--arbiter-sweep` is skipped with a
