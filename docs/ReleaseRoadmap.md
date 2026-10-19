@@ -86,7 +86,7 @@ needing no source checkout, compiler or build toolchain on the Mac:
 | **B2** | Self-contained images | CI + repos | B1 | open | |
 | **B3** | Pin and unify third-party images | CI + repos | — | in progress | OCS#58, localAIStack#129, PIM#84 |
 | **B4** | Native arm64 builds | CI | A4, B1 | in progress | |
-| **B5** | Release image workflow | CI | A3, B4 | done: `release-v0.0.1-rc1` pushed, 13 images, all public | run 39300675853 |
+| **B5** | Release image workflow | CI | A3, B4 | done: `release-v0.0.1-rc1`, then `-rc2` (current candidate), 13 images each, all public | runs 39300675853, 39315175811 |
 | **B6** | Image hygiene | all | B1 | open | |
 | **C1** | Release compose, engines generated from the instance spec | CI | B2, B3 | in progress: live on the developer Mac |  |
 | **C2** | Instance registry, MCP, config and UUIDs in containers | CI | B2 | in progress: live on the developer Mac |  |
@@ -101,9 +101,9 @@ needing no source checkout, compiler or build toolchain on the Mac:
 | **D5** | MQTT disposition | CI/MQTT | A11 | in progress: Yuma answering; stage passes | CI#578 |
 | **D6** | Release asset checks | Machines/OpenClaw/CI | A8 | in progress | |
 | **D7** | Deployment suite | CI | C3 | in progress: live suites green on the install | CPP#171, Scala#190, LSP#164, Machines#217 |
-| **E1** | `local-containerized` lane on published images | CI | B5, C3 | in progress: development form green, 20/20 (`e1-20261019f`); certifying form unblocked by `release-v0.0.1-rc1` | CI#165 |
+| **E1** | `local-containerized` lane on published images | CI | B5, C3 | done: certifying form green on `release-v0.0.1-rc2` (`e1-rc2-20261019a`) | CI#165, CI#590 |
 | **E2** | Native vs containerized comparison | CI | E1 | done for the development form: 53/56 identical, 3 explained (`e1-20261019f`); repeat at F1 | |
-| **E3** | Clean-Mac install test | CI/operator | B5, C3, C4 | open | |
+| **E3** | Clean-Mac install test | CI/operator | B5, C3, C4 | open: clean Mac being prepared; install `release-v0.0.1-rc2` | |
 | **E4** | Release eligibility enforced | CI tooling | A1, A2, B5 | open | |
 | **E5** | Release documentation aligned | CI/docs | A1, A2 | in progress: `RELEASE.md` revised for A1–A11 | |
 | **F1** | Freeze and final certification | release operator | D*, E1–E5 | open | |
@@ -262,6 +262,13 @@ Each is reflected in `RELEASE.md` where it changes the process.
     `9704061`, LSP `45b721e`, Scala `f02cd03`, Machines `b77bf98`, Manager
     `65eb0dc`, localAIStack `d0c9cf6`, localOpenClawStack `1b876c0`, PIM
     `521e1d9`.
+  - Run 39315175811 pushed `release-v0.0.1-rc2`, the current candidate, with
+    the same pins except CI `a260777` (CI#590, the Open WebUI fix E1 found).
+    Its images file is the run's `release-images-release-v0.0.1-rc2`
+    artifact.
+  - Noticed, not fixed: `release-images.yml`'s pull-request paths omit
+    `release/compose.yml`, which `re-init` carries, so CI#590 merged without
+    its image being built; the rc2 dispatch built it.
 - [ ] **B6 — Image hygiene.** Each image runs as a non-root user, has a
   `HEALTHCHECK`, contains no secrets, and stays within a size budget recorded
   per image. Today localAI is 1.44 GB and the OpenClaw browser 4.4 GB.
@@ -357,7 +364,7 @@ Found and fixed on the way:
   had an empty nginx config and site, with the build reporting success.
   Rebuilt.
 
-**Open:** a clean Mac (E3), now being prepared, pulling `release-v0.0.1-rc1`,
+**Open:** a clean Mac (E3), now being prepared, pulling `release-v0.0.1-rc2`,
 and `upgrade` between two published versions.
 - [ ] **C3 — Installer CLI** (`realityengine install | up | down | status |
   upgrade | uninstall | machines`).
@@ -531,7 +538,7 @@ source, the image rebuilt, and the check re-run.
 
 ## E. Certify the image product
 
-- [ ] **E1 — `local-containerized` lane on published images** (CI#165).
+- [x] **E1 — `local-containerized` lane on published images** (CI#165).
   `scripts/regression-test.sh --profile local-containerized`. It installs the
   candidate's **published** images through C3, not local builds, for the given
   `--engines=` spec, then runs the local lane's stages. Same corpus and instance
@@ -583,8 +590,21 @@ source, the image rebuilt, and the check re-run.
       now removes its compose project by label (CI#582).
     - Run `e1-20261019f`: 20/20 again, with `local-ai` genuinely passing (4
       models listed).
-    - Next: the certifying form, `--images` with the images file of
-      `release-v0.0.1-rc1` (pushed 2026-10-19, run 39300675853, B5).
+    - Run `e1-rc1-20261019a` (certifying form, `release-v0.0.1-rc1`) never
+      reached its stages: the install timed out after 900s waiting for Open
+      WebUI, whose default embedding engine downloaded
+      `sentence-transformers/all-MiniLM-L6-v2` from HuggingFace on its fresh
+      volume for 16 minutes. Every clean install, E3's included, would have
+      depended on that download. CI#590 embeds through the host Ollama with
+      `nomic-embed-text` instead; a fresh start is healthy in about 30s with
+      no HuggingFace request. `compose.yml` is in `re-init`, hence rc2.
+  - **Done (2026-10-19):** run `e1-rc2-20261019a`, certifying form on
+    `release-v0.0.1-rc2` (`cpp:1,lsp:1,scala:1`, regression corpus): 19
+    stages passed, `arbiter-sweep` and `healthkit-bridge` skipped with reasons
+    (no iPhone connected), no change from `e1-20261019f`. Its
+    `reports/images.json` is the rc2 images file, every revision label
+    matched the run's pins, and every running container's image digest is
+    rc2's.
 - [ ] **E2 — Native vs containerized comparison.** Run the native local lane
   and E1 at the same commits and spec on the same Mac and compare the parity
   stages.
