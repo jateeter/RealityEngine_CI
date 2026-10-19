@@ -216,6 +216,10 @@ def engine_services(insts: list[dict]) -> dict:
             "OPENCLAW_GATEWAY_TOKEN": "${OPENCLAW_GATEWAY_TOKEN}",
             "HEALTHKIT_BRIDGE_TOKEN": "${HEALTHKIT_BRIDGE_TOKEN}",
             "TRIGGERS_ENABLED": "true", "TRIGGER_DISPATCH_MODE": "dry-run",
+            # Ollama runs natively, for the Apple GPU (A6); every PE runtime
+            # defaults to localhost, which inside a container is the container.
+            "OLLAMA_BASE_URL": "http://host.docker.internal:11434",
+            "OLLAMA_MODEL": "${OLLAMA_MODEL:-llama3.1:8b}",
         }
         pe_svc_def = {
             **common,

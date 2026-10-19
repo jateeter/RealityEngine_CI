@@ -72,6 +72,23 @@ else
   echo "         materialized corpus will resolve no semantic IRIs" >&2
 fi
 
+# The domain registries travel with it too, for the same reason. Every engine
+# loads domains/arbitration-registry.json and domains/semantic-bus-registry.json
+# from beside MACHINES_DIR (MACHINES_DIR/../domains/), and natively the corpus
+# only worked because each engine falls back to ../RealityEngine_Machines/domains
+# relative to its working directory — the sibling checkout. An engine with no
+# sibling checkout, which is every release container, booted with an empty
+# arbitration registry: contended cells fell back to PRECEDENCE and no declared
+# rule was under test (ReleaseRoadmap E1, run e1-20261019b). Whole files, as
+# with the semantics manifest: they are keyed by cell and machine, not filtered.
+if [ -d "$source_root/domains" ]; then
+  mkdir -p "$output_root/domains"
+  cp "$source_root"/domains/*.json "$output_root/domains/"
+else
+  echo "warning: $source_root/domains not found — the materialized corpus" >&2
+  echo "         carries no arbitration or semantic-bus registry" >&2
+fi
+
 count=0
 missing=""
 ambiguous=""

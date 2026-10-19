@@ -80,6 +80,13 @@ containerized_start() {
     tag="$(containerized_image_tag)"
     args=(--local)
   fi
+  # The boot corpus, materialized here from the run's own worktrees by the same
+  # script and manifest that built re-corpus: the stages that read machine
+  # files (universal-vectors) read exactly what the engines booted.
+  MACHINE_CORPUS_WORK_DIR="$RUN_DIR/corpus"
+  run_cmd "materialize-boot-corpus" bash "$(repo_root RealityEngine_CI)/scripts/materialize-machine-corpus.sh" \
+    "$(repo_root RealityEngine_Machines)" "$MACHINE_CORPUS_MANIFEST" "$MACHINE_CORPUS_WORK_DIR" \
+    "$(repo_root localAIStack)/data/machines" || return 1
   run_cmd "install-release" containerized_cli install --version "$tag" --engines "$ENGINES_SPEC" "${args[@]}" || return 1
   REGISTRY_FILE="$RUN_DIR/install/registry/re-registry.json"
   RE_REGISTRY_URL="http://localhost:${RE_PORT_REGISTRY:-5999}/re-registry.json"
