@@ -15,7 +15,7 @@
 #                   published artifact.
 #
 # The install lives in <run>/install under the fixed compose project
-# re-regression; a previous run's install of that project is removed first.
+# re-regression; whatever that project holds is removed first, by label.
 # Like the native lane, the universe is left running at the end for
 # inspection; `RE_REGRESSION_KEEP=0` removes it.
 
@@ -63,16 +63,32 @@ if bad:
 PYEOF
 }
 
+# Remove every container, volume and network of the lane's compose project,
+# found by label. A previous run leaves its install up, and its run directory
+# may already be gone: the run-history prune deletes old runs, which left
+# e1-20261019c's volumes behind, and the next install's PIM bootstrap met a CSS
+# account holding the old run's password (e1-20261019e). Only this project's
+# label is matched, so nothing else on the host is touched.
+containerized_remove_project() {
+  local label="label=com.docker.compose.project=$CONTAINERIZED_PROJECT" ids
+  ids="$(docker ps -aq --filter "$label")"
+  # shellcheck disable=SC2086 # word-splitting the id list is intended
+  [ -z "$ids" ] || docker rm -f $ids >/dev/null || return 1
+  ids="$(docker volume ls -q --filter "$label")"
+  # shellcheck disable=SC2086
+  [ -z "$ids" ] || docker volume rm $ids >/dev/null || return 1
+  ids="$(docker network ls -q --filter "$label")"
+  # shellcheck disable=SC2086
+  [ -z "$ids" ] || docker network rm $ids >/dev/null || return 1
+  [ -z "$(docker ps -aq --filter "$label")$(docker volume ls -q --filter "$label")" ] || {
+    log "Could not remove compose project $CONTAINERIZED_PROJECT"; return 1; }
+  log "compose project $CONTAINERIZED_PROJECT: nothing left from an earlier run"
+}
+
 containerized_start() {
   local tag args=()
   step "Install the release images"
-  # A previous run of this lane leaves its install up; remove it, data too.
-  local old
-  for old in "$RUN_DIR"/../*/install; do
-    [ -f "$old/.env" ] || continue
-    grep -q "^COMPOSE_PROJECT_NAME=$CONTAINERIZED_PROJECT$" "$old/.env" || continue
-    (cd "$old" && docker compose down -v --remove-orphans) >/dev/null 2>&1 || true
-  done
+  containerized_remove_project || return 1
   if [ -n "$RELEASE_IMAGES_FILE" ]; then
     tag="$(python3 -c 'import json,sys; print(json.load(open(sys.argv[1]))["tag"])' "$REPORT_DIR/images.json")"
     args=(--images "$REPORT_DIR/images.json")
@@ -96,7 +112,7 @@ containerized_start() {
 
 containerized_finish() {
   if [ "${RE_REGRESSION_KEEP:-1}" = "0" ]; then
-    containerized_cli uninstall --purge >/dev/null 2>&1 || true
+    containerized_remove_project || true
     log "Removed the install (RE_REGRESSION_KEEP=0)."
   else
     log "The install is left running: $RUN_DIR/install (project $CONTAINERIZED_PROJECT)."
