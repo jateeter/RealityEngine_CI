@@ -50,7 +50,7 @@ containerized_build_images() {
     run_cmd "build-release-images" python3 "$ci/release/build-images.py" \
       --workspace "$(dirname "$ci")" --tag "$(containerized_image_tag)" --out "$images" || return 1
   fi
-  run_cmd "release-images-provenance" python3 - "$images" "$MANIFEST" <<'PYEOF'
+  run_cmd "release-images-provenance" python3 - "$images" "$RUN_DIR/manifest.json" <<'PYEOF'
 import json, sys
 images = json.load(open(sys.argv[1]))["images"]
 repos = {r["name"]: r.get("worktreeSha") for r in json.load(open(sys.argv[2])).get("repos", [])}
