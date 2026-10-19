@@ -481,6 +481,10 @@ jobs:
         working-directory: RealityEngine_CI
         run: bash scripts/tests/test-release-init.sh
 
+      - name: Run lane comparison unit tests
+        working-directory: RealityEngine_CI
+        run: bash scripts/tests/test-compare-lane-runs.sh
+
       # One version of every image more than one repo declares, and no floating
       # tag (ReleaseRoadmap B3). Reads every sibling checked out above.
       - name: Check shared service versions

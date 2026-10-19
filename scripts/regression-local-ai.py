@@ -30,6 +30,7 @@ import argparse
 import json
 import sys
 import urllib.error
+import urllib.parse
 import urllib.request
 from pathlib import Path
 from typing import Any
@@ -136,6 +137,10 @@ def main() -> int:
         if p.get("baseUrl")
     }
     ollama_base = next(iter(base_urls.values()), "") or args.ollama_url
+    # A containerized PE reaches the Mac's Ollama as host.docker.internal, a
+    # name only containers resolve; from here the same Ollama is --ollama-url.
+    if urllib.parse.urlsplit(ollama_base).hostname == "host.docker.internal":
+        ollama_base = args.ollama_url
     installed: list[str] = []
     if ollama_base and distinct:
         status, body, err = get_json(f"{ollama_base.rstrip('/')}/api/tags", args.timeout)

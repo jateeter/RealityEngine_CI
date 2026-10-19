@@ -122,6 +122,20 @@ assert_eq "$CODE" "1" "a reachable provider missing the configured model fails"
 assert_contains "$OUT" "which is not installed" "names the missing model"
 assert_contains "$OUT" "gpt-oss:20b" "lists what is available instead"
 
+# A containerized PE reports the Mac's Ollama as host.docker.internal, which
+# only containers resolve. The probe asks the same Ollama at --ollama-url
+# (run e1-20261019c reported "could not list installed models" here).
+printf '{"reachable":true,"model":"gpt-oss:20b","baseUrl":"http://host.docker.internal:11434"}\n' > "$TMP/pe-docker.json"
+PE_DOCKER=$(spawn "$TMP/pe-docker.json")
+registry "$TMP/reg-docker.json" "$PE_DOCKER"
+set +e
+OUT="$(python3 "$TOOL" --registry "$TMP/reg-docker.json" --localai-url "http://127.0.0.1:$STACK" \
+  --ollama-url "http://127.0.0.1:$OLLAMA" --out "$TMP/docker.json" 2>&1)"; CODE=$?
+set -e
+assert_eq "$CODE" "0" "a PE's host.docker.internal Ollama is checked at --ollama-url"
+assert_eq "$(python3 -c "import json;print(len(json.load(open('$TMP/docker.json'))['installedModels']))")" "2" \
+  "and its installed models are listed"
+
 # Stack down, providers fine.
 registry "$TMP/reg-ok2.json" "$PE_OK"
 set +e
