@@ -201,7 +201,12 @@ configure() {
   say "Configuring $ENGINES ($VERSION) in $DIR"
   # As root: configure writes the install directory and sets ownership the
   # gateway and the engines need. The image itself runs unprivileged.
-  set -- docker run --rm --user 0:0 -v "$DIR:/install" -e "HOST_IP=$(host_ip)"
+  # The catalog and localAI's machines, for OpenClaw's agents when machines
+  # were loaded beyond the shipped corpus (created empty on a first install).
+  proj="realityengine"
+  [ -f "$DIR/.env" ] && proj="$(sed -n 's/^COMPOSE_PROJECT_NAME=//p' "$DIR/.env")"
+  set -- docker run --rm --user 0:0 -v "$DIR:/install" -e "HOST_IP=$(host_ip)" \
+    -v "${proj}_corpus-catalog:/volumes/catalog:ro" -v "${proj}_localai-machines:/opt/localAIStack/data/machines:ro"
   for v in $(env | sed -n 's/^\(RE_PORT_[A-Z_]*\)=.*/\1/p'); do set -- "$@" -e "$v"; done
   set -- "$@" "$img" configure --install /install --engines "$ENGINES" --version "$VERSION" --registry "$REGISTRY"
   [ -f "$DIR/images.json" ] && set -- "$@" --images /install/images.json
@@ -229,7 +234,8 @@ machines_run() {
   # shellcheck disable=SC1091
   . "$DIR/.env"
   docker run --rm --user 0:0 --network "$COMPOSE_PROJECT_NAME" -v "$DIR:/install" \
-    -v "${COMPOSE_PROJECT_NAME}_corpus-catalog:/volumes/catalog" "$RE_IMAGE_INIT" "$@"
+    -v "${COMPOSE_PROJECT_NAME}_corpus-catalog:/volumes/catalog" \
+    -v "${COMPOSE_PROJECT_NAME}_localai-machines:/opt/localAIStack/data/machines:ro" "$RE_IMAGE_INIT" "$@"
 }
 
 wait_healthy() {
@@ -317,8 +323,12 @@ case "$CMD" in
             ok "Catalog refreshed. Load machines from it with: $PROG machines load --domain <name>" ;;
       load) if [ "$ALL" = true ]; then LOAD_ARGS="$LOAD_ARGS --all"; fi
             [ -n "$LOAD_ARGS" ] || die "Name what to load: --domain <name>, --machine <id> or --all."
+            rc=0
             # shellcheck disable=SC2086  # the flags, split on purpose
-            machines_run machines-load $LOAD_ARGS ;;
+            machines_run machines-load $LOAD_ARGS || rc=$?
+            # OpenClaw's agents were regenerated for the deployed corpus.
+            compose restart openclaw-gateway >/dev/null 2>&1 || warn "Could not restart the OpenClaw gateway."
+            exit "$rc" ;;
       *) die "Usage: $PROG machines list | sync [--ref REF] | load --domain D | --machine M | --all" ;;
     esac ;;
   -h|--help|help) usage 0 ;;
