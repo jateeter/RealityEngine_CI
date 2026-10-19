@@ -209,7 +209,7 @@ jobs:
       - name: Setup Node.js
         uses: actions/setup-node@v7
         with:
-          node-version: '26.8'
+          node-version-file: .nvmrc
           cache: 'npm'
           # Manager's lockfiles are in the key because these jobs now install
           # its dependencies (the prebuild below). Without them the restored
@@ -451,11 +451,11 @@ jobs:
 
       # The parity-surface test imports the TypeScript module the e2e spec uses,
       # which needs the type stripping Node enables by default from 23. Pinned to
-      # the same 26.8 the other jobs use rather than trusting the runner default.
+      # CI's .nvmrc, like every other job, rather than trusting the runner default.
       - name: Set up Node
         uses: actions/setup-node@v7
         with:
-          node-version: '26.8'
+          node-version-file: RealityEngine_CI/.nvmrc
 
       - name: Run registry unit tests
         working-directory: RealityEngine_CI
@@ -555,7 +555,7 @@ jobs:
         working-directory: RealityEngine_CI
         run: bash scripts/tests/test-healthkit-token.sh
 
-      # Node is established (nvm use 26.8), never inherited from the terminal (#126).
+      # Node is established (nvm use, from .nvmrc), never inherited from the terminal (#126).
       - name: Run node-env unit tests
         working-directory: RealityEngine_CI
         run: bash scripts/tests/test-node-env.sh
@@ -901,7 +901,7 @@ jobs:
       - name: Setup Node.js
         uses: actions/setup-node@v7
         with:
-          node-version: '26.8'
+          node-version-file: RealityEngine_CI/.nvmrc
           cache: 'npm'
           # Manager's lockfiles are in the key because these jobs now install
           # its dependencies (the prebuild below). Without them the restored

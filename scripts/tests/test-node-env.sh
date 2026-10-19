@@ -12,12 +12,29 @@ echo "node-env.sh"
 source "$CI_DIR/scripts/lib/node-env.sh"
 establish_node
 check "$(node -v | sed -E 's/^v([0-9]+\.[0-9]+).*/\1/')" "$RE_NODE_VERSION" "establish_node selects Node $RE_NODE_VERSION, the minor, not just the major"
-# Every pin in this repo names the same minor as establish_node.
-check "$(cat "$CI_DIR/.nvmrc")" "$RE_NODE_VERSION" ".nvmrc pins $RE_NODE_VERSION"
-check "$(grep -hoE "node-version: '[^']+'" "$CI_DIR"/.github/workflows/*.yml | sort -u)" "node-version: '$RE_NODE_VERSION'" \
-  "every workflow pins node-version $RE_NODE_VERSION"
-check "$(git -C "$CI_DIR" grep -hoE '^FROM node:[^ ]+' -- '*Dockerfile*' | sort -u)" "FROM node:$RE_NODE_VERSION-alpine" \
-  "every Dockerfile builds on node:$RE_NODE_VERSION-alpine"
+# One minor everywhere, held in .nvmrc. Workflows read it; what cannot read a
+# file (image tags, a strict engines range) names it. scripts/advance-node.sh
+# moves them all; a Dependabot node-image PR fails here until it has run.
+V="$RE_NODE_VERSION"
+check "$(tr -d '[:space:]' < "$CI_DIR/.nvmrc")" "$V" ".nvmrc pins $V"
+check "$(cat "$CI_DIR"/.github/workflows/*.yml | grep -cE '^[[:space:]]+node-version:' || true)" 0 \
+  "no workflow names a node-version literal"
+check "$(cat "$CI_DIR"/.github/workflows/*.yml | grep -cE '^[[:space:]]+uses: actions/setup-node@' || true)" \
+  "$(cat "$CI_DIR"/.github/workflows/*.yml | grep -cE '^[[:space:]]+node-version-file: ([^ ]+/)?\.nvmrc$' || true)" \
+  "every setup-node step reads node-version-file from an .nvmrc"
+check "$(git -C "$CI_DIR" grep -hoE '^FROM node:[^ ]+' -- '*Dockerfile*' | sort -u)" "FROM node:$V-alpine" \
+  "every Dockerfile builds on node:$V-alpine"
+check "$(grep -oE '"node:[^"]+"' "$CI_DIR/release/images.json" | sort -u)" "\"node:$V-bookworm-slim\"" \
+  "release/images.json builds OpenClaw on node:$V-bookworm-slim"
+# The sibling repos pin the same minor, where they are checked out next to CI.
+for repo in RealityEngine_Manager RealityEngine_Machines localAIStack localOpenClawStack OpenCommons-Health---Personal-Information-Management; do
+  dir="$CI_DIR/../$repo"; [ -e "$dir/.git" ] || continue
+  check "$(git -C "$dir" ls-files '.nvmrc' '*/.nvmrc' | while read -r f; do tr -d '[:space:]' < "$dir/$f"; echo; done | grep -v "^$V\$" | sort -u)" "" \
+    "$repo: every .nvmrc pins $V"
+  check "$(git -C "$dir" grep -hoE 'node:[0-9]+\.[0-9]+-' -- ':!*.md' | sort -u | grep -vxF "node:$V-" || true)" "" \
+    "$repo: every node image names $V"
+done
+[ "$FAIL" -eq 0 ] || echo "  Node pins disagree: run scripts/advance-node.sh to move every repo to one minor."
 case $- in *u*) u=on ;; *) u=off ;; esac
 check "$u" on "the caller's set -u survives sourcing nvm"
 check "$(NVM_DIR=/nonexistent bash -c "source '$CI_DIR/scripts/lib/node-env.sh'; establish_node 2>/dev/null; echo \$?")" 1 \

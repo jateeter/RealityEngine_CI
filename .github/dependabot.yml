@@ -20,9 +20,16 @@ version: 2
 
 updates:
 
-  # Compose service images + the repo's own Dockerfiles.
+  # Compose service images + the repo's own Dockerfiles (root and MCP). One
+  # entry so the node base moves in one PR across both (group-by:
+  # dependency-name). Node is one minor across the workspace: that PR fails
+  # scripts/tests/test-node-env.sh until `scripts/advance-node.sh --execute`
+  # has moved every repo, the release images and the local nvm with it; the
+  # advance PR supersedes it.
   - package-ecosystem: docker
-    directory: /
+    directories:
+      - /
+      - /mcp
     schedule:
       interval: weekly
       day: monday
@@ -33,16 +40,11 @@ updates:
         patterns:
           - "grafana/*"
           - "prom/*"
+      node-image:
+        patterns:
+          - "node"
+        group-by: dependency-name
     open-pull-requests-limit: 5
-
-  - package-ecosystem: docker
-    directory: /mcp
-    schedule:
-      interval: weekly
-      day: monday
-      time: "06:00"
-      timezone: America/Chicago
-    open-pull-requests-limit: 3
 
   - package-ecosystem: docker
     directory: /docker/scala

@@ -9,18 +9,22 @@
 # npx or Playwright calls establish_node first.
 #
 #   source scripts/lib/node-env.sh
-#   establish_node        # nvm use $RE_NODE_VERSION (default 26.8); install if absent
+#   establish_node        # nvm use $RE_NODE_VERSION (default: CI's .nvmrc); install if absent
 #
-# One minor everywhere: the workflows (node-version 26.8), the Docker images
-# (node:26.8-alpine, node:26.8-bookworm-slim), every .nvmrc and this. A bare
-# major let nvm pick the newest 26.x installed, so a machine with 26.10 ran a
-# different Node from the hosted lane without anything saying so.
+# One minor everywhere, and it tracks upstream. The minor is held once, in each
+# repo's .nvmrc: the workflows read it (setup-node node-version-file), this reads
+# CI's, and the Docker images (node:<minor>-alpine, node:<minor>-bookworm-slim)
+# name it. scripts/advance-node.sh moves all of them, in every repo, plus the
+# local nvm install, when Dependabot or nodejs.org shows a newer minor;
+# scripts/tests/test-node-env.sh fails until it has. A bare major let nvm pick
+# the newest 26.x installed, so a machine with 26.10 ran a different Node from
+# the hosted lane without anything saying so.
 #
 # RE_NODE_VERSION overrides it; RE_NODE_MAJOR, its earlier name, still does.
 # Fails (return 1) with a stated reason when nvm is unavailable or the version
 # cannot be selected, rather than continuing on whatever node is on PATH.
 
-: "${RE_NODE_VERSION:=${RE_NODE_MAJOR:-26.8}}"
+: "${RE_NODE_VERSION:=${RE_NODE_MAJOR:-$(tr -d '[:space:]' < "$(dirname "${BASH_SOURCE[0]}")/../../.nvmrc")}}"
 
 establish_node() {
   export NVM_DIR="${NVM_DIR:-$HOME/.nvm}"

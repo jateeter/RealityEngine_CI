@@ -35,6 +35,12 @@ npm run test:deployment
   (`RE_REGISTRY_URL`, then that file, then `:5999`), never a literal;
   `scripts/check-registry-url-literals.sh` fails a new one.
 - Pass CI-generated `config/integrations.json` to PE services with `INTEGRATIONS_CONFIG`.
+- **Node is one minor across every repo and it tracks upstream.** Each repo
+  holds it in `.nvmrc`; workflows, `scripts/lib/node-env.sh` and
+  `regression-test.sh` read it, and images name it. A Dependabot node-image PR
+  fails `scripts/tests/test-node-env.sh` until `scripts/advance-node.sh
+  --execute` has moved every repo and the local nvm with it (see
+  `scripts/CLAUDE.md`).
 - Keep OpenClaw defaults aligned with `ACP_ENABLED=true`, `ACP_GATEWAY_URL` or `OPENCLAW_GATEWAY_URL`, `ACP_SESSION_KEY`, `ACP_TARGET_AGENT`, and `ACP_COMPLETION_SOURCE_MAPPING_ID=acp-openclaw-completion`.
 - **Instance identity (#296).** A UUID belongs to an instance, never an engine
   type or image, and no two instances of any engine type may share one.

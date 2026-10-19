@@ -364,6 +364,25 @@ starts, with a 10s TCP connect: an absent broker is not handed to the engines
 its reason in `reports/mqtt-yuma-skipped.json`. A third-party broker's absence
 says nothing about the engines.
 
+## Node: one minor, and it tracks upstream
+
+Every repo pins the same Node minor, held once in its `.nvmrc`. Workflows read
+it (`actions/setup-node` `node-version-file`); `lib/node-env.sh` and
+`regression-test.sh` read CI's. What cannot read a file names it: the
+`node:<minor>-alpine` / `-bookworm-slim` images (CI, Manager, PIM,
+`release/images.json`, localOpenClawStack's `NODE_IMAGE`) and PIM's strict
+`engines` range.
+
+When Dependabot proposes a new node image, or nodejs.org ships a newer minor,
+run `advance-node.sh` (a plan) and then `advance-node.sh --execute`. It branches each repo
+from `origin/main`, rewrites its pins, opens a PR, moves the local nvm install
+and its default alias (carrying the global packages over), and re-pins
+localOpenClawStack's operator `.env` digest after backing it up. Dependabot
+alone moves only a Dockerfile, so its node PR fails
+`tests/test-node-env.sh` until the advance has run; the advance PR supersedes
+it. Merge the sibling PRs before CI's: the test checks every sibling checked
+out next to CI.
+
 ## Regression run history is bounded: two runs
 
 `regression-test.sh` keeps the **2** most recent run directories under

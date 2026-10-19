@@ -111,7 +111,7 @@ jobs:
       - name: Setup Node.js
         uses: actions/setup-node@v7
         with:
-          node-version: '26.8'
+          node-version-file: RealityEngine_CI/.nvmrc
 
       - name: Setup Python
         uses: actions/setup-python@v7
@@ -258,7 +258,7 @@ jobs:
       - name: Setup Node.js
         uses: actions/setup-node@v7
         with:
-          node-version: '26.8'
+          node-version-file: RealityEngine_CI/.nvmrc
 
       - name: Setup Java
         uses: actions/setup-java@v6
