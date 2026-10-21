@@ -206,20 +206,23 @@ grep '^- Status' .regression-tests/runs/<run-id>/summary.md   # must be: complet
 
 The hosted nightly must be green at the same time (gate G1).
 
-### 2. Build and push the candidate images *(pending B5)*
+### 2. Build and push the candidate images
 
 The release image workflow builds every image in `release/images.json` from
 the commit the run pinned, on `ubuntu-24.04-arm`, and pushes it to GHCR tagged
 with the candidate tag (`release-v0.0.1-rcN`) and the commit SHA:
 
 ```bash
-gh workflow run release-images.yml --ref main \
-  -f manifest=.regression-tests/runs/<run-id>/release-manifest.json -f tag=release-v0.0.1-rc1
+gh workflow run release-images.yml --ref main -f tag=release-v0.0.1-rc1 \
+  -f pins="$(python3 -c 'import json,sys; m=json.load(open(sys.argv[1])); print(json.dumps({r["name"]: r["sha"] for r in m["repos"] if r["name"] != "localHealthkitBridge"}))' \
+      .regression-tests/runs/<run-id>/release-manifest.json)"
 ```
 
 Each image carries OCI labels (`org.opencontainers.image.source`, `.revision`,
 `.version`), an SBOM and a provenance attestation. The workflow writes the
-digests back as `images.json` next to the run's manifest.
+digests to `images.json`, uploaded as the run's
+`release-images-<tag>` artifact (`gh run download <run> -n release-images-<tag>`).
+A repo left out of `pins` builds from its `main`.
 
 ### 3. Certify the candidate images *(pending E1, E2, E3)*
 
