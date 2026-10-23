@@ -47,9 +47,17 @@ and which runtimes implement them, live in `RealityEngine_CI/SURFACE_SPEC.md`.
 
 ## Model default and precedence
 
-**Canonical default: `llama3.1:8b`.** Every runtime — C++, LSP, Scala and the
-TypeScript PE — resolves this when nothing else is set. This document is the
-source of truth; each engine's code comment points here rather than restating it.
+Two defaults exist, and they answer different questions.
+
+- **The universe model: `tinyllama-mlx`.** The model all RealityEngine testing and
+  development runs against. The regression local lane pins it (below), and
+  `localAIStack` selects it as its LLM. It is TinyLlama 1.1B Chat built from
+  safetensors, so Ollama serves it on the MLX runner, and `localAIStack` builds it
+  (`make model-pull ID=tinyllama-mlx`).
+- **The engine built-in default: `llama3.1:8b`.** What each runtime — C++, LSP,
+  Scala and the TypeScript PE — resolves when nothing pins a model. It lives in
+  the engine repos, is unchanged, and is rank 3 below. This document is its
+  source of truth; each engine's code comment points here rather than restating it.
 
 Resolution order, identical on every runtime:
 
@@ -57,7 +65,11 @@ Resolution order, identical on every runtime:
 |---|---|
 | 1 | `OLLAMA_MODEL` in the engine's environment — the per-engine override |
 | 2 | `model` on the `kind: "ollama"` entry in the integration registry |
-| 3 | the canonical default above |
+| 3 | the engine built-in default (`llama3.1:8b`) |
+
+The local lane supplies rank 1, so the universe model reaches every engine it
+starts; an engine started outside the lane, with nothing pinned, still resolves
+`llama3.1:8b`.
 
 The same order applies to `OLLAMA_BASE_URL` and the registry's `baseUrl`.
 
@@ -74,6 +86,20 @@ Overriding stays per engine. Setting `OLLAMA_MODEL` for one instance changes onl
 that instance; the regression local lane exports it once so all three native
 engines share a model.
 
+### What `tinyllama-mlx` cannot do
+
+It is a 1.1B chat model with a 2048-token context, and its manifest declares only
+the `completion` capability. Observed against Ollama 0.40.6 on 2026-10-23:
+
+- a request carrying `tools` is refused (`does not support tools`);
+- `format: "json"` is refused by the MLX runner (`structured output is unavailable`).
+
+The PE's native Ollama dispatch sends `format: "json"` on every call
+(`OllamaAdapter.ts`), so **a dispatch against this model fails by construction**.
+The `local-ai` stage does not exercise dispatch — check 4 below proves the model is
+installed, not that it can answer a dispatch — so it passes. A test that dispatches
+must name a model with structured output (`OLLAMA_MODEL=llama3.1:8b`).
+
 ## Registry entry
 
 `config/integrations.json`, `ollama-local`:
@@ -84,7 +110,7 @@ engines share a model.
   "kind": "ollama",
   "enabled": false,
   "baseUrl": "http://localhost:11434",
-  "model": "llama3.1:8b",
+  "model": "tinyllama-mlx",
   "apiMode": "native",
   "completionSourceMappingId": "agent-completion-risk",
   "mcp": {
@@ -162,6 +188,10 @@ dispatch".
 # Probe the local AI surfaces
 python3 scripts/regression-local-ai.py
 
-# Pin one model across all three native engines
+# Build the universe model once (needs the localAIStack checkout beside this one)
+make -C ../localAIStack model-pull ID=tinyllama-mlx
+
+# The local lane pins tinyllama-mlx by default; name another to override it
+./scripts/regression-test.sh --profile local
 OLLAMA_MODEL=llama3.1:8b ./scripts/regression-test.sh --profile local
 ```

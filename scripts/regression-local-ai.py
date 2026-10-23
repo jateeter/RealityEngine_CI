@@ -159,9 +159,13 @@ def main() -> int:
 
             for instance, model in sorted(models.items()):
                 if not present(model):
+                    hint = ""
+                    if model.split(":")[0] == "tinyllama-mlx":
+                        # Not in the Ollama library: localAIStack builds it.
+                        hint = ". Build it: make -C ../localAIStack model-pull ID=tinyllama-mlx"
                     failures.append(
                         f"{instance}: configured for model '{model}', which is not installed "
-                        f"(available: {', '.join(installed)})"
+                        f"(available: {', '.join(installed)}){hint}"
                     )
 
     report["status"] = "failed" if failures else "passed"
