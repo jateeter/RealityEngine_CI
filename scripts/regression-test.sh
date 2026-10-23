@@ -321,16 +321,20 @@ case "$PROFILE" in
     [ "$MACHINE_CORPUS_SET" = true ] || MACHINE_CORPUS="regression"
     # Pin one model for every engine on this lane.
     #
-    # The runtimes now share a canonical default (llama3.1:8b, see
-    # docs/INTEGRATION_ARCHITECTURE.md), so this pin no longer *corrects* a
-    # disagreement — it states the lane's choice explicitly and keeps the lane
-    # correct if a future default diverges again. The local-ai stage fails if
-    # the engines disagree or if the resolved model is not installed, so a
-    # regression here is caught rather than assumed away.
+    # The universe model is tinyllama-mlx (docs/OLLAMA_INTEGRATION.md): all
+    # RealityEngine testing and development runs against it. The engines'
+    # own built-in default is still llama3.1:8b, so this pin is what moves them
+    # off it — it is rank 1 in the resolution order, and the local-ai stage
+    # fails if the engines disagree or the resolved model is not installed.
+    # Build it with `make -C ../localAIStack model-pull ID=tinyllama-mlx`.
+    #
+    # tinyllama-mlx has no tools and no structured output, so a stage that
+    # *dispatches* to Ollama (the PE sends format=json) must name another model
+    # with OLLAMA_MODEL=; none does today.
     #
     # Exported rather than passed as a flag: startUniverse spawns each engine
     # with inherited environment, so one export reaches all three.
-    OLLAMA_MODEL="${OLLAMA_MODEL:-llama3.1:8b}"
+    OLLAMA_MODEL="${OLLAMA_MODEL:-tinyllama-mlx}"
     export OLLAMA_MODEL
     ;;
   *)

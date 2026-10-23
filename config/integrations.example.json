@@ -104,7 +104,7 @@
       "kind": "ollama",
       "enabled": false,
       "baseUrl": "http://localhost:11434",
-      "model": "llama3.1:8b",
+      "model": "tinyllama-mlx",
       "apiMode": "native",
       "completionSourceMappingId": "agent-completion-risk",
       "mcp": {
