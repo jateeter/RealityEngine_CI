@@ -598,7 +598,19 @@ def cmd_configure(args) -> int:
     ]
     write(install / ".env", "\n".join(env_lines) + "\n", 0o600)
 
+    # What the host's Ollama / OpenClaw / Node were when this install was
+    # configured, as the CLI's preflight recorded it (#592). Absent when the
+    # preflight did not run (an older CLI, or re-init driven directly).
+    host_services = None
+    hs = install / "state" / "host-services.json"
+    if hs.is_file():
+        try:
+            host_services = json.loads(hs.read_text(encoding="utf-8"))
+        except ValueError:
+            host_services = {"error": "state/host-services.json is not valid JSON"}
+
     write_json(install / "release.json", {
+        "host_services": host_services,
         "version": args.version, "engines": args.engines, "lane": LANE,
         "instances": [{k: i[k] for k in ("id", "runtime", "instance_uuid", "re_port", "pe_port")} for i in insts],
         "images": refs, "images_file": str(images_file) if images_file else None,

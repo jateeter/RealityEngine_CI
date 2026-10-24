@@ -564,15 +564,24 @@ record_manifest() {
   mkdir -p "$RUN_DIR"
   python3 - "$RUN_DIR/manifest.json" "$RUN_ID" "$BRANCH_NAME" "$WORKTREE_BRANCH" "$ENGINES_SPEC" \
     "$PROFILE" "$LOCAL_AI" "$MACHINE_CORPUS" "$OPENCLAW_FLAG" \
-    "$BUILD" "$START" "$LIVE_TESTS" "$(date -u +%Y-%m-%dT%H:%M:%SZ)" <<'PYEOF'
+    "$BUILD" "$START" "$LIVE_TESTS" "$(date -u +%Y-%m-%dT%H:%M:%SZ)" \
+    "$(REALITYENGINE_DIR="$RUN_DIR/host" "$CI_DIR/release/realityengine" host-check --json 2>/dev/null || true)" <<'PYEOF'
 import json
 import sys
 from pathlib import Path
 
 (path, run_id, branch, worktree_branch, engines,
  profile, local_ai, machine_corpus, openclaw_flag,
- build, start, live_tests, started_at) = sys.argv[1:]
+ build, start, live_tests, started_at, host_json) = sys.argv[1:]
+try:
+    host_services = json.loads(host_json)
+except ValueError:
+    host_services = {"error": "host-check produced no JSON"}
 payload = {
+    # The model runtime this run used: a result names the Ollama / OpenClaw /
+    # Node it ran on (RealityEngine_CI#592). `lookups_skipped` true means the
+    # current-release comparison could not be made, not that it passed.
+    "hostServices": host_services,
     "runId": run_id,
     # When the run began and which phases it ran. Retention and the comparison
     # baseline order runs by time and protect the newest run that ran the live

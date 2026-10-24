@@ -1837,6 +1837,11 @@ else
 fi
 
 if [ "$LOCAL_AI_ENABLED" = true ]; then
+    # Versions of the host services against this release's requirements and the
+    # current public releases (RealityEngine_CI#592). Warns, and files or
+    # refreshes a host-update issue; it never stops a development universe.
+    REALITYENGINE_DIR="${RE_INSTANCE_STATE_DIR:-$HOME/.reality-engine}/host" \
+        "$CI_DIR/release/realityengine" host-check --warn-only || true
     set +e
     TAGS_JSON=$(curl -sf http://localhost:11434/api/tags 2>/dev/null || echo '{"models":[]}')
     set -e

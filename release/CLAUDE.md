@@ -14,6 +14,7 @@ with no checkout (`docs/ReleaseRoadmap.md`, decisions A1–A11; `RELEASE.md`;
 | `init/` | `re-init`: configures an install (engine services per instance spec, instance UUIDs, both instance-registry views, config, certificates, secrets, OpenClaw), serves the instance registry, and loads machines (C1, C2, C6) |
 | `corpus/` | `re-corpus`: the regression corpus the engines boot with, the Load Machines catalog, localAI's machines (A8) |
 | `config/` | Release-only config: Prometheus (file_sd per instance), Promtail (Docker API), the TLS proxy |
+| `host-requirements.json` | What the Mac's own Ollama, OpenClaw and Node must be (#592). The CLI carries the same constants; `scripts/tests/test-host-preflight.sh` keeps them equal |
 | `realityengine` | The installer CLI. **Runs on the stock macOS `/bin/bash` 3.2**: no arrays of arrays, no `${v,,}`, no `mapfile`. All logic beyond checking the Mac and driving compose lives in `re-init` |
 
 ## Invariants
@@ -40,9 +41,22 @@ with no checkout (`docs/ReleaseRoadmap.md`, decisions A1–A11; `RELEASE.md`;
   run `realityengine reembed` when the collections were filled by another model
   (`reembed_if_needed`); it execs `python -m reembed_cli` in the localAI image,
   which keeps the old collection until `reembed drop-old`.
+- **Host services are checked, not installed** (#592). `realityengine host-check`
+  (also run by `install`, `up`, `upgrade`, `startUniverse.sh` and every regression
+  run) finds Ollama, OpenClaw and the Node OpenClaw runs on, compares them with
+  `host-requirements.json` and the current public releases, and records
+  `state/host-services.json`, which `configure` copies into `release.json`.
+  Below the requirement fails and names the upgrade command; behind the current
+  release warns and files one `host-update` issue per service and version (or
+  writes `state/host-updates.md` where `gh` cannot file); a failed lookup says
+  so and is never read as current. `openclaw.required` is `false` until the
+  gateway runs natively (slice b); then a missing OpenClaw, or a Node other
+  than `node.exact`, fails install.
 
 ## Testing
 
+- `scripts/tests/test-host-preflight.sh`: the host preflight against stubbed
+  curl/ollama/openclaw/node/gh, under `/bin/bash`.
 - `scripts/tests/test-release-init.sh`: `configure` against a scratch install;
   no Docker.
 - `scripts/tests/test-release-images.sh`: the catalog check's refusals.
