@@ -6,14 +6,14 @@ from source instead, see `QUICKSTART.md` and `DOCKER_QUICKSTART.md`.
 
 ## What you get
 
-One command starts the whole suite in Docker:
+One command starts the whole suite. Most of it runs in Docker:
 
 - **Engines:** C++, Common Lisp and Scala Reality Engines and Perception
   Engines, as many instances of each as you choose.
 - **Manager:** the Visualizer.
 - **The instance registry:** which engines are running and where.
 - **localAIStack:** local AI and RAG, with Qdrant and Redis.
-- **OpenClaw:** the gateway, with Open WebUI.
+- **Open WebUI**, and OpenClaw's browser sidecar.
 - **PIM and a Solid server:** the authoritative store of your health data.
 - **MCP.**
 - **Monitoring:** Prometheus, Loki and Grafana.
@@ -21,7 +21,12 @@ One command starts the whole suite in Docker:
 The engines boot with the regression corpus, and you can load further machines
 from `RealityEngine_Machines` at any time.
 
-Ollama runs natively on your Mac, outside Docker, so it can use the Apple GPU.
+**Ollama and the OpenClaw gateway run natively on your Mac**, outside Docker,
+from your own installation of each, so that models run on Apple Silicon's MLX
+runtime. Ollama has used MLX by default since v0.40.0. Each `realityengine up`
+starts both services and loads the suite's configuration and agents into them.
+This is new in `release-v0.0.1-rc3` (#592). Through rc2, the gateway ran in a
+container.
 
 ## Requirements
 
@@ -29,10 +34,93 @@ Ollama runs natively on your Mac, outside Docker, so it can use the Apple GPU.
 |---|---|
 | Mac | Apple Silicon (M1 or later). Intel Macs are not supported |
 | macOS | 26 or later |
-| Memory | 16 GB. Give Docker Desktop at least **8 GB** (Settings → Resources); the default `cpp:1,lsp:1,scala:1` uses about 4 GB when idle, and more under load. Ollama needs about 4 GB of its own for `nemotron-3-nano:4b` (2.9 GB) |
-| Disk | 25 GB free: the images, about 15 GB, plus the data |
-| Docker | [Docker Desktop](https://www.docker.com/products/docker-desktop/), running. Other container runtimes are not tested |
-| Ollama | [Ollama](https://ollama.com) (`brew install ollama`), running, with both models pulled: `ollama pull nemotron-3-nano:4b` and `ollama pull nomic-embed-text` (localAI's embedding model) |
+| Memory | 16 GB. Give Docker Desktop at least **8 GB** (Settings → Resources). The default `cpp:1,lsp:1,scala:1` uses about 4 GB when idle, and more under load. Ollama needs about 4 GB of its own for `nemotron-3-nano:4b` (2.9 GB) |
+| Disk | 30 GB free: the images (about 15 GB), the models (about 4 GB), and the data |
+| Docker | [Docker Desktop](https://www.docker.com/products/docker-desktop/), current release, running. Other container runtimes are not tested |
+| Ollama | The **current public release**, v0.40.0 or later for MLX, installed on the Mac and running, with both models pulled: `nemotron-3-nano:4b`, and localAI's embedding model `nomic-embed-text` |
+| Node | **Exactly 26.12.1**, the version this release pins for OpenClaw (`release/host-requirements.json`) |
+| OpenClaw | The **current public release**, npm `latest`, installed globally for your user |
+
+Nothing else is needed: no Homebrew, no Xcode, no source checkout. If Ollama
+or OpenClaw falls behind its current public release, `install` and `up` warn
+you, print the upgrade command, and keep going. On a Mac where the GitHub CLI
+is signed in to this repository, they also open an issue for the update. A
+Node version other than the pinned one is an error.
+
+## Preparing a clean Mac
+
+Run these in Terminal, in order. Each download comes from the vendor and is
+always its current release, apart from Node, which is pinned and checked
+against its published sha256. Commands marked `sudo` ask for your password.
+
+**1. Docker Desktop.** Use Docker's command-line install:
+
+```bash
+curl -fL -o ~/Downloads/Docker.dmg https://desktop.docker.com/mac/main/arm64/Docker.dmg
+sudo hdiutil attach ~/Downloads/Docker.dmg -nobrowse
+sudo /Volumes/Docker/Docker.app/Contents/MacOS/install --accept-license
+sudo hdiutil detach /Volumes/Docker
+open -a Docker
+```
+
+Then set Settings → Resources → Memory to at least 8 GB, and wait until
+`docker info` answers.
+
+**2. Ollama**, from its latest GitHub release. The Homebrew cask can lag
+behind it.
+
+```bash
+osascript -e 'quit app "Ollama"' 2>/dev/null || true     # if an older one is running
+curl -fL -o ~/Downloads/Ollama.dmg https://github.com/ollama/ollama/releases/latest/download/Ollama.dmg
+MNT="$(hdiutil attach -nobrowse -readonly ~/Downloads/Ollama.dmg | awk -F'\t' '/\/Volumes\//{print $NF}')"
+rm -rf /Applications/Ollama.app && cp -R "$MNT/Ollama.app" /Applications/
+hdiutil detach "$MNT"
+open -a Ollama          # on first launch it offers to install the `ollama` command; accept
+ollama --version
+ollama pull nemotron-3-nano:4b
+ollama pull nomic-embed-text
+```
+
+**3. Node 26.12.1**, the official installer, checked before it runs:
+
+```bash
+curl -fL -o ~/Downloads/node-v26.12.1.pkg https://nodejs.org/dist/v26.12.1/node-v26.12.1.pkg
+echo "eb21cdde0d65277d388ddd4eca6a155bd0082d764372bb98334a470a290d6231  $HOME/Downloads/node-v26.12.1.pkg" \
+  | shasum -a 256 -c -
+sudo installer -pkg ~/Downloads/node-v26.12.1.pkg -target /
+node --version          # v26.12.1
+```
+
+**4. OpenClaw**, the latest release, installed into a user-owned npm prefix so
+that it needs no `sudo`:
+
+```bash
+mkdir -p ~/.npm-global
+npm config set prefix ~/.npm-global
+echo 'export PATH="$HOME/.npm-global/bin:$PATH"' >> ~/.zprofile
+export PATH="$HOME/.npm-global/bin:$PATH"
+npm install -g openclaw@latest
+openclaw --version
+```
+
+Don't run `openclaw onboard --install-daemon`. It installs OpenClaw's own
+gateway service on port 18789 using `~/.openclaw`, and that would collide with
+the gateway `realityengine` runs. `realityengine` keeps its gateway's state in
+`~/.realityengine/openclaw`, and leaves your `~/.openclaw` alone.
+
+**5. Check the footprint.** Each installed version should match the current one:
+
+```bash
+echo "Docker   $(docker version --format '{{.Server.Version}}')"
+echo "Ollama   $(ollama --version | awk '{print $NF}')   current: $(curl -fsS https://api.github.com/repos/ollama/ollama/releases/latest | awk -F'"' '/"tag_name"/{print $4}')"
+echo "Node     $(node --version)   required: v26.12.1"
+echo "OpenClaw $(openclaw --version | awk '{print $2}')   current: $(npm view openclaw@latest version)"
+ollama list | grep -E 'nemotron-3-nano:4b|nomic-embed-text'
+```
+
+On a Mac that already has older copies, the same commands upgrade them in
+place. If Node is managed by nvm, `nvm install 26.12.1` is also fine, as long as
+`openclaw` runs on that Node.
 
 ## Install
 
