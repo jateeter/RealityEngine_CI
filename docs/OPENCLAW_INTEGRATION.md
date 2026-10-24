@@ -171,7 +171,15 @@ Run the adapter unit and deterministic mock-service tests without a RealityEngin
 npm run test:openclaw-adapter
 ```
 
-Run the PE-boundary OpenClaw e2e against the active PE:
+Run the PE-boundary OpenClaw e2e against every engine in the instance registry
+(the three native engines must pass identically):
+
+```bash
+npm run test:e2e:openclaw
+```
+
+Name one PE with `PE_URL` to check only that one (the legacy TypeScript PE is
+`https://localhost:3004`, and is the fallback when there is no instance registry):
 
 ```bash
 PE_URL=https://localhost:3004 ./scripts/test-openclaw-integration.sh
