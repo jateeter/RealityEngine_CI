@@ -473,6 +473,10 @@ jobs:
         working-directory: RealityEngine_CI
         run: bash scripts/tests/test-release-manifest.sh
 
+      - name: Run OpenClaw e2e engine-selection unit tests
+        working-directory: RealityEngine_CI
+        run: bash scripts/tests/test-openclaw-e2e-fanout.sh
+
       - name: Run release image catalog unit tests
         working-directory: RealityEngine_CI
         run: bash scripts/tests/test-release-images.sh
