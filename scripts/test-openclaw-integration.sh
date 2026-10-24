@@ -7,8 +7,6 @@ set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 CI_DIR="$(cd "$SCRIPT_DIR/.." && pwd)"
-PE_URL="${PE_URL:-https://localhost:3004}"
-PE_URL="${PE_URL%/}"
 AGENT_ID="${OPENCLAW_AGENT_ID:-hello-world}"
 SOURCE_MAPPING_ID="${ACP_COMPLETION_SOURCE_MAPPING_ID:-acp-openclaw-completion}"
 SENSOR_ID="acp.openclaw.${AGENT_ID}.completion"
@@ -41,8 +39,13 @@ Options:
   --report-json PATH    Write a machine-readable OpenClaw integration report.
   --help                Show this help.
 
+With no PE_URL the contract is checked against every engine in the instance
+registry (RE_REGISTRY_URL / RE_REGISTRY_FILE) and all must pass; --report-json
+PATH then writes PATH with each engine's id inserted before .json. With PE_URL
+it checks that one PE.
+
 Configuration is primarily environment-driven:
-  PE_URL
+  PE_URL                 one PE to check (default: every engine in the instance registry)
   OPENCLAW_AGENT_ID
   ACP_COMPLETION_SOURCE_MAPPING_ID
   OPENCLAW_E2E_RUN_ID
@@ -61,6 +64,43 @@ while [ $# -gt 0 ]; do
     *) echo "Unknown argument: $1" >&2; usage; exit 2 ;;
   esac
 done
+
+# No PE_URL named: the contract is checked against EVERY engine in the instance
+# registry, not against a literal. The old default, the legacy TypeScript PE on
+# :3004, is not part of a native universe, so a bare `npm run test:e2e:openclaw`
+# failed at its first check with HTTP 000 while three healthy engines ran. The
+# three engines must pass identically, so one failing fails the run. With no
+# instance registry (or an empty one) the legacy default still applies.
+if [ -z "${PE_URL:-}" ] && [ -z "${OPENCLAW_E2E_FANOUT_CHILD:-}" ]; then
+  # shellcheck source=lib/resolve-endpoint.sh
+  . "$SCRIPT_DIR/lib/resolve-endpoint.sh"
+  mapfile -t _engine_ids < <(registry_instance_ids 2>/dev/null || true)
+  if [ "${#_engine_ids[@]}" -gt 0 ]; then
+    _fanout_failed=()
+    for _id in "${_engine_ids[@]}"; do
+      _pe="$(pe_endpoint "$_id" 2>/dev/null || true)"
+      if [ -z "$_pe" ]; then
+        echo "[fail] $_id: no PE endpoint in the instance registry" >&2
+        _fanout_failed+=("$_id")
+        continue
+      fi
+      echo "[info] === $_id ($_pe) ==="
+      _child_args=()
+      [ -z "$REPORT_JSON" ] || _child_args=(--report-json "${REPORT_JSON%.json}.${_id}.json")
+      if ! OPENCLAW_E2E_FANOUT_CHILD=1 PE_URL="$_pe" bash "${BASH_SOURCE[0]}" ${_child_args[@]+"${_child_args[@]}"}; then
+        _fanout_failed+=("$_id")
+      fi
+    done
+    if [ "${#_fanout_failed[@]}" -gt 0 ]; then
+      echo "[fail] OpenClaw e2e failed on: ${_fanout_failed[*]}" >&2
+      exit 1
+    fi
+    echo "[pass] OpenClaw e2e passed on all ${#_engine_ids[@]} engines: ${_engine_ids[*]}"
+    exit 0
+  fi
+fi
+PE_URL="${PE_URL:-https://localhost:3004}"
+PE_URL="${PE_URL%/}"
 
 write_report() {
   local status="$1"
