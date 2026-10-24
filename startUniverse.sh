@@ -725,6 +725,7 @@ add_warn() { WARNS+=("$*"); }
 
 source "$CI_DIR/scripts/lib/fresh-start.sh"
 source "$CI_DIR/scripts/lib/corpus-dimension.sh"
+source "$CI_DIR/scripts/lib/ollama-models.sh"
 # The Manager, MCP and the bridge exporter run on Node: establish it rather than
 # inherit the terminal's (RealityEngine_Machines#126).
 source "$CI_DIR/scripts/lib/node-env.sh"
@@ -1838,22 +1839,29 @@ fi
 if [ "$LOCAL_AI_ENABLED" = true ]; then
     set +e
     TAGS_JSON=$(curl -sf http://localhost:11434/api/tags 2>/dev/null || echo '{"models":[]}')
-    EMBED_MODEL_REQUIRED="${EMBED_MODEL:-}"
-    [ -z "$EMBED_MODEL_REQUIRED" ] && [ -f "$LAS_DIR/.env" ] && \
-        EMBED_MODEL_REQUIRED=$(grep -E '^EMBED_MODEL=' "$LAS_DIR/.env" | tail -1 | cut -d= -f2-)
-    # No bogus default embed model (was "ternary-bonsai:4", never present, so it
-    # warned on every deploy). Only check an embed model if one is actually
-    # configured via EMBED_MODEL or localAIStack/.env. See issue #46.
     set -e
 
-    for model in "llama3" ${EMBED_MODEL_REQUIRED:+"$EMBED_MODEL_REQUIRED"}; do
-        MATCH=$(echo "$TAGS_JSON" | python3 -c \
-            "import json,sys
-ms=[m['name'] for m in json.load(sys.stdin).get('models',[]) if '$model' in m['name']]
-print(ms[0] if ms else '')" 2>/dev/null || echo "")
-        if [ -n "$MATCH" ]; then ok "Model: $MATCH"
-        else add_warn "Ollama model '$model' not found — pull with:  ollama pull $model"
-             warn "Model not found: $model"
+    # Check the models localAI and OpenClaw will actually ask for, each resolved
+    # the way that consumer resolves it (scripts/lib/ollama-models.sh).
+    _ocs_for_models=""
+    [ "$OPENCLAW" != no ] && _ocs_for_models="$OCS_DIR"
+    _llm_model=""
+    _openclaw_models=()
+    while IFS=$'\t' read -r _consumer _model; do
+        [ -n "$_model" ] || continue
+        [ "$_consumer" = localai-llm ] && _llm_model="$_model"
+        [ "$_consumer" = openclaw ] && _openclaw_models+=("$_model")
+        if ollama_has_model "$TAGS_JSON" "$_model"; then ok "Model ($_consumer): $_model"
+        else add_warn "Ollama model '$_model' ($_consumer) not found — pull with:  ollama pull $_model"
+             warn "Model not found ($_consumer): $_model"
+        fi
+    done < <(universe_ollama_models "$LAS_DIR" "$_ocs_for_models")
+    # OpenClaw's config outlives a universe: OPENCLAW_DEFAULT_MODEL only seeds a
+    # fresh one, so agents keep the model they were generated with.
+    for _model in "${_openclaw_models[@]}"; do
+        if [ -n "$_llm_model" ] && [ "$_model" != "$_llm_model" ]; then
+            add_warn "OpenClaw assigns '$_model' but localAI uses '$_llm_model' — switch with:  (cd $OCS_DIR && scripts/set-model.sh $_llm_model)"
+            warn "OpenClaw model $_model differs from localAI's $_llm_model"
         fi
     done
 fi

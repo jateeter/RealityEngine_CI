@@ -477,6 +477,10 @@ jobs:
         working-directory: RealityEngine_CI
         run: bash scripts/tests/test-openclaw-e2e-fanout.sh
 
+      - name: Run Ollama model-check unit tests
+        working-directory: RealityEngine_CI
+        run: bash scripts/tests/test-ollama-models.sh
+
       - name: Run release image catalog unit tests
         working-directory: RealityEngine_CI
         run: bash scripts/tests/test-release-images.sh
