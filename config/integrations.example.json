@@ -104,7 +104,7 @@
       "kind": "ollama",
       "enabled": false,
       "baseUrl": "http://localhost:11434",
-      "model": "llama3.1:8b",
+      "model": "nemotron-3-nano:4b",
       "apiMode": "native",
       "completionSourceMappingId": "agent-completion-risk",
       "mcp": {

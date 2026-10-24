@@ -219,7 +219,7 @@ def engine_services(insts: list[dict]) -> dict:
             # Ollama runs natively, for the Apple GPU (A6); every PE runtime
             # defaults to localhost, which inside a container is the container.
             "OLLAMA_BASE_URL": "http://host.docker.internal:11434",
-            "OLLAMA_MODEL": "${OLLAMA_MODEL:-llama3.1:8b}",
+            "OLLAMA_MODEL": "${OLLAMA_MODEL:-nemotron-3-nano:4b}",
         }
         pe_svc_def = {
             **common,
@@ -490,7 +490,7 @@ def configure_openclaw(install: pathlib.Path, sec: dict[str, str]) -> None:
         f"OPENCLAW_GATEWAY_TOKEN={sec['OPENCLAW_GATEWAY_TOKEN']}\n"
         "OPENCLAW_GATEWAY_PORT=18789\n"
         "OLLAMA_BASE_URL=http://host.docker.internal:11434\n"
-        "OPENCLAW_DEFAULT_MODEL=ollama/llama3.1:8b\n"
+        "OPENCLAW_DEFAULT_MODEL=ollama/nemotron-3-nano:4b\n"
         "LOCAL_OWNER=1000\nLOCAL_GROUP=1000\n")
     profile = agent_profile(install)
     env = {**os.environ, "OPENCLAW_AGENT_PROFILE": profile}

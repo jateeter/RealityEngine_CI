@@ -321,16 +321,21 @@ case "$PROFILE" in
     [ "$MACHINE_CORPUS_SET" = true ] || MACHINE_CORPUS="regression"
     # Pin one model for every engine on this lane.
     #
-    # The runtimes now share a canonical default (llama3.1:8b, see
-    # docs/INTEGRATION_ARCHITECTURE.md), so this pin no longer *corrects* a
-    # disagreement — it states the lane's choice explicitly and keeps the lane
-    # correct if a future default diverges again. The local-ai stage fails if
-    # the engines disagree or if the resolved model is not installed, so a
-    # regression here is caught rather than assumed away.
+    # The universe model is nemotron-3-nano:4b (docs/OLLAMA_INTEGRATION.md): all
+    # RealityEngine testing and development runs against it. The engines'
+    # own built-in default is still llama3.1:8b, so this pin is what moves them
+    # off it — it is rank 1 in the resolution order, and the local-ai stage
+    # fails if the engines disagree or the resolved model is not installed.
+    # Pull it with `ollama pull nemotron-3-nano:4b`.
+    #
+    # nemotron-3-nano:4b calls tools but Ollama refuses format=json and schema
+    # formats for it ("structured output is unavailable"), so a stage that
+    # dispatches to Ollama must not send format; a stage that needs structured
+    # output must name another model with OLLAMA_MODEL=.
     #
     # Exported rather than passed as a flag: startUniverse spawns each engine
     # with inherited environment, so one export reaches all three.
-    OLLAMA_MODEL="${OLLAMA_MODEL:-llama3.1:8b}"
+    OLLAMA_MODEL="${OLLAMA_MODEL:-nemotron-3-nano:4b}"
     export OLLAMA_MODEL
     ;;
   *)

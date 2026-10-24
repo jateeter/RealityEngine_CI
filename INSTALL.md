@@ -34,10 +34,10 @@ container.
 |---|---|
 | Mac | Apple Silicon (M1 or later). Intel Macs are not supported |
 | macOS | 26 or later |
-| Memory | 16 GB. Give Docker Desktop at least **8 GB** (Settings → Resources). The default `cpp:1,lsp:1,scala:1` uses about 4 GB when idle, and more under load. Ollama needs about 5 GB of its own for `llama3.1:8b` |
-| Disk | 30 GB free: the images (about 15 GB), the models (about 5 GB), and the data |
+| Memory | 16 GB. Give Docker Desktop at least **8 GB** (Settings → Resources). The default `cpp:1,lsp:1,scala:1` uses about 4 GB when idle, and more under load. Ollama needs about 4 GB of its own for `nemotron-3-nano:4b` (2.9 GB) |
+| Disk | 30 GB free: the images (about 15 GB), the models (about 4 GB), and the data |
 | Docker | [Docker Desktop](https://www.docker.com/products/docker-desktop/), current release, running. Other container runtimes are not tested |
-| Ollama | The **current public release**, v0.40.0 or later for MLX, installed on the Mac and running, with both models pulled: `llama3.1:8b`, and localAI's embedding model `nomic-embed-text` |
+| Ollama | The **current public release**, v0.40.0 or later for MLX, installed on the Mac and running, with both models pulled: `nemotron-3-nano:4b`, and localAI's embedding model `nomic-embed-text` |
 | Node | **Exactly 26.12.1**, the version this release pins for OpenClaw (`release/host-requirements.json`) |
 | OpenClaw | The **current public release**, npm `latest`, installed globally for your user |
 
@@ -77,7 +77,7 @@ rm -rf /Applications/Ollama.app && cp -R "$MNT/Ollama.app" /Applications/
 hdiutil detach "$MNT"
 open -a Ollama          # on first launch it offers to install the `ollama` command; accept
 ollama --version
-ollama pull llama3.1:8b
+ollama pull nemotron-3-nano:4b
 ollama pull nomic-embed-text
 ```
 
@@ -115,7 +115,7 @@ echo "Docker   $(docker version --format '{{.Server.Version}}')"
 echo "Ollama   $(ollama --version | awk '{print $NF}')   current: $(curl -fsS https://api.github.com/repos/ollama/ollama/releases/latest | awk -F'"' '/"tag_name"/{print $4}')"
 echo "Node     $(node --version)   required: v26.12.1"
 echo "OpenClaw $(openclaw --version | awk '{print $2}')   current: $(npm view openclaw@latest version)"
-ollama list | grep -E 'llama3.1:8b|nomic-embed-text'
+ollama list | grep -E 'nemotron-3-nano:4b|nomic-embed-text'
 ```
 
 On a Mac that already has older copies, the same commands upgrade them in
