@@ -109,10 +109,11 @@ services:
       QDRANT_PORT: "6333"
       REDIS_URL: redis://redis:6379
       LLM_MODEL: ${LLM_MODEL:-nemotron-3-nano:4b}
-      # localAIStack's model registry default (config/models.registry.json). Its
-      # config.py fallback, ternary-bonsai:4, is not an embedding model: Ollama
-      # answers 501 and every retrieval fails.
-      EMBED_MODEL: ${EMBED_MODEL:-nomic-embed-text}
+      # localAIStack's model registry default (config/models.registry.json): it
+      # runs on MLX, 768-dim (RealityEngine_CI#593; each role's default must run
+      # on MLX). Vectors from another embedder do not mix, so changing it means
+      # `realityengine reembed`, which `up` and `upgrade` also run when needed.
+      EMBED_MODEL: ${EMBED_MODEL:-embeddinggemma-2:270m}
       EMBED_DIM: ${EMBED_DIM:-768}
       COLLECTION_NAME: localai_docs
       LOG_LEVEL: info
@@ -191,7 +192,7 @@ services:
       # ready; on 2026-10-19 that took 16 minutes and outlasted the install's
       # 900s wait (run e1-rc1-20261019a), and offline it never finishes.
       RAG_EMBEDDING_ENGINE: ollama
-      RAG_EMBEDDING_MODEL: ${EMBED_MODEL:-nomic-embed-text}
+      RAG_EMBEDDING_MODEL: ${EMBED_MODEL:-embeddinggemma-2:270m}
       ENABLE_OPENAI_API: "true"
       WEBUI_AUTH: "true"
       WEBUI_NAME: RealityEngine-WebUI

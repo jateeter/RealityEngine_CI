@@ -489,6 +489,10 @@ jobs:
         working-directory: RealityEngine_CI
         run: bash scripts/tests/test-release-init.sh
 
+      - name: Run release embedding-default unit tests
+        working-directory: RealityEngine_CI
+        run: bash scripts/tests/test-release-embed-default.sh
+
       - name: Run lane comparison unit tests
         working-directory: RealityEngine_CI
         run: bash scripts/tests/test-compare-lane-runs.sh

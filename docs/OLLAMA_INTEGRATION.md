@@ -87,6 +87,27 @@ Overriding stays per engine. Setting `OLLAMA_MODEL` for one instance changes onl
 that instance; the regression local lane exports it once so all three native
 engines share a model.
 
+### Defaults run on MLX
+
+Owner rule (2026-10-24, RealityEngine_CI#593): each role's **default** model must
+run on MLX; any other model may run on MLX or ggml. Ollama reports the runtime
+per model in `GET /api/tags` (`details.runner`), and that is what is measured
+here, not inferred from the model's format:
+
+| role | default | runner | other measured |
+|---|---|---|---|
+| LLM | `nemotron-3-nano:4b` | `mlx` | `llama3.1:8b` `ggml`, `gemma3:4b` `llamacpp` |
+| embedding | `embeddinggemma-2:270m` | `mlx` | `nomic-embed-text` `ggml` |
+
+localAIStack's registry declares `runner` per model and a test fails if a role's
+default does not declare `mlx`. The embedder is the same in localAI, Open WebUI,
+the release compose file and the CLI's model check
+(`scripts/tests/test-release-embed-default.sh`). Vectors from two embedders do not
+mix even at the same dimension (both are 768), so changing it re-embeds localAI's
+Qdrant collections behind an alias (`realityengine reembed`; `make reembed` in
+localAIStack). `ollama show embeddinggemma-2:270m` reports an embedding length of
+512 while the model returns 768-dim vectors, so the dimension is probed, not read.
+
 ### Structured output (`format`) — all four PEs behave identically
 
 A native Ollama dispatch normally sends `format` (C++/Scala/TypeScript: `"json"`;

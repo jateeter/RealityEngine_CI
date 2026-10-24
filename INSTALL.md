@@ -37,7 +37,7 @@ container.
 | Memory | 16 GB. Give Docker Desktop at least **8 GB** (Settings → Resources). The default `cpp:1,lsp:1,scala:1` uses about 4 GB when idle, and more under load. Ollama needs about 4 GB of its own for `nemotron-3-nano:4b` (2.9 GB) |
 | Disk | 30 GB free: the images (about 15 GB), the models (about 4 GB), and the data |
 | Docker | [Docker Desktop](https://www.docker.com/products/docker-desktop/), current release, running. Other container runtimes are not tested |
-| Ollama | The **current public release**, v0.40.0 or later for MLX, installed on the Mac and running, with both models pulled: `nemotron-3-nano:4b`, and localAI's embedding model `nomic-embed-text` |
+| Ollama | The **current public release**, v0.40.0 or later for MLX, installed on the Mac and running, with both models pulled: `nemotron-3-nano:4b`, and localAI's embedding model `embeddinggemma-2:270m`. Both run on MLX |
 | Node | **Exactly 26.12.1**, the version this release pins for OpenClaw (`release/host-requirements.json`) |
 | OpenClaw | The **current public release**, npm `latest`, installed globally for your user |
 
@@ -78,7 +78,7 @@ hdiutil detach "$MNT"
 open -a Ollama          # on first launch it offers to install the `ollama` command; accept
 ollama --version
 ollama pull nemotron-3-nano:4b
-ollama pull nomic-embed-text
+ollama pull embeddinggemma-2:270m
 ```
 
 **3. Node 26.12.1**, the official installer, checked before it runs:
@@ -115,7 +115,7 @@ echo "Docker   $(docker version --format '{{.Server.Version}}')"
 echo "Ollama   $(ollama --version | awk '{print $NF}')   current: $(curl -fsS https://api.github.com/repos/ollama/ollama/releases/latest | awk -F'"' '/"tag_name"/{print $4}')"
 echo "Node     $(node --version)   required: v26.12.1"
 echo "OpenClaw $(openclaw --version | awk '{print $2}')   current: $(npm view openclaw@latest version)"
-ollama list | grep -E 'nemotron-3-nano:4b|nomic-embed-text'
+ollama list | grep -E 'nemotron-3-nano:4b|embeddinggemma-2:270m'
 ```
 
 On a Mac that already has older copies, the same commands upgrade them in

@@ -32,6 +32,14 @@ with no checkout (`docs/ReleaseRoadmap.md`, decisions A1–A11; `RELEASE.md`;
   in their environment for exactly that.
 - **Machines load into every instance through Manager's own
   `POST /api/corpus/load`**, so the modal and the CLI share one path.
+- **Each role's default model runs on MLX** (owner rule, #593): `nemotron-3-nano:4b`
+  and the embedder `embeddinggemma-2:270m`. The embedder is written in
+  `compose.yml` (localAI and Open WebUI) and the CLI's model check, and
+  `scripts/tests/test-release-embed-default.sh` keeps them equal to localAIStack's
+  registry default. Vectors from two embedders do not mix, so `up` and `upgrade`
+  run `realityengine reembed` when the collections were filled by another model
+  (`reembed_if_needed`); it execs `python -m reembed_cli` in the localAI image,
+  which keeps the old collection until `reembed drop-old`.
 
 ## Testing
 
