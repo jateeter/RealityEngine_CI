@@ -2464,7 +2464,8 @@ alias for the same handler.
 
 ## K-lines and runtime snapshots
 
-*Specified 2026-10-05 (RealityEngine_CI#287, phase 1). The format and routes below
+*Specified 2026-10-05 (RealityEngine_CI#287, phase 1); boundaries, operation and
+the per-instance K-line store added 2026-10-24 (RealityEngine_CI#603). The format and routes below
 are a contract with no implementation yet. The routes stay out of the RE route
 tables, which list only what all three runtimes serve, until phase 2 implements
 them on every runtime.*
@@ -2538,9 +2539,300 @@ Each history the engines keep is a K-line, or one half of one:
 | Arbitration retention (`/api/arbitration?step=N`) | records attached to a K-line's pairs by step number. They explain how each OSRE cell was resolved, and are carried beside a K-line, not inside its identity |
 | Retention windows | a K-line span. A window is positioned by `m..n`, not by "the latest k", so its anchor can move to any range of steps |
 | Snapshots (below) | a K-line plus the context needed to re-establish it |
+| The K-line store (below) | the instance's population of closed K-lines, one record per episode, bounded by the corpus's own boundaries rather than by a window |
 
 A new history surface states its K-line scope and span, and keeps the active
 lists if it keeps any pairs.
+
+### Boundaries: where a K-line starts and ends
+
+*Specified 2026-10-24 (owner decisions; RealityEngine_CI#603). Before
+this, a K-line's span `m..n` was whatever a caller asked for, and the engines
+retained only a sliding window of the latest steps. A sliding window has no
+boundaries of its own. This section takes the boundaries from the corpus, so
+that a K-line is a quantum the machines themselves define.*
+
+**The boundaries already exist in the transition rule.** All three runtimes
+apply the same rule to every critical event sequence: C++
+`RealityEvent::transition`, Lisp `transition-vector` and Scala
+`RealityEvent.transition`.
+
+- The **initial** event is always active.
+- A **non-initial** event that fails to match is cleared, together with its
+  predecessor chain.
+- An **intermediate** event (no `outputEvents`) that matches activates its
+  successors and is cleared. A path therefore advances exactly one event per
+  step, or it ends.
+- A **final** event (with `outputEvents`) that matches asserts its outputs and
+  **stays active**. It keeps asserting for as long as it keeps matching.
+- A successor is activated only if it is not already active. The path that
+  reaches an event first holds it.
+- Every asserted output carries the provenance chain, from the initial event to
+  the one that fired.
+
+Measured on the corpus (2026-10-24), every one of the 5,075 sequences has
+exactly one initial event and exactly one event without successors. The
+longest path from initial to final is 7 events in the full corpus, and 6 in the
+regression corpus.
+
+#### The K-line is the episode
+
+**A K-line is one episode of one sequence: the complete path, from departure
+to its end** (owner, 2026-10-24). Its **focal** machine and sequence are the
+ones that took the path.
+
+| boundary | when | at step |
+|---|---|---|
+| **open** (departure) | the initial event matches and at least one successor is activated | `m` |
+| **milestone** | an intermediate event on the path that also declares `outputEvents` matches. Its outputs are recorded on the K-line, and the episode continues | inside `m..n` |
+| **close: `completed`** | the path's final event matches **for the first time** | `n` |
+| **close: `abandoned`** | the path's active event fails to match before the final event fires | `n`, the step that failed |
+| **close: `subsumed`** | the path's next event is already held by an older path in the same sequence, so activation is refused | `n` |
+| **close: `interrupted`** | a reset, a removal of the focal machine, or an engine shutdown ends the path | `n`, the last committed step |
+
+- **Start state.** A K-line's start state is `active(M, before m)`: the state
+  when ISRE_m is presented. Its end state is `active(M, after n)`. These are
+  the K-line definition's two active lists, now at fixed points.
+- **Completion closes the K-line, and sustain is a duration on it** (owner
+  decision 1). While the final event keeps matching after `n`, the K-line
+  records `sustain.through`, the last step it matched. A `sustain-end` entry is
+  appended when it stops matching. Re-firing during sustain does not open a new
+  K-line.
+- **One-event sequences** (the initial event is also the final one; 3,181 of
+  the 5,075) open and complete on the same step, so `m = n`. Consecutive
+  matches are that K-line's sustain. The next K-line opens only after a step
+  without a match.
+- **Abandoned K-lines are kept** (owner decision 2). They are near-misses, and
+  they record what differed: the event that was expected, the element index
+  that failed and its score, and the ISRE cells that the comparison read. Near
+  misses are the initialization context for a sandboxed learning deployment
+  (below).
+- **Milestones belong to the episode** (owner decision 4). An intermediate
+  event that emits output is a milestone, never a boundary. The 24
+  intermediate events with `outputEvents` in today's corpus are these.
+
+#### Scope: the focal machine plus its feedback
+
+**A K-line's scope `M` is its focal machine plus every machine whose output fed
+the path through arbitration feedback** (owner decision 3). That feedback is
+`ISRE(n) = mergeBatch(ISRESeed(n), arbiter(OSRE(n-1)))`.
+
+- **Contributors.** For each step `k` in `m..n`, a cell in the focal machine's
+  input region that took its value from `arbiter(OSRE(k-1))` names the machine
+  that asserted that cell. The arbitration records at `k-1` show which machine
+  that was. Its K-line, the episode that was open or sustaining at `k-1`, is a
+  **contributor**. Contributors are followed again, from their own spans,
+  for up to `klineFeedbackHops` hops (an engine control, default 3).
+- If the closure would go further, the K-line records `feedbackTruncated: true`.
+  A K-line never silently claims a cause set that it cut short.
+- `M` is the focal machine plus every contributor's focal machine. Each pair is
+  projected onto `M`, as for any K-line. Cells that `M` shares with a machine
+  outside `M` are listed in `sharedCells`.
+- Each contributor is referenced by K-line id with its hop count, and is not
+  copied. The population is a graph of K-lines, and these are its edges.
+
+#### Source kinds, under a versioned taxonomy
+
+**Every pair records which kinds of source drove `M`'s input cells at that
+step** (owner decision 5). The vocabulary is a **versioned taxonomy**, and each
+K-line names the version it was written under.
+
+- The taxonomy is contract data in `RealityEngine_Machines`:
+  `schemas/source-kinds/re-source-kinds-<N>.json`.
+- Each entry is `{kind, provider?, class}`:
+  - `kind` is the source's own kind;
+  - `provider` is taken from `origin` through the provider mapping above
+    (`openclaw` → `acp`; `ollama` and `localaistack` → `localai`);
+  - `class` is `deterministic` or `generated`, as the provider registry ranks
+    it.
+- **Version 1** has these kinds:
+  - `test`: a machine-derived interned source;
+  - `sensor`, with its `provider`: `mqtt`, `healthkit`, `carekit`, `acp`,
+    `mcp`, `localai` or `signal`;
+  - `feedback`: the cell came from `arbiter(OSRE(k-1))`;
+  - `none`: the cell was not written that step.
+- Each pair carries
+  `sources: [{"cells": [<from>, <to>], "kind", "provider", "class", "id"}]`,
+  covering the projected input cells. This also records, step by step, where a
+  live source won a shared lane over the seed.
+- **Changing the taxonomy means a new version**, never an edit. A K-line keeps
+  the version it was written under. Each version after the first ships a
+  mapping from the previous one, so readers can translate a population that
+  spans versions. An engine refuses to boot when its taxonomy version is not
+  present in `RealityEngine_Machines`.
+
+#### Identity, clock and parity
+
+- **`id`** is `<instance>:<lamport at open>`. It is unique per instance, and
+  stays unique across restarts.
+- **Clock.** Every boundary (open, each milestone, close, `sustain-end`) is
+  stamped `{instance, lamport, commit, step}`, the instance clock (RealityEngine_CI#600).
+  `causedBy` holds the `RE-Clock` of the external input that wrote the cells
+  that opened the path, when there was one.
+- **Corpus.** Every K-line carries the corpus fingerprint
+  (`sha256/resident-declared-v1`). It is valid only against that corpus.
+- **Cross-runtime parity.** The boundaries come from the corpus, so engines
+  given the same stimulus must open and close the same K-lines. The comparison
+  key is `(focal machine, sequence, open.step, close.step, outcome, path event
+  ids)`, plus `scope` and the source kinds. `id`, `instance`, `lamport` and
+  `commit` are excluded, as everywhere else.
+
+### Managing K-lines during operation
+
+The engine maintains the K-line population **as it steps**. It does not
+reconstruct it afterwards.
+
+- **The open table.** Each sequence holds the K-lines of its paths that are in
+  flight, at most one per active non-initial event, keyed by the event the path
+  currently holds. Each open K-line holds its pairs so far, its milestones, and
+  its start state.
+- **The start-state ring.** The engine keeps the active list for each of the
+  last `W` committed steps, so that a contributor's start state is still
+  available when a K-line closes. `W = L × (klineFeedbackHops + 1)`, where `L`
+  is the longest initial-to-final path in the **resident** corpus. `W` is
+  recomputed whenever the corpus changes at runtime. The ring stores deltas
+  between consecutive steps. It is bounded by the corpus, not by a retention
+  setting.
+- **At each committed step**, in the same place as arbitration retention, that
+  is, **before** the step's completion point is published:
+  1. Read each sequence's transition result: matched, activated, asserted, and
+     cleared.
+  2. Apply the boundaries above: open, advance, milestone, close, sustain, and
+     sustain-end.
+  3. For each K-line that closed, resolve its contributors from the arbitration
+     records and the ring, take its start state from the ring, project it, and
+     **append it durably to the store**.
+  4. Persist the open table's checkpoint.
+
+  An observer woken for step `n` therefore finds every K-line that closed at
+  `n` already stored.
+- **Runtime corpus changes.**
+  - An added machine starts at rest.
+  - A removed machine's open K-lines close `interrupted`, with
+    `reason: "machine-removed"`.
+  - Stored K-lines are never deleted because their machine went away. That
+    something existed is a persistent observation.
+- **Reset** closes every open K-line `interrupted` (`reason: "reset"`). `step`
+  restarts. `lamport` and `commit` continue, so ids stay unique.
+- **Shutdown and crash.**
+  - At boot, the open-table checkpoint from the last committed step is read
+    back.
+  - An engine's active events do not survive a restart, so every K-line in the
+    checkpoint is closed `interrupted` (`reason: "shutdown"`) at that step.
+  - A record that was only half written is truncated.
+- **Controls.**
+  - `klineCapture` (engine scope, default `true` once all three runtimes
+    implement it). `false` stops capture and leaves the store untouched.
+  - `klineFeedbackHops` (default 3).
+  - `klineStoreMaxBytes` (see below).
+
+  All are set through `/api/engine/config` at runtime, without a restart.
+
+### The K-line store: persistent, per engine instance
+
+**Each engine instance keeps its own K-line population on disk, under its
+instance UUID.** The population belongs to the instance, the same way its clock
+does (RealityEngine_CI#296).
+
+- **Location.** `$RE_INSTANCE_STATE_DIR/klines/<instance_uuid>/`, with
+  `~/.reality-engine/klines/<uuid>/` as the native default. The Docker lanes
+  bind-mount it next to the clock dir. A release install keeps it in a named
+  volume. An instance restarted under the same UUID therefore resumes its
+  population, and a different instance never shares one.
+- **Format.** Append-only segments, the same on every runtime:
+  - `segment-<first commit>.jsonl` holds one record per line: `re-kline/1`
+    records, and `re-kline-event/1` entries for `sustain-end`.
+  - `open.json` is the open-table checkpoint. It is written by temp file plus
+    rename at every committed step.
+  - `index.json` maps id → (segment, offset), with counts by focal
+    machine/sequence and outcome.
+  - A segment is **sealed** when it reaches 64 MiB, or when the corpus
+    fingerprint changes. Its sha256 is recorded in `manifest.json`.
+- **Durability.** Records for step `n` are flushed (fsync) before step `n`'s
+  completion is published.
+- **Lock.** The instance's existing lifetime lock on its UUID covers the store.
+  A second process with the same UUID refuses to boot, so it can never open the
+  store.
+- **Budget.** `klineStoreMaxBytes` (default 2 GiB) bounds the sealed segments
+  kept live.
+  - When the budget is reached, the oldest sealed segment that has been
+    **exported** is moved to `archive/`.
+  - A segment that has not been exported is never evicted. The engine warns
+    instead, on `/api/health` and in the stats, and keeps writing. A
+    population is never silently dropped.
+
+#### Record
+
+```
+{ "format": "re-kline/1",
+  "id": "<instance>:<lamport>",
+  "corpus": { "algorithm": "sha256/resident-declared-v1", "fingerprint": "<hex>" },
+  "taxonomy": "re-source-kinds/1",
+  "focal": { "machine": "<name>", "sequence": "<id>" },
+  "outcome": "completed" | "abandoned" | "subsumed" | "interrupted",
+  "reason": null | "reset" | "machine-removed" | "shutdown",
+  "open":  { "step": m, "commit": …, "lamport": …, "instance": … },
+  "close": { "step": n, "commit": …, "lamport": …, "instance": … },
+  "path": [ { "event": "<id>", "step": k, "milestone": false, "outputs": [] }, … ],
+  "difference": null | { "expected": ["<event id>"], "elementIndex": i, "score": s, "cells": [<from>, <to>] },
+  "subsumedBy": null | "<kline id>",
+  "sustain": { "through": n, "ended": false },
+  "scope": ["<machine name>", …],
+  "contributors": [ { "kline": "<id>", "machine": "<name>", "hops": 1 }, … ],
+  "feedbackTruncated": false,
+  "sharedCells": [ … ],
+  "activeBefore": [ {machine, sequence, event, justMatched}, … ],
+  "activeAfter":  [ … ],
+  "pairs": [ { "stepNumber": k, "isre": <entry>, "osre": <entry>,
+               "sources": [ { "cells": [a, b], "kind": "sensor", "provider": "healthkit",
+                              "class": "deterministic", "id": "<source id>" } ] }, … ],
+  "outputs": { "outputVector": …, "mergedOutputVector": … },
+  "causedBy": null | { "instance": "<uuid>", "lamport": n } }
+```
+
+#### Routes
+
+```
+GET  /api/klines?outcome=&machine=&sequence=&since=<commit>&limit=   the stored population, oldest first by close.commit
+GET  /api/klines/open                                                 the open table, now
+GET  /api/klines/:id                                                  one K-line
+GET  /api/klines/stats                                                counts by outcome and machine; segments, bytes, budget, warnings
+POST /api/klines/export   {"outcome": [...], "since": …, "machines": [...]}  → a re-kline-bundle/1, and marks the segments it covered as exported
+```
+
+A bundle (`re-kline-bundle/1`) holds:
+- the selected records;
+- the corpus fingerprint;
+- the taxonomy version;
+- the engine controls in force;
+- the source instance UUID;
+- a sha256 over the records.
+
+The routes stay out of the RE route tables until all three runtimes serve them.
+
+### Sandboxed learning deployment: initialization from the population
+
+**Abandoned K-lines, which are the near-misses, are prepared as the
+initialization context for a sandboxed learning deployment**, a replica of an
+instance used for experimentation (owner decision 2).
+
+- **A replica is a new instance.** It gets its own UUID, allocated in a
+  `sandbox/<id>` lane, never the source's UUID. It boots the same corpus (the
+  fingerprints must match) with the bundle's controls.
+- **Seeding.** The replica imports a bundle exported from the source instance:
+  every `abandoned` K-line in the selection, plus the `completed` K-lines that
+  share their focal sequence, for contrast.
+  - The imported K-lines are **read-only context**. They keep their original
+    ids and `instance`, and they are stored under
+    `klines/<replica uuid>/imported/<source uuid>/`.
+  - The replica's own K-lines are written to its own store as usual.
+- **Re-establishing a K-line.** A replica can put a near-miss back by restoring
+  its `activeBefore` and presenting its ISRE pairs, which is the K-line
+  self-verification above. It can then vary what it presents at the step that
+  failed.
+- **Isolation.** Nothing flows back. A replica never writes to the source's
+  store or instance registry entry, and never to a live provider.
+  Replica lanes are excluded from production instance registries.
 
 ### The snapshot body
 
