@@ -4,8 +4,10 @@ Evaluated 2026-10-24 at `RealityEngine_Rust@aab9085` (the merge of the first age
 against `RealityEngine_CI@1f676ce`. Nothing here was changed in `RealityEngine_Rust`; every
 number below was measured, and the commands that produced it are in "Reproducing".
 
-Tracking: conformance gaps in `jateeter/RealityEngine_Rust#2`; the comparator document defect in
-RealityEngine_CI#606; the quorum role and conformance lane in RealityEngine_CI#607.
+Tracking: the repair plan and index of every finding is `jateeter/RealityEngine_Rust#2` (issues #3 to
+#17, in three post-RC3 milestones); the comparator document defect is RealityEngine_CI#606, the
+`/api/health` disagreement #610, the application map #611, and the quorum role and conformance lane
+#607.
 
 ## Verdict
 
@@ -106,9 +108,9 @@ fixable things: key names, comparator semantics, and the shape of `outputs[]`.
 | area | result |
 |---|---|
 | Error envelope `{error}` with 400/404 | conforms |
-| Health `{status, timestamp, version}` | conforms to the spec (the C++ reference omits timestamp and version, so the reference deviates here) |
+| Health `{status, timestamp, version}` | conforms to the spec, and differs from **all three** engines, which return `{status}` (measured on cpp-1, lsp-1, scala-1): the spec and the engines disagree, tracked in RealityEngine_CI#610 |
 | `GET /api/machines/json/list` | fails: aliased to the `/api/machines` list; the spec requires `relFile`, `filename`, `semanticsHash`, `semanticsIri`, `version` (enforced by `machine-json-listing.spec.ts`) |
-| Participation states ("silence is not a state") | fails: an unimplemented route answers a bare 404 with an empty body, not a declared `unsupported` |
+| Participation states ("silence is not a state") | not emitted: an unimplemented route answers a bare 404 with an empty body. No runtime emits them yet (`QUORUM_CONTRACT.md` lists it as known non-conformance and has the harness read a non-2xx as the proxy), and the wire shape for an unimplemented route is not specified, so this is blocked on a spec decision, not on Rust (jateeter/RealityEngine_Rust#15) |
 | `GET /api/engine/config` pathway, `/api/metrics`, `/api/arbitration`, step completion (`/api/engine/steps/:n/pair`), perceptual simulation, sampler, vectors/sequences CRUD, semantic buses, machine graph, whatif, demo | not implemented (64 of the 78 RE rows) |
 | Perception Engine (45 route rows), `POST /api/push`, sources, sensors, integrations | not implemented; there is no PE |
 | Instance identity (#296: `INSTANCE_UUID`, clock dir, exclusive lock, `X-RE-Instance`) | none |
@@ -193,8 +195,24 @@ Recorded rather than pursued, per the engineering contract:
   rules would be maintained in two places that drift.
 - **`OpenTwin.code-workspace`** in the workspace root points at unrelated `~/Documents/GitHub/OpenTwin`
   paths and lists the same folder twice; it is not the RealityEngine workspace.
-- **SURFACE_SPEC and the C++ reference disagree on `GET /api/health`:** the spec requires
-  `{status, timestamp, version}`; C++ returns `{status}`. (Rust follows the spec.)
+- **SURFACE_SPEC and all three engines disagree on `GET /api/health`:** the spec requires
+  `{status, timestamp, version}`; C++, LSP and Scala return `{status}`. (Rust follows the spec.) RealityEngine_CI#610.
+
+## Repair plan, after the RC3 milestone
+
+None of this starts before `release-v0.0.1-rc3` is certified, and none of it is part of
+`release-v0.0.1` (ReleaseRoadmap A11). Sizes are estimates for one developer. The plan, with an issue
+per item, is `jateeter/RealityEngine_Rust#2`.
+
+| phase | scope | exit | rough size |
+|---|---|---|---|
+| P1 | canonical keys (#3), comparator (#4), `outputs[]` shape (#5), response/config keys (#6), `json/list` (#7), repo hygiene (#8), in-repo differential and load guard (#9) | the 55-sequence differential is identical on the unmodified loader | 1-1.5 weeks |
+| P2 | engine config and metrics (#10), step completion and trajectories (#11), arbitration and clock (#12), remaining RE routes (#13), concurrency and full-corpus baseline (#14), participation states (#15, blocked on spec) | every RE-only harness stage runs with `rust-1` as a non-voting member | 5-8 weeks |
+| P3 | instance identity (#16), the Perception Engine (#17) | Rust is a full RE/PE pair; the quorum-promotion decision (RealityEngine_CI#607) can be taken | several weeks |
+
+On the CI side, in parallel and independent of Rust: the comparator document (#606, verify first,
+then correct), `/api/health` (#610, decide spec or engines), the application map (#611), and the
+follower-role decision, harness support and lane (#607).
 
 ## Reproducing
 
