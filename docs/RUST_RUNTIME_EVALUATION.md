@@ -184,8 +184,13 @@ Recorded rather than pursued, per the engineering contract:
 ## Specification defects found along the way
 
 - **`MACHINE_CONCEPT.md` comparator table is wrong** against all three engines (above).
-- **The "integrated application map" does not exist.** Every `CLAUDE.md` says to update
-  `/Users/johnt/workspace/GitHub/CLAUDE.md`; that file is absent.
+- **The "integrated application map" is a copy of this repo's `CLAUDE.md`, not a map.** Every
+  `CLAUDE.md` says to update `/Users/johnt/workspace/GitHub/CLAUDE.md`. That file was absent when
+  this was measured and has since been added, but it is byte-identical to `RealityEngine_CI/CLAUDE.md`:
+  headed "RealityEngine_CI Guidance", pointing at itself for "the integrated application map", and
+  listing no repositories, roles, ports or ownership (and not `RealityEngine_Rust`). Its relative
+  links (`docs/ENGINEERING_CONTRACT.md`) do not resolve from the workspace root, and the standing
+  rules would be maintained in two places that drift.
 - **`OpenTwin.code-workspace`** in the workspace root points at unrelated `~/Documents/GitHub/OpenTwin`
   paths and lists the same folder twice; it is not the RealityEngine workspace.
 - **SURFACE_SPEC and the C++ reference disagree on `GET /api/health`:** the spec requires
