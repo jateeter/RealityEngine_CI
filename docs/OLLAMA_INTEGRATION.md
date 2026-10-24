@@ -87,6 +87,58 @@ Overriding stays per engine. Setting `OLLAMA_MODEL` for one instance changes onl
 that instance; the regression local lane exports it once so all three native
 engines share a model.
 
+### Structured output (`format`) — all four PEs behave identically
+
+A native Ollama dispatch normally sends `format` (C++/Scala/TypeScript: `"json"`;
+LSP: a JSON schema built from the source mapping) so the model's reply parses and
+carries the keys the source mapping extracts. Ollama refuses it for some models.
+The rule, held **identically** by the C++, LSP and Scala PEs and the Manager
+TypeScript PE:
+
+1. A request-level `formatJson` (dispatch body; `formatJson` in the TypeScript
+   integration entry) wins in both directions: `false` omits `format`, `true`
+   sends it.
+2. Otherwise `format` is sent unless the model family (the tag before `:`) is in
+   the engine's no-structured-output list. The list is currently
+   `nemotron-3-nano`, kept in each engine at the symbol named in that repo's
+   `CLAUDE.md`.
+3. **When `format` is omitted, the prompt carries what `format` would have.** The
+   engine appends this to the system prompt, built from the source mapping's
+   pointers in declaration order (the top-level key of each, de-duplicated):
+
+   ```text
+
+   Respond with ONLY one JSON object, with no prose and no markdown fences, that has exactly these keys, each a number or boolean: k1, k2. For example: {"k1": 0, "k2": 0}
+   ```
+
+   (A mapping with no pointers gets `... that has exactly this key, an array of
+   numbers: values. For example: {"values": [0]}`.) The text is **byte-identical**
+   in all four engines, so one model sees one prompt whichever engine asks.
+4. For models in the list the engine also sends `think: false`.
+
+Why 3 and 4 exist. Omitting `format` alone left the reply unconstrained: on the
+RC3 universe (2026-10-24) a dispatch failed on C++ and Scala with `missing
+required JSON pointer: /completed`, and on LSP with its 10 s total timeout,
+because the default prompt never named the mapping's keys and thinking made the
+free-form answer slow. Measured on `nemotron-3-nano:4b` with the `agent-completion-risk`
+mapping:
+
+| system prompt | thinking | valid reply |
+|---|---|---|
+| no contract | on | 0/2 |
+| JSON Schema as text | on | 4/4, 2-5 s |
+| required keys + example (this contract) | on | 6/8, 0.5-8 s |
+| required keys + example (this contract) | off | 8/8, 0.4 s |
+
+**Parity is a contract, not a convenience.** The three engines are compared byte
+for byte; if one sent `format` and another did not, or showed the model a
+different prompt, the same model would answer differently per engine and the
+sweep would attribute it to the engine. A change to the list, the prompt text or
+the rule lands in all four repos in one sweep. (The C++ PE additionally accepts
+an explicit `format` string in the body; that is a C++-only escape hatch and not
+part of the contract. The engines' *default* system prompts still differ by
+engine; only the appended contract is shared.)
+
 ### What `nemotron-3-nano:4b` cannot do
 
 Its manifest declares `completion`, `tools` and `thinking`. Observed against
@@ -96,14 +148,10 @@ Ollama 0.40.6 on 2026-10-24:
   graph (`bind_tools`) and OpenClaw runs that advertise tools work on the
   universe model;
 - **structured output is refused.** Both `format: "json"` and a JSON-schema
-  `format` return `{"error":"structured output is unavailable"}`. The engines'
-  native Ollama dispatch sends one of them (C++ defaults `formatJson` to true
-  and LSP sends a JSON schema; `OllamaAdapter.ts` sends `format: "json"`), so a
-  dispatch to this model must disable it (C++: `formatJson: false`) and rely on
-  the prompt, which the model follows (`Reply with ONLY a JSON object ...`
-  returned a clean object with `think: false`);
-- `thinking` is on by default. A caller that wants only the answer sets
-  `think: false`.
+  `format` return `{"error":"structured output is unavailable"}`. See
+  "Structured output" below for what the engines do about it;
+- `thinking` is on by default and does not help when the task is to fill in
+  named fields: the engines send `think: false` for this model (measured below).
 
 The interim universe model `gemma3:4b` honoured `format: "json"` but refused
 `tools`. `tinyllama-mlx` (TinyLlama 1.1B Chat on the MLX runner) is still
