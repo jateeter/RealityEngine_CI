@@ -14,6 +14,8 @@
 #                                              on GitHub (default main), validated first
 #   realityengine machines load --domain D | --machine M | --all
 #                                              load catalog machines into every engine
+#   realityengine host-check [--json]          check Ollama, OpenClaw and Node against this release
+#                                              (no Docker needed); records state/host-services.json
 #   realityengine reembed [status|run|rollback|drop-old] [COLLECTION ...]
 #                                              rebuild localAI's Qdrant collections after the
 #                                              embedding model changes (vectors from two models
@@ -53,7 +55,7 @@ ok()   { printf '\033[0;32m[ok]\033[0m   %s\n' "$*"; }
 warn() { printf '\033[1;33m[warn]\033[0m %s\n' "$*" >&2; }
 die()  { printf '\033[0;31m[error]\033[0m %s\n' "$*" >&2; exit 1; }
 
-usage() { sed -n '2,24p' "$0" | sed 's/^# \{0,1\}//'; exit "${1:-0}"; }
+usage() { sed -n '2,26p' "$0" | sed 's/^# \{0,1\}//'; exit "${1:-0}"; }
 
 # ── arguments ────────────────────────────────────────────────────────────────
 CMD="${1:-}"; [ -n "$CMD" ] || usage 1; shift
@@ -139,7 +141,260 @@ preflight() {
   free_gb=$(df -g "$HOME" | awk 'NR==2 {print $4}')
   [ "${free_gb:-0}" -ge 20 ] || warn "Only ${free_gb} GB free on disk; the images need about 20 GB."
 
+  host_gate strict
   check_ollama
+}
+
+# ── host services (RealityEngine_CI#592) ─────────────────────────────────────
+# Ollama and OpenClaw run natively on the Mac. These constants mirror
+# release/host-requirements.json (scripts/tests/test-host-preflight.sh keeps them
+# equal; this script ships alone, so it cannot read the file).
+HOST_REQ_NODE=26.12.1
+HOST_REQ_OLLAMA_MIN=0.40.0
+HOST_REQ_OPENCLAW_MIN=2026.10.5
+HOST_REQ_OPENCLAW_REQUIRED=false
+HOST_MILESTONE=release-v0.0.1-rc3
+HOST_ISSUE_REPO=jateeter/RealityEngine_CI
+
+# The first dotted number in the input: "ollama version is 0.40.6" -> 0.40.6
+ver_num() { sed -n 's/^[^0-9]*\([0-9][0-9]*\(\.[0-9][0-9]*\)\{1,3\}\).*/\1/p' | head -1; }
+
+# ver_ge A B: success when A >= B, comparing dotted numbers part by part.
+ver_ge() {
+  local IFS=. i x y
+  local -a a b
+  # shellcheck disable=SC2206  # splitting on the dots is the point
+  a=($1); b=($2)
+  for i in 0 1 2 3; do
+    x="${a[$i]:-0}"; y="${b[$i]:-0}"
+    [ "$x" -gt "$y" ] && return 0
+    [ "$x" -lt "$y" ] && return 1
+  done
+  return 0
+}
+
+# Each probe sets its variables; empty means absent.
+probe_ollama() {
+  OLLAMA_VER=""; OLLAMA_NOTE=""
+  local v
+  v="$(curl -fsS --max-time 3 http://127.0.0.1:11434/api/version 2>/dev/null | ver_num || true)"
+  if [ -n "$v" ]; then OLLAMA_VER="$v"; OLLAMA_NOTE="running"; return 0; fi
+  if command -v ollama >/dev/null 2>&1; then
+    v="$(ollama --version 2>/dev/null | ver_num || true)"
+    if [ -n "$v" ]; then OLLAMA_VER="$v"; OLLAMA_NOTE="installed, not running"; fi
+  fi
+  return 0
+}
+
+# OpenClaw and the exact node it runs on: the interpreter on its first line, so
+# an nvm or Homebrew node elsewhere on PATH cannot stand in for it.
+probe_openclaw() {
+  OPENCLAW_VER=""; OPENCLAW_BIN=""; OPENCLAW_NODE=""; OPENCLAW_NODE_VER=""; OPENCLAW_NOTE=""
+  OPENCLAW_BIN="$(command -v openclaw 2>/dev/null || true)"
+  [ -n "$OPENCLAW_BIN" ] || return 0
+  OPENCLAW_VER="$("$OPENCLAW_BIN" --version 2>/dev/null | ver_num || true)"
+  local real shebang t
+  real="$OPENCLAW_BIN"
+  while [ -L "$real" ]; do
+    t="$(readlink "$real")"
+    case "$t" in /*) real="$t" ;; *) real="$(dirname "$real")/$t" ;; esac
+  done
+  shebang="$(head -1 "$real" 2>/dev/null || true)"
+  case "$shebang" in
+    '#!/usr/bin/env node'*) OPENCLAW_NODE="$(command -v node 2>/dev/null || true)" ;;
+    '#!'*node*) OPENCLAW_NODE="$(printf '%s' "${shebang#\#!}" | awk '{print $1}')" ;;
+    *) OPENCLAW_NOTE="not a node script" ;;
+  esac
+  if [ -n "$OPENCLAW_NODE" ]; then
+    OPENCLAW_NODE_VER="$("$OPENCLAW_NODE" --version 2>/dev/null | ver_num || true)"
+    if [ -z "$OPENCLAW_NODE_VER" ]; then OPENCLAW_NOTE="$OPENCLAW_NODE does not run"; fi
+  fi
+  return 0
+}
+
+# The current public release; empty when it cannot be looked up (never a pass).
+# RE_LATEST_OLLAMA / RE_LATEST_OPENCLAW stand in for the lookup in tests.
+latest_ollama() {
+  if [ -n "${RE_LATEST_OLLAMA+x}" ]; then printf '%s' "$RE_LATEST_OLLAMA"; return 0; fi
+  curl -fsS --max-time 5 https://api.github.com/repos/ollama/ollama/releases/latest 2>/dev/null \
+    | sed -n 's/.*"tag_name": *"v\{0,1\}\([^"]*\)".*/\1/p' | head -1
+}
+latest_openclaw() {
+  if [ -n "${RE_LATEST_OPENCLAW+x}" ]; then printf '%s' "$RE_LATEST_OPENCLAW"; return 0; fi
+  curl -fsS --max-time 5 https://registry.npmjs.org/openclaw/latest 2>/dev/null \
+    | sed -n 's/.*"version": *"\([^"]*\)".*/\1/p' | head -1
+}
+
+# Findings, one per line "service|kind|installed|wanted|fix": kind is fail or behind.
+HOST_FINDINGS=""
+HOST_LOOKUPS_SKIPPED=""
+finding() { HOST_FINDINGS="${HOST_FINDINGS}$1|$2|$3|$4|$5
+"; }
+
+OLLAMA_FIX="Install the current Ollama.app: https://github.com/ollama/ollama/releases/latest (the Homebrew cask lags)"
+OPENCLAW_FIX="npm install -g openclaw@latest   (needs Node $HOST_REQ_NODE: https://nodejs.org/dist/v$HOST_REQ_NODE/)"
+NODE_FIX="Install Node $HOST_REQ_NODE (the .pkg from https://nodejs.org/dist/v$HOST_REQ_NODE/), put it first on PATH, then: npm install -g openclaw@latest"
+
+# Probe, compare, record. Sets HOST_FINDINGS and writes $DIR/state/host-services.json.
+host_check() {
+  HOST_FINDINGS=""; HOST_LOOKUPS_SKIPPED=""
+  probe_ollama; probe_openclaw
+  local lo lc
+  lo="$(latest_ollama || true)"; lc="$(latest_openclaw || true)"
+  [ -n "$lo" ] || HOST_LOOKUPS_SKIPPED="${HOST_LOOKUPS_SKIPPED}ollama "
+  [ -n "$lc" ] || HOST_LOOKUPS_SKIPPED="${HOST_LOOKUPS_SKIPPED}openclaw "
+  OLLAMA_LATEST="$lo"; OPENCLAW_LATEST="$lc"
+
+  OLLAMA_STATUS=ok
+  if [ -z "$OLLAMA_VER" ]; then
+    OLLAMA_STATUS=missing
+    warn "Ollama was not found. Local AI needs it. $OLLAMA_FIX"
+  elif ! ver_ge "$OLLAMA_VER" "$HOST_REQ_OLLAMA_MIN"; then
+    OLLAMA_STATUS=below-min
+    finding Ollama fail "$OLLAMA_VER" ">= $HOST_REQ_OLLAMA_MIN (MLX)" "$OLLAMA_FIX"
+  elif [ -n "$lo" ] && ! ver_ge "$OLLAMA_VER" "$lo"; then
+    OLLAMA_STATUS=behind
+    finding Ollama behind "$OLLAMA_VER" "$lo" "$OLLAMA_FIX"
+  fi
+
+  OPENCLAW_STATUS=ok
+  if [ -z "$OPENCLAW_BIN" ]; then
+    OPENCLAW_STATUS=missing
+    if [ "$HOST_REQ_OPENCLAW_REQUIRED" = true ]; then
+      finding OpenClaw fail "" ">= $HOST_REQ_OPENCLAW_MIN" "$OPENCLAW_FIX"
+    else
+      warn "OpenClaw was not found on PATH (the gateway still runs in a container in this release)."
+    fi
+  elif [ -z "$OPENCLAW_VER" ]; then
+    OPENCLAW_STATUS=unreadable
+    finding OpenClaw fail "?" ">= $HOST_REQ_OPENCLAW_MIN" "$OPENCLAW_FIX"
+  elif ! ver_ge "$OPENCLAW_VER" "$HOST_REQ_OPENCLAW_MIN"; then
+    OPENCLAW_STATUS=below-min
+    finding OpenClaw fail "$OPENCLAW_VER" ">= $HOST_REQ_OPENCLAW_MIN" "$OPENCLAW_FIX"
+  elif [ -n "$lc" ] && ! ver_ge "$OPENCLAW_VER" "$lc"; then
+    OPENCLAW_STATUS=behind
+    finding OpenClaw behind "$OPENCLAW_VER" "$lc" "$OPENCLAW_FIX"
+  fi
+
+  NODE_STATUS=ok
+  if [ -n "$OPENCLAW_BIN" ]; then
+    if [ -z "$OPENCLAW_NODE_VER" ]; then
+      NODE_STATUS=unreadable
+      finding Node fail "?" "$HOST_REQ_NODE" "$NODE_FIX"
+    elif [ "$OPENCLAW_NODE_VER" != "$HOST_REQ_NODE" ]; then
+      NODE_STATUS=mismatch
+      if [ "$HOST_REQ_OPENCLAW_REQUIRED" = true ]; then
+        finding Node fail "$OPENCLAW_NODE_VER" "$HOST_REQ_NODE" "$NODE_FIX"
+      else
+        warn "OpenClaw runs on Node $OPENCLAW_NODE_VER; this release pins $HOST_REQ_NODE. $NODE_FIX"
+      fi
+    fi
+  fi
+  host_record
+}
+
+json_str() { printf '"%s"' "$(printf '%s' "$1" | sed 's/\\/\\\\/g; s/"/\\"/g')"; }
+
+host_services_json() {
+  local skipped="false"; [ -n "$HOST_LOOKUPS_SKIPPED" ] && skipped="true"
+  printf '{\n  "checked_at": %s,\n  "release": %s,\n  "lookups_skipped": %s,\n' \
+    "$(json_str "$(date -u +%Y-%m-%dT%H:%M:%SZ)")" "$(json_str "$HOST_MILESTONE")" "$skipped"
+  printf '  "ollama":   {"installed": %s, "latest": %s, "min": %s, "status": %s, "note": %s},\n' \
+    "$(json_str "$OLLAMA_VER")" "$(json_str "$OLLAMA_LATEST")" "$(json_str "$HOST_REQ_OLLAMA_MIN")" "$(json_str "$OLLAMA_STATUS")" "$(json_str "$OLLAMA_NOTE")"
+  printf '  "openclaw": {"installed": %s, "latest": %s, "min": %s, "status": %s, "bin": %s, "note": %s},\n' \
+    "$(json_str "$OPENCLAW_VER")" "$(json_str "$OPENCLAW_LATEST")" "$(json_str "$HOST_REQ_OPENCLAW_MIN")" "$(json_str "$OPENCLAW_STATUS")" "$(json_str "$OPENCLAW_BIN")" "$(json_str "$OPENCLAW_NOTE")"
+  printf '  "node":     {"installed": %s, "required": %s, "status": %s, "bin": %s}\n}\n' \
+    "$(json_str "$OPENCLAW_NODE_VER")" "$(json_str "$HOST_REQ_NODE")" "$(json_str "$NODE_STATUS")" "$(json_str "$OPENCLAW_NODE")"
+}
+
+host_record() {
+  mkdir -p "$DIR/state"
+  host_services_json > "$DIR/state/host-services.json"
+}
+
+# Say what was found. A lookup that failed is reported, never read as "current".
+host_report() {
+  [ -z "$OLLAMA_VER" ] || ok "Ollama $OLLAMA_VER ($OLLAMA_NOTE)"
+  [ -z "$OPENCLAW_VER" ] || ok "OpenClaw $OPENCLAW_VER ($OPENCLAW_BIN) on Node ${OPENCLAW_NODE_VER:-?}"
+  if [ -n "$HOST_LOOKUPS_SKIPPED" ]; then
+    warn "Could not look up the current release of: ${HOST_LOOKUPS_SKIPPED}(offline?). Version currency was NOT checked."
+  fi
+  local svc kind inst want fix
+  while IFS='|' read -r svc kind inst want fix; do
+    [ "$kind" = behind ] || continue
+    warn "$svc ${inst:-?} is behind the current release $want. $fix"
+  done <<EOF2
+$HOST_FINDINGS
+EOF2
+  host_report_updates
+}
+
+# Behind-the-release findings become one issue each where gh can file against
+# this repo, else a note in $DIR/state/host-updates.md. Never a duplicate.
+host_report_updates() {
+  local md="$DIR/state/host-updates.md" body="" svc kind inst want fix title
+  while IFS='|' read -r svc kind inst want fix; do
+    [ "$kind" = behind ] || continue
+    title="Host update: $svc $want available (installed ${inst:-none})"
+    if host_file_issue "$title" "$fix"; then continue; fi
+    body="${body}- $title"$'\n'"  $fix"$'\n'
+  done <<EOF2
+$HOST_FINDINGS
+EOF2
+  if [ -n "$body" ]; then
+    mkdir -p "$DIR/state"
+    printf '# Host updates available (%s)\n\n%s' "$(date -u +%Y-%m-%dT%H:%M:%SZ)" "$body" > "$md"
+    warn "Updates are listed in $md"
+  else
+    rm -f "$md"
+  fi
+}
+
+# Success when an issue now exists (created or refreshed); failure means "use the file".
+host_file_issue() { # title fix
+  local gh="${RE_GH:-gh}" perm n text
+  [ "${RE_HOST_UPDATE_ISSUES:-1}" = 0 ] && return 1
+  command -v "$gh" >/dev/null 2>&1 || return 1
+  perm="$("$gh" repo view "$HOST_ISSUE_REPO" --json viewerPermission -q .viewerPermission 2>/dev/null || true)"
+  case "$perm" in WRITE|MAINTAIN|ADMIN) ;; *) return 1 ;; esac
+  text="Found by 'realityengine' on $(date -u +%Y-%m-%d). Fix: $2"
+  n="$("$gh" issue list --repo "$HOST_ISSUE_REPO" --label host-update --state open --limit 100 --json number,title \
+        -q ".[] | select(.title == \"$1\") | .number" 2>/dev/null | head -1 || true)"
+  if [ -n "$n" ]; then
+    "$gh" issue edit "$n" --repo "$HOST_ISSUE_REPO" --body "$text" >/dev/null 2>&1 || return 1
+    say "Host update issue #$n refreshed"
+  else
+    "$gh" label create host-update --repo "$HOST_ISSUE_REPO" --color BFD4F2 --description "A host service is behind its current release" >/dev/null 2>&1 || true
+    "$gh" issue create --repo "$HOST_ISSUE_REPO" --title "$1" --body "$text" --label host-update --milestone "$HOST_MILESTONE" >/dev/null 2>&1 \
+      || "$gh" issue create --repo "$HOST_ISSUE_REPO" --title "$1" --body "$text" --label host-update >/dev/null 2>&1 || return 1
+    say "Filed: $1"
+  fi
+}
+
+# Fail (strict) when a host service is below what this release needs.
+host_gate() { # strict|warn
+  host_check
+  host_report
+  local svc kind inst want fix failed=""
+  while IFS='|' read -r svc kind inst want fix; do
+    [ "$kind" = fail ] || continue
+    printf '\033[0;31m[error]\033[0m %s %s does not meet this release (needs %s).\n         %s\n' "$svc" "${inst:-not found}" "$want" "$fix" >&2
+    failed=yes
+  done <<EOF2
+$HOST_FINDINGS
+EOF2
+  if [ -n "$failed" ] && [ "$1" = strict ]; then
+    die "Host services are not ready. Fix the above and run again."
+  fi
+  [ -z "$failed" ] || warn "Continuing: host service requirements are not met."
+  return 0
+}
+
+# Where a model runs: Ollama reports it per model (details.runner). Empty when
+# unknown. perl ships with macOS; without it the runner is simply not reported.
+model_runner() { # tags-json model
+  command -v perl >/dev/null 2>&1 || return 0
+  printf '%s' "$1" | M="$2" perl -0777 -ne 'my $m = $ENV{M}; while (/\{"name":"([^"]+)"((?:(?!\{"name":).)*)/gs) { if ($1 eq $m || $1 eq "$m:latest") { print(($2 =~ /"runner":"([^"]*)"/)[0] // ""); exit } }'
 }
 
 check_ollama() {
@@ -155,6 +410,12 @@ check_ollama() {
   for m in nemotron-3-nano:4b "${EMBED_MODEL:-embeddinggemma-2:270m}"; do
     if printf '%s' "$tags" | grep -q "\"$m\(:latest\)\{0,1\}\""; then
       ok "model $m present"
+      r="$(model_runner "$tags" "$m")"
+      case "$r" in
+        mlx) ok "  $m runs on MLX" ;;
+        "") ;;
+        *) warn "  $m runs on '$r', not MLX. A role's default model must run on MLX (RealityEngine_CI#593)." ;;
+      esac
     else
       warn "Model $m is missing. Run: ollama pull $m"
     fi
@@ -306,6 +567,13 @@ status() {
   [ -f "$DIR/release.json" ] || die "Nothing is installed in $DIR."
   say "Installed: $(sed -n 's/.*"version": *"\([^"]*\)".*/\1/p' "$DIR/release.json" | head -1), engines $(sed -n 's/.*"engines": *"\([^"]*\)".*/\1/p' "$DIR/release.json" | head -1)"
   compose ps -a --format 'table {{.Service}}\t{{.Status}}\t{{.Ports}}'
+  if [ -f "$DIR/state/host-services.json" ]; then
+    say "Host services (checked $(sed -n 's/.*"checked_at": *"\([^"]*\)".*/\1/p' "$DIR/state/host-services.json" | head -1)):"
+    grep -E '^  "(ollama|openclaw|node)"' "$DIR/state/host-services.json" | sed 's/^  /  /'
+  fi
+  if [ -f "$DIR/state/host-updates.md" ]; then
+    warn "Host updates are available: see $DIR/state/host-updates.md"
+  fi
 }
 
 # ── commands ─────────────────────────────────────────────────────────────────
@@ -317,7 +585,7 @@ case "$CMD" in
     [ -f "$CONF" ] || die "Nothing is installed in $DIR. Run: $PROG install"
     # A port held by something else makes compose leave that container half
     # created, without its network; refuse before starting anything.
-    check_ports; configure; pull_images; start; urls ;;
+    host_gate strict; check_ports; configure; pull_images; start; urls ;;
   down)
     compose down; ok "Stopped. Data is kept; '$PROG up' starts it again." ;;
   status) status ;;
@@ -326,7 +594,7 @@ case "$CMD" in
     compose logs --tail 200 ${ARGS_REST:-} ;;
   upgrade)
     [ -n "$TO" ] || die "Pass --to VERSION."
-    VERSION="$TO"; check_ollama; check_ports; configure; pull_images; start; urls ;;
+    VERSION="$TO"; host_gate strict; check_ollama; check_ports; configure; pull_images; start; urls ;;
   uninstall)
     if [ "$PURGE" = true ]; then
       compose down -v --remove-orphans || true
@@ -340,6 +608,15 @@ case "$CMD" in
     say "Adding $DIR/certs/ca.crt to your login keychain as trusted (macOS will ask for your password)"
     security add-trusted-cert -r trustRoot -k "$HOME/Library/Keychains/login.keychain-db" "$DIR/certs/ca.crt"
     ok "Trusted. Restart your browser." ;;
+  host-check)
+    # Usable with nothing installed (the regression lane and startUniverse.sh call
+    # it). --warn-only never fails; --json prints what was recorded.
+    mkdir -p "$DIR" 2>/dev/null || true
+    case "${ARGS_REST:-}" in
+      *--json*) host_check >/dev/null 2>&1 || true; host_services_json ;;
+      *--warn-only*) host_gate warn ;;
+      *) host_gate strict ;;
+    esac ;;
   reembed)
     [ -f "$DIR/.env" ] || die "Nothing is installed in $DIR."
     # shellcheck disable=SC2086  # the subcommand and collection names, split on purpose
