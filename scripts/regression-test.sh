@@ -321,20 +321,21 @@ case "$PROFILE" in
     [ "$MACHINE_CORPUS_SET" = true ] || MACHINE_CORPUS="regression"
     # Pin one model for every engine on this lane.
     #
-    # The universe model is tinyllama-mlx (docs/OLLAMA_INTEGRATION.md): all
+    # The universe model is nemotron-3-nano:4b (docs/OLLAMA_INTEGRATION.md): all
     # RealityEngine testing and development runs against it. The engines'
     # own built-in default is still llama3.1:8b, so this pin is what moves them
     # off it — it is rank 1 in the resolution order, and the local-ai stage
     # fails if the engines disagree or the resolved model is not installed.
-    # Build it with `make -C ../localAIStack model-pull ID=tinyllama-mlx`.
+    # Pull it with `ollama pull nemotron-3-nano:4b`.
     #
-    # tinyllama-mlx has no tools and no structured output, so a stage that
-    # *dispatches* to Ollama (the PE sends format=json) must name another model
-    # with OLLAMA_MODEL=; none does today.
+    # nemotron-3-nano:4b calls tools but Ollama refuses format=json and schema
+    # formats for it ("structured output is unavailable"), so a stage that
+    # dispatches to Ollama must not send format; a stage that needs structured
+    # output must name another model with OLLAMA_MODEL=.
     #
     # Exported rather than passed as a flag: startUniverse spawns each engine
     # with inherited environment, so one export reaches all three.
-    OLLAMA_MODEL="${OLLAMA_MODEL:-tinyllama-mlx}"
+    OLLAMA_MODEL="${OLLAMA_MODEL:-nemotron-3-nano:4b}"
     export OLLAMA_MODEL
     ;;
   *)

@@ -49,11 +49,12 @@ and which runtimes implement them, live in `RealityEngine_CI/SURFACE_SPEC.md`.
 
 Two defaults exist, and they answer different questions.
 
-- **The universe model: `tinyllama-mlx`.** The model all RealityEngine testing and
-  development runs against. The regression local lane pins it (below), and
-  `localAIStack` selects it as its LLM. It is TinyLlama 1.1B Chat built from
-  safetensors, so Ollama serves it on the MLX runner, and `localAIStack` builds it
-  (`make model-pull ID=tinyllama-mlx`).
+- **The universe model: `nemotron-3-nano:4b`.** The model all RealityEngine
+  testing and development runs against. The regression local lane pins it
+  (below), `localAIStack` selects it as its LLM, and the native OpenClaw gateway
+  and the release bundle default to it. It is NVIDIA's Nemotron 3 Nano 4B
+  (nvfp4, about 2.9 GB, 256K context, tools and thinking), pulled from the
+  Ollama library (`ollama pull nemotron-3-nano:4b`).
 - **The engine built-in default: `llama3.1:8b`.** What each runtime — C++, LSP,
   Scala and the TypeScript PE — resolves when nothing pins a model. It lives in
   the engine repos, is unchanged, and is rank 3 below. This document is its
@@ -86,19 +87,28 @@ Overriding stays per engine. Setting `OLLAMA_MODEL` for one instance changes onl
 that instance; the regression local lane exports it once so all three native
 engines share a model.
 
-### What `tinyllama-mlx` cannot do
+### What `nemotron-3-nano:4b` cannot do
 
-It is a 1.1B chat model with a 2048-token context, and its manifest declares only
-the `completion` capability. Observed against Ollama 0.40.6 on 2026-10-23:
+Its manifest declares `completion`, `tools` and `thinking`. Observed against
+Ollama 0.40.6 on 2026-10-24:
 
-- a request carrying `tools` is refused (`does not support tools`);
-- `format: "json"` is refused by the MLX runner (`structured output is unavailable`).
+- a request carrying `tools` is honoured and returns `tool_calls`, so the agent
+  graph (`bind_tools`) and OpenClaw runs that advertise tools work on the
+  universe model;
+- **structured output is refused.** Both `format: "json"` and a JSON-schema
+  `format` return `{"error":"structured output is unavailable"}`. The engines'
+  native Ollama dispatch sends one of them (C++ defaults `formatJson` to true
+  and LSP sends a JSON schema; `OllamaAdapter.ts` sends `format: "json"`), so a
+  dispatch to this model must disable it (C++: `formatJson: false`) and rely on
+  the prompt, which the model follows (`Reply with ONLY a JSON object ...`
+  returned a clean object with `think: false`);
+- `thinking` is on by default. A caller that wants only the answer sets
+  `think: false`.
 
-The PE's native Ollama dispatch sends `format: "json"` on every call
-(`OllamaAdapter.ts`), so **a dispatch against this model fails by construction**.
-The `local-ai` stage does not exercise dispatch — check 4 below proves the model is
-installed, not that it can answer a dispatch — so it passes. A test that dispatches
-must name a model with structured output (`OLLAMA_MODEL=llama3.1:8b`).
+The interim universe model `gemma3:4b` honoured `format: "json"` but refused
+`tools`. `tinyllama-mlx` (TinyLlama 1.1B Chat on the MLX runner) is still
+buildable from `localAIStack`: its 2048-token context cannot hold an OpenClaw
+agent prompt, and it refuses both tools and `format: "json"`.
 
 ## Registry entry
 
@@ -110,7 +120,7 @@ must name a model with structured output (`OLLAMA_MODEL=llama3.1:8b`).
   "kind": "ollama",
   "enabled": false,
   "baseUrl": "http://localhost:11434",
-  "model": "tinyllama-mlx",
+  "model": "nemotron-3-nano:4b",
   "apiMode": "native",
   "completionSourceMappingId": "agent-completion-risk",
   "mcp": {
@@ -188,10 +198,10 @@ dispatch".
 # Probe the local AI surfaces
 python3 scripts/regression-local-ai.py
 
-# Build the universe model once (needs the localAIStack checkout beside this one)
-make -C ../localAIStack model-pull ID=tinyllama-mlx
+# Pull the universe model once
+ollama pull nemotron-3-nano:4b
 
-# The local lane pins tinyllama-mlx by default; name another to override it
+# The local lane pins nemotron-3-nano:4b by default; name another to override it
 ./scripts/regression-test.sh --profile local
 OLLAMA_MODEL=llama3.1:8b ./scripts/regression-test.sh --profile local
 ```
