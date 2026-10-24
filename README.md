@@ -77,7 +77,7 @@ release, so the steps below fetch them another way.
 - An Apple Silicon Mac running macOS 26 or later, with 16 GB of memory and 25 GB free.
 - Docker Desktop running, with at least 8 GB of memory allotted (Settings → Resources).
 - Ollama running natively, with both models pulled:
-  `ollama pull llama3.1:8b` and `ollama pull nomic-embed-text`.
+  `ollama pull nemotron-3-nano:4b` and `ollama pull nomic-embed-text`.
 
 You don't need a source checkout, a compiler or a Docker login, because the
 images are public. The installer runs on the stock macOS `/bin/bash`.

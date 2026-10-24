@@ -28,12 +28,16 @@ npm run test:deployment
 ## Runtime Contract
 
 - Prefer `RE_REGISTRY_URL` for Manager, Machines, and CI e2e tests.
-- **The universe model is `tinyllama-mlx`** (TinyLlama 1.1B Chat, served by
-  Ollama's MLX runner). The local lane pins it through `OLLAMA_MODEL`;
-  `localAIStack` builds it (`make -C ../localAIStack model-pull
-  ID=tinyllama-mlx`). It has no tools and no structured output, so a stage that
-  dispatches to Ollama must name another model. The engines' own built-in
-  default is still `llama3.1:8b`. See `docs/OLLAMA_INTEGRATION.md`.
+- **The universe model is `nemotron-3-nano:4b`** (NVIDIA Nemotron 3 Nano 4B
+  from the Ollama library: `ollama pull nemotron-3-nano:4b`). The local lane
+  pins it through `OLLAMA_MODEL`, and `localAIStack`, the native OpenClaw
+  gateway and the release bundle default to it. It calls tools and has a 256K
+  context that holds an OpenClaw agent prompt, but Ollama refuses `format`
+  (JSON or schema) for it with `structured output is unavailable`, so a PE
+  dispatch that sends `format` must not (see `docs/OLLAMA_INTEGRATION.md`).
+  It replaced `tinyllama-mlx` (2048-token context) and the interim
+  `gemma3:4b`, which had no tools. The engines' own built-in default is still
+  `llama3.1:8b`.
 - **The instance registry is on :5999 only with fixed ports.** Under
   `--free-ports` it is OS-assigned; `startUniverse.sh` records the address in
   `.universe-registry-url` and `stopUniverse.sh` removes it. A consumer
