@@ -34,6 +34,9 @@ COPY config/dashboards/ /opt/ci/config/dashboards/
 COPY --from=ocs scripts/ /opt/ocs/scripts/
 # hadolint ignore=DL3022
 COPY --from=ocs machine-behaviors/ /opt/ocs/machine-behaviors/
+# The sandbox image's Dockerfile, copied with the scripts into the install for
+# the native gateway on the Mac (RealityEngine_CI#592).
+COPY --from=ocs docker/ /opt/ocs/docker/
 
 COPY release/init/reinit.py /usr/local/bin/reinit
 RUN chmod 755 /usr/local/bin/reinit /opt/release/realityengine

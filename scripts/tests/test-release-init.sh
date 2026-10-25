@@ -140,29 +140,13 @@ echo "the integration registry uses container addresses"
 INT="$(cat "$INSTALL/config/integrations.json")"
 case "$INT" in *"localhost:4000"*) echo "  FAIL: integrations.json still names localhost:4000"; FAIL=$((FAIL+1)) ;;
   *) echo "  PASS: no host address left"; PASS=$((PASS+1)) ;; esac
-assert_contains "$INT" "ws://openclaw-gateway:18789" "the ACP gateway is the container"
+assert_contains "$INT" "ws://host.docker.internal:18789" "the ACP gateway is the Mac's native gateway, reached from the containers"
 
 echo
-# ── OpenClaw config format follows the gateway image's pin ───────────────────
-# localOpenClawStack writes agents.entries (>= 2026.9) by default; the release's
-# 2026.6 image refused it ("agents: Invalid input") and broke E1.
-schema_for() {  # <OPENCLAW_VERSION or ""> -> the format reinit asks for
-  local o="$TMP/opt-schema"; rm -rf "$o"; mkdir -p "$o/release"
-  python3 - "$CI_DIR/release/images.json" "$o/release/images.json" "$1" <<'PY2'
-import json, sys
-cat = json.load(open(sys.argv[1]))
-for i in cat["images"]:
-    if i["name"] == "re-openclaw-gateway" and sys.argv[3]:
-        i["build_args"]["OPENCLAW_VERSION"] = sys.argv[3]
-json.dump(cat, open(sys.argv[2], "w"))
-PY2
-  REINIT_OPT="$o" python3 -c 'import importlib.util,sys; s=importlib.util.spec_from_file_location("r", sys.argv[1]); m=importlib.util.module_from_spec(s); s.loader.exec_module(m); print(m.gateway_schema())' "$CI_DIR/release/init/reinit.py"
-}
-pinned="$(python3 -c 'import json,sys; print(next(i["build_args"]["OPENCLAW_VERSION"] for i in json.load(open(sys.argv[1]))["images"] if i["name"]=="re-openclaw-gateway"))' "$CI_DIR/release/images.json")"
-case "$pinned" in 2026.[1-8].*) want=list ;; *) want=entries ;; esac
-assert_eq "$(schema_for "")" "$want" "OpenClaw config format for the pinned gateway ($pinned) is $want"
-assert_eq "$(schema_for 2026.6.34)" "list" "a 2026.6 gateway image gets the agents.list format"
-assert_eq "$(schema_for 2026.10.7)" "entries" "a 2026.10 gateway image gets the agents.entries format"
+# ── The gateway is native: no gateway image, and the CDP port is allocated ───
+assert_eq "$(python3 -c 'import json,sys; print(any(i["name"]=="re-openclaw-gateway" for i in json.load(open(sys.argv[1]))["images"]))' "$CI_DIR/release/images.json")" "False" "images.json has no gateway image"
+assert_eq "$(grep -c '^  openclaw-gateway:' "$CI_DIR/release/compose.yml" || true)" "0" "compose.yml has no gateway service"
+assert_contains "$(cat "$CI_DIR/release/compose.yml")" '127.0.0.1:${RE_PORT_BROWSER_CDP:-9222}:9223' "the browser publishes CDP on loopback only"
 
 echo "$PASS passed, $FAIL failed"
 [ "$FAIL" -eq 0 ]

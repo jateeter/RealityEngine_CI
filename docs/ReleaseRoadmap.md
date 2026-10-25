@@ -166,8 +166,9 @@ Each is reflected in `RELEASE.md` where it changes the process.
   the compose uses).
   - Image set: `re-cpp`, `re-lsp`, `re-scala`, `re-scala-pe`,
     `re-visualizer-backend`, `re-visualizer-frontend`, `re-localai-api`,
-    `re-mcp`, `re-openclaw-gateway`, `re-pim`, `re-css`, `re-init` and
-    `re-registry` (C2), and `re-corpus` (A8).
+    `re-mcp`, `re-pim`, `re-css`, `re-init` and `re-registry` (C2), and
+    `re-corpus` (A8). rc3 dropped `re-openclaw-gateway`: the gateway runs on
+    the Mac (#592).
   - **Done:** the catalog is committed, and each image builds from exactly one
     Dockerfile.
   - **Progress (2026-10-17):** `release/images.json` is committed with 13

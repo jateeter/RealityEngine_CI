@@ -49,9 +49,22 @@ with no checkout (`docs/ReleaseRoadmap.md`, decisions A1–A11; `RELEASE.md`;
   Below the requirement fails and names the upgrade command; behind the current
   release warns and files one `host-update` issue per service and version (or
   writes `state/host-updates.md` where `gh` cannot file); a failed lookup says
-  so and is never read as current. `openclaw.required` is `false` until the
-  gateway runs natively (slice b); then a missing OpenClaw, or a Node other
-  than `node.exact`, fails install.
+  so and is never read as current. `openclaw.required` is `true`: the gateway
+  runs natively, so a missing OpenClaw, or a Node other than `node.exact`,
+  fails install. The probe resolves the `openclaw` the LaunchAgent runs
+  (`RE_OPENCLAW_BIN`/`OPENCLAW_BIN`, Homebrew's prefix, then PATH).
+- **The OpenClaw gateway is the Mac's own `openclaw`, not an image** (#592).
+  `re-init configure` (and `machines-load`) generate its home in
+  `<install>/openclaw` with localOpenClawStack's scripts, in the `entries`
+  format with the Mac's paths (`HOST_INSTALL_DIR`, recorded in
+  `state/host-install.json`), loopback bind, Ollama on 127.0.0.1 and the
+  browser sidecar's CDP (`RE_PORT_BROWSER_CDP`, default 9222, published on
+  127.0.0.1 only). It copies those scripts and the sandbox Dockerfile to
+  `<install>/ocs`, with the token in a private `.env`. `realityengine up` then
+  runs `ocs/scripts/native-gateway.sh up --no-generate`: the LaunchAgent
+  `org.realityengine.openclaw-gateway` on `127.0.0.1:${RE_PORT_OPENCLAW}`;
+  `down`, `upgrade` and `uninstall` stop it first. Containers reach it at
+  `host.docker.internal`. The images are 12.
 
 ## Testing
 

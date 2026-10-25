@@ -152,7 +152,7 @@ preflight() {
 HOST_REQ_NODE=26.12.1
 HOST_REQ_OLLAMA_MIN=0.40.0
 HOST_REQ_OPENCLAW_MIN=2026.10.5
-HOST_REQ_OPENCLAW_REQUIRED=false
+HOST_REQ_OPENCLAW_REQUIRED=true
 HOST_MILESTONE=release-v0.0.1-rc3
 HOST_ISSUE_REPO=jateeter/RealityEngine_CI
 
@@ -448,7 +448,12 @@ check_ports() {
   for p in "${RE_PORT_MANAGER_UI:-5173}" "${RE_PORT_MANAGER_API:-3001}" "${RE_PORT_LOCALAI:-4000}" \
            "${RE_PORT_OPENCLAW:-18789}" "${RE_PORT_WEBUI:-8080}" "${RE_PORT_PIM:-8090}" \
            "${RE_PORT_CSS:-13000}" "${RE_PORT_MCP:-7331}" "${RE_PORT_REGISTRY:-5999}" \
-           "${RE_PORT_GRAFANA:-3002}" "${RE_PORT_PROMETHEUS:-9090}" "${RE_PORT_QDRANT:-4333}"; do
+           "${RE_PORT_GRAFANA:-3002}" "${RE_PORT_PROMETHEUS:-9090}" "${RE_PORT_QDRANT:-4333}" \
+           "${RE_PORT_BROWSER_CDP:-9222}"; do
+    # The gateway's port is held by its own LaunchAgent between an `up` and the next.
+    if [ "$p" = "${RE_PORT_OPENCLAW:-18789}" ] && gateway_pid >/dev/null; then
+      [ "$(lsof -nP -tiTCP:"$p" -sTCP:LISTEN 2>/dev/null | head -1)" = "$(gateway_pid)" ] && continue
+    fi
     if port_in_use "$p" && ! compose ps --format '{{.Ports}}' 2>/dev/null | grep -q ":$p->"; then
       busy="$busy $p"
     fi
@@ -472,6 +477,32 @@ init_image() {
 }
 
 # ── steps ────────────────────────────────────────────────────────────────────
+# The OpenClaw gateway is the Mac's own openclaw, a user LaunchAgent on loopback
+# (RealityEngine_CI#592). re-init generates its home in <install>/openclaw and
+# copies localOpenClawStack's scripts to <install>/ocs; these start and stop it.
+GATEWAY_LABEL="org.realityengine.openclaw-gateway"
+gateway_pid() {
+  launchctl print "gui/$(id -u)/$GATEWAY_LABEL" 2>/dev/null | awk '/^\tpid = /{print $3; found=1} END{exit !found}'
+}
+gateway_env() {
+  # shellcheck disable=SC1091
+  [ -f "$DIR/.env" ] && . "$DIR/.env"
+  probe_openclaw
+  env OPENCLAW_VERSION="$OPENCLAW_VER" OPENCLAW_BIN="$OPENCLAW_BIN" OPENCLAW_NATIVE_HOME="$DIR/openclaw" \
+    OPENCLAW_GATEWAY_PORT="${RE_PORT_OPENCLAW:-18789}" RE_PORT_BROWSER_CDP="${RE_PORT_BROWSER_CDP:-9222}" \
+    OPENCLAW_NODE_EXACT="$HOST_REQ_NODE" "$@"
+}
+gateway_up() {
+  [ -x "$DIR/ocs/scripts/native-gateway.sh" ] || die "The OpenClaw scripts are missing from $DIR/ocs; run: $PROG up"
+  say "Starting the OpenClaw gateway (the Mac's openclaw, LaunchAgent $GATEWAY_LABEL)"
+  gateway_env bash "$DIR/ocs/scripts/native-gateway.sh" up --no-generate \
+    || die "The OpenClaw gateway did not start. Its log: $DIR/openclaw/logs/gateway.log"
+}
+gateway_down() {
+  [ -x "$DIR/ocs/scripts/native-gateway.sh" ] || return 0
+  gateway_env bash "$DIR/ocs/scripts/native-gateway.sh" down >/dev/null 2>&1 || true
+}
+
 configure() {
   [ -n "$VERSION" ] || die "No version. Pass --version (for example --version release-v0.0.1)."
   mkdir -p "$DIR"
@@ -492,6 +523,7 @@ configure() {
   proj="$PROJECT"
   [ -f "$DIR/.env" ] && proj="$(sed -n 's/^COMPOSE_PROJECT_NAME=//p' "$DIR/.env")"
   set -- docker run --rm --user 0:0 -v "$DIR:/install" -e "HOST_IP=$(host_ip)" \
+    -e "HOST_INSTALL_DIR=$DIR" -e "HOST_UID=$(id -u)" -e "HOST_GID=$(id -g)" \
     -v "${proj}_corpus-catalog:/volumes/catalog:ro" -v "${proj}_localai-machines:/opt/localAIStack/data/machines:ro"
   for v in $(env | sed -n 's/^\(RE_PORT_[A-Z_]*\)=.*/\1/p'); do set -- "$@" -e "$v"; done
   set -- "$@" "$img" configure --install /install --engines "$ENGINES" --version "$VERSION" --registry "$REGISTRY" --project "$proj"
@@ -512,6 +544,8 @@ start() {
   wait_healthy
   # Engines boot the shipped corpus; machines loaded since are reloaded.
   machines_run machines-load --replay || warn "Reloading the machines loaded earlier reported failures."
+  # After the replay: it regenerates the gateway's agents for the deployed corpus.
+  gateway_up
   reembed_if_needed
 }
 
@@ -584,6 +618,11 @@ status() {
   [ -f "$DIR/release.json" ] || die "Nothing is installed in $DIR."
   say "Installed: $(sed -n 's/.*"version": *"\([^"]*\)".*/\1/p' "$DIR/release.json" | head -1), engines $(sed -n 's/.*"engines": *"\([^"]*\)".*/\1/p' "$DIR/release.json" | head -1)"
   compose ps -a --format 'table {{.Service}}\t{{.Status}}\t{{.Ports}}'
+  if pid="$(gateway_pid)"; then
+    ok "OpenClaw gateway: LaunchAgent $GATEWAY_LABEL, pid $pid, http://127.0.0.1:${RE_PORT_OPENCLAW:-18789} (log $DIR/openclaw/logs/gateway.log)"
+  else
+    warn "OpenClaw gateway: LaunchAgent $GATEWAY_LABEL is not running. Start it with: $PROG up"
+  fi
   if [ -f "$DIR/state/host-services.json" ]; then
     say "Host services (checked $(sed -n 's/.*"checked_at": *"\([^"]*\)".*/\1/p' "$DIR/state/host-services.json" | head -1)):"
     grep -E '^  "(ollama|openclaw|node)"' "$DIR/state/host-services.json" | sed 's/^  /  /'
@@ -602,17 +641,19 @@ case "$CMD" in
     [ -f "$CONF" ] || die "Nothing is installed in $DIR. Run: $PROG install"
     # A port held by something else makes compose leave that container half
     # created, without its network; refuse before starting anything.
-    host_gate strict; check_ports; configure; pull_images; start; urls ;;
+    host_gate strict; gateway_down; check_ports; configure; pull_images; start; urls ;;
   down)
-    compose down; ok "Stopped. Data is kept; '$PROG up' starts it again." ;;
+    gateway_down; compose down; ok "Stopped. Data is kept; '$PROG up' starts it again." ;;
   status) status ;;
   logs)
     # shellcheck disable=SC2086  # the service names, split on purpose
     compose logs --tail 200 ${ARGS_REST:-} ;;
   upgrade)
     [ -n "$TO" ] || die "Pass --to VERSION."
-    VERSION="$TO"; host_gate strict; check_ollama; check_ports; configure; pull_images; start; urls ;;
+    VERSION="$TO"; host_gate strict; check_ollama; gateway_down; check_ports; configure; pull_images; start; urls ;;
   uninstall)
+    gateway_down
+    rm -f "$HOME/Library/LaunchAgents/$GATEWAY_LABEL.plist"
     if [ "$PURGE" = true ]; then
       compose down -v --remove-orphans || true
       rm -rf "$DIR"; ok "Removed the install and all its data."
@@ -651,7 +692,7 @@ case "$CMD" in
             # shellcheck disable=SC2086  # the flags, split on purpose
             machines_run machines-load $LOAD_ARGS || rc=$?
             # OpenClaw's agents were regenerated for the deployed corpus.
-            compose restart openclaw-gateway >/dev/null 2>&1 || warn "Could not restart the OpenClaw gateway."
+            gateway_up || warn "Could not restart the OpenClaw gateway."
             exit "$rc" ;;
       *) die "Usage: $PROG machines list | sync [--ref REF] | load --domain D | --machine M | --all" ;;
     esac ;;
