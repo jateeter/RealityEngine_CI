@@ -344,13 +344,17 @@ stop_openclaw_stack() {
     :
   elif [ "$STOP_DOCKER" = true ] && [ -d "$OCS_DIR" ] && [ -f "$OCS_DIR/docker-compose.yml" ]; then
     info "Stopping OpenClaw stack..."
+    # The native gateway first: it attaches to the browser sidecar (#592).
+    if launchctl print "gui/$(id -u)/org.realityengine.openclaw-gateway" >/dev/null 2>&1; then
+      (cd "$OCS_DIR" && ./scripts/native-gateway.sh down) || fail "native OpenClaw gateway did not stop"
+    fi
     if (cd "$OCS_DIR" && docker compose down 2>&1); then
       ok "OpenClaw stopped"
     else
       fail "OpenClaw compose down failed — containers may still be running"
     fi
   elif [ "$STOP_DOCKER" = false ]; then
-    info "OpenClaw: leaving Docker containers running (use --stop-docker to tear down)"
+    info "OpenClaw: leaving its gateway and Docker containers running (use --stop-docker to tear down)"
   else
     info "OpenClaw: not found at $OCS_DIR — nothing to stop"
   fi

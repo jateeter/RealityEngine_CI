@@ -71,7 +71,9 @@ chmod +x "$BIN/gh"
 SYS="/usr/bin:/bin:/usr/sbin:/sbin"
 run() { local d="$1"; shift; REALITYENGINE_DIR="$d" PATH="$BIN:$SYS" /bin/bash "$CLI" "$@"; }
 
-# The openclaw stub is only present when a case asks for it.
+# The openclaw stub is only present when a case asks for it. The CLI prefers
+# Homebrew's openclaw over PATH, so name the stub, or this Mac's own install answers.
+export RE_OPENCLAW_BIN="$BIN/openclaw"
 with_openclaw() { mv "$T/openclaw.off" "$BIN/openclaw" 2>/dev/null || true; }
 without_openclaw() { [ -f "$BIN/openclaw" ] && mv "$BIN/openclaw" "$T/openclaw.off" || true; }
 
