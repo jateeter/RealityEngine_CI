@@ -237,16 +237,20 @@ Status legend: ✅ done · 🟡 partial / needs the agent · ⬜ not started
   roadmap-status table, and files **one deduplicated GitHub issue per failing
   unit** routed to the owning repo (offline-safe draft fallback).
   → `deploy-validate-agent.sh` (delivered).
-- ✅ Scheduled. `scripts/deploy-validate-scheduled.sh` runs every 6h via the
-  launchd agent `org.energyos.realityengine.deploy-validate`, loaded and firing.
-  It skips cleanly when Docker is unreachable — a laptop asleep is a declared
-  non-participation state, not a failure.
+- ✅ Scheduled. `scripts/deploy-validate-scheduled.sh` runs weekly via the
+  launchd agent `org.energyos.realityengine.deploy-validate` (every 6h until
+  2026-09-13). It skips cleanly when Docker is unreachable — a laptop asleep is
+  a declared non-participation state, not a failure.
 
-  The plist pins an absolute node on `PATH`, which is a standing hazard: it held
-  `v25.5.0` after the Manager workspaces moved to `>=26.0.0`, so the next fire
-  would have failed every Manager build on EBADENGINE while the agent itself
-  looked healthy. Moved to `v26.8.2` on 2026-09-12. Re-check it whenever an
-  engines floor moves.
+  Install or update it with `scripts/install-deploy-validate-agent.sh
+  --execute` (`--interval SECONDS` to change the cadence); without `--execute`
+  it prints the plist. The plist used to be hand-written, and it pinned an
+  absolute Node on `PATH`: `v25.5.0` after the Manager workspaces moved to
+  `>=26.0.0`, then `v26.8.2` long after the lockstep minor moved to 26.12. It
+  also launched `/bin/bash -lc`, so macOS bash 3.2 ran the login profile on
+  every fire. The generated plist runs bash 5 directly with no Node on `PATH`,
+  and the script establishes Node from CI's `.nvmrc` (`scripts/lib/node-env.sh`).
+  `scripts/tests/test-deploy-validate-launch-agent.sh` holds both.
 
   Baseline **28 passed / 1 failed**, the 1 being the deployment test gate
   (`RealityEngine_Machines#126`). Read the diff against the previous run, not the

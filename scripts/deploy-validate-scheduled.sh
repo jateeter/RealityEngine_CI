@@ -3,8 +3,9 @@
 # DEPLOYMENT_VALIDATION_ROADMAP.md.
 #
 # Deliberately NOT --fresh. The recurring form restarts services; it does not
-# tear the universe down and rebuild every image, which on a 6-hourly cadence
-# would mean the machine is never not rebuilding.
+# tear the universe down and rebuild every image, which on the 6-hourly cadence
+# it was written for would mean the machine is never not rebuilding. The agent
+# now fires weekly; scripts/install-deploy-validate-agent.sh owns its plist.
 #
 # Baseline at the time of scheduling (2026-09-12, on merged main):
 #   agent level   28 passed / 1 failed
@@ -38,16 +39,17 @@ if [ "${BASH_VERSINFO[0]:-0}" -lt 5 ] && [ -x /opt/homebrew/bin/bash ]; then
 fi
 set -uo pipefail
 
-# Node: the newest installed release of this major. Every Node suite needs
-# >=26 (engines in each package.json). nvm.sh is not safe under `set -u`.
-NODE_MAJOR="${DEPLOY_VALIDATE_NODE_MAJOR:-26}"
-if [ -s "$HOME/.nvm/nvm.sh" ]; then
-  set +u
-  # shellcheck source=/dev/null
-  . "$HOME/.nvm/nvm.sh" >/dev/null 2>&1
-  nvm use "$NODE_MAJOR" >/dev/null 2>&1
-  set -u
-fi
+CI_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+
+# Node: CI's .nvmrc minor, through the shared helper, like every other script
+# that runs node. This used `nvm use 26`, a bare major, which picks the newest
+# 26.x installed rather than the lockstep minor (scripts/lib/node-env.sh).
+# RE_NODE_VERSION overrides it.
+# shellcheck source=lib/node-env.sh
+. "$CI_DIR/scripts/lib/node-env.sh"
+# Called directly, not in $(...): nvm use in a subshell selects nothing here.
+NODE_ERR=""
+establish_node 2>/dev/null || NODE_ERR="node-env: could not select Node $RE_NODE_VERSION via nvm"
 NODE_FOUND="$(node --version 2>/dev/null || echo none)"
 
 if [ "${DEPLOY_VALIDATE_PRELUDE_ONLY:-0}" = 1 ]; then
@@ -55,7 +57,6 @@ if [ "${DEPLOY_VALIDATE_PRELUDE_ONLY:-0}" = 1 ]; then
   exit 0
 fi
 
-CI_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 OUT_DIR="$CI_DIR/.deploy-validate/scheduled"
 STAMP="$(date -u +%Y%m%dT%H%M%SZ)"
 LOG="$OUT_DIR/run-$STAMP.log"
@@ -64,10 +65,11 @@ mkdir -p "$OUT_DIR"
 {
   echo "=== scheduled deploy-validate $STAMP ==="
   echo "host: $(hostname)  pwd: $CI_DIR"
-  echo "runtime: bash ${BASH_VERSION}  node ${NODE_FOUND} (want v${NODE_MAJOR}.x)"
+  echo "runtime: bash ${BASH_VERSION}  node ${NODE_FOUND} (want v${RE_NODE_VERSION}.x, CI .nvmrc)"
+  [ -n "$NODE_ERR" ] && echo "WARNING: $NODE_ERR"
   case "$NODE_FOUND" in
-    "v${NODE_MAJOR}."*) ;;
-    *) echo "WARNING: Node ${NODE_FOUND} is not v${NODE_MAJOR}.x; Node suites will skip, and deployment mode scores a skip as a failure." ;;
+    "v${RE_NODE_VERSION}."*) ;;
+    *) echo "WARNING: Node ${NODE_FOUND} is not v${RE_NODE_VERSION}.x; Node suites will skip, and deployment mode scores a skip as a failure." ;;
   esac
   if ! docker info >/dev/null 2>&1; then
     echo "SKIP: Docker daemon not reachable — nothing to validate."
