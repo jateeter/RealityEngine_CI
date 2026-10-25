@@ -541,6 +541,12 @@ jobs:
         working-directory: RealityEngine_CI
         run: bash scripts/tests/test-deploy-validate-agent.sh
 
+      # The scheduled agent's plist is generated, not hand-written: bash 5 with
+      # no login shell, and no Node on its PATH (it pinned v26.8.2).
+      - name: Run deploy-validate launch agent unit tests
+        working-directory: RealityEngine_CI
+        run: bash scripts/tests/test-deploy-validate-launch-agent.sh
+
       # An absent Loki plugin used to be read as $'\n'missing and skipped
       # silently, so services declaring driver: loki failed to create (#362).
       - name: Run Loki driver probe unit tests

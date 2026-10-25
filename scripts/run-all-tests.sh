@@ -573,6 +573,8 @@ run_metrics_parity_unit_tests() {
 run_deploy_validate_agent_tests() {
     run_suite "Deploy-validate agent unit tests" "$CI_DIR" \
         bash scripts/tests/test-deploy-validate-agent.sh
+    run_suite "Deploy-validate launch agent unit tests" "$CI_DIR" \
+        bash scripts/tests/test-deploy-validate-launch-agent.sh
     run_suite "E2E instance-registry resolver unit tests" "$CI_DIR" \
         node scripts/tests/test-e2e-registry.mjs
 }
