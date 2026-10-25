@@ -109,12 +109,14 @@ async function collectMetrics() {
   // Probe every target at once: sequential probes summed their timeouts.
   const settle = (promise) => promise.then((value) => ({ value }), (error) => ({ error }));
   const openclawHeaders = openclawToken ? { authorization: `Bearer ${openclawToken}` } : {};
-  const [openclawHealth, openclawModelList, localAiHealth, qdrantCollections, ollamaTags, ledger] = await Promise.all([
+  const [openclawHealth, openclawModelList, localAiHealth, qdrantCollections, ollamaTags, ollamaVersion, ollamaPs, ledger] = await Promise.all([
     settle(fetchJson(`${openclawUrl}/healthz`)),
     settle(fetchJson(`${openclawUrl}/v1/models`, { headers: openclawHeaders })),
     settle(fetchJson(`${localAiUrl}/health`)),
     settle(fetchJson(`${qdrantUrl}/collections`)),
     settle(fetchJson(`${ollamaUrl}/api/tags`)),
+    settle(fetchJson(`${ollamaUrl}/api/version`)),
+    settle(fetchJson(`${ollamaUrl}/api/ps`)),
     readLedger()
   ]);
 
@@ -147,6 +149,23 @@ async function collectMetrics() {
   emit(lines, 're_qdrant_collections_total', 'Qdrant collection count from /collections.', 'gauge');
   const collections = qdrantCollections.value?.result?.collections;
   lines.push(`re_qdrant_collections_total${labels({ service: 'qdrant' })} ${Array.isArray(collections) ? collections.length : 0}`);
+
+  // Ollama serves no Prometheus metrics of its own, so its up target is this
+  // probe (RealityEngine_CI#592 §6). The runner per loaded model is the MLX
+  // report of §2: Ollama names it "mlx" or the fallback ("llamacpp").
+  emit(lines, 're_ollama_up', 'Native Ollama answers /api/version.', 'gauge');
+  lines.push(`re_ollama_up${labels({ service: 'ollama' })} ${ollamaVersion.error ? 0 : 1}`);
+  emit(lines, 're_ollama_version_info', 'Native Ollama version.', 'gauge');
+  if (ollamaVersion.value?.version) {
+    lines.push(`re_ollama_version_info${labels({ service: 'ollama', version: ollamaVersion.value.version })} 1`);
+  }
+  emit(lines, 're_ollama_model_loaded_info', 'A model Ollama has loaded, with the runner it runs on (mlx or the fallback).', 'gauge');
+  for (const m of Array.isArray(ollamaPs.value?.models) ? ollamaPs.value.models : []) {
+    lines.push(`re_ollama_model_loaded_info${labels({
+      service: 'ollama', model: m.name, runner: m.runner || 'unknown',
+      format: m.details?.format, context: m.context_length
+    })} 1`);
+  }
 
   emit(lines, 're_ollama_models_total', 'Native Ollama model count from /api/tags.', 'gauge');
   const models = ollamaTags.value?.models;
