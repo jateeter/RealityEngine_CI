@@ -86,10 +86,11 @@ set -e
 grep -q "Ollama.app" "$out"; expect "...and names the upgrade" $?
 grep -q '"status": "below-min"' "$d/state/host-services.json"; expect "...and records below-min" $?
 
-# ── 2. current Ollama, no OpenClaw: passes (the gateway is still a container) ─
+# ── 2. current Ollama and OpenClaw on the pinned Node: passes ────────────────
+with_openclaw
 d="$T/c2"
-FAKE_OLLAMA_API=0.40.8 RE_LATEST_OLLAMA=0.40.8 RE_LATEST_OPENCLAW=2026.10.7 RE_HOST_UPDATE_ISSUES=0 run "$d" host-check >"$T/c2.out" 2>&1
-expect "current Ollama, OpenClaw not required, passes" $?
+FAKE_OLLAMA_API=0.40.8 FAKE_OC=2026.10.7 RE_LATEST_OLLAMA=0.40.8 RE_LATEST_OPENCLAW=2026.10.7 RE_HOST_UPDATE_ISSUES=0 run "$d" host-check >"$T/c2.out" 2>&1
+expect "current Ollama and OpenClaw on Node 26.12.1 pass" $?
 grep -q '"installed": "0.40.8"' "$d/state/host-services.json"; expect "...and records the version" $?
 [ ! -f "$d/state/host-updates.md" ]; expect "...and writes no update note" $?
 
@@ -130,29 +131,31 @@ env FAKE_OLLAMA_API=0.40.6 FAKE_OC=2026.10.7 RE_LATEST_OLLAMA=0.40.8 RE_LATEST_O
   GH_PERM=READ REALITYENGINE_DIR="$T/c5b" PATH="$BIN:$SYS" /bin/bash "$CLI" host-check >/dev/null 2>&1
 [ -f "$T/c5b/state/host-updates.md" ]; expect "without write access it falls back to the note" $?
 
-# ── 6. Node: a mismatch warns now, and fails once OpenClaw is required ───────
+# ── 6. Node and OpenClaw are required: the gateway runs natively (#592) ──────
 d="$T/c6"
-env FAKE_OLLAMA_API=0.40.8 FAKE_OC=2026.10.7 FAKE_NODE=25.6.1 RE_LATEST_OLLAMA=0.40.8 RE_LATEST_OPENCLAW=2026.10.7 RE_HOST_UPDATE_ISSUES=0 \
-  REALITYENGINE_DIR="$d" PATH="$BIN:$SYS" /bin/bash "$CLI" host-check >"$T/c6.out" 2>&1
-expect "Node 25.6.1 only warns while OpenClaw is not required" $?
-grep -q "pins 26.12.1" "$T/c6.out"; expect "...and names the pinned version" $?
-sed 's/^HOST_REQ_OPENCLAW_REQUIRED=false/HOST_REQ_OPENCLAW_REQUIRED=true/' "$CLI" > "$T/cli-required"
 set +e
 env FAKE_OLLAMA_API=0.40.8 FAKE_OC=2026.10.7 FAKE_NODE=25.6.1 RE_LATEST_OLLAMA=0.40.8 RE_LATEST_OPENCLAW=2026.10.7 RE_HOST_UPDATE_ISSUES=0 \
-  REALITYENGINE_DIR="$T/c6b" PATH="$BIN:$SYS" /bin/bash "$T/cli-required" host-check >"$T/c6b.out" 2>&1
+  REALITYENGINE_DIR="$d" PATH="$BIN:$SYS" /bin/bash "$CLI" host-check >"$T/c6.out" 2>&1
 rc=$?
 set -e
-[ "$rc" -ne 0 ]; expect "Node 25.6.1 fails once OpenClaw is required" $?
+[ "$rc" -ne 0 ]; expect "OpenClaw on Node 25.6.1 fails" $?
+grep -q "26.12.1" "$T/c6.out"; expect "...and names the pinned version" $?
 without_openclaw
 set +e
 env FAKE_OLLAMA_API=0.40.8 RE_LATEST_OLLAMA=0.40.8 RE_LATEST_OPENCLAW=2026.10.7 RE_HOST_UPDATE_ISSUES=0 \
-  REALITYENGINE_DIR="$T/c6c" PATH="$BIN:$SYS" /bin/bash "$T/cli-required" host-check >"$T/c6c.out" 2>&1
+  REALITYENGINE_DIR="$T/c6c" PATH="$BIN:$SYS" /bin/bash "$CLI" host-check >"$T/c6c.out" 2>&1
 rc=$?
 set -e
-[ "$rc" -ne 0 ] && grep -q "npm install -g openclaw@latest" "$T/c6c.out"; expect "a missing OpenClaw fails once required, naming the install" $?
+[ "$rc" -ne 0 ] && grep -q "npm install -g openclaw@latest" "$T/c6c.out"; expect "a missing OpenClaw fails, naming the install" $?
+# The requirement is one switch in the requirements file; off, both only warn.
+sed 's/^HOST_REQ_OPENCLAW_REQUIRED=true/HOST_REQ_OPENCLAW_REQUIRED=false/' "$CLI" > "$T/cli-optional"
+env FAKE_OLLAMA_API=0.40.8 RE_LATEST_OLLAMA=0.40.8 RE_LATEST_OPENCLAW=2026.10.7 RE_HOST_UPDATE_ISSUES=0 \
+  REALITYENGINE_DIR="$T/c6d" PATH="$BIN:$SYS" /bin/bash "$T/cli-optional" host-check >/dev/null 2>&1
+expect "...unless OpenClaw is optional" $?
+with_openclaw
 
 # ── 7. --json is what the regression manifest embeds ─────────────────────────
-js="$(FAKE_OLLAMA_API=0.40.8 RE_LATEST_OLLAMA=0.40.8 RE_LATEST_OPENCLAW=2026.10.7 REALITYENGINE_DIR="$T/c7" PATH="$BIN:$SYS" /bin/bash "$CLI" host-check --json 2>/dev/null)"
+js="$(FAKE_OLLAMA_API=0.40.8 FAKE_OC=2026.10.7 RE_LATEST_OLLAMA=0.40.8 RE_LATEST_OPENCLAW=2026.10.7 REALITYENGINE_DIR="$T/c7" PATH="$BIN:$SYS" /bin/bash "$CLI" host-check --json 2>/dev/null)"
 printf '%s' "$js" | python3 -I -c 'import json,sys; d=json.load(sys.stdin); assert d["ollama"]["installed"]=="0.40.8" and d["node"]["required"]=="26.12.1"'
 expect "host-check --json is valid and carries the versions" $?
 

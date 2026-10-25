@@ -2,7 +2,9 @@
   "schema": 1,
   "release": "release-v0.0.1-rc3",
   "milestone": "release-v0.0.1-rc3",
-  "node": { "exact": "26.12.1" },
+  "node": {
+    "exact": "26.12.1"
+  },
   "ollama": {
     "min": "0.40.0",
     "latest_from": "https://api.github.com/repos/ollama/ollama/releases/latest"
@@ -10,8 +12,10 @@
   "openclaw": {
     "min": "2026.10.5",
     "npm_tag": "latest",
-    "required": false
+    "required": true
   },
-  "models": { "defaults_run_on": "mlx" },
-  "notes": "ollama.min is the first release that runs MLX-supported models on MLX. openclaw.required stays false until the gateway runs natively (RealityEngine_CI#592 slice b); then a missing OpenClaw, or one on a Node other than node.exact, fails install. The constants in release/realityengine are checked against this file by scripts/tests/test-host-preflight.sh."
+  "models": {
+    "defaults_run_on": "mlx"
+  },
+  "notes": "ollama.min is the first release that runs MLX-supported models on MLX. The OpenClaw gateway runs natively on the Mac (RealityEngine_CI#592), so install fails without OpenClaw >= openclaw.min on exactly node.exact. The constants in release/realityengine are checked against this file by scripts/tests/test-host-preflight.sh."
 }

@@ -49,14 +49,38 @@ with no checkout (`docs/ReleaseRoadmap.md`, decisions A1–A11; `RELEASE.md`;
   Below the requirement fails and names the upgrade command; behind the current
   release warns and files one `host-update` issue per service and version (or
   writes `state/host-updates.md` where `gh` cannot file); a failed lookup says
-  so and is never read as current. `openclaw.required` is `false` until the
-  gateway runs natively (slice b); then a missing OpenClaw, or a Node other
-  than `node.exact`, fails install.
+  so and is never read as current. The gateway runs natively, so a missing
+  OpenClaw, or a Node other than `node.exact`, fails install.
+- **The OpenClaw gateway is a LaunchAgent, not a container** (#592).
+  `realityengine up` starts the browser sidecar, waits for CDP, loads
+  `org.realityengine.openclaw-gateway[.<project>]` (plist in
+  `~/Library/LaunchAgents`, generated from the install's `.env`, mode 600), waits
+  for `/healthz`, then starts the rest; `down` and `uninstall` unload it.
+  `realityengine gateway [status|load|unload|restart]` drives it alone.
+  - Its home is `<install>/openclaw` (`OPENCLAW_STATE_DIR` / `OPENCLAW_CONFIG_PATH`),
+    never `~/.openclaw`; re-init makes it with localOpenClawStack's scripts in the
+    OpenClaw >= 2026.10 schema (`OPENCLAW_SCHEMA=entries`), with the host path
+    (`HOST_INSTALL_DIR`) in the config and `HOST_UID`/`HOST_GID` as owner.
+  - It listens on the Mac's loopback; containers reach it through
+    `host.docker.internal:${RE_PORT_OPENCLAW}` (Docker Desktop reaches a
+    loopback-only host service). Open WebUI, the PEs' `ACP_GATEWAY_URL` and
+    Manager's `gatewayUrl` say so.
+  - The browser sidecar stays in Docker. Chromium is started with
+    `CHROME_CLI=--remote-debugging-port=9222`; the image's nginx serves it on 9223,
+    published on `127.0.0.1:${RE_PORT_BROWSER_CDP:-9222}` only (CDP has no
+    authentication). The gateway attaches by `browser.profiles.sidecar.cdpUrl`;
+    `BROWSER_CDP_URL` is not read by OpenClaw. **Not solved:** the gateway resolves
+    a page URL's host on the Mac, so an agent cannot open `host.docker.internal:...`.
 
 ## Testing
 
 - `scripts/tests/test-host-preflight.sh`: the host preflight against stubbed
   curl/ollama/openclaw/node/gh, under `/bin/bash`.
+- `scripts/tests/live-native-gateway.sh [--ocs DIR]`: the real gateway as a LaunchAgent
+  from a scratch install on port 18795 (loopback only, `/v1` with and without the
+  token, a container reaching it, the sidecar attached over CDP, restart, unload,
+  `~/.openclaw` byte-identical). Needs launchd, Docker, and OpenClaw on the pinned
+  Node; SKIPPED otherwise. Not run by CI.
 - `scripts/tests/test-release-init.sh`: `configure` against a scratch install;
   no Docker.
 - `scripts/tests/test-release-images.sh`: the catalog check's refusals.

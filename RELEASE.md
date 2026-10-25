@@ -49,7 +49,7 @@ images, and both are the same release.
 | `RealityEngine_Machines` | machine corpus, schemas, contract tests | image `re-corpus` (the regression corpus, A8) |
 | `RealityEngine_Manager` | Visualizer | images `re-visualizer-backend`, `re-visualizer-frontend` |
 | `localAIStack` | local RAG/vector services and the RE bridge | image `re-localai-api` |
-| `localOpenClawStack` | ACP/OpenClaw gateway | image `re-openclaw-gateway` |
+| `localOpenClawStack` | ACP/OpenClaw gateway config and agents | no image since rc3: the gateway runs natively on the Mac (#592); re-init generates its home from this repo's scripts |
 | `OpenCommons-Health---Personal-Information-Management` | PIM and the Solid Community Server that holds the authoritative POD | images `re-pim`, `re-css` |
 | `localHealthkitBridge` | iOS HealthKit → PE bridge | **source**, a development deployment built with Xcode (A10) |
 

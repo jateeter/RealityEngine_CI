@@ -76,7 +76,7 @@ LANE = "release"
 # `configure` (the installer passes RE_PORT_<NAME>), so a Mac already using one
 # can move it; the defaults are the expected live surfaces of the root CLAUDE.md.
 HOST_PORTS = {
-    "MANAGER_UI": 5173, "MANAGER_API": 3001, "LOCALAI": 4000, "OPENCLAW": 18789,
+    "MANAGER_UI": 5173, "MANAGER_API": 3001, "LOCALAI": 4000, "OPENCLAW": 18789, "BROWSER_CDP": 9222,
     "WEBUI": 8080, "PIM": 8090, "CSS": 13000, "MCP": 7331, "REGISTRY": 5999,
     "GRAFANA": 3002, "PROMETHEUS": 9090, "QDRANT": 4333,
 }
@@ -208,8 +208,10 @@ def engine_services(insts: list[dict]) -> dict:
             "LOCAL_AI_MACHINES_DIR": "/app/localai-machines",
             "INTEGRATIONS_CONFIG": "/app/config/integrations.json",
             "ACP_ENABLED": "true", "ACP_PLATFORM": "OpenClaw", "ACP_SURFACE": "xACP",
-            "ACP_GATEWAY_URL": "ws://openclaw-gateway:18789",
-            "OPENCLAW_GATEWAY_URL": "ws://openclaw-gateway:18789",
+            # The gateway is a LaunchAgent on the Mac (#592); containers reach its
+            # loopback through Docker Desktop's host.docker.internal.
+            "ACP_GATEWAY_URL": "ws://host.docker.internal:${RE_PORT_OPENCLAW:-18789}",
+            "OPENCLAW_GATEWAY_URL": "ws://host.docker.internal:${RE_PORT_OPENCLAW:-18789}",
             "ACP_SESSION_KEY": "agent:main:main", "OPENCLAW_ACP_SESSION": "agent:main:main",
             "ACP_TARGET_AGENT": "openclaw",
             "ACP_COMPLETION_SOURCE_MAPPING_ID": "acp-openclaw-completion",
@@ -340,7 +342,7 @@ def registries(insts: list[dict], ip: str, ports: dict[str, int]) -> tuple[dict,
         "manager_backend": svc("https://visualizer-backend:3001"),
         "localai_api": svc("http://localai-api:8000"),
         "qdrant": svc("http://qdrant:6333"),
-        "openclaw_gateway": svc("http://openclaw-gateway:18789"),
+        "openclaw_gateway": svc(f"http://host.docker.internal:{ports['OPENCLAW']}"),
         "mcp": svc("http://mcp:7331"),
         "registry": svc("http://registry:8000"),
     }}
@@ -372,7 +374,7 @@ def integrations() -> dict:
             td["url"] = td["url"].replace("http://localhost:4000", "http://localai-api:8000")
         if item.get("id") == "openclaw-xacp" or item.get("kind") in ("acp", "openclaw-acp"):
             item.update({"enabled": True, "platform": "OpenClaw", "surface": "xACP",
-                         "gatewayUrl": "ws://openclaw-gateway:18789", "sessionKey": "agent:main:main",
+                         "gatewayUrl": f"ws://host.docker.internal:{os.environ.get('RE_PORT_OPENCLAW', '18789')}", "sessionKey": "agent:main:main",
                          "targetAgent": "openclaw", "completionSourceMappingId": "acp-openclaw-completion"})
         if item.get("kind") == "mqtt":
             item["enabled"] = False      # no MQTT-parity claim in this release (A11)
@@ -470,30 +472,47 @@ def agent_profile(install: pathlib.Path) -> str:
     return f"manifest:{m}" if m.exists() else "regression"
 
 
+def install_env(install: pathlib.Path, key: str, default: str) -> str:
+    """A value from the environment, else the install's .env (where a first
+    configure recorded it), else the default."""
+    if os.environ.get(key):
+        return os.environ[key]
+    f = install / ".env"
+    if f.is_file():
+        for line in f.read_text().splitlines():
+            if line.startswith(key + "="):
+                return line.split("=", 1)[1]
+    return default
+
+
 def configure_openclaw(install: pathlib.Path, sec: dict[str, str]) -> None:
-    """The gateway home, made by localOpenClawStack's own scripts at the release
-    commit: the hardened config (harden-config.sh), the regression corpus's
-    agents (sync-machine-agents.sh, profile `regression`), and the check
-    (verify-openclaw-config.sh). The scripts work on <repo>/openclaw, so that is
-    pointed at the install's openclaw/ for the run."""
+    """The native gateway's home, made by localOpenClawStack's own scripts at the
+    release commit: the hardened config (harden-config.sh), the deployed corpus's
+    agents (sync-machine-agents.sh), and the check (verify-openclaw-config.sh).
+
+    The gateway is a LaunchAgent on the Mac (RealityEngine_CI#592), so the home
+    is <install>/openclaw as the *Mac* sees it (HOST_INSTALL_DIR; re-init itself
+    sees the install at /install), in the OpenClaw >= 2026.10 config schema, owned
+    by the user who runs the gateway (HOST_UID / HOST_GID). It is never
+    ~/.openclaw."""
     home = install / "openclaw"
     home.mkdir(parents=True, exist_ok=True)
-    link = OCS / "openclaw"
-    if link.is_symlink() or link.exists():
-        if link.is_symlink() or link.is_file():
-            link.unlink()
-        else:
-            shutil.rmtree(link)
-    link.symlink_to(home)
+    host_home = pathlib.Path(os.environ.get("HOST_INSTALL_DIR") or str(install)) / "openclaw"
+    uid = int(os.environ.get("HOST_UID", "0"))
+    gid = int(os.environ.get("HOST_GID", "0"))
+    port = install_env(install, "RE_PORT_OPENCLAW", "18789")
     env_file = OCS / ".env"
-    env_file.write_text(
-        f"OPENCLAW_GATEWAY_TOKEN={sec['OPENCLAW_GATEWAY_TOKEN']}\n"
-        "OPENCLAW_GATEWAY_PORT=18789\n"
-        "OLLAMA_BASE_URL=http://host.docker.internal:11434\n"
-        "OPENCLAW_DEFAULT_MODEL=ollama/nemotron-3-nano:4b\n"
-        "LOCAL_OWNER=1000\nLOCAL_GROUP=1000\n")
+    env_file.write_text(f"OPENCLAW_GATEWAY_PORT={port}\nLOCAL_OWNER={uid}\nLOCAL_GROUP={gid}\n")
     profile = agent_profile(install)
-    env = {**os.environ, "OPENCLAW_AGENT_PROFILE": profile}
+    env = {**os.environ, "OPENCLAW_AGENT_PROFILE": profile,
+           "OPENCLAW_SCHEMA": "entries", "OPENCLAW_STATE_DIR": str(home),
+           "OPENCLAW_HOME_DIR": str(host_home), "OPENCLAW_GATEWAY_BIND": "loopback",
+           "OPENCLAW_HTTP_ENDPOINTS": "true", "OPENCLAW_GATEWAY_PORT": port,
+           "OLLAMA_BASE_URL": "http://127.0.0.1:11434",
+           # The browser sidecar's CDP, published on the Mac's loopback by compose.
+           "OPENCLAW_BROWSER_CDP_URL":
+               f"http://127.0.0.1:{install_env(install, 'RE_PORT_BROWSER_CDP', '9222')}",
+           "OPENCLAW_DEFAULT_MODEL": "ollama/nemotron-3-nano:4b"}
     if profile.startswith("manifest:"):
         # Loaded machines resolve against the catalog the installer synced.
         env["OPENCLAW_CORPUS_MACHINES_ROOT"] = "/volumes/catalog/machines"
@@ -522,14 +541,14 @@ def configure_openclaw(install: pathlib.Path, sec: dict[str, str]) -> None:
     total = json.loads(pathlib.Path(index).read_text()).get("total")
     write_json(install / "openclaw-agents.json", {"profile": profile, "agents": total})
     env_file.unlink(missing_ok=True)
-    # The gateway runs as the node user (1000); it must own its home.
+    # The gateway runs as the user, not as root: it must own its home.
     for root, dirs, files in os.walk(home):
         for n in dirs + files:
             try:
-                os.lchown(os.path.join(root, n), 1000, 1000)
+                os.lchown(os.path.join(root, n), uid, gid)
             except OSError:
                 pass
-    os.chown(home, 1000, 1000)
+    os.chown(home, uid, gid)
     os.chmod(home, 0o700)
     log(f"OpenClaw configured with profile {profile.split('/')[-1]} ({total} machine agents)")
 

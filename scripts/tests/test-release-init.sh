@@ -140,7 +140,19 @@ echo "the integration registry uses container addresses"
 INT="$(cat "$INSTALL/config/integrations.json")"
 case "$INT" in *"localhost:4000"*) echo "  FAIL: integrations.json still names localhost:4000"; FAIL=$((FAIL+1)) ;;
   *) echo "  PASS: no host address left"; PASS=$((PASS+1)) ;; esac
-assert_contains "$INT" "ws://openclaw-gateway:18789" "the ACP gateway is the container"
+assert_contains "$INT" "ws://host.docker.internal:18789" "the ACP gateway is the native one on the Mac"
+case "$INT" in *"openclaw-gateway"*) echo "  FAIL: integrations.json still names the gateway container"; FAIL=$((FAIL+1)) ;;
+  *) echo "  PASS: no gateway container address"; PASS=$((PASS+1)) ;; esac
+
+echo "the gateway is native (#592)"
+COMPOSE="$(cat "$CI_DIR/release/compose.yml")"
+case "$COMPOSE" in *"openclaw-gateway:"*) echo "  FAIL: compose still has an openclaw-gateway service"; FAIL=$((FAIL+1)) ;;
+  *) echo "  PASS: compose has no gateway container"; PASS=$((PASS+1)) ;; esac
+assert_contains "$COMPOSE" '"127.0.0.1:${RE_PORT_BROWSER_CDP:-9222}:9223"' "browser CDP is published on loopback only"
+assert_contains "$COMPOSE" 'CHROME_CLI: "--remote-debugging-port=9222"' "Chromium is started with a debugging port"
+assert_contains "$COMPOSE" "OPENAI_API_BASE_URL: http://host.docker.internal:" "Open WebUI reaches the host gateway"
+case "$(cat "$CI_DIR/release/images.json")" in *"re-openclaw-gateway"*) echo "  FAIL: images.json still builds the gateway"; FAIL=$((FAIL+1)) ;;
+  *) echo "  PASS: the catalog has no gateway image"; PASS=$((PASS+1)) ;; esac
 
 echo
 echo "$PASS passed, $FAIL failed"
