@@ -470,6 +470,24 @@ def agent_profile(install: pathlib.Path) -> str:
     return f"manifest:{m}" if m.exists() else "regression"
 
 
+def gateway_schema() -> str:
+    """The openclaw.json format the release's gateway image reads.
+
+    localOpenClawStack's scripts write `entries` (OpenClaw >= 2026.9) unless told
+    otherwise, and a 2026.6 gateway refuses that format ("agents: Invalid input").
+    The release image is built at the OPENCLAW_VERSION images.json pins, so the
+    format follows that pin: `list` below 2026.9, `entries` from it."""
+    for img in json.loads((RELEASE / "images.json").read_text()).get("images", []):
+        if img.get("name") == "re-openclaw-gateway":
+            version = img.get("build_args", {}).get("OPENCLAW_VERSION", "")
+            try:
+                parts = tuple(int(x) for x in version.split(".")[:2])
+            except ValueError:
+                raise SystemExit(f"re-openclaw-gateway pins an unreadable OPENCLAW_VERSION: {version!r}")
+            return "list" if parts < (2026, 9) else "entries"
+    return "entries"
+
+
 def configure_openclaw(install: pathlib.Path, sec: dict[str, str]) -> None:
     """The gateway home, made by localOpenClawStack's own scripts at the release
     commit: the hardened config (harden-config.sh), the regression corpus's
@@ -493,7 +511,7 @@ def configure_openclaw(install: pathlib.Path, sec: dict[str, str]) -> None:
         "OPENCLAW_DEFAULT_MODEL=ollama/nemotron-3-nano:4b\n"
         "LOCAL_OWNER=1000\nLOCAL_GROUP=1000\n")
     profile = agent_profile(install)
-    env = {**os.environ, "OPENCLAW_AGENT_PROFILE": profile}
+    env = {**os.environ, "OPENCLAW_AGENT_PROFILE": profile, "OPENCLAW_SCHEMA": gateway_schema()}
     if profile.startswith("manifest:"):
         # Loaded machines resolve against the catalog the installer synced.
         env["OPENCLAW_CORPUS_MACHINES_ROOT"] = "/volumes/catalog/machines"

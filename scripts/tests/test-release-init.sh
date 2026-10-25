@@ -143,5 +143,26 @@ case "$INT" in *"localhost:4000"*) echo "  FAIL: integrations.json still names l
 assert_contains "$INT" "ws://openclaw-gateway:18789" "the ACP gateway is the container"
 
 echo
+# ── OpenClaw config format follows the gateway image's pin ───────────────────
+# localOpenClawStack writes agents.entries (>= 2026.9) by default; the release's
+# 2026.6 image refused it ("agents: Invalid input") and broke E1.
+schema_for() {  # <OPENCLAW_VERSION or ""> -> the format reinit asks for
+  local o="$TMP/opt-schema"; rm -rf "$o"; mkdir -p "$o/release"
+  python3 - "$CI_DIR/release/images.json" "$o/release/images.json" "$1" <<'PY2'
+import json, sys
+cat = json.load(open(sys.argv[1]))
+for i in cat["images"]:
+    if i["name"] == "re-openclaw-gateway" and sys.argv[3]:
+        i["build_args"]["OPENCLAW_VERSION"] = sys.argv[3]
+json.dump(cat, open(sys.argv[2], "w"))
+PY2
+  REINIT_OPT="$o" python3 -c 'import importlib.util,sys; s=importlib.util.spec_from_file_location("r", sys.argv[1]); m=importlib.util.module_from_spec(s); s.loader.exec_module(m); print(m.gateway_schema())' "$CI_DIR/release/init/reinit.py"
+}
+pinned="$(python3 -c 'import json,sys; print(next(i["build_args"]["OPENCLAW_VERSION"] for i in json.load(open(sys.argv[1]))["images"] if i["name"]=="re-openclaw-gateway"))' "$CI_DIR/release/images.json")"
+case "$pinned" in 2026.[1-8].*) want=list ;; *) want=entries ;; esac
+assert_eq "$(schema_for "")" "$want" "OpenClaw config format for the pinned gateway ($pinned) is $want"
+assert_eq "$(schema_for 2026.6.34)" "list" "a 2026.6 gateway image gets the agents.list format"
+assert_eq "$(schema_for 2026.10.7)" "entries" "a 2026.10 gateway image gets the agents.entries format"
+
 echo "$PASS passed, $FAIL failed"
 [ "$FAIL" -eq 0 ]
