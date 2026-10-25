@@ -1983,7 +1983,7 @@ instance_registry_start() {
 
 # Publish the address that actually answers, not the one we assume.
 #
-# The Manager frontend binds loopback only — `[::1]:5173` — so publishing it
+# The Manager frontend binds loopback only — `127.0.0.1:5173` — so publishing it
 # at $HOST_IP names an address nothing is listening on. That is invisible on
 # a hosted runner, where HOST_IP *is* 127.0.0.1 and the two strings are the
 # same, and breaks every e2e spec on a workstation, where HOST_IP is the LAN
@@ -2308,7 +2308,7 @@ except Exception:
         # The first pass runs when the registry shim comes up, which is before
         # the Manager starts, so its probes cannot succeed and both entries fall
         # back to the LAN form. On a host where the Manager binds loopback only
-        # — the frontend binds `[::1]:5173` — that published an address nothing
+        # — the frontend binds `127.0.0.1:5173` — that published an address nothing
         # answers on. Idempotent, and the same two-pass shape the allocation
         # record uses for the same reason: publish early so the key exists,
         # re-publish once the truth is knowable.
