@@ -155,5 +155,19 @@ js="$(FAKE_OLLAMA_API=0.40.8 RE_LATEST_OLLAMA=0.40.8 RE_LATEST_OPENCLAW=2026.10.
 printf '%s' "$js" | python3 -I -c 'import json,sys; d=json.load(sys.stdin); assert d["ollama"]["installed"]=="0.40.8" and d["node"]["required"]=="26.12.1"'
 expect "host-check --json is valid and carries the versions" $?
 
+# ── 8. the runner of a model: loaded beats declared, declared is labelled ────
+RT="$T/runner.sh"
+{ sed -n '/^model_runner() {/,/^}/p' "$CLI"; sed -n '/^report_runner() {/,/^}/p' "$CLI"
+  echo 'ok() { echo "OK $*"; }; warn() { echo "WARN $*"; }'; } > "$RT"
+TAGS='{"models":[{"name":"nemotron-3-nano:4b","details":{"runner":"mlx"}},{"name":"gemma3:4b","details":{"runner":"llamacpp"}}]}'
+PS_LLAMA='{"models":[{"name":"nemotron-3-nano:4b","runner":"llamacpp"}]}'
+PS_MLX='{"models":[{"name":"nemotron-3-nano:4b","runner":"mlx"}]}'
+rr() { /bin/bash -c '. "$1"; report_runner "$2" "$3" "$4"' _ "$RT" "$@"; }
+rr nemotron-3-nano:4b "$TAGS" '{"models":[]}' | grep -q "^OK .*declared for MLX (not loaded"; expect "declared MLX is reported as declared, not as running" $?
+rr nemotron-3-nano:4b "$TAGS" "$PS_LLAMA" | grep -q "^WARN .*running on 'llamacpp'"; expect "a loaded model on llama.cpp warns even when the tag declares MLX" $?
+rr nemotron-3-nano:4b "$TAGS" "$PS_MLX" | grep -q "^OK .*running on MLX (loaded)"; expect "a loaded model on MLX is confirmed" $?
+rr gemma3:4b "$TAGS" '{"models":[]}' | grep -q "^WARN .*declared for 'llamacpp'"; expect "a declared non-MLX default warns" $?
+[ -z "$(rr nosuch "$TAGS" '{"models":[]}')" ]; expect "an unknown model says nothing" $?
+
 [ "$fails" -eq 0 ] && { echo "all ok"; exit 0; }
 echo "$fails failure(s)"; exit 1

@@ -414,6 +414,25 @@ model_runner() { # tags-json model
   printf '%s' "$1" | M="$2" perl -0777 -ne 'my $m = $ENV{M}; while (/\{"name":"([^"]+)"((?:(?!\{"name":).)*)/gs) { if ($1 eq $m || $1 eq "$m:latest") { print(($2 =~ /"runner":"([^"]*)"/)[0] // ""); exit } }'
 }
 
+# What runs a model. /api/ps, for a model that is loaded, says what is actually
+# running it; /api/tags only says what Ollama declares for the artifact that was
+# pulled, and the same tag has been seen to resolve to different artifacts (a
+# safetensors build on MLX here, a GGUF on llama.cpp elsewhere). So a loaded
+# model's runner is the answer, and a declared one is labelled as declared.
+# A role's default must run on MLX (RealityEngine_CI#593).
+report_runner() { # model tags-json ps-json
+  local live declared
+  live="$(model_runner "$3" "$1")"
+  declared="$(model_runner "$2" "$1")"
+  if [ -n "$live" ]; then
+    if [ "$live" = mlx ]; then ok "  $1 is running on MLX (loaded)"
+    else warn "  $1 is running on '$live', not MLX (loaded). A role's default model must run on MLX (RealityEngine_CI#593)."; fi
+  elif [ -n "$declared" ]; then
+    if [ "$declared" = mlx ]; then ok "  $1 is declared for MLX (not loaded; confirm with 'ollama ps' after its first use)"
+    else warn "  $1 is declared for '$declared', not MLX (not loaded). A role's default model must run on MLX (RealityEngine_CI#593)."; fi
+  fi
+}
+
 check_ollama() {
   # Ollama runs natively on the Mac, for the Apple GPU (A6).
   v="$(curl -fsS --max-time 3 http://127.0.0.1:11434/api/version 2>/dev/null || true)"
@@ -424,15 +443,11 @@ check_ollama() {
   # The engines' and OpenClaw's model, and localAI's embedding model. Both run on
   # MLX (RealityEngine_CI#593: each role's default must).
   tags="$(curl -fsS --max-time 5 http://127.0.0.1:11434/api/tags 2>/dev/null || true)"
+  loaded="$(curl -fsS --max-time 5 http://127.0.0.1:11434/api/ps 2>/dev/null || true)"
   for m in nemotron-3-nano:4b-mlx "${EMBED_MODEL:-embeddinggemma-2:270m}"; do
     if printf '%s' "$tags" | grep -q "\"$m\(:latest\)\{0,1\}\""; then
       ok "model $m present"
-      r="$(model_runner "$tags" "$m")"
-      case "$r" in
-        mlx) ok "  $m runs on MLX" ;;
-        "") ;;
-        *) warn "  $m runs on '$r', not MLX. A role's default model must run on MLX (RealityEngine_CI#593)." ;;
-      esac
+      report_runner "$m" "$tags" "$loaded"
     else
       warn "Model $m is missing. Run: ollama pull $m"
     fi
