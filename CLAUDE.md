@@ -75,6 +75,7 @@ npm run test:deployment
   registered as `scala-1`, `cpp-1`, `lsp-1`. The TLS-proxied `reality-engine` +
   TypeScript PE pair stays Manager's and is not an engine instance (#363).
 - `startUniverse.sh --openclaw` delegates to `localOpenClawStack/scripts/start.sh`; keep hardening, immutable image pins, WebUI bootstrap, and live verification authoritative in that native stack entrypoint.
+  - **The gateway runs natively by default (#592):** `--openclaw-runtime=native` passes `--native`, so the host's `openclaw` runs as the LaunchAgent `org.realityengine.openclaw-gateway` on 127.0.0.1:18789 with its home in `~/.realityengine/openclaw`; Open WebUI and the browser sidecar stay in Docker. `--openclaw-runtime=container` is the `openclaw-gateway` compose service. Startup cleanup unloads the LaunchAgent, and `stopUniverse.sh --stop-docker` stops it; without `--stop-docker` it is left running, like the containers.
 - Keep e2e results separated by availability, instance registry alignment, contract parity, byte equivalence, and integration success.
 - **No parity or proof run against engines that are not built from current source.**
   `scripts/verify-build-provenance.py` gates this, and both `startUniverse.sh`

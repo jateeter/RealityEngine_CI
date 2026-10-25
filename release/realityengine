@@ -188,10 +188,19 @@ probe_ollama() {
 
 # OpenClaw and the exact node it runs on: the interpreter on its first line, so
 # an nvm or Homebrew node elsewhere on PATH cannot stand in for it.
+#
+# The binary is the one the native gateway's LaunchAgent runs
+# (localOpenClawStack scripts/native-gateway.sh): OPENCLAW_BIN, then Homebrew's
+# npm prefix, then PATH. PATH alone found a ~/.local/bin wrapper first on the build
+# Mac, a bash script that execs node itself, and reported "Node ?".
 probe_openclaw() {
-  OPENCLAW_VER=""; OPENCLAW_BIN=""; OPENCLAW_NODE=""; OPENCLAW_NODE_VER=""; OPENCLAW_NOTE=""
-  OPENCLAW_BIN="$(command -v openclaw 2>/dev/null || true)"
-  [ -n "$OPENCLAW_BIN" ] || return 0
+  OPENCLAW_VER=""; OPENCLAW_NODE=""; OPENCLAW_NODE_VER=""; OPENCLAW_NOTE=""
+  OPENCLAW_BIN="${RE_OPENCLAW_BIN:-${OPENCLAW_BIN:-}}"
+  if [ -z "$OPENCLAW_BIN" ]; then
+    if [ -x /opt/homebrew/bin/openclaw ]; then OPENCLAW_BIN=/opt/homebrew/bin/openclaw
+    else OPENCLAW_BIN="$(command -v openclaw 2>/dev/null || true)"; fi
+  fi
+  [ -n "$OPENCLAW_BIN" ] && [ -x "$OPENCLAW_BIN" ] || { OPENCLAW_BIN=""; return 0; }
   OPENCLAW_VER="$("$OPENCLAW_BIN" --version 2>/dev/null | ver_num || true)"
   local real shebang t
   real="$OPENCLAW_BIN"
@@ -201,8 +210,16 @@ probe_openclaw() {
   done
   shebang="$(head -1 "$real" 2>/dev/null || true)"
   case "$shebang" in
-    '#!/usr/bin/env node'*) OPENCLAW_NODE="$(command -v node 2>/dev/null || true)" ;;
+    # env node: the node beside the bin (npm -g installs into node's own prefix),
+    # which the LaunchAgent puts first on its PATH; else PATH's.
+    '#!/usr/bin/env node'*)
+      if [ -x "$(dirname "$OPENCLAW_BIN")/node" ]; then OPENCLAW_NODE="$(dirname "$OPENCLAW_BIN")/node"
+      else OPENCLAW_NODE="$(command -v node 2>/dev/null || true)"; fi ;;
     '#!'*node*) OPENCLAW_NODE="$(printf '%s' "${shebang#\#!}" | awk '{print $1}')" ;;
+    # A shell wrapper that execs a node by path: exec "/path/node" ".../entry.js".
+    '#!'*sh*)
+      OPENCLAW_NODE="$(sed -n 's/^[[:space:]]*exec[[:space:]]\{1,\}"\{0,1\}\([^" ]*\/node\)"\{0,1\}[[:space:]].*/\1/p' "$real" | head -1)"
+      [ -n "$OPENCLAW_NODE" ] || OPENCLAW_NOTE="a shell wrapper that names no node" ;;
     *) OPENCLAW_NOTE="not a node script" ;;
   esac
   if [ -n "$OPENCLAW_NODE" ]; then

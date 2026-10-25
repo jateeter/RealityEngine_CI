@@ -114,6 +114,11 @@ LSP_PE_BASE="${LSP_PE_BASE:-5600}"
 MQTT_BROKER_URL_OVERRIDE=""
 MQTT_MAPPINGS_OVERRIDE=""
 OPENCLAW="${OPENCLAW:-auto}"       # auto | yes | no
+# Where the gateway runs (RealityEngine_CI#592): native is the host's openclaw
+# under a LaunchAgent on 127.0.0.1 (localOpenClawStack scripts/native-gateway.sh),
+# with Open WebUI and the browser sidecar in Docker; container is the
+# openclaw-gateway compose service.
+OPENCLAW_RUNTIME="${OPENCLAW_RUNTIME:-native}"
 OCS_NATIVE_UNLOADED=false
 VERSION_WARN_ONLY=false
 
@@ -168,6 +173,8 @@ startUniverse.sh — engine-selectable CI orchestrator
   --mqtt-mappings=PATH          Path to MQTT mappings JSON file
   --openclaw                    Force-start OpenClaw even if auto-detect would skip it
   --no-openclaw                 Skip OpenClaw startup
+  --openclaw-runtime=MODE       native (default): the host's openclaw as a LaunchAgent on
+                                127.0.0.1; container: the openclaw-gateway compose service
   --healthkit-token=VALUE       Pin the PE HealthKit ingest bridge token (default: reuse
                                 HEALTHKIT_BRIDGE_TOKEN, else generate + persist a stable one
                                 at config/.healthkit-bridge-token)
@@ -211,6 +218,7 @@ for arg in "$@"; do
     --mqtt-mappings=*)     MQTT_MAPPINGS_OVERRIDE="${arg#*=}" ;;
     --openclaw)            OPENCLAW=yes ;;
     --no-openclaw)         OPENCLAW=no ;;
+    --openclaw-runtime=*)  OPENCLAW_RUNTIME="${arg#*=}" ;;
     --healthkit-token=*)   HEALTHKIT_BRIDGE_TOKEN="${arg#*=}"; HEALTHKIT_TOKEN_ENABLED=true ;;
     --no-healthkit-token)  HEALTHKIT_TOKEN_ENABLED=false ;;
     --no-local-ai)         LOCAL_AI_ENABLED=false ;;
@@ -252,6 +260,11 @@ fi
 # manifest materialised below, so the two sides cannot describe different runs.
 # This was chosen by corpus *name*: standard-deployment (12 machines) and every
 # --machine-corpus-manifest one-off loaded the regression profile's 15 agents.
+case "$OPENCLAW_RUNTIME" in
+    native|container) ;;
+    *) echo "Unknown --openclaw-runtime=$OPENCLAW_RUNTIME (native | container)" >&2; exit 2 ;;
+esac
+
 if [ -z "$AGENT_PROFILE" ]; then
     case "$MACHINE_CORPUS" in
         standard-deployment|regression) AGENT_PROFILE="manifest:$MACHINE_CORPUS_MANIFEST" ;;
@@ -296,6 +309,7 @@ MACHINE_CORPUS_ACTIVE_DIR=$MACHINES_DIR
 FULL_MACHINES_DIR=$FULL_MACHINES_DIR
 POST_START_FULL_CORPUS=$POST_START_FULL_CORPUS
 OPENCLAW=$OPENCLAW
+OPENCLAW_RUNTIME=$OPENCLAW_RUNTIME
 AGENT_PROFILE=$AGENT_PROFILE
 OCS_NATIVE_UNLOADED=$OCS_NATIVE_UNLOADED
 MCP_HTTP_ENABLED=$MCP_HTTP_ENABLED
@@ -1704,6 +1718,12 @@ if [ -d "$OCS_DIR" ] && [ -f "$OCS_DIR/docker-compose.yml" ]; then
     docker rm -f openclaw-gateway open-webui browser > /dev/null 2>&1 || true
 fi
 
+# This stack's own native gateway (RealityEngine_CI#592): unload it cleanly, so the
+# port check below finds the port free; start.sh --native loads it again.
+if launchctl print "gui/$(id -u)/org.realityengine.openclaw-gateway" >/dev/null 2>&1; then
+    (cd "$OCS_DIR" && ./scripts/native-gateway.sh down >/dev/null 2>&1) || true
+fi
+
 # Stop native openclaw-gateway if managed by launchd (frees the port for Docker)
 _ocs_gw_port=18789
 [ -f "$OCS_DIR/.env" ] && {
@@ -1754,6 +1774,7 @@ if [ "$DRY_RUN" = true ]; then
     printf "  %-28s %s\n" "RE_LOAD_MACHINES"   "$_RE_LOAD_MACHINES"
     printf "  %-28s %s\n" "OpenClaw"           "$OPENCLAW"
     printf "  %-28s %s\n" "OpenClaw agents"    "$AGENT_PROFILE"
+    printf "  %-28s %s\n" "OpenClaw runtime"   "$OPENCLAW_RUNTIME"
     printf "  %-28s %s\n" "Host IP"    "$HOST_IP"
     if [ "$MULTI_ENGINE_MODE" = true ]; then
         echo ""
@@ -2608,11 +2629,12 @@ else
         # repo root, but OpenClaw's machine-behaviors tooling interprets the
         # same variable as the machines/ directory itself — let the stack's
         # own config resolve the corpus path instead of inheriting ours.
-        info "OpenClaw agent profile: $AGENT_PROFILE"
+        info "OpenClaw agent profile: $AGENT_PROFILE (gateway: $OPENCLAW_RUNTIME)"
         # OPENCLAW_CORPUS_MACHINES_ROOT: the corpus a manifest profile resolves
         # against, the one this universe materialised from (a run worktree's).
         (cd "$OCS_DIR" && env -u MACHINES_DIR OPENCLAW_CORPUS_MACHINES_ROOT="$FULL_MACHINES_DIR/machines" \
-            ./scripts/start.sh --agent-profile="$AGENT_PROFILE" > /tmp/ocs_start.log 2>&1) || \
+            ./scripts/start.sh --agent-profile="$AGENT_PROFILE" \
+            $([ "$OPENCLAW_RUNTIME" = native ] && echo --native) > /tmp/ocs_start.log 2>&1) || \
             die "OpenClaw startup failed\n$(tail -20 /tmp/ocs_start.log 2>/dev/null)"
 
         if poll_http "http://localhost:${OCS_GW_PORT}/healthz" "openclaw-gateway ready" 30 "-sf"; then
