@@ -321,21 +321,22 @@ case "$PROFILE" in
     [ "$MACHINE_CORPUS_SET" = true ] || MACHINE_CORPUS="regression"
     # Pin one model for every engine on this lane.
     #
-    # The universe model is nemotron-3-nano:4b (docs/OLLAMA_INTEGRATION.md): all
-    # RealityEngine testing and development runs against it. The engines'
-    # own built-in default is still llama3.1:8b, so this pin is what moves them
-    # off it — it is rank 1 in the resolution order, and the local-ai stage
-    # fails if the engines disagree or the resolved model is not installed.
-    # Pull it with `ollama pull nemotron-3-nano:4b`.
+    # The universe model is nemotron-3-nano:4b-mlx (docs/OLLAMA_INTEGRATION.md),
+    # the MLX build of Nemotron 3 Nano 4B: all RealityEngine testing and
+    # development runs against it. The engines' own built-in default is still
+    # llama3.1:8b, so this pin is what moves them off it — it is rank 1 in the
+    # resolution order, and the local-ai stage fails if the engines disagree or
+    # the resolved model is not installed.
+    # Pull it with `ollama pull nemotron-3-nano:4b-mlx` (Ollama 0.40.5+).
     #
-    # nemotron-3-nano:4b calls tools but Ollama refuses format=json and schema
-    # formats for it ("structured output is unavailable"), so a stage that
-    # dispatches to Ollama must not send format; a stage that needs structured
-    # output must name another model with OLLAMA_MODEL=.
+    # It calls tools. The PEs omit format=json and schema formats for the
+    # nemotron-3-nano family, which Ollama refused before 0.40.11 ("structured
+    # output is unavailable"), so a stage that needs structured output must name
+    # another model with OLLAMA_MODEL=.
     #
     # Exported rather than passed as a flag: startUniverse spawns each engine
     # with inherited environment, so one export reaches all three.
-    OLLAMA_MODEL="${OLLAMA_MODEL:-nemotron-3-nano:4b}"
+    OLLAMA_MODEL="${OLLAMA_MODEL:-nemotron-3-nano:4b-mlx}"
     export OLLAMA_MODEL
     ;;
   *)

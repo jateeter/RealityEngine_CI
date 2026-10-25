@@ -49,12 +49,17 @@ and which runtimes implement them, live in `RealityEngine_CI/SURFACE_SPEC.md`.
 
 Two defaults exist, and they answer different questions.
 
-- **The universe model: `nemotron-3-nano:4b`.** The model all RealityEngine
+- **The universe model: `nemotron-3-nano:4b-mlx`.** The model all RealityEngine
   testing and development runs against. The regression local lane pins it
   (below), `localAIStack` selects it as its LLM, and the native OpenClaw gateway
-  and the release bundle default to it. It is NVIDIA's Nemotron 3 Nano 4B
-  (nvfp4, about 2.9 GB, 256K context, tools and thinking), pulled from the
-  Ollama library (`ollama pull nemotron-3-nano:4b`).
+  and the release bundle default to it. It is the MLX build of NVIDIA's
+  Nemotron 3 Nano 4B (safetensors, nvfp4, about 2.9 GB, 256K context, tools and
+  thinking), pulled from the Ollama library (`ollama pull
+  nemotron-3-nano:4b-mlx`, which needs Ollama 0.40.5 or later). The plain
+  `nemotron-3-nano:4b` tag is the GGUF build (Q4_K_M) and runs on llama.cpp,
+  not MLX. Measured on an M1 Pro with Ollama 0.40.11 on 2026-10-25: the MLX build
+  generated 36.4 tokens/s against 25.3, and held 3.8 GB of GPU memory against
+  2.8 GB.
 - **The engine built-in default: `llama3.1:8b`.** What each runtime — C++, LSP,
   Scala and the TypeScript PE — resolves when nothing pins a model. It lives in
   the engine repos, is unchanged, and is rank 3 below. This document is its
@@ -96,7 +101,7 @@ here, not inferred from the model's format:
 
 | role | default | runner | other measured |
 |---|---|---|---|
-| LLM | `nemotron-3-nano:4b` | `mlx` | `llama3.1:8b` `ggml`, `gemma3:4b` `llamacpp` |
+| LLM | `nemotron-3-nano:4b-mlx` | `mlx` | `nemotron-3-nano:4b` `llamacpp`, `llama3.1:8b` `ggml`, `gemma3:4b` `llamacpp` |
 | embedding | `embeddinggemma-2:270m` | `mlx` | `nomic-embed-text` `ggml` |
 
 localAIStack's registry declares `runner` per model and a test fails if a role's
@@ -162,7 +167,8 @@ engine; only the appended contract is shared.)
 
 ### What `nemotron-3-nano:4b` cannot do
 
-Its manifest declares `completion`, `tools` and `thinking`. Observed against
+Both builds (`:4b-mlx`, the universe model, and the GGUF `:4b`) declare
+`completion`, `tools` and `thinking`. Observed on the GGUF build against
 Ollama 0.40.6 on 2026-10-24:
 
 - a request carrying `tools` is honoured and returns `tool_calls`, so the agent
@@ -174,10 +180,17 @@ Ollama 0.40.6 on 2026-10-24:
 - `thinking` is on by default and does not help when the task is to fill in
   named fields: the engines send `think: false` for this model (measured below).
 
+**Ollama 0.40.11 no longer refuses `format`.** On 2026-10-25 both builds
+answered `format: "json"` and a JSON-schema `format` with conforming JSON. The
+PEs still omit `format` for the whole `nemotron-3-nano` family, keyed on the
+name before the colon, so `:4b-mlx` is treated like `:4b`. Sending `format`
+again changes all four PE runtimes together and needs the Ollama minimum raised
+to 0.40.11; it has not been done.
+
 The interim universe model `gemma3:4b` honoured `format: "json"` but refused
-`tools`. `tinyllama-mlx` (TinyLlama 1.1B Chat on the MLX runner) is still
-buildable from `localAIStack`: its 2048-token context cannot hold an OpenClaw
-agent prompt, and it refuses both tools and `format: "json"`.
+`tools`. `tinyllama-mlx` (TinyLlama 1.1B Chat on the MLX runner), the model
+before it, had a 2048-token context that could not hold an OpenClaw agent
+prompt, and it refused both tools and `format: "json"`.
 
 ## Registry entry
 
@@ -189,7 +202,7 @@ agent prompt, and it refuses both tools and `format: "json"`.
   "kind": "ollama",
   "enabled": false,
   "baseUrl": "http://localhost:11434",
-  "model": "nemotron-3-nano:4b",
+  "model": "nemotron-3-nano:4b-mlx",
   "apiMode": "native",
   "completionSourceMappingId": "agent-completion-risk",
   "mcp": {
@@ -268,9 +281,9 @@ dispatch".
 python3 scripts/regression-local-ai.py
 
 # Pull the universe model once
-ollama pull nemotron-3-nano:4b
+ollama pull nemotron-3-nano:4b-mlx
 
-# The local lane pins nemotron-3-nano:4b by default; name another to override it
+# The local lane pins nemotron-3-nano:4b-mlx by default; name another to override it
 ./scripts/regression-test.sh --profile local
-OLLAMA_MODEL=llama3.1:8b ./scripts/regression-test.sh --profile local
+OLLAMA_MODEL=nemotron-3-nano:4b ./scripts/regression-test.sh --profile local
 ```

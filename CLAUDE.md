@@ -28,16 +28,17 @@ npm run test:deployment
 ## Runtime Contract
 
 - Prefer `RE_REGISTRY_URL` for Manager, Machines, and CI e2e tests.
-- **The universe model is `nemotron-3-nano:4b`** (NVIDIA Nemotron 3 Nano 4B
-  from the Ollama library: `ollama pull nemotron-3-nano:4b`). The local lane
-  pins it through `OLLAMA_MODEL`, and `localAIStack`, the native OpenClaw
+- **The universe model is `nemotron-3-nano:4b-mlx`**, the MLX build of NVIDIA
+  Nemotron 3 Nano 4B from the Ollama library (`ollama pull
+  nemotron-3-nano:4b-mlx`, Ollama 0.40.5+). The plain `:4b` tag is the GGUF
+  build and runs on llama.cpp, so it breaks the MLX owner rule (#593). The local
+  lane pins it through `OLLAMA_MODEL`, and `localAIStack`, the native OpenClaw
   gateway and the release bundle default to it. It calls tools and has a 256K
-  context that holds an OpenClaw agent prompt, but Ollama refuses `format`
-  (JSON or schema) for it with `structured output is unavailable`, so a PE
-  dispatch that sends `format` must not (see `docs/OLLAMA_INTEGRATION.md`).
-  It replaced `tinyllama-mlx` (2048-token context) and the interim
-  `gemma3:4b`, which had no tools. The engines' own built-in default is still
-  `llama3.1:8b`.
+  context that holds an OpenClaw agent prompt. The PEs omit `format` (JSON or
+  schema) for the `nemotron-3-nano` family, which Ollama refused before 0.40.11
+  (see `docs/OLLAMA_INTEGRATION.md`). It replaced `tinyllama-mlx` (2048-token
+  context) and the interim `gemma3:4b`, which had no tools. The engines' own
+  built-in default is still `llama3.1:8b`.
 - **The instance registry is on :5999 only with fixed ports.** Under
   `--free-ports` it is OS-assigned; `startUniverse.sh` records the address in
   `.universe-registry-url` and `stopUniverse.sh` removes it. A consumer

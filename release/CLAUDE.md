@@ -33,7 +33,7 @@ with no checkout (`docs/ReleaseRoadmap.md`, decisions A1–A11; `RELEASE.md`;
   in their environment for exactly that.
 - **Machines load into every instance through Manager's own
   `POST /api/corpus/load`**, so the modal and the CLI share one path.
-- **Each role's default model runs on MLX** (owner rule, #593): `nemotron-3-nano:4b`
+- **Each role's default model runs on MLX** (owner rule, #593): `nemotron-3-nano:4b-mlx`
   and the embedder `embeddinggemma-2:270m`. The embedder is written in
   `compose.yml` (localAI and Open WebUI) and the CLI's model check, and
   `scripts/tests/test-release-embed-default.sh` keeps them equal to localAIStack's
