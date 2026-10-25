@@ -1,6 +1,6 @@
 # Release Roadmap: Release 0.01 / MVP (`release-v0.0.1`)
 
-Last reviewed: 2026-10-17
+Last reviewed: 2026-10-25
 
 This is the task tracker for the first MVP release of the integrated RealityEngine
 application. It is the one place where release work is listed, ordered and
@@ -10,7 +10,7 @@ dependencies and a definition of done.
 [`MVP_ROADMAP.md`](MVP_ROADMAP.md) keeps the gate history (G1–G4) and the
 evidence behind it. [`../RELEASE.md`](../RELEASE.md) defines how a release is
 built, certified, cut, installed and rolled back. This file brings the
-evaluation tasks R01–R15 (drafted in PR #560, not merged) into one sequence
+evaluation tasks R01–R15 (PR #560, merged into `MVP_ROADMAP.md` on 2026-10-21) into one sequence
 together with the work the primary target adds; the
 [mapping](#mapping-from-r01r15) shows where each R-task went.
 
@@ -33,11 +33,12 @@ needing no source checkout, compiler or build toolchain on the Mac:
 | Instance registry, MCP server, integrations config, instance UUID allocation | containers (today host processes, C2) |
 | Manager: Visualizer backend and frontend | containers |
 | localAIStack API, Qdrant, Redis | containers |
-| OpenClaw gateway, browser, Open WebUI | containers |
+| OpenClaw browser sidecar, Open WebUI | containers |
+| OpenClaw gateway | **native on the host**: the Mac's own `openclaw` under a LaunchAgent (#592) |
 | PIM and the Solid Community Server (the authoritative POD) | containers |
 | Prometheus, Loki, Promtail, Grafana (one stack) | containers |
 | TLS front end | container |
-| Ollama with `llama3.1:8b` | **native on the host**, so it uses the Apple GPU (A6) |
+| Ollama with `nemotron-3-nano:4b-mlx` (#593) | **native on the host**, so it uses the Apple GPU (A6) |
 | HealthKit bridge | iPhone app built with Xcode: an **untested development deployment** in this release (A10) |
 
 ## Where we are, 2026-10-12
@@ -101,8 +102,8 @@ needing no source checkout, compiler or build toolchain on the Mac:
 | **D5** | MQTT disposition | CI/MQTT | A11 | in progress: Yuma answering; stage passes | CI#578 |
 | **D6** | Release asset checks | Machines/OpenClaw/CI | A8 | in progress | |
 | **D7** | Deployment suite | CI | C3 | in progress: live suites green on the install | CPP#171, Scala#190, LSP#164, Machines#217 |
-| **E1** | `local-containerized` lane on published images | CI | B5, C3 | done: certifying form green on `release-v0.0.1-rc2` (`e1-rc2-20261019a`) | CI#165, CI#590 |
-| **E2** | Native vs containerized comparison | CI | E1 | done for the development form: 53/56 identical, 3 explained (`e1-20261019f`); repeat at F1 | |
+| **E1** | `local-containerized` lane on published images | CI | B5, C3 | done: certifying form green on `release-v0.0.1-rc2` (`e1-rc2-20261019a`); rc3 development form green from main 2026-10-25, 18 passed, 2 skipped (`e1-rc3final-20261025a`) | CI#165, CI#590 |
+| **E2** | Native vs containerized comparison | CI | E1 | done for the development form: 53/56 identical, 3 explained (`e1-20261019f`); rc3 native lane 18 passed, 2 skipped, no stage differs from E1 (`e2-native-rc3-20261025c`); repeat at F1 | |
 | **E3** | Clean-Mac install test | CI/operator | B5, C3, C4 | open: clean Mac being prepared; install `release-v0.0.1-rc2` | |
 | **E4** | Release eligibility enforced | CI tooling | A1, A2, B5 | open | |
 | **E5** | Release documentation aligned | CI/docs | A1, A2 | in progress: `RELEASE.md` revised for A1–A11 | |

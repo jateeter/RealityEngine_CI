@@ -1,6 +1,6 @@
 # MVP Release Roadmap — V0.01 evaluation
 
-Last reviewed: 2026-10-08
+Last reviewed: 2026-10-25
 
 The route from the local `v0.0.1-baseline` snapshot to a tagged MVP release of
 the integrated RealityEngine application. **V0.01 is the requested milestone
@@ -10,6 +10,15 @@ approved application tag is `release-v0.1.0`; this update does not change it.
 `ROADMAP.md` in this repo covers deployment and testing infrastructure and is
 complete. This file covers what remains before the composed application can be
 released, and is the place to record gate status as it changes.
+
+> **Status, 2026-10-25.** The evaluation task list R01–R15 below (PR #560)
+> is folded into [`ReleaseRoadmap.md`](ReleaseRoadmap.md), the one task tracker
+> for the release; its *Mapping from R01–R15* shows where each task went. R01
+> is settled: decision A1 (2026-10-17) names the release `release-v0.0.1`. This
+> file keeps the gate history (G1–G4), decisions D1–D3 and the evidence behind
+> them. The candidate, pins and task status below are as of 2026-10-08 and are
+> kept as the record; the current candidate is rc3 (`ReleaseRoadmap.md` B5, E1,
+> E2).
 
 ## Gate summary
 
@@ -307,7 +316,8 @@ claims; their open state must not disappear from release notes.
   Components keep plain semver on their own schedules. `release-manifest.py
   generate` and `cut-release.sh` both refuse any other form. **The approved
   MVP version remains `release-v0.1.0`; R01 evaluates the requested V0.01
-  milestone label without silently changing it.**
+  milestone label without silently changing it.** Superseded by A1
+  (2026-10-17): the release is `release-v0.0.1` (`ReleaseRoadmap.md`).
 - **D2: the mirror seam. Decided 2026-09-25: it blocks the MVP.** Specified in
   `localHealthkitBridge/docs/MIRROR_CONTRACT.md` (localHealthkitBridge#44), and
   tracked in #45. The owner's decisions:
