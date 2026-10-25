@@ -36,6 +36,19 @@ scrape_configs:
           source:    host
           __path__:  /host-logs/cpp/logs/perception_engine*.log
 
+  # ── Native OpenClaw gateway (RealityEngine_CI#592 §6) ──────────────────
+  # The LaunchAgent's stdout/stderr; absent when the gateway runs in Docker,
+  # where the compose logging driver ships it instead.
+  - job_name: openclaw-gateway-native
+    static_configs:
+      - targets:
+          - localhost
+        labels:
+          service:   openclaw-gateway
+          component: openclaw-gateway
+          source:    host
+          __path__:  /host-logs/openclaw/gateway.log
+
   # ── LSP native runtime logs ─────────────────────────────────────────────
   - job_name: reality-engine-lsp
     static_configs:

@@ -661,6 +661,9 @@ services:
       - ${CPP_LOG_DIR:-../RealityEngine_CPP/logs}:/host-logs/cpp/logs:ro
       - ${LSP_LOG_DIR:-../RealityEngine_LSP/logs}:/host-logs/lsp/logs:ro
       - ${SCALA_LOG_DIR:-../RealityEngine_Scala/logs}:/host-logs/scala/logs:ro
+      # The native OpenClaw gateway's LaunchAgent log (localOpenClawStack
+      # scripts/native-gateway.sh; RealityEngine_CI#592 §6).
+      - ${OPENCLAW_NATIVE_LOG_DIR:-${HOME}/.realityengine/openclaw/logs}:/host-logs/openclaw:ro
       - /tmp:/host-logs/tmp:ro
     depends_on:
       loki:
