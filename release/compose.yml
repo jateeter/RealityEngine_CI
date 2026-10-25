@@ -136,54 +136,34 @@ services:
       registry: {condition: service_healthy}
 
   # ── OpenClaw ─────────────────────────────────────────────────────────────────
+  # The gateway is not a container (RealityEngine_CI#592): it is the Mac's own
+  # openclaw, a LaunchAgent on 127.0.0.1:${RE_PORT_OPENCLAW} that `realityengine
+  # up` starts once these are running. Containers reach it at host.docker.internal.
 
   browser:
     <<: *common
     image: coollabsio/openclaw-browser:0.3.0@sha256:c5f8a9d812992429be2c5a0b6b8f5d70d63e81cc1b381c5475e067a91e0d3179
     environment:
+      # The image starts Chromium as `wrapped-chromium ${CHROME_CLI}` and proxies
+      # its debugging port through nginx on 9223; without this the proxy answers
+      # 502 and the gateway cannot attach.
+      CHROME_CLI: --remote-debugging-port=9222
       PUID: "1000"
       PGID: "1000"
       TZ: UTC
     volumes:
       - browser-config:/config
-    shm_size: 2g
-    security_opt: [no-new-privileges:true]
-
-  openclaw-gateway:
-    <<: *common
-    image: ${RE_IMAGE_OPENCLAW_GATEWAY}
-    environment:
-      HOME: /home/node
-      TERM: xterm-256color
-      OPENCLAW_GATEWAY_TOKEN: ${OPENCLAW_GATEWAY_TOKEN}
-      OPENCLAW_GATEWAY_MODE: local
-      OLLAMA_API_KEY: ollama-local
-      OLLAMA_BASE_URL: http://host.docker.internal:11434
-      OPENCLAW_GATEWAY_BIND: lan
-      OPENCLAW_HTTP_ENDPOINTS_CHATCOMPLETIONS_ENABLED: "true"
-      OPENCLAW_HTTP_ENDPOINTS_MODELS_ENABLED: "true"
-      BROWSER_CDP_URL: http://browser:9222
-      TZ: UTC
-    volumes:
-      - ./openclaw:/home/node/.openclaw
-    command: ["sh", "-lc", "chmod 700 /home/node/.openclaw && exec openclaw gateway"]
+    # CDP for the gateway on the Mac. Loopback only: CDP is unauthenticated.
     ports:
-      - "127.0.0.1:${RE_PORT_OPENCLAW:-18789}:18789"
-    depends_on:
-      browser: {condition: service_started}
-    healthcheck:
-      test: ["CMD", "node", "-e", "fetch('http://127.0.0.1:18789/healthz').then((r)=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"]
-      interval: 30s
-      timeout: 5s
-      retries: 5
-      start_period: 20s
+      - "127.0.0.1:${RE_PORT_BROWSER_CDP:-9222}:9223"
+    shm_size: 2g
     security_opt: [no-new-privileges:true]
 
   open-webui:
     <<: *common
     image: ghcr.io/open-webui/open-webui:v0.11.3@sha256:41daa0cf2561a5d4c8d1ff31ee2a98d93ab4d3ac2605cac69366ff6a3374a933
     environment:
-      OPENAI_API_BASE_URL: http://openclaw-gateway:18789/v1
+      OPENAI_API_BASE_URL: http://host.docker.internal:${RE_PORT_OPENCLAW:-18789}/v1
       OPENAI_API_KEY: ${OPENCLAW_GATEWAY_TOKEN}
       OLLAMA_BASE_URL: http://host.docker.internal:11434
       # Embed through the host Ollama, with the model localAI already requires.
@@ -207,8 +187,6 @@ services:
       - openwebui-data:/app/backend/data
     ports:
       - "127.0.0.1:${RE_PORT_WEBUI:-8080}:8080"
-    depends_on:
-      openclaw-gateway: {condition: service_healthy}
     security_opt: [no-new-privileges:true]
 
   # ── PIM and the Solid Community Server (the authoritative POD) ──────────────

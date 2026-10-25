@@ -24,8 +24,10 @@ check "$(cat "$CI_DIR"/.github/workflows/*.yml | grep -cE '^[[:space:]]+uses: ac
   "every setup-node step reads node-version-file from an .nvmrc"
 check "$(git -C "$CI_DIR" grep -hoE '^FROM node:[^ ]+' -- '*Dockerfile*' | sort -u)" "FROM node:$V-alpine" \
   "every Dockerfile builds on node:$V-alpine"
-check "$(grep -oE '"node:[^"]+"' "$CI_DIR/release/images.json" | sort -u)" "\"node:$V-bookworm-slim\"" \
-  "release/images.json builds OpenClaw on node:$V-bookworm-slim"
+# Any release image built on a Node base names this minor. Since rc3 none does:
+# the OpenClaw gateway left the release images for the Mac (#592).
+check "$(grep -oE '"node:[^"]+"' "$CI_DIR/release/images.json" | sort -u | grep -v "^\"node:$V-bookworm-slim\"\$" || true)" "" \
+  "release/images.json names no Node base other than node:$V-bookworm-slim"
 # The sibling repos pin the same minor, where they are checked out next to CI.
 for repo in RealityEngine_Manager RealityEngine_Machines localAIStack localOpenClawStack OpenCommons-Health---Personal-Information-Management; do
   dir="$CI_DIR/../$repo"; [ -e "$dir/.git" ] || continue
