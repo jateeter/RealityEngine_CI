@@ -792,6 +792,19 @@ port_holder_root() {
   pid="$(lsof -ti ":$1" -sTCP:LISTEN 2>/dev/null | head -1)"
   [ -n "$pid" ] || return 0
 
+  # The native OpenClaw gateway (#592) is the host's openclaw under a
+  # LaunchAgent: its executable, arguments and cwd (/) name no workspace path,
+  # so none of the three signals below sees it. stopUniverse.sh --stop-docker
+  # unloads it. Without this a native run that failed after starting the
+  # gateway left :18789 held and every later run refused to start
+  # (e2-native-rc3-20261025b).
+  local gw_pid
+  gw_pid="$(launchctl print "gui/$(id -u)/org.realityengine.openclaw-gateway" 2>/dev/null \
+    | awk '$1 == "pid" && $2 == "=" { print $3; exit }')"
+  if [ -n "$gw_pid" ] && [ "$gw_pid" = "$pid" ]; then
+    printf '%s' "$WS/localOpenClawStack"; return 0
+  fi
+
   cand=""
   exe="$(ps -o comm= -p "$pid" 2>/dev/null)"
   case "$exe" in "$WS"/*) cand="$exe" ;; esac
