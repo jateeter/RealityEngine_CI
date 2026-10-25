@@ -22,6 +22,9 @@ on:
   pull_request:
     paths:
       - release/images.json
+      - release/compose.yml
+      - release/realityengine
+      - release/host-requirements.json
       - release/build-images.py
       - release/promote-images.py
       - release/init/**
