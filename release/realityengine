@@ -150,7 +150,7 @@ preflight() {
 # release/host-requirements.json (scripts/tests/test-host-preflight.sh keeps them
 # equal; this script ships alone, so it cannot read the file).
 HOST_REQ_NODE=26.12.1
-HOST_REQ_OLLAMA_MIN=0.40.0
+HOST_REQ_OLLAMA_MIN=0.40.5
 HOST_REQ_OPENCLAW_MIN=2026.10.5
 HOST_REQ_OPENCLAW_REQUIRED=true
 HOST_MILESTONE=release-v0.0.1-rc3
@@ -419,12 +419,12 @@ check_ollama() {
   v="$(curl -fsS --max-time 3 http://127.0.0.1:11434/api/version 2>/dev/null || true)"
   case "$v" in
     *'"version"'*) ok "Ollama $(printf '%s' "$v" | sed 's/.*"version":"\([^"]*\)".*/\1/') on :11434" ;;
-    *) warn "Ollama is not answering on 127.0.0.1:11434. Install it (https://ollama.com or 'brew install ollama'), start it, and run 'ollama pull nemotron-3-nano:4b'. The suite starts without it, but local AI will report it unreachable."; return 0 ;;
+    *) warn "Ollama is not answering on 127.0.0.1:11434. Install it (https://ollama.com or 'brew install ollama'), start it, and run 'ollama pull nemotron-3-nano:4b-mlx'. The suite starts without it, but local AI will report it unreachable."; return 0 ;;
   esac
   # The engines' and OpenClaw's model, and localAI's embedding model. Both run on
   # MLX (RealityEngine_CI#593: each role's default must).
   tags="$(curl -fsS --max-time 5 http://127.0.0.1:11434/api/tags 2>/dev/null || true)"
-  for m in nemotron-3-nano:4b "${EMBED_MODEL:-embeddinggemma-2:270m}"; do
+  for m in nemotron-3-nano:4b-mlx "${EMBED_MODEL:-embeddinggemma-2:270m}"; do
     if printf '%s' "$tags" | grep -q "\"$m\(:latest\)\{0,1\}\""; then
       ok "model $m present"
       r="$(model_runner "$tags" "$m")"

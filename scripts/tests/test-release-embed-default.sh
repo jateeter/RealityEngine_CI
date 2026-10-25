@@ -27,7 +27,7 @@ compose_default() { # <VAR> <file>: the ${VAR:-default} on the line that sets it
 
 localai="$(compose_default EMBED_MODEL "$CI_DIR/release/compose.yml")"
 webui="$(compose_default RAG_EMBEDDING_MODEL "$CI_DIR/release/compose.yml")"
-cli="$(sed -nE 's/.*for m in nemotron-3-nano:4b "\$\{EMBED_MODEL:-([^}]+)\}".*/\1/p' "$CI_DIR/release/realityengine" | head -1)"
+cli="$(sed -nE 's/.*for m in nemotron-3-nano:4b-mlx "\$\{EMBED_MODEL:-([^}]+)\}".*/\1/p' "$CI_DIR/release/realityengine" | head -1)"
 
 echo "release embedding default"
 check "compose names a default for localAI" yes "$([ -n "$localai" ] && echo yes || echo no)"

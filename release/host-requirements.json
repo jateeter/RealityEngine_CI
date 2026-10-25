@@ -4,7 +4,7 @@
   "milestone": "release-v0.0.1-rc3",
   "node": { "exact": "26.12.1" },
   "ollama": {
-    "min": "0.40.0",
+    "min": "0.40.5",
     "latest_from": "https://api.github.com/repos/ollama/ollama/releases/latest"
   },
   "openclaw": {
