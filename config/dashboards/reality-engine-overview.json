@@ -102,7 +102,7 @@
             "uid": "loki"
           },
           "editorMode": "code",
-          "expr": "sum by (service) (count_over_time({app=\"reality-engine\"}[1m]))",
+          "expr": "sum by (service) (count_over_time({app=\"reality-engine\"}[1m])) or sum by (service) (count_over_time({source=\"host\"}[1m]))",
           "queryType": "range",
           "refId": "A"
         }
@@ -169,7 +169,7 @@
             "uid": "loki"
           },
           "editorMode": "code",
-          "expr": "sum(count_over_time({app=\"reality-engine\"}[5m]))",
+          "expr": "sum(count_over_time({app=\"reality-engine\"}[5m])) or sum(count_over_time({source=\"host\"}[5m]))",
           "queryType": "range",
           "refId": "A"
         }
@@ -209,6 +209,16 @@
           "expr": "{app=\"reality-engine\"}",
           "queryType": "range",
           "refId": "A"
+        },
+        {
+          "datasource": {
+            "type": "loki",
+            "uid": "loki"
+          },
+          "editorMode": "code",
+          "expr": "{source=\"host\"}",
+          "queryType": "range",
+          "refId": "B"
         }
       ],
       "title": "Reality Engine Logs",
@@ -262,7 +272,7 @@
             "uid": "loki"
           },
           "editorMode": "code",
-          "expr": "sum by (service) (count_over_time({app=\"reality-engine\"}[1h]))",
+          "expr": "sum by (service) (count_over_time({app=\"reality-engine\"}[1h])) or sum by (service) (count_over_time({source=\"host\"}[1h]))",
           "queryType": "range",
           "refId": "A"
         }
@@ -302,6 +312,16 @@
           "expr": "{app=\"reality-engine\"} |~ \"error|Error|ERROR\"",
           "queryType": "range",
           "refId": "A"
+        },
+        {
+          "datasource": {
+            "type": "loki",
+            "uid": "loki"
+          },
+          "editorMode": "code",
+          "expr": "{source=\"host\"} |~ \"error|Error|ERROR\"",
+          "queryType": "range",
+          "refId": "B"
         }
       ],
       "title": "Error Logs",
@@ -339,6 +359,16 @@
           "expr": "{app=\"reality-engine\", service=\"reality-engine\"} |= \"\"",
           "queryType": "range",
           "refId": "A"
+        },
+        {
+          "datasource": {
+            "type": "loki",
+            "uid": "loki"
+          },
+          "editorMode": "code",
+          "expr": "{source=\"host\", component=\"reality-engine\"}",
+          "queryType": "range",
+          "refId": "B"
         }
       ],
       "title": "Input Stream Logs (Perceptual Sequence)",
@@ -376,6 +406,16 @@
           "expr": "{app=\"reality-engine\", service=\"perception-engine-backend\"} |= \"\"",
           "queryType": "range",
           "refId": "A"
+        },
+        {
+          "datasource": {
+            "type": "loki",
+            "uid": "loki"
+          },
+          "editorMode": "code",
+          "expr": "{source=\"host\", component=\"perception-engine\"}",
+          "queryType": "range",
+          "refId": "B"
         }
       ],
       "title": "Output Stream Logs (Perceptual Sequence)",
@@ -461,7 +501,7 @@
             "uid": "loki"
           },
           "editorMode": "code",
-          "expr": "sum by (log_type) (count_over_time({app=\"reality-engine\", service=\"visualizer-frontend\"}[1m]))",
+          "expr": "sum by (log_type) (count_over_time({app=\"reality-engine\", service=\"visualizer-frontend\"}[1m])) or sum by (runtime) (count_over_time({source=\"host\", component=\"perception-engine\"}[1m]))",
           "queryType": "range",
           "refId": "A"
         }
@@ -517,7 +557,7 @@
             "uid": "loki"
           },
           "editorMode": "code",
-          "expr": "sum by (log_type) (count_over_time({app=\"reality-engine\", service=\"visualizer-frontend\"}[1h]))",
+          "expr": "sum by (log_type) (count_over_time({app=\"reality-engine\", service=\"visualizer-frontend\"}[1h])) or sum by (runtime) (count_over_time({source=\"host\", component=\"perception-engine\"}[1h]))",
           "queryType": "range",
           "refId": "A"
         }
@@ -557,6 +597,16 @@
           "expr": "{app=\"reality-engine\", service=\"perception-engine-backend\"}",
           "queryType": "range",
           "refId": "A"
+        },
+        {
+          "datasource": {
+            "type": "loki",
+            "uid": "loki"
+          },
+          "editorMode": "code",
+          "expr": "{source=\"host\", component=\"perception-engine\"}",
+          "queryType": "range",
+          "refId": "B"
         }
       ],
       "title": "Perception Engine Backend Logs",
@@ -593,7 +643,7 @@
             "uid": "loki"
           },
           "editorMode": "code",
-          "expr": "sum by (service) (count_over_time({app=\"reality-engine\", service=~\"perception-engine-backend|perception-engine-frontend\"}[1m]))",
+          "expr": "sum by (service) (count_over_time({app=\"reality-engine\", service=~\"perception-engine-backend|perception-engine-frontend\"}[1m])) or sum by (runtime) (count_over_time({source=\"host\", component=\"perception-engine\"}[1m]))",
           "queryType": "range",
           "refId": "A"
         }
@@ -619,9 +669,9 @@
   },
   "timepicker": {},
   "timezone": "",
-  "description": "Docker lane only: reads the app=reality-engine labels the Loki Docker logging driver attaches to compose containers. A native universe (--engines=...) produces none; use Native Runtime Logs there.",
-  "title": "Reality Engine Overview (Docker lane)",
+  "description": "Both lanes. Each panel reads the Docker lane's app=reality-engine labels (the Loki Docker logging driver on the compose containers) and the native lane's source=host labels (Promtail on the engines' log files); whichever lane is running fills it. On the native lane the perceptual-operations panels count Perception Engine log lines by runtime, since the Manager visualizer's log_type stream exists only on the Docker lane. Native Runtime Logs has the per-runtime detail.",
+  "title": "Reality Engine Overview",
   "uid": "reality-engine-overview",
-  "version": 1,
+  "version": 2,
   "weekStart": ""
 }

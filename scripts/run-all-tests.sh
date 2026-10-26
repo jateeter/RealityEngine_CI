@@ -500,6 +500,7 @@ run_unit() {
     run_docs_audit
     run_machines_offline
     run_openclaw_adapter_tests
+    run_bridge_metrics_tests
     run_regression_issue_filer_tests
     run_parity_surface_tests
     run_openapi_validator_tests
@@ -628,6 +629,12 @@ run_openclaw_adapter_tests() {
     local label="OpenClaw adapter unit/mock e2e"
     require_node "$label" "26.0.0" || return
     run_suite "$label" "$CI_DIR" npm run test:openclaw-adapter
+}
+
+run_bridge_metrics_tests() {
+    local label="AI bridge metrics exporter unit tests"
+    require_node "$label" "26.0.0" || return
+    run_suite "$label" "$CI_DIR" npm run test:bridge-metrics
 }
 
 run_manager_builds_and_tests() {

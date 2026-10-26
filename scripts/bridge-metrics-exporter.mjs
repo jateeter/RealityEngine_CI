@@ -12,6 +12,12 @@ const ledgerPath = process.env.BRIDGE_METRICS_LEDGER || '/tmp/realityengine-open
 
 const openclawUrl = trim(process.env.OPENCLAW_GATEWAY_URL || process.env.ACP_GATEWAY_URL || 'http://127.0.0.1:18789');
 const openclawToken = process.env.OPENCLAW_GATEWAY_TOKEN || '';
+// startUniverse.sh starts this exporter before it reads the OpenClaw token, so
+// it passes the env file instead and the token is read at scrape time. That
+// also keeps the token out of this process's environment and follows a rotated
+// token without a restart. Without a token /v1/models answers 401 and the model
+// count reads 0.
+const openclawEnvFile = process.env.OPENCLAW_ENV_FILE || '';
 const localAiUrl = trim(process.env.LOCALAI_API_URL || process.env.LOCAL_AI_BASE_URL || 'http://127.0.0.1:4000');
 const qdrantUrl = trim(process.env.QDRANT_URL || 'http://127.0.0.1:4333');
 const ollamaUrl = trim(process.env.OLLAMA_BASE_URL || 'http://127.0.0.1:11434');
@@ -52,6 +58,27 @@ async function fetchJson(url, options = {}) {
     throw error;
   }
   return body;
+}
+
+async function resolveOpenclawToken() {
+  if (openclawToken || !openclawEnvFile) return openclawToken;
+  let text = '';
+  try {
+    text = await readFile(openclawEnvFile, 'utf8');
+  } catch {
+    return '';
+  }
+  const line = text.split(/\r?\n/).filter((l) => l.startsWith('OPENCLAW_GATEWAY_TOKEN=')).pop();
+  return line ? line.slice('OPENCLAW_GATEWAY_TOKEN='.length).trim().replace(/^(['"])(.*)\1$/, '$2') : '';
+}
+
+// localAIStack /health reports a service as the string 'ok', or as an object
+// carrying `status: 'ok'` (pe, re) or `ok: true` (embedding). Reading only the
+// string reported three healthy services as down.
+function serviceUp(value) {
+  if (value === 'ok') return true;
+  if (value && typeof value === 'object') return value.status === 'ok' || value.ok === true;
+  return false;
 }
 
 async function readLedger() {
@@ -108,7 +135,8 @@ async function collectMetrics() {
 
   // Probe every target at once: sequential probes summed their timeouts.
   const settle = (promise) => promise.then((value) => ({ value }), (error) => ({ error }));
-  const openclawHeaders = openclawToken ? { authorization: `Bearer ${openclawToken}` } : {};
+  const token = await resolveOpenclawToken();
+  const openclawHeaders = token ? { authorization: `Bearer ${token}` } : {};
   const [openclawHealth, openclawModelList, localAiHealth, qdrantCollections, ollamaTags, ollamaVersion, ollamaPs, ledger] = await Promise.all([
     settle(fetchJson(`${openclawUrl}/healthz`)),
     settle(fetchJson(`${openclawUrl}/v1/models`, { headers: openclawHeaders })),
@@ -134,7 +162,7 @@ async function collectMetrics() {
     const services = health?.services && typeof health.services === 'object' ? health.services : {};
     for (const [service, value] of Object.entries(services)) {
       if (Array.isArray(value)) continue;
-      lines.push(`re_localaistack_service_up${labels({ service })} ${value === 'ok' ? 1 : 0}`);
+      lines.push(`re_localaistack_service_up${labels({ service })} ${serviceUp(value) ? 1 : 0}`);
     }
     lines.push(`re_localaistack_api_up${labels({ service: 'api' })} 1`);
     if (Array.isArray(services.ollama_models)) {

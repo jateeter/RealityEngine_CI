@@ -665,6 +665,9 @@ services:
       # scripts/native-gateway.sh; RealityEngine_CI#592 §6).
       - ${OPENCLAW_NATIVE_LOG_DIR:-${HOME}/.realityengine/openclaw/logs}:/host-logs/openclaw:ro
       - /tmp:/host-logs/tmp:ro
+      # The compose-siblings job reads localAIStack's and localOpenClawStack's
+      # container logs through the Docker API.
+      - /var/run/docker.sock:/var/run/docker.sock:ro
     depends_on:
       loki:
         condition: service_healthy

@@ -695,6 +695,10 @@ jobs:
         working-directory: RealityEngine_CI
         run: npm run test:parity-surface
 
+      - name: Run AI bridge metrics exporter unit tests
+        working-directory: RealityEngine_CI
+        run: npm run test:bridge-metrics
+
       - name: Run endpoint resolver unit tests
         working-directory: RealityEngine_CI
         run: bash scripts/tests/test-resolve-endpoint.sh

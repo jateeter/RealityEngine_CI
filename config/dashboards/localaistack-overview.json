@@ -94,7 +94,7 @@
       "gridPos": { "h": 10, "w": 24, "x": 0, "y": 12 },
       "targets": [
         {
-          "expr": "{service=\"localaistack-api\"}",
+          "expr": "{service=~\"localaistack-api|localai-api\"}",
           "refId": "A"
         }
       ],
