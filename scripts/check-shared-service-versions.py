@@ -47,7 +47,13 @@ REPOS = [
 # Where a declaration can hide. Compose files and Dockerfiles are the obvious
 # ones; .env.example matters because localOpenClawStack keeps its authoritative
 # digest there and the tag beside it is what the digest must correspond to.
-FILE_GLOBS = ["docker-compose*.yml", "docker-compose*.yaml", "Dockerfile*", ".env.example"]
+# compose*.yml is the release bundle's release/compose.yml, which the
+# docker-compose* globs missed: it kept Qdrant v1.14.1 after every dev stack
+# had moved on.
+FILE_GLOBS = [
+    "docker-compose*.yml", "docker-compose*.yaml", "compose*.yml", "compose*.yaml",
+    "Dockerfile*", ".env.example",
+]
 
 SKIP_DIRS = {"node_modules", ".regression-tests", ".git", "target", "build", ".venv"}
 
