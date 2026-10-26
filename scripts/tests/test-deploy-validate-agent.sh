@@ -19,6 +19,8 @@ set -uo pipefail
 CI_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 A="${1:-$CI_DIR/scripts/deploy-validate-agent.sh}"
 extract() { sed -n "/^$1() {/,/^}/p" "$A"; }
+eval "$(extract container_running)"
+eval "$(extract probe_unit)"
 eval "$(extract engine_pair_health)"
 eval "$(extract phase_health)"
 eval "$(extract skip_engine_restarts)"
@@ -37,6 +39,7 @@ pass() { PASSES+=("$1:$3"); }
 poll() { return 1; }             # nothing answers
 curl() { return 7; }             # gateway down
 refuse_docker_lane() { :; }
+BLOCKED_WHY="Docker lane blocked by a native universe (orchestration finding)"
 DOCKER_LANE_BLOCKERS=""; OPENCLAW=yes; RUN_LOG=/dev/null
 rc=0
 check() { if eval "$2"; then echo "ok   $1"; else echo "FAIL $1"; rc=1; fi; }
@@ -98,6 +101,22 @@ check "health does not re-file the refusal" '[ ${#FAILS[@]} -eq 1 ]'
 check "health skips the four proxied probes" '[ ${#SKIPS[@]} -eq 4 ]'
 check "engine containers sit off the proxy and are still probed" '[ "$(printf "%s\n" "${PASSES[@]}" | grep -cE "^(scala|cpp|lsp):")" -eq 6 ]'
 check "stacks the deploy never touched are still probed" 'printf "%s\n" "${PASSES[@]}" | grep -q "^localai:" && printf "%s\n" "${PASSES[@]}" | grep -q "^openclaw:"'
+# 6b. RealityEngine_LSP#166 and localAIStack#136 (2026-10-24): the same
+#     refusal, but no Docker container is running and nothing answers. Each
+#     probe was filed against its own repo; they are the blocked lane again.
+poll() { return 1; }; curl() { return 7; }
+docker() { [ "$1" = ps ] && { [ -n "${RUNNING:-}" ] && tr ' ' '\n' <<<"$RUNNING"; return 0; }; return 0; }
+RUNNING=""; FAILS=(); SKIPS=(); PASSES=()
+phase_health
+check "blocked lane, nothing running: health files nothing" '[ ${#FAILS[@]} -eq 0 ]'
+check "blocked lane, nothing running: all 13 probes skipped" '[ ${#SKIPS[@]} -eq 13 ]'
+check "the issue's own probe is skipped against its runtime" 'printf "%s\n" "${SKIPS[@]}" | grep -qx "lsp:lsp RE container (:6601)"'
+# A container that is running and does not answer is still a finding.
+RUNNING="re-engine-lsp-re localai_api"; FAILS=(); SKIPS=()
+phase_health
+check "blocked lane, running but silent: filed against its runtime" '[ "${FAILS[*]}" = "lsp:lsp RE container unhealthy (:6601) localai:localAIStack API unhealthy (:4000)" ]'
+check "blocked lane, running but silent: the rest still skipped" '[ ${#SKIPS[@]} -eq 11 ]'
+unset RUNNING
 
 # 7. The containerized restart after a torn-down, failed deploy cannot pass:
 #    the tls-proxy's static upstreams are absent, so nginx will not start.
