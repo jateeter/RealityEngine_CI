@@ -150,7 +150,7 @@ elsewhere with the missing engine ids in the reason.
 
 `multi-step-output-workflow` and `perceptual-space-interconnection` drive the
 digital-logic fixtures `MultiStep`, `RS2` and `RSFlipFlop`. Those are **not** in
-`config/regression-corpus.txt` (21 machines: the standard-deployment twelve
+`config/regression-corpus.txt` (26 machines: the standard-deployment twelve
 plus what the parity gates need), which is what the hosted job boots with via
 `--machine-corpus=regression`.
 

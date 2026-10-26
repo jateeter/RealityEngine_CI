@@ -24,6 +24,12 @@
 #                   members with more than one writer, which is the only
 #                   condition under which the arbiter runs at all.
 #
+#   the escalation  ESCALATION. BSX118, CSX022 and TFX047 commit
+#                   urgent-intervention at RED and carry an agentBinding, so
+#                   their dispatches are counted by
+#                   semantic_escalation_dispatches_total. No other machine here
+#                   reaches that counter (see the block below).
+#
 # The third block is why this corpus exists. standard-deployment writes 31 cells
 # and NONE of them has two writers, so the tri-runtime byte-equivalence gate ran
 # where the arbiter could never fire — it reported success whether or not an
@@ -99,6 +105,30 @@ domains/digital-logic/ArbitrationProviderTarget.json
 # No dependencies: input [3813:3815], output [1941:1943], no compose
 # subscriptions, so it is driven directly by the dense vector the check sends.
 domains/health-personal/FallDetection.json
+
+# ── The escalation trio: dispatches an escalation reaches ───────────────────
+#
+# ESCALATION. semantic_escalation_dispatches_total counts a dispatch whose
+# action is emergency-dispatch or urgent-intervention, keyed by its governance
+# ragStatusCode, and every PE exports it. Nothing in this corpus could make one:
+# a dispatch needs the action on a committed output event AND an agentBinding,
+# and FallDetection — the one escalating machine here — has no binding, so its
+# emergency-dispatch is dropped before dispatch (droppedNoDispatch). The counter
+# sat at zero on every runtime, which is also what an engine that never counted
+# reports: C++ and LSP declared it and never incremented it
+# (RealityEngine_CPP#179, RealityEngine_LSP#175), and no lane could tell.
+#
+# Nine corpus machines carry both; these three are one per domain, each driving
+# urgent-intervention at RED from its interned sequences, with an OpenClaw
+# agent already in INDEX.json. CSX022 escalates from three of its four
+# sequences, BSX118 and TFX047 from one each, so the three runtimes must agree
+# on counts and not merely on a non-zero value. Their regions —
+# [784:792], [1084:1092], [3427:3435] — touch no cell another corpus machine
+# reads or writes, so they add no contention and leave the arbiter blocks'
+# evidence unchanged.
+domains/built-space/BSX118_community-and-hr-emergency-preparedness-wellness.json
+domains/community-services/CSX022_behavioral-health-and-crisis-mobile-crisis-co-response.json
+domains/transportation/TFX047_security-and-safety-emergency-detour-safety.json
 
 # ── The localAI trio: RAG round-trip and session carry ──────────────────────
 #

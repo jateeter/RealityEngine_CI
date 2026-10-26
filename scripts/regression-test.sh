@@ -2009,7 +2009,7 @@ run_pe_step_contract() {
 # The OpenClaw agents for the regression corpus must be current on every run
 # (RealityEngine_CI#467 item 2). agents/ once sat five weeks behind the machine
 # corpus with every gate green, and the analyst was handed pre-#154 actions.
-# Derives the 15 regression agents in memory and compares them byte for byte
+# Derives the 18 regression agents in memory and compares them byte for byte
 # with the committed specs; needs no live universe, so it runs on both lanes
 # and under --build-only.
 run_agent_corpus_current() {
