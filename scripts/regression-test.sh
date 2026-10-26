@@ -571,12 +571,22 @@ run_repo_cmd() {
   return "$status"
 }
 
+# The host services (Ollama, OpenClaw, the Node OpenClaw runs on) as the run saw
+# them, for the manifest. It runs under NODE_ACTIVATE like every other step that
+# needs the pinned Node: the harness's own shell has the terminal's PATH, which
+# does not have an nvm-installed `openclaw`, so the first version of this recorded
+# OpenClaw as "missing" in a run in which it passed (RealityEngine_CI#592).
+host_services_manifest_json() {
+  REALITYENGINE_DIR="$RUN_DIR/host" bash -c "${NODE_ACTIVATE}"'exec "$0" host-check --json' \
+    "$CI_DIR/release/realityengine" 2>/dev/null || true
+}
+
 record_manifest() {
   mkdir -p "$RUN_DIR"
   python3 - "$RUN_DIR/manifest.json" "$RUN_ID" "$BRANCH_NAME" "$WORKTREE_BRANCH" "$ENGINES_SPEC" \
     "$PROFILE" "$LOCAL_AI" "$MACHINE_CORPUS" "$OPENCLAW_FLAG" \
     "$BUILD" "$START" "$LIVE_TESTS" "$(date -u +%Y-%m-%dT%H:%M:%SZ)" \
-    "$(REALITYENGINE_DIR="$RUN_DIR/host" "$CI_DIR/release/realityengine" host-check --json 2>/dev/null || true)" <<'PYEOF'
+    "$(host_services_manifest_json)" <<'PYEOF'
 import json
 import sys
 from pathlib import Path
