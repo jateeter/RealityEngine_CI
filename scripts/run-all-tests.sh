@@ -345,15 +345,29 @@ run_ces_contract_drift() {
     # that nothing invoked, and a snapshot nobody re-takes silently becomes an
     # assertion about the past: it sat two months behind the corpus rewrite and
     # surfaced only in a deployment gate.
+    #
+    # A universe booted on a corpus manifest is checked against that corpus's
+    # shard, corpus-<NAME>.json. Plain --check reads only the domain shards,
+    # each recorded under the full corpus, so on a regression universe every one
+    # was incomparable and the gate passed having compared nothing: the
+    # regression shard was never checked.
+    local corpus; corpus="$(booted_corpus_name)"
+    local args=(--check)
+    if [ -n "$corpus" ]; then
+        args+=(--corpus "$corpus")
+        label="$label, corpus:$corpus"
+    fi
     local log; log="$(mktemp -t re-ces-contracts.XXXXXX)"
     info "Running: $label"
-    if python3 "$CI_DIR/scripts/record-ces-contracts.py" --check >"$log" 2>&1; then
+    if python3 "$CI_DIR/scripts/record-ces-contracts.py" "${args[@]}" >"$log" 2>&1; then
         ok "$label - PASS"
         record PASS "$label"
     else
         warn "$label - FAIL (last 20 lines):"
         tail -20 "$log" | sed 's/^/    /'
-        record FAIL "$label" "config/ces-contracts/ disagrees with the live runtimes — re-record with record-ces-contracts.py --only <domain> --write and review the diff"
+        local rerecord="--only <domain> --write"
+        [ -n "$corpus" ] && rerecord="--corpus $corpus --write"
+        record FAIL "$label" "config/ces-contracts/ disagrees with the live runtimes — re-record with record-ces-contracts.py $rerecord and review the diff"
     fi
     rm -f "$log"
 }
@@ -602,6 +616,18 @@ booted_corpus_dir() {
     [ -f "$stamp" ] && dir="$(sed -n 's/^MACHINE_CORPUS_ACTIVE_DIR=//p' "$stamp" | tail -1)"
     if [ -n "$dir" ] && [ -d "$dir/machines" ]; then printf '%s' "$dir"
     else printf '%s' "$MACHINES_DIR"; fi
+}
+
+# The corpus scope the universe booted, by name: config/<NAME>-corpus.txt, as
+# startUniverse.sh stamps MACHINE_CORPUS_MANIFEST. Empty for the full corpus or
+# a manifest outside config/, which have no corpus shard to be checked against.
+booted_corpus_name() {
+    local stamp="$CI_DIR/.universe-engine-selection" manifest="" name=""
+    [ -f "$stamp" ] && manifest="$(sed -n 's/^MACHINE_CORPUS_MANIFEST=//p' "$stamp" | tail -1)"
+    [ -n "$manifest" ] || return 0
+    [ "$(cd "$(dirname "$manifest")" 2>/dev/null && pwd)" = "$CI_DIR/config" ] || return 0
+    name="$(basename "$manifest")"
+    case "$name" in *-corpus.txt) printf '%s' "${name%-corpus.txt}" ;; esac
 }
 
 run_generator_drift_checks() {

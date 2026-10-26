@@ -44,9 +44,11 @@ A test-environment corpus is one shard, `corpus-<NAME>.json`, recorded with
 `--corpus <NAME> --write` and checked with `--corpus <NAME> --check` against a
 universe booted on that corpus. The check compares with that shard and nothing
 else, and names any machine added to, removed from or edited in the manifest
-since recording (re-record it). Plain `--check` reads only domain shards, so on
-a regression-corpus universe it compares nothing and says so. Pause autopush
-first: a push the recorder did not cause makes the run incomparable (#307).
+since recording (re-record it). Plain `--check` reads only domain shards, which
+are incomparable on a corpus-manifest universe, so `run-all-tests.sh` passes
+`--corpus <NAME>` for the manifest `.universe-engine-selection` stamps
+(`booted_corpus_name`). Pause autopush first: a push the recorder did not cause
+makes the run incomparable (#307).
 
 No runtime is the oracle: replaying the corpus through one engine makes that
 engine unfalsifiable, so the contract is agreement, not a reference replay.
