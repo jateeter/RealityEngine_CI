@@ -554,15 +554,35 @@ phase_deploy() {
 # =============================================================================
 # Phase 2 · Health gate — public Docker endpoints
 # =============================================================================
+BLOCKED_WHY="Docker lane blocked by a native universe (orchestration finding)"
+
+container_running() { docker ps --format '{{.Names}}' 2>/dev/null | grep -qx "$1"; }
+
+# A failed probe while the Docker lane is blocked is a finding only when the
+# container it names is running. The refused deploy started nothing, so an
+# absent container is the blocked lane again, not a defect in the stack it
+# belongs to: RealityEngine_LSP#166 and localAIStack#136 (2026-10-24) were
+# filed that way while a native universe held the proxy ports. A container
+# that is running and does not answer is still filed.
+# probe_unit <unit> <url> <label> <timeout> <container> <pass-msg> <fail-msg> [poll flags]
+probe_unit() {
+  local unit="$1" url="$2" label="$3" t="$4" ctr="$5" ok_msg="$6" bad_msg="$7"
+  if poll "$url" "$label" "$t" "${@:8}"; then
+    pass "$unit" health "$ok_msg"
+  elif [ -n "$DOCKER_LANE_BLOCKERS" ] && ! container_running "$ctr"; then
+    skip "$unit" health "$label" "$BLOCKED_WHY; $ctr not running"
+  else
+    fail "$unit" health "$bad_msg" "docker logs $ctr"
+  fi
+}
+
 # engine_pair_health <runtime> <re-port> <pe-port>
 engine_pair_health() {
   local rt="$1" re="$2" pe="$3"
-  poll "http://localhost:$re/api/health" "$rt RE container (:$re)" 20 "-sf" \
-    && pass "$rt" health "$rt RE container healthy (:$re)" \
-    || fail "$rt" health "$rt RE container unhealthy (:$re)" "docker logs re-engine-$rt-re"
-  poll "http://localhost:$pe/api/health" "$rt PE container (:$pe)" 20 "-sf" \
-    && pass "$rt" health "$rt PE container healthy (:$pe)" \
-    || fail "$rt" health "$rt PE container unhealthy (:$pe)" "docker logs re-engine-$rt-pe"
+  probe_unit "$rt" "http://localhost:$re/api/health" "$rt RE container (:$re)" 20 "re-engine-$rt-re" \
+    "$rt RE container healthy (:$re)" "$rt RE container unhealthy (:$re)" "-sf"
+  probe_unit "$rt" "http://localhost:$pe/api/health" "$rt PE container (:$pe)" 20 "re-engine-$rt-pe" \
+    "$rt PE container healthy (:$pe)" "$rt PE container unhealthy (:$pe)" "-sf"
 }
 
 phase_health() {
@@ -594,11 +614,10 @@ phase_health() {
   # blocked lane is reported once, as an orchestration finding.
   if [ -n "$DOCKER_LANE_BLOCKERS" ]; then
     refuse_docker_lane health
-    local why="Docker lane blocked by a native universe (orchestration finding)"
-    skip reality-engine health "RE API (:5001)" "$why"
-    skip manager health "PE API (:3004)" "$why"
-    skip manager health "Visualizer backend (:3001)" "$why"
-    skip manager health "Visualizer UI (:5173)" "$why"
+    skip reality-engine health "RE API (:5001)" "$BLOCKED_WHY"
+    skip manager health "PE API (:3004)" "$BLOCKED_WHY"
+    skip manager health "Visualizer backend (:3001)" "$BLOCKED_WHY"
+    skip manager health "Visualizer UI (:5173)" "$BLOCKED_WHY"
   else
   poll "https://localhost:5001/api/health" "RE API (:5001)" 20      && pass reality-engine health "RE API healthy"          || fail reality-engine health "RE API unhealthy (:5001)" "docker logs reality-engine-app"
   poll "https://localhost:3004/api/health" "PE API (:3004)" 20      && pass manager health "PE API healthy"                 || fail manager health "PE API unhealthy (:3004)" "docker logs reality-engine-perception-backend"
@@ -607,15 +626,23 @@ phase_health() {
   fi
   # The engine trio the instance registry lists (scala-1/cpp-1/lsp-1), plain
   # HTTP on their own ports — not behind the TLS proxy, so a native universe
-  # blocking the proxy does not block these.
+  # blocking the proxy does not block these. They, localAI and the gateway may
+  # still be up from an earlier Docker deploy, so they are probed; probe_unit
+  # skips what a blocked lane never started.
   engine_pair_health scala 6101 6100
   engine_pair_health cpp   6301 6300
   engine_pair_health lsp   6601 6600
-  poll "http://localhost:4000/health" "localAIStack API (:4000)" 15 && pass localai health "localAIStack API healthy"      || fail localai health "localAIStack API unhealthy (:4000)" "docker logs localai_api"
-  poll "http://localhost:4333/collections" "Qdrant (:4333)" 15     && pass localai health "Qdrant reachable"               || fail localai health "Qdrant unreachable (:4333)" "docker logs localai_qdrant"
+  probe_unit localai "http://localhost:4000/health" "localAIStack API (:4000)" 15 localai_api \
+    "localAIStack API healthy" "localAIStack API unhealthy (:4000)"
+  probe_unit localai "http://localhost:4333/collections" "Qdrant (:4333)" 15 localai_qdrant \
+    "Qdrant reachable" "Qdrant unreachable (:4333)"
   if [ "$OPENCLAW" != "no" ]; then
     if curl -sf --max-time 4 "http://localhost:18789/healthz" >/dev/null 2>&1; then
       pass openclaw health "OpenClaw gateway healthy (:18789)"
+    elif [ -n "$DOCKER_LANE_BLOCKERS" ]; then
+      # Natively it is a LaunchAgent, in Docker a compose service; either way the
+      # refused deploy did not start it.
+      skip openclaw health "OpenClaw gateway (:18789)" "$BLOCKED_WHY; not started"
     else
       [ "$OPENCLAW" = "yes" ] && fail openclaw health "OpenClaw gateway unhealthy (:18789)" "docker logs openclaw-gateway" \
                               || skip openclaw health "OpenClaw gateway" "not started (auto mode)"
