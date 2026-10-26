@@ -74,13 +74,19 @@ clear_perception_state() {
         fi
     fi
 
+    # Qdrant is a named Docker volume (localAIStack#149), not ./volumes/qdrant:
+    # the bind mount was FUSE on Docker Desktop, which Qdrant 1.19 distrusts.
+    # Removed, not emptied; it is recreated empty and the API's startup seed
+    # refills the default corpus. localAIStack is down by now (the cleanup
+    # above), so nothing holds it.
     if [ "$FRESH_PROVIDER_CONTENT" = true ]; then
-        if [ -d "$LAS_DIR/volumes/qdrant" ]; then
-            if find "$LAS_DIR/volumes/qdrant" -mindepth 1 -delete 2>/dev/null; then
-                info "  cleared localAIStack Qdrant vector store (--fresh-provider-content)"
+        local qv="${LOCALAI_QDRANT_VOLUME:-localaistack-qdrant}"
+        if docker volume inspect "$qv" >/dev/null 2>&1; then
+            if docker volume rm "$qv" >/dev/null 2>&1; then
+                info "  removed localAIStack Qdrant volume $qv (--fresh-provider-content)"
                 cleared=$((cleared + 1))
             else
-                add_warn "--fresh-provider-content could not clear $LAS_DIR/volumes/qdrant"
+                add_warn "--fresh-provider-content could not remove Docker volume $qv"
             fi
         fi
     fi
