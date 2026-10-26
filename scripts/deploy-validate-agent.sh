@@ -63,7 +63,8 @@
 #     them is one the RAG/session deployment gates assert on, so those gates
 #     failed against a universe that never contained what they test. The
 #     regression corpus adds the ring (propagation), the contended trio (the
-#     only machines that make the arbiter run), and localAIStack's RAG trio.
+#     only machines that make the arbiter run), the escalation trio (the only
+#     machines that dispatch an escalation), and localAIStack's RAG trio.
 #                     Machine corpus passed to startUniverse during deployment
 #                     validation (default: standard-deployment).
 #   DEPLOYMENT_POST_START_FULL_CORPUS=off|seed

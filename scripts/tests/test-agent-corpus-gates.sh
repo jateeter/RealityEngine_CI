@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # Tests for the two agent-corpus staleness gates (RealityEngine_CI#467).
 #
-#   item 2  regression-test.sh run_agent_corpus_current: every run, the 15
+#   item 2  regression-test.sh run_agent_corpus_current: every run, the 18
 #           regression agents against the corpus (materialize_agents.py --check)
 #   item 3  check-corpus-exit-criteria.py §3.7(4): the agent index records its
 #           provenance, and --require-current-digest holds it to today's corpus

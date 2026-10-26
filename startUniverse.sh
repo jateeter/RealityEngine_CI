@@ -139,8 +139,10 @@ startUniverse.sh — engine-selectable CI orchestrator
   --machine-load=none           RE starts empty; no seeding, no PE bootstrap regardless of other flags
   --machine-corpus=full         Use the full RealityEngine_Machines corpus at boot (default)
   --machine-corpus=regression   Regression default: the standard twelve, the RS ring
-                                pair (propagation), and the contended arbitration
-                                trio (the only machines that make the arbiter run)
+                                pair (propagation), the contended arbitration
+                                trio (the only machines that make the arbiter run),
+                                and the escalation trio (the only machines that
+                                dispatch an escalation)
   --machine-corpus=standard-deployment
                                 Materialize and boot from config/standard-deployment-corpus.txt
   --machine-corpus-manifest=PATH
