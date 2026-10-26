@@ -314,6 +314,55 @@ def build_shards(report: Json, corpus: dict[str, Json], resident: set[str],
     return shards
 
 
+def compare_shard(label: str, doc: Json, machines: dict[str, Json],
+                  stimulus_now: dict[str, Any]) -> tuple[int, list[str], str | None]:
+    """Compare one recorded shard with what this run committed.
+
+    Returns (machines checked, drift lines, incomparable reason). A shard is
+    comparable only under the stimulus it was recorded with -- the same resident
+    set, seed depth and steps -- so a mismatch there is reported as
+    incomparable, never as drift.
+    """
+    was_stim = doc.get("stimulus") or {}
+    mismatch = [f"{key} {was_stim.get(key)!r} != {now!r}"
+                for key, now in sorted(stimulus_now.items()) if was_stim.get(key) != now]
+    if mismatch:
+        return 0, [], f"{label}: recorded under a different stimulus ({'; '.join(mismatch)})"
+
+    drift: list[str] = []
+    recorded = doc.get("machines", {})
+    for name, entry in sorted(machines.items()):
+        was = recorded.get(name)
+        if was is None:
+            drift.append(f"{label}/{name}: not in the recorded shard")
+        elif was.get("verdict") != entry.get("verdict"):
+            drift.append(f"{label}/{name}: verdict {was.get('verdict')} -> {entry.get('verdict')}")
+        elif json.dumps(was, sort_keys=True) != json.dumps(entry, sort_keys=True):
+            drift.append(f"{label}/{name}: same verdict ({entry.get('verdict')}) "
+                         "but the committed output changed")
+    for name in sorted(set(recorded) - set(machines)):
+        drift.append(f"{label}/{name}: recorded but not committed by this run")
+    return len(machines), drift, None
+
+
+def corpus_membership_drift(label: str, doc: Json, now: Json) -> list[str]:
+    """What changed in a corpus scope's machine files since its shard was recorded.
+
+    A corpus shard is a recording of one manifest's machines. When the manifest
+    gains, loses or edits a machine, the shard describes a corpus that no longer
+    exists, and the remedy is to re-record it -- which the line says.
+    """
+    was = (doc.get("corpusFingerprint") or {}).get("members") or {}
+    cur = now.get("members") or {}
+    lines = [f"{label}: +{rel} (not in the recorded corpus)" for rel in sorted(set(cur) - set(was))]
+    lines += [f"{label}: -{rel} (recorded, no longer in the corpus)" for rel in sorted(set(was) - set(cur))]
+    lines += [f"{label}: ~{rel} (changed since recorded)"
+              for rel in sorted(set(cur) & set(was)) if cur[rel] != was[rel]]
+    if lines:
+        lines.append(f"{label}: re-record with --corpus {label.split(':', 1)[1]} --write")
+    return lines
+
+
 def main() -> int:
     ap = argparse.ArgumentParser(description=__doc__,
                                  formatter_class=argparse.RawDescriptionHelpFormatter)
@@ -428,38 +477,48 @@ def main() -> int:
         drift: list[str] = []
         incomparable: list[str] = []
         checked = 0
+        stimulus_now = {"residentMachines": len(resident), "seedDepth": report["seedDepth"],
+                        "steps": report["steps"]}
 
-        for domain, shard in sorted(shards.items()):
-            path = SHARD_DIR / f"domain-{domain}.json"
+        if args.corpus:
+            # A corpus scope is recorded as one artifact, corpus-<NAME>.json, so
+            # that is what it is checked against. This used to fall through to
+            # the per-domain shards below: the corpus shard --write produces was
+            # never read, and the regression corpus's localAIStack machines
+            # project a `localai` domain that has no domain shard and cannot
+            # have one, so the check exited 1 on "no shard on disk" whatever the
+            # runtimes did.
+            label = f"corpus:{args.corpus}"
+            path = SHARD_DIR / f"corpus-{args.corpus}.json"
             if not path.exists():
-                drift.append(f"{domain}: no shard on disk to check against")
-                continue
-            doc = json.loads(path.read_text(encoding="utf-8"))
-            was_stim = doc.get("stimulus") or {}
-            mismatch = [
-                f"{key} {was_stim.get(key)!r} != {now!r}"
-                for key, now in (("residentMachines", len(resident)),
-                                 ("seedDepth", report["seedDepth"]),
-                                 ("steps", report["steps"]))
-                if was_stim.get(key) != now
-            ]
-            if mismatch:
-                incomparable.append(f"{domain}: recorded under a different stimulus "
-                                    f"({'; '.join(mismatch)})")
-                continue
-
-            recorded = doc.get("machines", {})
-            for name, entry in sorted(shard["machines"].items()):
-                was = recorded.get(name)
-                checked += 1
-                if was is None:
-                    drift.append(f"{domain}/{name}: not in the recorded shard")
-                elif was.get("verdict") != entry.get("verdict"):
-                    drift.append(f"{domain}/{name}: verdict "
-                                 f"{was.get('verdict')} -> {entry.get('verdict')}")
-                elif json.dumps(was, sort_keys=True) != json.dumps(entry, sort_keys=True):
-                    drift.append(f"{domain}/{name}: same verdict "
-                                 f"({entry.get('verdict')}) but the committed output changed")
+                drift.append(f"{label}: no shard on disk to check against "
+                             f"(record with --corpus {args.corpus} --write)")
+            else:
+                doc = json.loads(path.read_text(encoding="utf-8"))
+                committed: Json = {}
+                for shard in shards.values():
+                    committed.update(shard["machines"])
+                drift += corpus_membership_drift(
+                    label, doc, corpus_fingerprint([scope_files[n] for n in committed
+                                                    if n in scope_files]))
+                if not drift:
+                    n, lines, why = compare_shard(label, doc, committed, stimulus_now)
+                    checked += n
+                    drift += lines
+                    if why:
+                        incomparable.append(why)
+        else:
+            for domain, shard in sorted(shards.items()):
+                path = SHARD_DIR / f"domain-{domain}.json"
+                if not path.exists():
+                    drift.append(f"{domain}: no shard on disk to check against")
+                    continue
+                doc = json.loads(path.read_text(encoding="utf-8"))
+                n, lines, why = compare_shard(domain, doc, shard["machines"], stimulus_now)
+                checked += n
+                drift += lines
+                if why:
+                    incomparable.append(why)
 
         if incomparable:
             print(f"\n  not comparable under this universe ({len(incomparable)}):")
@@ -468,8 +527,8 @@ def main() -> int:
             print("    a shard is checkable only against the stimulus it was recorded "
                   "with; load that scope in isolation to check it")
         if drift:
-            print(f"\n  DRIFT against the recorded shards ({len(drift)} of {checked} "
-                  f"machines checked):")
+            print(f"\n  DRIFT against the recorded shards ({checked} machine(s) "
+                  f"compared):")
             for line in drift[:20]:
                 print(f"    {line}")
             return 1

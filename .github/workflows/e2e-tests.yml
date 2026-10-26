@@ -539,6 +539,13 @@ jobs:
         working-directory: RealityEngine_CI
         run: bash scripts/tests/test-ces-contracts-quorum.sh
 
+      # --check --corpus NAME compares with corpus-NAME.json, the artifact
+      # --corpus NAME --write produces; it read only the domain shards, and the
+      # regression corpus's localai domain has none, so it always failed.
+      - name: Run CES contract check unit tests
+        working-directory: RealityEngine_CI
+        run: bash scripts/tests/test-ces-contracts-check.sh
+
       # A failed deploy is one orchestration finding, not a health failure
       # filed against every stack it tore down (localOpenClawStack#39).
       - name: Run deploy-validate agent unit tests
