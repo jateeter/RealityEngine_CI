@@ -152,6 +152,103 @@ set -e
 assert_eq "$CODE" "1" "no instances is a failure, not a pass"
 assert_contains "$OUT" "no PE instances" "says the registry was empty"
 
+# ── Check 5: --agent-turn ──────────────────────────────────────────────────
+# A routed stub: GET and POST by path. A PE's agent sensor either advances its
+# lastUpdated on every read (the turn wrote it) or holds it (it did not).
+cat > "$TMP/routed.py" <<'PYEOF'
+import json, sys, itertools
+from http.server import BaseHTTPRequestHandler, HTTPServer
+port = int(sys.argv[1]); routes = json.load(open(sys.argv[2]))
+tick = itertools.count(1000)
+class H(BaseHTTPRequestHandler):
+    def reply(self):
+        key = f"{self.command} {self.path}"
+        r = routes.get(key)
+        if r is None:
+            self.send_response(404); self.end_headers(); return
+        body = r["body"]
+        if r.get("advance"):
+            body = json.loads(json.dumps(body).replace('"__TICK__"', str(next(tick))))
+        self.send_response(r.get("status", 200))
+        self.send_header("content-type", "application/json"); self.end_headers()
+        self.wfile.write(json.dumps(body).encode())
+    def do_GET(self): self.reply()
+    def do_POST(self):
+        self.rfile.read(int(self.headers.get("content-length", 0))); self.reply()
+    def log_message(self, *a): pass
+HTTPServer(("127.0.0.1", port), H).serve_forever()
+PYEOF
+spawn_routed() {              # $1=routes-file -> echoes port
+  local port
+  port=$(python3 -c "import socket;s=socket.socket();s.bind(('127.0.0.1',0));print(s.getsockname()[1]);s.close()")
+  python3 "$TMP/routed.py" "$port" "$1" >/dev/null 2>&1 &
+  echo "$!" >> "$PIDFILE"
+  for _ in $(seq 1 40); do
+    curl -s "http://127.0.0.1:$port/" >/dev/null 2>&1 && break
+    sleep 0.1
+  done
+  echo "$port"
+}
+pe_routes() {                 # $1=out  $2=advance(true|false)
+  python3 - "$1" "$2" "$OLLAMA" <<'PYEOF'
+import json, sys
+out, advance, ollama = sys.argv[1], sys.argv[2] == "true", sys.argv[3]
+sensor = {"id": "source-x", "sensorId": "localai_agent_activity", "type": "sensor",
+          "active": advance, "lastUpdated": "__TICK__" if advance else 5}
+json.dump({
+    "GET /api/integrations/ollama/status": {"body": {"reachable": True, "model": "gpt-oss:20b",
+                                                     "baseUrl": f"http://127.0.0.1:{ollama}"}},
+    "GET /api/sources": {"body": [{"id": "other", "type": "test"}, sensor], "advance": advance},
+}, open(out, "w"))
+PYEOF
+}
+stack_routes() {              # $1=out  $2=agent-status  $3=agent-body-json
+  python3 - "$1" "$2" "$3" <<'PYEOF'
+import json, sys
+json.dump({"GET /health": {"body": {"status": "ok"}},
+           "POST /graph/agent": {"status": int(sys.argv[2]), "body": json.loads(sys.argv[3])}},
+          open(sys.argv[1], "w"))
+PYEOF
+}
+pe_routes "$TMP/pe-writes.json" true;  PE_WRITES=$(spawn_routed "$TMP/pe-writes.json")
+pe_routes "$TMP/pe-silent.json" false; PE_SILENT=$(spawn_routed "$TMP/pe-silent.json")
+stack_routes "$TMP/st-good.json" 200 '{"answer":"Low HRV suggests incomplete recovery.","tool_calls_made":1}'
+stack_routes "$TMP/st-notool.json" 200 '{"answer":"Low HRV suggests incomplete recovery.","tool_calls_made":0}'
+stack_routes "$TMP/st-500.json" 500 '{"detail":"Internal Server Error"}'
+ST_GOOD=$(spawn_routed "$TMP/st-good.json")
+ST_NOTOOL=$(spawn_routed "$TMP/st-notool.json")
+ST_500=$(spawn_routed "$TMP/st-500.json")
+
+registry "$TMP/reg-writes.json" "$PE_WRITES" "$PE_WRITES"
+OUT="$(python3 "$TOOL" --registry "$TMP/reg-writes.json" --localai-url "http://127.0.0.1:$ST_GOOD" --agent-turn --out "$TMP/turn-ok.json" 2>&1)"; CODE=$?
+assert_eq "$CODE" "0" "an answered agent turn that wrote every PE passes"
+assert_contains "$OUT" "1 tool call(s), localai_agent_activity written on 2 PE(s)" "reports the turn"
+
+# localAIStack#145: the tools node raised on every turn that called a tool.
+set +e
+OUT="$(python3 "$TOOL" --registry "$TMP/reg-writes.json" --localai-url "http://127.0.0.1:$ST_500" --agent-turn --out "$TMP/turn-500.json" 2>&1)"; CODE=$?
+set -e
+assert_eq "$CODE" "1" "an agent turn that errors fails the stage"
+assert_contains "$OUT" "agent turn failed" "names the agent turn"
+
+set +e
+OUT="$(python3 "$TOOL" --registry "$TMP/reg-writes.json" --localai-url "http://127.0.0.1:$ST_NOTOOL" --agent-turn --out "$TMP/turn-notool.json" 2>&1)"; CODE=$?
+set -e
+assert_eq "$CODE" "1" "a turn that called no tool fails"
+assert_contains "$OUT" "tools node was not exercised" "says the tools node went unexercised"
+
+registry "$TMP/reg-silent.json" "$PE_WRITES" "$PE_SILENT"
+set +e
+OUT="$(python3 "$TOOL" --registry "$TMP/reg-silent.json" --localai-url "http://127.0.0.1:$ST_GOOD" --agent-turn --out "$TMP/turn-silent.json" 2>&1)"; CODE=$?
+set -e
+assert_eq "$CODE" "1" "a PE the turn did not write fails"
+assert_contains "$OUT" "rt-2: the agent turn did not write localai_agent_activity" "names that PE"
+
+# Without --agent-turn the stage is what it was: no POST is made.
+OUT="$(python3 "$TOOL" --registry "$TMP/reg-writes.json" --localai-url "http://127.0.0.1:$ST_500" --out "$TMP/turn-off.json" 2>&1)"; CODE=$?
+assert_eq "$CODE" "0" "no --agent-turn, no agent turn"
+assert_eq "$(python3 -c "import json;print('agentTurn' in json.load(open('$TMP/turn-off.json')))")" "False" "and none is reported"
+
 echo
 echo "passed: $PASS  failed: $FAIL"
 [ "$FAIL" -eq 0 ]

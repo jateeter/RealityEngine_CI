@@ -1939,7 +1939,7 @@ PYEOF
 # surfaces and then tests nothing that the hosted lane does not already cover.
 
 run_local_ai() {
-  step "Local AI provider reachability"
+  step "Local AI provider reachability and an agent turn"
   if [ "$LOCAL_AI" != true ]; then
     log "SKIP local AI: disabled on this profile"
     write_skip_report "local-ai-skipped.json" "local AI disabled (--profile $PROFILE)"
@@ -1951,9 +1951,13 @@ run_local_ai() {
   # last command's status, so the probe's failure was lost behind a passing
   # allow-list check: run e1-20261019c recorded local-ai passed while its
   # report said failed.
+  # --agent-turn: one /graph/agent turn through a tool, written to every PE.
+  # The provider checks alone passed while every agent turn that called a tool
+  # failed (localAIStack#145).
   run_cmd "local-ai-probe" python3 "$ci/scripts/regression-local-ai.py" \
     --registry "$REGISTRY_FILE" \
     --localai-url "$LOCAL_AI_URL" \
+    --agent-turn \
     --out "$REPORT_DIR/local-ai.json" || status=1
   # The curated invoke allow-list (INTEGRATION_ROADMAP §6 Q7) against what
   # localAIStack actually serves. An allowed operation it no longer serves
