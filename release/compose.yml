@@ -74,7 +74,7 @@ services:
 
   qdrant:
     <<: *common
-    image: qdrant/qdrant:v1.14.1@sha256:419d72603f5346ee22ffc4606bdb7beb52fcb63077766fab678e6622ba247366
+    image: qdrant/qdrant:v1.19.2@sha256:b7b0444c4c351c970b98e90a6f89c2ee4287c65b44e52b4cb503fa5b2aa927ad
     volumes:
       - qdrant-data:/qdrant/storage
     # On the host as in the native lane (4333), for tools and the RAG specs.

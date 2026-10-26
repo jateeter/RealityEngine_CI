@@ -400,6 +400,16 @@ REPORT_DIR="$RUN_DIR/reports"
 WORKTREE_DIR="$RUN_DIR/worktrees"
 WORKTREE_BRANCH="$BRANCH_NAME-$RUN_ID"
 
+# localAIStack's Qdrant is a named Docker volume (localAIStack#149), and every
+# checkout of that repo is the compose project `localaistack`, this run's
+# worktree included. A fixed name would be one store shared by the developer
+# checkout and every run; this run gets its own, removed with the run
+# (prune_run_history), so each run starts from an empty store as it did when
+# the store was a directory in the run's worktree.
+localai_qdrant_volume() { printf 'localaistack-qdrant-%s' "$(printf '%s' "$1" | tr -c 'A-Za-z0-9_.-' '-')"; }
+export LOCALAI_QDRANT_VOLUME
+LOCALAI_QDRANT_VOLUME="$(localai_qdrant_volume "$RUN_ID")"
+
 log() { printf '%s\n' "$*"; }
 step() { printf '\n== %s ==\n' "$*"; }
 
@@ -1019,6 +1029,11 @@ prune_run_history() {
         case "$br" in Regression-Test*) git -C "$repo" branch -D "$br" >/dev/null 2>&1 || true ;; esac
         git -C "$repo" worktree prune >/dev/null 2>&1 || true
       done
+    fi
+    local qv
+    qv="$(localai_qdrant_volume "$r")"
+    if docker volume inspect "$qv" >/dev/null 2>&1 && ! docker volume rm "$qv" >/dev/null 2>&1; then
+      log "Run history: could not remove Docker volume $qv (still in use?)"
     fi
     if rm -rf "$dir" 2>/dev/null; then
       removed=$(( removed + 1 ))

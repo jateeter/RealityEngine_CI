@@ -36,6 +36,14 @@ info() { :; }
 ok()   { :; }
 WARNS=()
 add_warn() { WARNS+=("$*"); }
+# Docker volumes the lib may remove: a file per volume under $TMP/volumes.
+docker() {
+  case "$1 $2" in
+    "volume inspect") [ -e "$TMP/volumes/$3" ] ;;
+    "volume rm") rm "$TMP/volumes/$3" ;;
+    *) return 1 ;;
+  esac
+}
 
 build_tree() {
   rm -rf "$TMP/tree"; mkdir -p "$TMP/tree"
@@ -53,9 +61,10 @@ build_tree() {
   echo '{"sources":[]}' > "$MGR_DIR/perception-engine/backend/data/perception-sources.json"
   # C++ and LSP hold sources in memory; nothing on disk to find.
   mkdir -p "$CPP_DIR" "$LSP_DIR"
-  mkdir -p "$LAS_DIR/volumes/redis" "$LAS_DIR/volumes/qdrant"
+  mkdir -p "$LAS_DIR/volumes/redis"
   echo 'appendonly' > "$LAS_DIR/volumes/redis/appendonly.aof"
-  echo 'vectors'    > "$LAS_DIR/volumes/qdrant/segment.dat"
+  rm -rf "$TMP/volumes"; mkdir -p "$TMP/volumes"
+  : > "$TMP/volumes/localaistack-qdrant"; : > "$TMP/volumes/localaistack-qdrant-run-a"
 }
 
 source "$CI_DIR/scripts/lib/fresh-start.sh"
@@ -92,8 +101,8 @@ assert_eq "${#WARNS[@]}" "0" "no warnings on a clean run"
 
 # The line this replaced would have wiped the vector store as a side effect of
 # asking for a fresh universe. Ingested documents are content, not run state.
-assert_present "$LAS_DIR/volumes/qdrant/segment.dat" \
-  "qdrant vector store survives --fresh"
+assert_present "$TMP/volumes/localaistack-qdrant" \
+  "qdrant volume survives --fresh"
 
 echo
 echo "== --fresh-provider-content =="
@@ -102,8 +111,31 @@ build_tree
 FRESH_PROVIDER_CONTENT=true
 WARNS=()
 clear_perception_state
-assert_eq "$(ls "$LAS_DIR/volumes/qdrant" | wc -l | tr -d ' ')" "0" \
-  "qdrant cleared only when explicitly asked"
+assert_absent "$TMP/volumes/localaistack-qdrant" "qdrant volume removed only when explicitly asked"
+assert_present "$TMP/volumes/localaistack-qdrant-run-a" "and only this checkout's volume"
+
+# A regression run names its own volume; that is the one removed.
+build_tree
+FRESH_PROVIDER_CONTENT=true
+WARNS=()
+LOCALAI_QDRANT_VOLUME=localaistack-qdrant-run-a clear_perception_state
+assert_absent "$TMP/volumes/localaistack-qdrant-run-a" "LOCALAI_QDRANT_VOLUME names the volume removed"
+assert_present "$TMP/volumes/localaistack-qdrant" "the developer checkout's volume is left alone"
+
+# A volume in use is a warning, not a silent pass.
+build_tree
+FRESH_PROVIDER_CONTENT=true
+WARNS=()
+docker() { case "$1 $2" in "volume inspect") return 0 ;; *) return 1 ;; esac; }
+clear_perception_state
+assert_eq "${#WARNS[@]}" "1" "a volume that cannot be removed is reported"
+docker() {
+  case "$1 $2" in
+    "volume inspect") [ -e "$TMP/volumes/$3" ] ;;
+    "volume rm") rm "$TMP/volumes/$3" ;;
+    *) return 1 ;;
+  esac
+}
 
 echo
 echo "== nothing to clear =="
