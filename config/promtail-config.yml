@@ -104,3 +104,44 @@ scrape_configs:
           service: universe
           source:  host
           __path__: /host-logs/tmp/{corpus_seed,corpus_validate,pe_bootstrap,manager_universe}.log
+
+  # ── Sibling compose stacks (localAIStack, localOpenClawStack) ─────────────
+  # Their containers log through the Loki Docker driver to localAIStack's own
+  # Loki on :4100, which a universe never starts, so those lines reached no
+  # Loki at all and the localAIStack Overview logs panel stayed empty. Docker
+  # keeps a local copy of every container's log (dual logging), so this reads
+  # it through the Docker API instead, whatever driver the container uses.
+  # `service` is <project>-<service>, e.g. localaistack-api, the label the
+  # dashboards query. This stack's own containers (project realityengine_ci)
+  # are left to their Loki driver, which already reaches this Loki.
+  #
+  # Select by project in the Docker filter, one block per project, not with a
+  # relabel `keep`: Promtail 3.4 starts a reader for every container the filter
+  # passes, and `keep` only strips its labels, so every other container's log
+  # was still read and pushed with no labels at all (which Loki rejects).
+  # Docker ANDs the values of one filter, so the two projects need two blocks.
+  - job_name: compose-siblings
+    docker_sd_configs:
+      - host: unix:///var/run/docker.sock
+        refresh_interval: 10s
+        filters:
+          - name: label
+            values: ["com.docker.compose.project=localaistack"]
+      - host: unix:///var/run/docker.sock
+        refresh_interval: 10s
+        filters:
+          - name: label
+            values: ["com.docker.compose.project=localopenclawstack"]
+    relabel_configs:
+      - source_labels:
+          - __meta_docker_container_label_com_docker_compose_project
+          - __meta_docker_container_label_com_docker_compose_service
+        separator: "-"
+        target_label: service
+      - source_labels: [__meta_docker_container_label_com_docker_compose_project]
+        target_label: project
+      - source_labels: [__meta_docker_container_name]
+        regex: /?(.*)
+        target_label: container
+      - target_label: source
+        replacement: compose

@@ -583,13 +583,18 @@ start_bridge_metrics_exporter() {
     fi
 
     info "Starting AI bridge metrics exporter on $url/metrics..."
+    # The exporter starts here, before the OpenClaw block below reads
+    # _ocs_token, so it gets the env file and reads the token at scrape time.
+    # Passing ${_ocs_token} here always passed an empty token: /v1/models
+    # answered 401 and the model count read 0.
     (
       cd "$CI_DIR"
       BRIDGE_METRICS_HOST="$BRIDGE_METRICS_HOST" \
       BRIDGE_METRICS_PORT="$BRIDGE_METRICS_PORT" \
       BRIDGE_METRICS_LEDGER="$BRIDGE_METRICS_LEDGER" \
       OPENCLAW_GATEWAY_URL="${OPENCLAW_GATEWAY_URL:-http://127.0.0.1:${OCS_GW_PORT:-18789}}" \
-      OPENCLAW_GATEWAY_TOKEN="${_ocs_token:-${OPENCLAW_GATEWAY_TOKEN:-}}" \
+      OPENCLAW_GATEWAY_TOKEN="${OPENCLAW_GATEWAY_TOKEN:-}" \
+      OPENCLAW_ENV_FILE="$OCS_DIR/.env" \
       LOCALAI_API_URL="${LOCALAI_API_URL:-http://127.0.0.1:4000}" \
       QDRANT_URL="${QDRANT_URL:-http://127.0.0.1:4333}" \
       OLLAMA_BASE_URL="${OLLAMA_BASE_URL:-http://127.0.0.1:11434}" \

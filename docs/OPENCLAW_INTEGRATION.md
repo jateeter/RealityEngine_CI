@@ -152,6 +152,8 @@ http://localhost:7342/metrics
 
 Prometheus scrapes that endpoint through the `ai-bridge-operations` job, and Grafana provisions the `AI Bridge Operations` dashboard. The exporter reports OpenClaw gateway health, OpenClaw model inventory, localAIStack service health, Qdrant collection count, Ollama model count, and OpenClaw adapter execution counters.
 
+The model inventory needs the gateway token: `/v1/models` answers 401 without it. `startUniverse.sh` passes `OPENCLAW_ENV_FILE` (localOpenClawStack's `.env`), and the exporter reads `OPENCLAW_GATEWAY_TOKEN` from it at each scrape; an `OPENCLAW_GATEWAY_TOKEN` in the exporter's own environment takes precedence. localAIStack services that `/health` reports as objects count as up when they carry `status: "ok"` or `ok: true`.
+
 The OpenClaw adapter appends execution events to `/tmp/realityengine-openclaw-adapter-metrics.jsonl` by default. Set `BRIDGE_METRICS_LEDGER` to use a different ledger path.
 
 For local validation without a live gateway:
