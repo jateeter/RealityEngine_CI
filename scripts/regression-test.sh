@@ -107,6 +107,9 @@ ENGINES_SPEC="cpp:1,lsp:1,scala:1"
 # The instance registry file the stages read. startUniverse.sh writes it here;
 # the local-containerized lane points it at its install (scripts/lib/containerized-lane.sh).
 REGISTRY_FILE="/tmp/re-registry/re-registry.json"
+# What startUniverse.sh / stopUniverse.sh may replace although it runs from
+# another checkout: the stacks earlier runs started from their worktrees (#637).
+# Set after argument parsing, once HISTORY_DIR is final.
 # --profile local-containerized: the images file to install. Empty builds the
 # images from the run's worktrees instead.
 RELEASE_IMAGES_FILE=""
@@ -395,6 +398,8 @@ esac
 MACHINE_CORPUS_BOOT="${MACHINE_CORPUS_BOOT:-$MACHINE_CORPUS}"
 
 RUN_DIR="$HISTORY_DIR/runs/$RUN_ID"
+RE_OWNED_STACK_ROOTS="$(python3 -c 'import os, sys; print(os.path.realpath(sys.argv[1]))' "$HISTORY_DIR/runs")${RE_OWNED_STACK_ROOTS:+:$RE_OWNED_STACK_ROOTS}"
+export RE_OWNED_STACK_ROOTS
 LOG_DIR="$RUN_DIR/logs"
 REPORT_DIR="$RUN_DIR/reports"
 WORKTREE_DIR="$RUN_DIR/worktrees"
@@ -891,6 +896,26 @@ foreign_port_blockers() {
   [ "${#blockers[@]}" -eq 0 ] || printf '%s\n' "${blockers[@]}"
 }
 
+# The hosted profile skips the Docker preflight, whose teardown is the local
+# lane's way of stopping the previous universe. On a hosted runner there is
+# none. On a host -- the local hosted lane, which stands in for a runner -- the
+# previous run's engines are still up, and starting over them hands this run's
+# instances the UUIDs those engines hold and deletes the instance registry that
+# records them (#637). So the engines it lists come down first; the Docker
+# stacks are left to startUniverse.sh, which replaces an earlier run's through
+# RE_OWNED_STACK_ROOTS.
+stop_previous_native_universe() {
+  local live
+  live="$(REGISTRY_FILE="$REGISTRY_FILE" bash -c 'source "$1/scripts/registry.sh"; registry_live_engines' _ "$CI_DIR" 2>/dev/null || true)"
+  [ -n "$live" ] || return 0
+  step "Stop the previous universe's engines"
+  printf '%s\n' "$live" | while read -r line; do log "  running: $line"; done
+  run_cmd "previous-universe-stop" bash -lc "cd '$CI_DIR' && ./stopUniverse.sh --engines-only" || {
+    log "ERROR: the previous universe's engines did not all stop; see logs/previous-universe-stop.log"
+    exit 1
+  }
+}
+
 prepare_docker() {
   if [ "$CONTAINERIZED" = true ]; then
     # Nothing of the operator's is stopped: the installer refuses a held port
@@ -899,7 +924,10 @@ prepare_docker() {
     start_docker_daemon || { log "The containerized lane cannot run without Docker."; exit 1; }
     return 0
   fi
-  [ "$PROFILE" = "local" ] || return 0
+  if [ "$PROFILE" != "local" ]; then
+    stop_previous_native_universe
+    return 0
+  fi
   step "Docker preflight"
   start_docker_daemon || {
     log "The local lane cannot build or start anything without Docker."

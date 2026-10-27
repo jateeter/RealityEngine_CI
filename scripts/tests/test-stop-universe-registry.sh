@@ -36,6 +36,9 @@ mkdir -p "$SANDBOX/scripts/lib" "$TMP/registry"
 cp "$CI_DIR/stopUniverse.sh" "$SANDBOX/"
 cp "$CI_DIR/scripts/registry.sh" "$SANDBOX/scripts/"
 cp "$CI_DIR/scripts/lib/stack-owner.sh" "$SANDBOX/scripts/lib/"
+cp "$CI_DIR/scripts/lib/instance_uuids.py" "$SANDBOX/scripts/lib/"
+# Instance locks are read from here, never from the operator's ~/.reality-engine.
+STATE="$TMP/instance-state"; mkdir -p "$STATE/clock"
 
 free_port() { python3 -c 'import socket; s=socket.socket(); s.bind(("127.0.0.1",0)); print(s.getsockname()[1])'; }
 
@@ -58,6 +61,7 @@ alive() { kill -0 "$1" 2>/dev/null && echo yes || echo no; }
 REG="$TMP/registry/re-registry.json"
 run_stop_with() {  # [stopUniverse.sh args...]
   env RE_REGISTRY_FILE="$REG" RE_REGISTRY_PID_FILE="$TMP/registry-server.pid" \
+      RE_INSTANCE_STATE_DIR="$STATE" INSTANCE_CLOCK_DIR="$STATE/clock" \
       RE_REGISTRY_PORT="$(free_port)" \
       CPP_PE_BASE="$(free_port)" LSP_PE_BASE="$(free_port)" SCALA_PE_BASE="$(free_port)" \
       MCP_HTTP_PID_FILE="$TMP/mcp.pid" OPENAPI_SWAGGER_PID_FILE="$TMP/swagger.pid" \
@@ -110,6 +114,34 @@ rm -f "$REG"
 set +e; out=$(run_stop); rc=$?; set -e
 check "$rc" 0 "teardown exits 0"
 check "$(grep -c 'Stopped instance' <<<"$out")" 0 "stops no instance"
+
+echo "an engine holding its instance lock that the instance registry does not list (#637)"
+# The older universe a free-port start orphaned: its instance registry was
+# replaced, so nothing registered names it, but its RE still holds its UUID's
+# lock. Reported, never killed -- it may be another universe running alongside.
+LOCKED_UUID=01a10000-0000-7000-8000-000000000637
+python3 -c '
+import fcntl, os, sys, time  # an engine-shaped command line: http.server
+fd = os.open(sys.argv[1], os.O_RDWR | os.O_CREAT, 0o644)
+fcntl.lockf(fd, fcntl.LOCK_EX | fcntl.LOCK_NB)
+open(sys.argv[2], "w").close()
+time.sleep(600)' "$STATE/clock/$LOCKED_UUID.lock" "$TMP/locked" >/dev/null 2>&1 &
+ORPHAN=$!; echo "$ORPHAN" >> "$LISTENERS"
+n=0; while [ ! -f "$TMP/locked" ] && [ "$n" -lt 50 ]; do sleep 0.1; n=$((n+1)); done
+P7=$(free_port); P8=$(free_port)
+R3=$(engine_listener "$P7"); E3=$(engine_listener "$P8")
+for p in "$P7" "$P8"; do wait_listening "$p"; done
+cat > "$REG" <<JSON
+{"host":"127.0.0.1",
+ "instances":[{"id":"cpp-1","runtime":"cpp","re_port":$P7,"pe_port":$P8,"pid_re":$R3,"pid_pe":$E3}],
+ "services":{}}
+JSON
+set +e; out=$(run_stop); rc=$?; set -e
+check "$rc" 0 "teardown exits 0: the registered instances did stop"
+check "$(alive "$R3")$(alive "$E3")" nono "the registered instance is gone"
+check "$(grep -c "instance $LOCKED_UUID — PID $ORPHAN" <<<"$out")" 1 "the unregistered live instance is named, by UUID and PID"
+check "$(alive "$ORPHAN")" yes "and left running"
+kill "$ORPHAN" 2>/dev/null || true; wait "$ORPHAN" 2>/dev/null || true
 
 echo "a multi-engine stamp: the header names its engines, and the AI stack stops once"
 # The stamp of a --engines universe carries RE_ENGINE=ai beside ENGINES=, so the

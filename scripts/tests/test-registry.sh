@@ -149,6 +149,73 @@ _exit=$?
 set -e
 assert_exit "$_exit" "1" "U13: an allocation table holding a duplicate is refused, not repaired"
 
+# ── A live UUID is never handed to a second instance (#637) ──────────────────
+# Two universes on one lane both have a cpp-1; while one holds its UUID, the
+# other's cpp-1 is a different instance. The lock is held the way the engines
+# hold it: a POSIX lock over <clock>/<uuid>.lock for the life of the process.
+export RE_INSTANCE_STATE_DIR="$TMPDIR_TEST/instance-state-live"
+u_live=$(instance_uuid_allocate native cpp-1)
+mkdir -p "$RE_INSTANCE_STATE_DIR/clock"
+python3 -c '
+import fcntl, os, sys, time
+fd = os.open(sys.argv[1], os.O_RDWR | os.O_CREAT, 0o644)
+fcntl.lockf(fd, fcntl.LOCK_EX | fcntl.LOCK_NB)
+open(sys.argv[2], "w").close()
+time.sleep(60)' "$RE_INSTANCE_STATE_DIR/clock/$u_live.lock" "$TMPDIR_TEST/locked" &
+_holder=$!
+for _ in $(seq 1 50); do [ -f "$TMPDIR_TEST/locked" ] && break; sleep 0.1; done
+assert_eq "$(python3 "$CI_DIR/scripts/lib/instance_uuids.py" holder "$u_live")" "$_holder" "L1: the probe names the process holding an instance's lock"
+assert_eq "$(instance_uuid_live)" "$u_live $_holder" "L2: live lists every held instance lock"
+u_second=$(instance_uuid_allocate native cpp-1 2>/dev/null)
+[ "$u_second" != "$u_live" ] && _distinct=yes || _distinct=no
+assert_eq "$_distinct" "yes" "L3: while cpp-1's UUID is live, a second cpp-1 is a different instance with its own UUID"
+assert_eq "$(python3 -c "import json,sys; print(json.load(open(sys.argv[1]))['instances']['native/cpp-1#2'])" "$RE_INSTANCE_STATE_DIR/instance-uuids.json")" "$u_second" "L4: the second instance's UUID is recorded durably as native/cpp-1#2"
+assert_eq "$(instance_uuid_allocate native cpp-1 2>/dev/null)" "$u_second" "L5: and it keeps it on its next allocation"
+kill "$_holder"; wait "$_holder" 2>/dev/null || true
+assert_eq "$(bash -c 'source "$1"; instance_uuid_allocate native cpp-1' _ "$CI_DIR/scripts/registry.sh")" "$u_live" "L6: once nothing holds it, the next universe's cpp-1 has the recorded UUID again"
+set +e
+python3 "$CI_DIR/scripts/lib/instance_uuids.py" holder "$u_live" >/dev/null
+_exit=$?
+set -e
+assert_exit "$_exit" "1" "L7: holder exits 1 when no process holds the lock"
+
+# A lease covers allocation up to the engine taking its lock: a second universe
+# allocating the same id meanwhile gets another UUID, and the first universe's
+# own repeat allocation does not.
+sleep 120 & _owner_a=$!
+u_a=$(python3 "$CI_DIR/scripts/lib/instance_uuids.py" allocate native lsp-1 "$_owner_a")
+u_b=$(python3 "$CI_DIR/scripts/lib/instance_uuids.py" allocate native lsp-1 "$$" 2>/dev/null)
+[ "$u_a" != "$u_b" ] && _distinct=yes || _distinct=no
+assert_eq "$_distinct" "yes" "L8: a UUID leased by another starting universe is not handed out"
+assert_eq "$(python3 "$CI_DIR/scripts/lib/instance_uuids.py" allocate native lsp-1 "$_owner_a")" "$u_a" "L9: the leasing universe gets its own UUID again"
+kill "$_owner_a"; wait "$_owner_a" 2>/dev/null || true
+assert_eq "$(python3 "$CI_DIR/scripts/lib/instance_uuids.py" allocate native lsp-1 "$$")" "$u_a" "L10: a lease ends with the universe that took it"
+assert_eq "$(python3 -c "import json,sys; d=json.load(open(sys.argv[1])); print(sys.argv[2] in d.get('leases',{}), sys.argv[3] in d.get('leases',{}))" "$RE_INSTANCE_STATE_DIR/instance-uuids.json" "$u_a" "$u_b")" "True False" "L11: a universe re-allocating an id keeps one lease for it, not one per sibling"
+
+# ── registry_live_engines: what a start must not orphan (#637) ───────────────
+# A recorded pid counts while it is still an engine binary. The live one is a
+# process whose command line names an engine; the dead one has exited; the
+# reused one is alive but not an engine.
+LIVE_DIR="$TMPDIR_TEST/bin"
+mkdir -p "$LIVE_DIR"
+# A script, not a copied binary: macOS kills a copied system binary on launch.
+printf '#!/usr/bin/env python3\nimport time, sys\ntime.sleep(int(sys.argv[1]))\n' > "$LIVE_DIR/reality_engine_server"
+chmod +x "$LIVE_DIR/reality_engine_server"
+"$LIVE_DIR/reality_engine_server" 120 & _eng=$!
+sleep 120 & _other=$!
+sh -c 'exit 0' & _dead=$!; wait "$_dead" 2>/dev/null || true
+cat > "$RE_REGISTRY_FILE" <<JSON
+{"host":"127.0.0.1","instances":[
+ {"id":"cpp-1","runtime":"cpp","pid_re":$_eng,"pid_pe":$_dead},
+ {"id":"lsp-1","runtime":"lsp","pid_re":$_other,"pid_pe":null}]}
+JSON
+_live=$(registry_live_engines)
+assert_eq "$(awk '{print $1, $2, $3}' <<<"$_live")" "cpp-1 RE $_eng" "R1: only the live engine pid is reported, with its instance and role"
+kill "$_eng" "$_other" 2>/dev/null || true; wait "$_eng" "$_other" 2>/dev/null || true
+assert_eq "$(registry_live_engines)" "" "R2: nothing once it has exited"
+rm -f "$RE_REGISTRY_FILE"
+assert_eq "$(registry_live_engines)" "" "R3: nothing without an instance registry"
+
 # ── Summary ───────────────────────────────────────────────────────────────────
 echo ""
 echo "registry: $PASS passed, $FAIL failed"

@@ -1,6 +1,6 @@
 # RealityEngine_CI Guidance
 
-Last reviewed: 2026-09-25
+Last reviewed: 2026-10-27
 
 See `/Users/johnt/workspace/GitHub/CLAUDE.md` for the integrated application map. Update both this file and the root map when orchestration, instance registry, environment, or e2e responsibilities change.
 
@@ -69,6 +69,18 @@ npm run test:deployment
   - The engine enforces it too: an instance holding an allocated UUID takes an
     exclusive lock for its life, so a second live process with the same UUID
     refuses to boot.
+  - An id names an instance within one universe, not across universes running
+    at once (#637). Allocation reuses `<lane>/<id>`'s UUID only when no live
+    process holds its lock (`F_GETLK` on `<clock>/<uuid>.lock`) and no other
+    starting universe leases it; otherwise the instance gets its own UUID,
+    kept as `<lane>/<id>#<n>`. `instance_uuids.py live` lists every held lock.
+  - `startUniverse.sh` refuses to start while the instance registry it would
+    replace lists a running engine (free ports no longer collide to stop it),
+    and `stopUniverse.sh` names any engine still holding an instance lock that
+    its instance registry did not list. The hosted profile stops the previous
+    universe's engines before starting, and `regression-test.sh` sets
+    `RE_OWNED_STACK_ROOTS` to its run history so an earlier run's localAI or
+    OpenClaw stack is replaced rather than refused as another checkout's.
 - The Docker path (no `--engines`) runs the same engine set as
   `--engines=cpp:1,lsp:1,scala:1`: compose services `engine-{scala,cpp,lsp}-{re,pe}`
   (images in `docker/scala`, `docker/scala-perception-engine`, `docker/cpp`,

@@ -68,6 +68,22 @@ run_guard() {  # <OPENCLAW> <DRY_RUN> [env...]
              echo "CONTINUED"' 2>&1 || true
 }
 
+echo "RE_OWNED_STACK_ROOTS (#637)"
+RUNS="$TMP/history/runs"; mkdir -p "$RUNS/20261027T040804Z/worktrees/localAIStack"
+running "localai_api	$RUNS/20261027T040804Z/worktrees/localAIStack"
+check "$(stack_foreign_owner "$WT" "$STACK_OWNER_LOCALAI_PATTERN")" "$(cd "$RUNS/20261027T040804Z/worktrees/localAIStack" && pwd -P)" \
+  "without it, an earlier regression run's stack is foreign"
+check "$(RE_OWNED_STACK_ROOTS="$RUNS" stack_foreign_owner "$WT" "$STACK_OWNER_LOCALAI_PATTERN")" "" \
+  "under an owned root, it is not"
+check "$(RE_OWNED_STACK_ROOTS="/elsewhere:$TMP/history/runs" stack_foreign_owner "$WT" "$STACK_OWNER_LOCALAI_PATTERN")" "" \
+  "any root in the colon-separated list counts"
+running "localai_api	$MAIN"
+check "$(RE_OWNED_STACK_ROOTS="$RUNS" stack_foreign_owner "$WT" "$STACK_OWNER_LOCALAI_PATTERN")" "$(cd "$MAIN" && pwd -P)" \
+  "the operator's checkout is still foreign with an owned root set"
+running "localai_api	$TMP/history/runs-other/x/localAIStack"
+check "$(RE_OWNED_STACK_ROOTS="$RUNS" stack_foreign_owner "$WT" "$STACK_OWNER_LOCALAI_PATTERN")" "$TMP/history/runs-other/x/localAIStack" \
+  "a sibling directory sharing the root's prefix is not under it"
+
 echo "startUniverse.sh guard"
 check "$([ -n "$GUARD" ] && echo found)" found "guard block extracted"
 running "localai_api	$MAIN"
