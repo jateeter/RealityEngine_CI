@@ -267,6 +267,15 @@ Best practices:
   each run. By default, the comparison report uses the latest previous
   completed run; `--compare RUN_ID` pins a specific baseline, and
   `--archive PATH` exports a copy of certification artifacts without worktrees.
+- The comparison has two halves. `changes` compares each section's and stage's
+  status, so it sees a stage that started or stopped passing. `measureChanges`
+  compares what the run measured: machines per runtime, interned test sources,
+  seed steps, contended cells, `/api/engine/process` outputs, localAI's view of
+  the PE sensors and RE machines, the OpenClaw agents checked against the
+  corpus, and the escalation-dispatch deltas. A passing run on a different
+  corpus changes no status, so only the measures show it (`summary.md`,
+  "Changed measures"). Only a measure both runs carry is compared; a baseline
+  written before a measure existed reports nothing for it.
 
 ## Roadmap
 

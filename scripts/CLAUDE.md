@@ -69,6 +69,19 @@ notes are in `docs/CES_CONTRACT_RETIRED_RECORDER.md`.
 
 - `regression-trajectory-parity.py`: ISRE/OSRE trajectory comparison across the
   registered runtimes for one seed sequence against whatever corpus is loaded.
+- `regression-escalation-dispatch.py` (stage `escalation-dispatch`, beside
+  trajectory parity): trajectory parity's drive, imported, measured at
+  `semantic_escalation_dispatches_total` (`GET {pe}/api/metrics`) and the
+  dispatch ledger. The counter is never reset, so the stage compares each
+  runtime's change across the drive per `rag`, and the ledger records the
+  drive created per machine and action; the runtimes must agree on both.
+  Failures: a split, an escalation under an explicit non-RED status, and with
+  `--expect-escalation` (the harness passes it for the regression and full
+  corpora) no RED escalation at all. A zero counter on every runtime is what an
+  engine that never counts reports (CPP#179, LSP#175). Skipped when no runtime
+  has trigger dispatch active. The per-machine check is dropped, with a
+  warning, only when the 256-record ledger ring may have dropped the drive's
+  own records: no record from before the drive survived it.
 - `regression-universal-vectors.py`: single-step response contract checks. Not
   the parity gate (see the comment above `run_trajectory_parity` in
   `regression-test.sh`). It records **both halves of every observation** — the
