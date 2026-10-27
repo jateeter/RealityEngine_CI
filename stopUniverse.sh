@@ -282,6 +282,28 @@ _verify_registered_pids_gone() {
   done
 }
 
+# Engines still live after the teardown that this instance registry did not list.
+# Every RE instance holds its UUID's lock (<clock>/<uuid>.lock) for its life, so
+# the locks find an engine whatever port it took and whether or not an instance
+# registry still records it. Reported, not killed: another universe may be
+# running alongside this one with instances of its own (#637). What this used to
+# miss is exactly that case: a start over a free-port universe had replaced the
+# instance registry, and the teardown reported every native instance stopped
+# while all six engines of the older universe ran on.
+_report_unregistered_live_instances() {
+  local uuid pid pcmd n=0
+  while read -r uuid pid; do
+    [ -n "$pid" ] || continue
+    case " ${REG_PIDS[*]-} " in *" $pid "*) continue ;; esac
+    pcmd=$(ps -o command= -p "$pid" 2>/dev/null || true)
+    printf '%s' "$pcmd" | grep -qE "$_ENGINE_LISTENER_PATTERN|sbcl" || continue
+    [ "$n" -eq 0 ] && warn "Engine instances still running that this instance registry does not list (another universe's, or one whose instance registry was replaced):"
+    warn "  instance $uuid — PID $pid ${pcmd:0:140}"
+    n=$((n + 1))
+  done < <(instance_uuid_live 2>/dev/null || true)
+  [ "$n" -eq 0 ] || info "Stop them from the checkout that started them, or by PID; their PEs are the matching perception processes."
+}
+
 stop_instance() {
   local id="$1"
   local entry
@@ -320,7 +342,7 @@ stop_all_engines() {
   # a dead port, and scripts/lib/registry-url.sh would hand it to every
   # consumer ahead of the :5999 default.
   rm -f "$CI_DIR/.universe-registry-url"
-  ok "All native instances stopped"
+  ok "Every instance in the instance registry stopped"
 }
 
 # A worktree is the same compose project as the main checkout, so `compose down`
@@ -514,6 +536,7 @@ if [ "$ENGINES_ONLY" = true ]; then
   stop_all_engines
   _sweep_native_ports
   _verify_registered_pids_gone
+  _report_unregistered_live_instances
   rm -f "$CI_DIR/.universe-engine-selection"
   echo ""
   if [ "${#STOP_FAILURES[@]}" -gt 0 ]; then
@@ -573,6 +596,7 @@ fi
 
 _sweep_native_ports
 _verify_registered_pids_gone
+_report_unregistered_live_instances
 
 rm -f "$CI_DIR/.universe-engine-selection"
 echo ""

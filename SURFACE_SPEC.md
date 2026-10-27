@@ -1350,7 +1350,11 @@ A UUID identifies an **instance** — `cpp-1`, `lsp-2` — never an engine type 
 an image, and **no two instances of any engine type may share one.** The
 instance registry allocates it (`INSTANCE_UUID`, recorded as `instance_uuid`;
 `scripts/lib/instance_uuids.py`); an instance launched without one mints a
-version-7 UUID at boot, never at image-save time.
+version-7 UUID at boot, never at image-save time. An id names an instance within
+one universe: while a live instance holds the UUID recorded for `<lane>/<id>`,
+an instance of the same id in a universe running alongside it is a different
+instance and is allocated its own UUID, recorded as `<lane>/<id>#<n>`
+(RealityEngine_CI#637).
 
 The clock is `{instance, lamport, step}`:
 

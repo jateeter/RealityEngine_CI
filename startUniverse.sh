@@ -328,6 +328,22 @@ source "$CI_DIR/scripts/registry.sh"
 # (instance UUID + a counter that never resets) carries on. Native instances
 # keep their clocks here; the Docker lane mounts its own directory.
 INSTANCE_CLOCK_DIR="${INSTANCE_CLOCK_DIR:-$(instance_clock_dir)}"
+
+# The instance registry is the only record of a universe's engine pids and, under
+# --free-ports, of its ports. Starting over a universe that is still running would
+# delete that record and leave its engines up, unreachable by stopUniverse.sh;
+# fixed ports used to prevent it by colliding, free ports do not (#637). So a
+# start refuses, naming what runs, rather than orphaning it.
+refuse_live_instance_registry() {
+    local live
+    live=$(registry_live_engines 2>/dev/null || true)
+    [ -n "$live" ] || return 0
+    if [ "$DRY_RUN" = true ]; then
+        add_warn "Dry-run: $REGISTRY_FILE lists running engines — a real start would refuse"
+        return 0
+    fi
+    die "$REGISTRY_FILE lists engines that are still running:\n$(printf '%s\n' "$live" | sed 's/^/    /')\n  Starting would delete the only record of them and leave them running (RealityEngine_CI#637).\n  Stop that universe first: ./stopUniverse.sh --engines-only"
+}
 export INSTANCE_CLOCK_DIR
 # shellcheck source=scripts/allocate-ports.sh
 source "$CI_DIR/scripts/allocate-ports.sh"
@@ -1632,6 +1648,7 @@ if [ "$MULTI_ENGINE_MODE" = true ]; then
     if [ "$DRY_RUN" = false ]; then
         ok "Native engine ports free"
     fi
+    refuse_live_instance_registry
 
     # If any cpp instance will spawn, validate its build prerequisites up front
     # so a missing Boost / incomplete SDK libc++ fails fast rather than mid-make.
@@ -1954,6 +1971,7 @@ instance_registry_start() {
         REGISTRY_PORT="$_RE_ALLOCATED_PORT"
         export REGISTRY_PORT
     fi
+    refuse_live_instance_registry
     rm -f "$REGISTRY_FILE"
     registry_start_server
     # Poll until the REST shim accepts connections (python3 server takes 1-2 s to bind)

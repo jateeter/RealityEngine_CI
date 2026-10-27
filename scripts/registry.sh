@@ -162,8 +162,17 @@ EOF
 # allocation is durable -- an instance id keeps its UUID across universes, so its
 # Lamport clock carries on -- and lives in scripts/lib/instance_uuids.py.
 # <lane> is native or docker: different instance sets that reuse the same ids.
+# An id whose UUID a live instance holds -- a universe running alongside this
+# one -- is a different instance and gets its own UUID (#637). $$ is the shell
+# starting the universe (a command substitution keeps its parent's $$), which
+# leases the UUID until its engine takes the instance lock.
 instance_uuid_allocate() {
-    python3 "$(dirname "${BASH_SOURCE[0]}")/lib/instance_uuids.py" allocate "$1" "$2"
+    python3 "$(dirname "${BASH_SOURCE[0]}")/lib/instance_uuids.py" allocate "$1" "$2" "$$"
+}
+
+# "<uuid> <pid>" for every instance whose engine lock a live process holds.
+instance_uuid_live() {
+    python3 "$(dirname "${BASH_SOURCE[0]}")/lib/instance_uuids.py" live
 }
 
 # Docker lane: allocate docker/<id> and write the env file its compose service
@@ -263,6 +272,32 @@ EOF
 # and the readiness poll times out, failing the whole multi-engine deploy at
 # phase 3.5. Kill the recorded PID first, then any python3 listener still on the
 # port (guarded so an unrelated service is never killed), and wait for release.
+# "<id> <RE|PE> <pid> <command>" for every engine process this instance registry
+# lists that is still running (#637). A recorded pid counts only while it is
+# still an engine binary: a pid the OS has since reused for something else is
+# not the instance. Prints nothing when the instance registry is absent.
+registry_live_engines() {
+    [ -s "$REGISTRY_FILE" ] || return 0
+    python3 - "$REGISTRY_FILE" <<'EOF'
+import json, re, subprocess, sys
+ENGINE = re.compile(r"reality_engine_server|perception_engine_server|reality-engine-lsp"
+                    r"|reality-engine\.jar|perception-engine\.jar|sbcl")
+try:
+    reg = json.load(open(sys.argv[1]))
+except (OSError, ValueError):
+    sys.exit(0)
+for inst in reg.get('instances', []):
+    for role, key in (('RE', 'pid_re'), ('PE', 'pid_pe')):
+        pid = inst.get(key)
+        if not pid:
+            continue
+        cmd = subprocess.run(['ps', '-o', 'command=', '-p', str(int(pid))],
+                             capture_output=True, text=True).stdout.strip()
+        if cmd and ENGINE.search(cmd):
+            print(inst.get('id', '?'), role, int(pid), cmd[:160])
+EOF
+}
+
 _registry_free_port() {
     local pid
     if [ -f "$REGISTRY_PID_FILE" ]; then

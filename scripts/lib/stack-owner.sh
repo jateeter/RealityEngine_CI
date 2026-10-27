@@ -21,11 +21,29 @@
 #     and whose compose working_dir resolves somewhere other than <checkout-dir>.
 #     Prints nothing when every match belongs to <checkout-dir>, or none runs.
 #     A container with no compose label is not attributed to anyone.
+#
+# RE_OWNED_STACK_ROOTS (colon-separated directories) names checkouts that are not
+# the operator's although they are not <checkout-dir> either: a stack running
+# from under one of them is not foreign. The regression harness sets it to its
+# run history, so a stack an earlier regression run started from its worktrees
+# is replaced by the next run rather than blocking it, while a stack from any
+# other checkout is still protected (#637).
 
 _stack_owner_resolve() {
   # Physical path, so a symlinked workspace is not mistaken for another checkout.
   # A directory that no longer exists (a removed worktree) is returned as given.
   (cd "$1" 2>/dev/null && pwd -P) || printf '%s\n' "$1"
+}
+
+_stack_owner_owned_root() {
+  local wd="$1" root
+  local IFS=:
+  for root in ${RE_OWNED_STACK_ROOTS:-}; do
+    [ -n "$root" ] || continue
+    root=$(_stack_owner_resolve "$root")
+    case "$wd" in "$root"/*) return 0 ;; esac
+  done
+  return 1
 }
 
 stack_foreign_owner() {
@@ -37,6 +55,7 @@ stack_foreign_owner() {
     wd=$(docker inspect -f '{{index .Config.Labels "com.docker.compose.project.working_dir"}}' "$name" 2>/dev/null || true)
     [ -n "$wd" ] || continue
     wd=$(_stack_owner_resolve "$wd")
+    _stack_owner_owned_root "$wd" && continue
     if [ "$wd" != "$mine" ]; then
       printf '%s\n' "$wd"
       return 0
