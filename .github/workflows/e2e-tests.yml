@@ -734,6 +734,10 @@ jobs:
         working-directory: RealityEngine_CI
         run: bash scripts/tests/test-regression-comparison.sh
 
+      - name: Run escalation dispatch unit tests
+        working-directory: RealityEngine_CI
+        run: bash scripts/tests/test-escalation-dispatch.sh
+
       # Every stage reaches summary.md, so a failure outside the nine named
       # sections is filed under its own name, not "unspecified" (#350).
       - name: Run regression stage-results unit tests

@@ -1563,6 +1563,30 @@ run_trajectory_parity() {
     --out "$RUN_DIR/responses/trajectory-parity"
 }
 
+# Escalation dispatch — the semantic_escalation_dispatches_total counter.
+#
+# Every PE exports it and no stage read it, and nothing in the corpus could move
+# it until the regression corpus took the escalation trio (BSX118, CSX022,
+# TFX047): a dispatch needs an escalation action AND an agentBinding, and
+# FallDetection has no binding. So C++ and LSP declared the counter and never
+# incremented it (RealityEngine_CPP#179, RealityEngine_LSP#175), which reads
+# exactly like a corpus that never escalates.
+#
+# trajectory-parity's drive, imported: reset, arm the interned sources, push the
+# longest sequence. The stage compares what that drive alone did to the counter
+# and the dispatch ledger, per rag and per machine, across every runtime. It
+# expects a non-zero RED only for a corpus that holds escalating machines.
+run_escalation_dispatch() {
+  step "Escalation dispatch parity across runtimes"
+  local ci args=()
+  ci="$(repo_root RealityEngine_CI)"
+  case "$MACHINE_CORPUS" in regression|full) args+=("--expect-escalation") ;; esac
+  run_cmd "escalation-dispatch" python3 "$ci/scripts/regression-escalation-dispatch.py" \
+    --registry "$REGISTRY_FILE" \
+    --out "$REPORT_DIR/escalation-dispatch.json" \
+    "${args[@]}"
+}
+
 run_arbiter_rule_sweep() {
   if [ -n "$ARBITER_SWEEP" ] && [ "$CONTAINERIZED" = true ]; then
     write_skip_report "arbiter-sweep-skipped.json" \
@@ -2385,6 +2409,8 @@ if [ "$LIVE_TESTS" = true ]; then
   # between events, so running it first would hand the parity gate a stack that
   # something else had already driven.
   run_stage "trajectory-parity" run_trajectory_parity
+  # Beside trajectory-parity: the same drive, from its own reset.
+  run_stage "escalation-dispatch" run_escalation_dispatch
   run_stage "arbiter-sweep"     run_arbiter_rule_sweep
   run_stage "universal-vectors" run_universal_vectors
   run_stage "mcp"               run_mcp

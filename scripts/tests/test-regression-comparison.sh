@@ -125,5 +125,84 @@ assert_eq "$(python3 "$TMP/base.py" "$TOOL" "$TMP/hist" "$TMP/absent.json")" \
   "an absent baseline file degrades to no comparison, not a crash"
 
 echo
+echo "== content measures =="
+
+# The status comparison cannot see a change of corpus: two passing runs on
+# different corpora compare as identical. The measures are what can.
+cat > "$TMP/meas.py" <<'PYEOF'
+import importlib.util, json, sys
+spec = importlib.util.spec_from_file_location("rr", sys.argv[1])
+m = importlib.util.module_from_spec(spec); spec.loader.exec_module(m)
+PASSING = {"build": {"status": "passed", "failures": []}}
+def run(measures):
+    return dict(PASSING, measures=measures)
+three = lambda n: {"cpp-1": n, "lsp-1": n, "scala-1": n}
+what = sys.argv[2]
+if what == "corpus-grew":
+    r = m.compare_runs(run({"machines": three(44)}), run({"machines": three(41)}), "prev")
+    print(json.dumps({"sections": len(r["changes"]), "measures": [c["measure"] for c in r["measureChanges"]]}))
+elif what == "same":
+    r = m.compare_runs(run({"machines": three(44)}), run({"machines": three(44)}), "prev")
+    print(len(r["measureChanges"]))
+elif what == "old-baseline":
+    r = m.compare_runs(run({"machines": three(44), "openclaw.agents": 18}), dict(PASSING), "prev")
+    print(len(r["measureChanges"]))
+elif what == "new-measure":
+    r = m.compare_runs(run({"machines": three(44), "openclaw.agents": 18}), run({"machines": three(44)}), "prev")
+    print(len(r["measureChanges"]))
+elif what == "describe-agree":
+    print(m.describe_change({"measure": "machines", "previous": three(41), "current": three(44)}))
+elif what == "describe-split":
+    print(m.describe_change({"measure": "machines", "previous": three(41),
+                             "current": {"cpp-1": 44, "lsp-1": 43, "scala-1": 44}}))
+elif what == "describe-list":
+    print(m.describe_change({"measure": "escalation.machines", "previous": ["a"], "current": ["a", "b"]}))
+elif what == "summary":
+    r = m.compare_runs(run({"machines": three(44)}), run({"machines": three(41)}), "prev")
+    print(m.summary_markdown(__import__("pathlib").Path("."), {"manifest": {}}, r))
+PYEOF
+meas() { python3 "$TMP/meas.py" "$TOOL" "$1"; }
+
+assert_eq "$(meas corpus-grew)" '{"sections": 0, "measures": ["machines"]}' \
+  "a passing run on a larger corpus changes no section but changes a measure"
+assert_eq "$(meas same)" "0" "an unchanged measure is not reported"
+assert_eq "$(meas old-baseline)" "0" \
+  "a baseline written before measures existed reports no measure as changed"
+assert_eq "$(meas new-measure)" "0" "a measure only the current run carries is not a change"
+assert_eq "$(meas describe-agree)" "machines: 41 on every instance -> 44 on every instance" \
+  "instances that agree collapse to one value"
+assert_eq "$(meas describe-split)" \
+  'machines: 41 on every instance -> {"cpp-1": 44, "lsp-1": 43, "scala-1": 44}' \
+  "instances that disagree keep every instance's value"
+assert_eq "$(meas describe-list)" "escalation.machines: +b" "a list measure names what was added"
+assert_eq "$(meas summary | grep -c -- '- Changed measures: `1`')" "1" "the summary counts the changed measures"
+assert_eq "$(meas summary | grep -c -- '  - machines: 41 on every instance -> 44 on every instance')" "1" \
+  "and lists each one under the count"
+
+echo
+echo "== measures from a run directory =="
+
+R="$TMP/run"; mkdir -p "$R/reports" "$R/logs" "$R/responses/trajectory-parity"
+printf '{"counts":{"cpp-1":44,"lsp-1":44,"scala-1":44},"failures":[]}' > "$R/reports/machine-set-parity.json"
+printf '{"internedTestSources":{"cpp-1":26},"seedSteps":31,"arbiterConfig":{"cpp-1":{"registryEntries":2837}}}' \
+  > "$R/responses/trajectory-parity/trajectory-summary.json"
+printf '{"stack":{"body":{"services":{"pe":{"sensor_count":67},"re":{"machine_count":44}}}}}' > "$R/reports/local-ai.json"
+printf 'checked 18 agent(s) derived from x\nagent specs are current\n' > "$R/logs/agent-corpus-current.log"
+printf '{"escalations":{"cpp-1":{"RED":5}},"escalatingMachines":{"cpp-1":{"m2":{},"m1":{}}}}' \
+  > "$R/reports/escalation-dispatch.json"
+cat > "$TMP/collect.py" <<'PYEOF'
+import importlib.util, json, sys
+from pathlib import Path
+spec = importlib.util.spec_from_file_location("rr", sys.argv[1])
+m = importlib.util.module_from_spec(spec); spec.loader.exec_module(m)
+print(json.dumps(m.collect_measures(Path(sys.argv[2])), sort_keys=True))
+PYEOF
+got="$(python3 "$TMP/collect.py" "$TOOL" "$R")"
+assert_eq "$got" '{"escalation.dispatches": {"cpp-1": {"RED": 5}}, "escalation.machines": {"cpp-1": ["m1", "m2"]}, "localAi.peSensors": 67, "localAi.reMachines": 44, "machines": {"cpp-1": 44, "lsp-1": 44, "scala-1": 44}, "openclaw.agents": 18, "trajectory.contendedCells": {"cpp-1": 2837}, "trajectory.internedTestSources": {"cpp-1": 26}, "trajectory.seedSteps": 31}' \
+  "every measure is read from the report that holds it"
+assert_eq "$(python3 "$TMP/collect.py" "$TOOL" "$TMP/absent")" "{}" \
+  "a run that produced no reports has no measures, not zeros"
+
+echo
 echo "Totals: $PASS passed, $FAIL failed"
 [ "$FAIL" -eq 0 ]

@@ -121,6 +121,7 @@ def collect_report_statuses(run_dir: Path) -> dict[str, Any]:
             block["status"] = "skipped"
             block["reason"] = skip.get("reason", "")
     statuses["stages"] = stages
+    statuses["measures"] = collect_measures(run_dir)
     # A stage that exited non-zero failed, whatever its section's report says:
     # the exit status is what failed the run, and the summary must agree with it.
     for stage, key in STAGE_SECTIONS.items():
@@ -130,6 +131,83 @@ def collect_report_statuses(run_dir: Path) -> dict[str, Any]:
             section["stageExit"] = stages[stage].get("exit")
             statuses[key] = section
     return statuses
+
+
+# What a run measured, as opposed to whether each section passed. The status
+# comparison below cannot see a change of corpus: a run on 26 machines that
+# passes reads exactly like a run on 23 that passed, and the 2026-10-26 lane
+# after the escalation trio joined the regression corpus reported "Changed
+# sections: 0" while every engine held three more machines, three more PE
+# sensors and three more OpenClaw agents. Each measure is a value read from the
+# run's own reports; one a run did not produce is absent rather than zero, and
+# only a measure both runs carry is compared.
+_AGENTS_CHECKED = re.compile(r"checked (\d+) agent")
+
+
+def collect_measures(run_dir: Path) -> dict[str, Any]:
+    reports = run_dir / "reports"
+    measures: dict[str, Any] = {}
+
+    def put(name: str, value: Any) -> None:
+        if value not in (None, {}, []):
+            measures[name] = value
+
+    machine_set = load_json(reports / "machine-set-parity.json", {})
+    put("machines", machine_set.get("counts"))
+
+    trajectory = load_json(run_dir / "responses" / "trajectory-parity" / "trajectory-summary.json", {})
+    put("trajectory.internedTestSources", trajectory.get("internedTestSources"))
+    put("trajectory.seedSteps", trajectory.get("seedSteps"))
+    put("trajectory.contendedCells",
+        {iid: cfg.get("registryEntries") for iid, cfg in (trajectory.get("arbiterConfig") or {}).items()
+         if isinstance(cfg, dict)})
+
+    process = load_json(reports / "engine-process-parity.json", {})
+    put("engineProcess.outputs", process.get("counts"))
+
+    local_ai = load_json(reports / "local-ai.json", {})
+    services = ((local_ai.get("stack") or {}).get("body") or {}).get("services") or {}
+    put("localAi.peSensors", (services.get("pe") or {}).get("sensor_count"))
+    put("localAi.reMachines", (services.get("re") or {}).get("machine_count"))
+
+    try:
+        found = _AGENTS_CHECKED.search((run_dir / "logs" / "agent-corpus-current.log").read_text(encoding="utf-8"))
+        put("openclaw.agents", int(found.group(1)) if found else None)
+    except OSError:
+        pass
+
+    escalation = load_json(reports / "escalation-dispatch.json", {})
+    put("escalation.dispatches", escalation.get("escalations"))
+    put("escalation.machines",
+        {iid: sorted(machines) for iid, machines in (escalation.get("escalatingMachines") or {}).items()})
+    return measures
+
+
+def compare_measures(current: dict[str, Any], previous: dict[str, Any]) -> list[dict[str, Any]]:
+    return [{"measure": name, "previous": previous[name], "current": current[name]}
+            for name in sorted(set(current) & set(previous)) if current[name] != previous[name]]
+
+
+def describe_measure(value: Any) -> str:
+    """One line. A per-instance map whose instances agree collapses to the value."""
+    if isinstance(value, dict) and value:
+        rendered = {json.dumps(v, sort_keys=True) for v in value.values()}
+        if len(rendered) == 1:
+            return f"{rendered.pop()} on every instance"
+    if isinstance(value, list) and len(value) > 6:
+        return f"{len(value)} entries"
+    return json.dumps(value, sort_keys=True)
+
+
+def describe_change(change: dict[str, Any]) -> str:
+    previous, current = change["previous"], change["current"]
+    if isinstance(previous, list) and isinstance(current, list):
+        added = sorted(set(map(str, current)) - set(map(str, previous)))
+        removed = sorted(set(map(str, previous)) - set(map(str, current)))
+        parts = [f"+{item}" for item in added] + [f"-{item}" for item in removed]
+        if parts:
+            return f"{change['measure']}: {', '.join(parts)}"
+    return f"{change['measure']}: {describe_measure(previous)} -> {describe_measure(current)}"
 
 
 def unsectioned_stages(stages: dict[str, dict[str, Any]]) -> list[tuple[str, str]]:
@@ -265,7 +343,8 @@ def find_compare_run(history_dir: Path, current_run_id: str, compare_run: str) -
 
 def compare_runs(current: dict[str, Any], previous: dict[str, Any] | None, previous_id: str | None) -> dict[str, Any]:
     if previous is None:
-        return {"status": "not-compared", "previousRunId": previous_id or "", "changes": [], "newFailures": [], "resolvedFailures": []}
+        return {"status": "not-compared", "previousRunId": previous_id or "", "changes": [], "measureChanges": [],
+                "newFailures": [], "resolvedFailures": []}
     sections = ["build", "serviceInventory", "trajectoryParity", "universalVectors", "mqtt", "mcp",
                 "arbiter", "openclaw", "deployment"]
     changes = []
@@ -295,10 +374,14 @@ def compare_runs(current: dict[str, Any], previous: dict[str, Any] | None, previ
             new_failures.append({"section": "stages", "failure": name})
         if prev_status == "failed" and cur_status != "failed":
             resolved_failures.append({"section": "stages", "failure": name})
+    # A baseline written before measures existed carries none, and comparing
+    # against nothing would report every measure as new; it reports none.
+    measure_changes = compare_measures(current.get("measures") or {}, previous.get("measures") or {})
     return {
         "status": "compared",
         "previousRunId": previous_id or "",
         "changes": changes,
+        "measureChanges": measure_changes,
         "newFailures": new_failures,
         "resolvedFailures": resolved_failures,
     }
@@ -347,6 +430,10 @@ def summary_markdown(run_dir: Path, status: dict[str, Any], comparison: dict[str
         f"- Changed sections: `{len(comparison.get('changes', []))}`",
         f"- New failures: `{len(comparison.get('newFailures', []))}`",
         f"- Resolved failures: `{len(comparison.get('resolvedFailures', []))}`",
+        f"- Changed measures: `{len(comparison.get('measureChanges', []))}`",
+    ])
+    lines.extend(f"  - {describe_change(change)}" for change in comparison.get("measureChanges", []))
+    lines.extend([
         "",
         "## Artifacts",
         "",
