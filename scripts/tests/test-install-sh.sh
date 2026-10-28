@@ -31,6 +31,7 @@ TAG="$(const RELEASE_TAG)"
 check "$TAG" "$(req release)" "RELEASE_TAG is release/host-requirements.json's release"
 check "$(const NODE_VERSION)" "$(req node.exact)" "NODE_VERSION is the release's pinned Node"
 check "$(const OLLAMA_MIN)" "$(req ollama.min)" "OLLAMA_MIN is the release's minimum Ollama"
+check "$(const OPENCLAW_MIN)" "$(req openclaw.min)" "OPENCLAW_MIN is the release's minimum OpenClaw"
 
 file="$CI_DIR/release/candidates/$TAG.images.json"
 check "$([ -f "$file" ] && echo present)" present "release/candidates/$TAG.images.json is committed"

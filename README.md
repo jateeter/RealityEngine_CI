@@ -133,11 +133,16 @@ A first run takes 20–40 minutes, mostly downloading. It:
 2. Installs Docker Desktop if it is missing, starts it, and checks it has at
    least 8 GB of memory. If it has less, it says how to raise it in Docker
    Desktop's settings and stops; raise it and run `install.sh` again.
-3. Installs or updates Ollama to its current release, and pulls the two
-   models, `nemotron-3-nano:4b-mlx` and `embeddinggemma-2:270m`.
+3. Looks for Ollama first, from the app or Homebrew. One at v0.40.5 or later is
+   kept as it is; a newer release is only mentioned. Otherwise it installs the
+   current release. Then it pulls whichever of the two models,
+   `nemotron-3-nano:4b-mlx` and `embeddinggemma-2:270m`, Ollama doesn't
+   already have.
 4. Installs Node 26.12.1 from nodejs.org, after checking the installer's
    published sha256.
-5. Installs the current OpenClaw into a user-owned npm prefix, with no `sudo`.
+5. Looks for OpenClaw first, wherever npm installed it. One at 2026.10.5 or
+   later is kept, and a newer release is only mentioned. Otherwise it installs
+   the current release into a user-owned npm prefix, with no `sudo`.
 6. Downloads the release installer and the images file, and checks both
    against the sha256 they were certified with.
 7. Installs the suite, about 12 GB of images, and starts it.
