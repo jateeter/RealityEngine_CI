@@ -1,6 +1,6 @@
 # Release Roadmap: Release 0.01 / MVP (`release-v0.0.1`)
 
-Last reviewed: 2026-10-25
+Last reviewed: 2026-10-28
 
 This is the task tracker for the first MVP release of the integrated RealityEngine
 application. It is the one place where release work is listed, ordered and
@@ -87,7 +87,7 @@ needing no source checkout, compiler or build toolchain on the Mac:
 | **B2** | Self-contained images | CI + repos | B1 | open | |
 | **B3** | Pin and unify third-party images | CI + repos | — | in progress | OCS#58, localAIStack#129, PIM#84 |
 | **B4** | Native arm64 builds | CI | A4, B1 | in progress | |
-| **B5** | Release image workflow | CI | A3, B4 | done: `release-v0.0.1-rc1`, then `-rc2` (current candidate), 13 images each, all public | runs 39300675853, 39315175811 |
+| **B5** | Release image workflow | CI | A3, B4 | done: `release-v0.0.1-rc1`, `-rc2`, then `-rc3` (current candidate, 12 images: the gateway image left with #592), all public and anonymously pullable | runs 39300675853, 39315175811, 40605186263 |
 | **B6** | Image hygiene | all | B1 | open | |
 | **C1** | Release compose, engines generated from the instance spec | CI | B2, B3 | in progress: live on the developer Mac |  |
 | **C2** | Instance registry, MCP, config and UUIDs in containers | CI | B2 | in progress: live on the developer Mac |  |
@@ -102,9 +102,9 @@ needing no source checkout, compiler or build toolchain on the Mac:
 | **D5** | MQTT disposition | CI/MQTT | A11 | in progress: Yuma answering; stage passes | CI#578 |
 | **D6** | Release asset checks | Machines/OpenClaw/CI | A8 | in progress | |
 | **D7** | Deployment suite | CI | C3 | in progress: live suites green on the install | CPP#171, Scala#190, LSP#164, Machines#217 |
-| **E1** | `local-containerized` lane on published images | CI | B5, C3 | done: certifying form green on `release-v0.0.1-rc2` (`e1-rc2-20261019a`); rc3 development form green from main 2026-10-25, 18 passed, 2 skipped (`e1-rc3final-20261025a`) | CI#165, CI#590 |
-| **E2** | Native vs containerized comparison | CI | E1 | done for the development form: 53/56 identical, 3 explained (`e1-20261019f`); rc3 native lane 18 passed, 2 skipped, no stage differs from E1 (`e2-native-rc3-20261025c`); repeat at F1 | |
-| **E3** | Clean-Mac install test | CI/operator | B5, C3, C4 | open: clean Mac being prepared; install `release-v0.0.1-rc2` | |
+| **E1** | `local-containerized` lane on published images | CI | B5, C3 | done: certifying form green on `release-v0.0.1-rc3` (`e1-rc3-cert-20261028a`, 0 new failures, 44 machines per engine); development form from the same commits `e1-rc3-20261027b`. Earlier: rc2 `e1-rc2-20261019a` | CI#165, CI#590, localAIStack#159 |
+| **E2** | Native vs containerized comparison | CI | E1 | done for rc3: `e2-native-rc3-20261027b` vs `e1-rc3-20261027b`, 52/57 reports identical, 5 explained (README, What rc3 certifies). The first pair (`e1-rc3-20261027a`) found the release image missing localAI's 11 domain machines, fixed by localAIStack#159; repeat at F1 | |
+| **E3** | Clean-Mac install test | CI/operator | B5, C3, C4 | open: install `release-v0.0.1-rc3` on a clean Mac (README) | |
 | **E4** | Release eligibility enforced | CI tooling | A1, A2, B5 | open | |
 | **E5** | Release documentation aligned | CI/docs | A1, A2 | in progress: `RELEASE.md` revised for A1–A11 | |
 | **F1** | Freeze and final certification | release operator | D*, E1–E5 | open | |
@@ -264,10 +264,18 @@ Each is reflected in `RELEASE.md` where it changes the process.
     `9704061`, LSP `45b721e`, Scala `f02cd03`, Machines `b77bf98`, Manager
     `65eb0dc`, localAIStack `d0c9cf6`, localOpenClawStack `1b876c0`, PIM
     `521e1d9`.
-  - Run 39315175811 pushed `release-v0.0.1-rc2`, the current candidate, with
-    the same pins except CI `a260777` (CI#590, the Open WebUI fix E1 found).
-    Its images file is the run's `release-images-release-v0.0.1-rc2`
-    artifact.
+  - Run 39315175811 pushed `release-v0.0.1-rc2` with the same pins except CI
+    `a260777` (CI#590, the Open WebUI fix E1 found). Its images file is the
+    run's `release-images-release-v0.0.1-rc2` artifact.
+  - Run 40605186263 pushed `release-v0.0.1-rc3`, the current candidate, on
+    2026-10-28: 12 images (Ollama and the OpenClaw gateway run on the Mac,
+    #592, so `re-openclaw-gateway` is gone). Pins are the commits E1 and E2
+    ran, each `origin/main` at dispatch: CI `fc60831`, CPP `1a66823`, LSP
+    `de28483`, Scala `e5d1745`, Machines `7d9bf07`, Manager `af99f99`,
+    localAIStack `f894e0f`, localOpenClawStack `ef036c9`, PIM `521e1d9`. Every
+    package answers an anonymous manifest pull at its digest. The images file
+    is the run's `release-images-release-v0.0.1-rc3` artifact (sha256
+    `1b78605b…`, expires 2027-01-25).
   - Noticed, not fixed: `release-images.yml`'s pull-request paths omit
     `release/compose.yml`, which `re-init` carries, so CI#590 merged without
     its image being built; the rc2 dispatch built it.
@@ -366,7 +374,7 @@ Found and fixed on the way:
   had an empty nginx config and site, with the build reporting success.
   Rebuilt.
 
-**Open:** a clean Mac (E3), now being prepared, pulling `release-v0.0.1-rc2`,
+**Open:** a clean Mac (E3), installing `release-v0.0.1-rc3`,
 and `upgrade` between two published versions.
 - [ ] **C3 — Installer CLI** (`realityengine install | up | down | status |
   upgrade | uninstall | machines`).
@@ -607,6 +615,15 @@ source, the image rebuilt, and the check re-run.
     `reports/images.json` is the rc2 images file, every revision label
     matched the run's pins, and every running container's image digest is
     rc2's.
+  - **Done (2026-10-28):** run `e1-rc3-cert-20261028a`, certifying form on
+    `release-v0.0.1-rc3`: completed, 0 new failures, 44 machines on each
+    engine, no change from `e2-native-rc3-20261027b`; `arbiter-sweep` and
+    `healthkit-bridge` skipped with reasons. Before the push, the development
+    form (`e1-rc3-20261027a`) ran 33 machines per engine against the native
+    lane's 44: the `re-localai-api` image lacked
+    `config/domain-machines.index.json`, so localAI skipped its 11 generated
+    domain machines. localAIStack#159 copies it, with a test of the image's
+    contents; `e1-rc3-20261027b` then matched the native lane.
 - [ ] **E2 — Native vs containerized comparison.** Run the native local lane
   and E1 at the same commits and spec on the same Mac and compare the parity
   stages.
