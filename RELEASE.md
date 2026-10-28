@@ -230,6 +230,13 @@ candidate don't have. So commit the file, unchanged, as
 candidate section. Installers then fetch it from `raw.githubusercontent.com`
 anonymously and check the hash before they install.
 
+Then point `install.sh` at the candidate. Its five release constants
+(`RELEASE_TAG`, `INSTALLER_COMMIT` and `INSTALLER_SHA256`,
+`IMAGES_COMMIT` and `IMAGES_SHA256`) name the tag, the commit the installer is
+taken from, and the commit that added the images file, each with its sha256.
+`bash install.sh --check` downloads both files and checks their hashes, so run
+it before merging.
+
 ### 3. Certify the candidate images *(pending E1, E2, E3)*
 
 Run the containerized lane on the candidate images, compare it with step 1,

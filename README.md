@@ -68,10 +68,10 @@ gateway now run natively on the Mac, outside Docker (#592), so the
 `re-openclaw-gateway` image is gone. The clean-Mac install (E3) is the next
 check (`docs/ReleaseRoadmap.md`).
 
-This section covers the candidate only. [INSTALL.md](INSTALL.md) is the full
-install guide, written for the final `release-v0.0.1`. Everything it describes
-applies to rc3 except how you get the two files: a candidate has no GitHub
-release, so the steps below fetch them another way.
+**To install rc3 on a Mac, run [`install.sh`](install.sh)** (see
+[Install on a fresh Mac](#install-on-a-fresh-mac) below). It does everything,
+from Docker Desktop to a running suite, and needs no GitHub account.
+[INSTALL.md](INSTALL.md) describes the same steps by hand.
 
 ### What rc3 certifies
 
@@ -114,104 +114,51 @@ These are **not certified by rc3**, and must not be read as passing:
   It is off unless asked for, so it did not run.
 - **The deployment suite**, which neither lane runs.
 
-### Requirements
+### Install on a fresh Mac
 
-- An Apple Silicon Mac running macOS 26 or later, with 16 GB of memory and 25 GB free.
-- Docker Desktop running, with at least 8 GB of memory allotted (Settings → Resources).
-- These, installed and running on the Mac itself, as
-  [INSTALL.md, Preparing a clean Mac](INSTALL.md#preparing-a-clean-mac) describes:
-  - Ollama, its current release (v0.40.5 or later), with both models pulled:
-    `ollama pull nemotron-3-nano:4b-mlx` and `ollama pull embeddinggemma-2:270m`.
-  - Node, exactly 26.12.1.
-  - OpenClaw, its current release (`npm install -g openclaw@latest`; rc3 was
-    certified on 2026.10.8).
+You need an Apple Silicon Mac on macOS 26 or later, with 16 GB of memory,
+30 GB of free disk, an internet connection and your administrator password.
+Nothing else: no GitHub account, Homebrew, Xcode or source checkout.
 
-You don't need a source checkout, a compiler or a Docker login, because the
-images are public. The installer runs on the stock macOS `/bin/bash`.
-
-On a Mac that is also used for development, stop the native universe
-(`./stopUniverse.sh`) and any other stack holding the release's ports first.
-`install` lists the ports it finds taken.
-
-### 1. Get the installer
-
-Take the installer from the commit rc3 was built from, so it matches the images:
+Open Terminal and run:
 
 ```bash
-cd ~
-curl -fsSL -o realityengine \
-  https://raw.githubusercontent.com/jateeter/RealityEngine_CI/fc60831f9123fc6328a34ec6b0e648f10c7b3f4e/release/realityengine
-chmod +x realityengine
+curl -fsSL -o install.sh https://raw.githubusercontent.com/jateeter/RealityEngine_CI/main/install.sh
+bash install.sh
 ```
 
-### 2. Get the images file
+It shows one line per step and logs the details to `~/RealityEngine/install.log`.
+A first run takes 20–40 minutes, mostly downloading. It:
+1. Checks the Mac: Apple Silicon, macOS version, memory and disk.
+2. Installs Docker Desktop if it is missing, starts it, and checks it has at
+   least 8 GB of memory. If it has less, it says how to raise it in Docker
+   Desktop's settings and stops; raise it and run `install.sh` again.
+3. Installs or updates Ollama to its current release, and pulls the two
+   models, `nemotron-3-nano:4b-mlx` and `embeddinggemma-2:270m`.
+4. Installs Node 26.12.1 from nodejs.org, after checking the installer's
+   published sha256.
+5. Installs the current OpenClaw into a user-owned npm prefix, with no `sudo`.
+6. Downloads the release installer and the images file, and checks both
+   against the sha256 they were certified with.
+7. Installs the suite, about 12 GB of images, and starts it.
+8. Trusts the suite's local certificate, so the browser accepts Manager.
+9. Checks every service and prints the addresses.
 
-`images.json` pins each of the 12 images by digest, so the install runs exactly
-the images rc3 certified. Download it; this needs no GitHub account:
+macOS asks for your password when Docker Desktop or Node is installed system-wide,
+and when the certificate is trusted.
 
-```bash
-cd ~
-curl -fsSL -o images.json \
-  https://raw.githubusercontent.com/jateeter/RealityEngine_CI/main/release/candidates/release-v0.0.1-rc3.images.json
-```
+Each step is skipped when the Mac already satisfies it, so `install.sh` is safe
+to run again. On a Mac where rc3 is already installed, it starts it. On an older
+install, it upgrades it to rc3, keeping its data.
 
-Then check the file. A different hash means it isn't rc3's, so don't install:
+Options:
+- `bash install.sh --check` reports what it would do, and every requirement
+  the Mac does not meet, without changing anything.
+- `--engines cpp:2,lsp:1,scala:1` chooses the engine instances. The default
+  is one of each.
+- `--dir DIR` installs somewhere other than `~/.realityengine`.
 
-```bash
-shasum -a 256 ~/images.json
-# 1b78605b856feb6a7ee3e889f61d3418c8b0eb4ad1f1c07eb5cc03ae7af5f327
-```
-
-The same file is the artifact `release-images-release-v0.0.1-rc3` of run
-40605186263, until it expires on 2027-01-25. Downloading an artifact needs a
-GitHub login, which is why the copy above is in the repository.
-
-### 3. Install
-
-```bash
-./realityengine install --version release-v0.0.1-rc3 --images images.json
-```
-
-This starts the default engine set: one C++, one Common Lisp and one Scala
-instance. For another set, add `--engines`, for example
-`--engines cpp:2,lsp:1,scala:1`.
-
-What `install` does:
-1. Checks the Mac, including Ollama, Node and OpenClaw.
-2. Writes its configuration under `~/.realityengine`, which you can change
-   with `--dir`. This covers the instance UUIDs, the instance registry, a
-   local CA, the secrets and OpenClaw's agents.
-3. Pulls about 12 GB of images: the 12 rc3 images and the third-party ones
-   they run with.
-4. Starts the OpenClaw gateway on the Mac, waits until every service is ready,
-   then prints the addresses.
-
-A first install takes 10–20 minutes, mostly downloading. When it finishes,
-trust the local CA so the browser accepts Manager's certificate:
-
-```bash
-./realityengine trust-ca
-```
-
-### 4. Run and check it
-
-Paste this into the terminal. It runs under the stock `/bin/bash`, and every
-line should report `200`:
-
-```bash
-./realityengine status
-for p in 6100 6101 6300 6301 6600 6601; do        # Scala, C++, Lisp: PE then RE
-  printf 'engine :%s ' "$p"; curl -fsS -o /dev/null -w '%{http_code}\n' --max-time 5 "http://localhost:$p/api/health" || echo FAIL
-done
-curl -fsS  -o /dev/null -w 'instance registry %{http_code}\n' http://localhost:5999/re-registry.json
-curl -fsSk -o /dev/null -w 'manager %{http_code}\n'           https://localhost:5173
-curl -fsS  -o /dev/null -w 'localai %{http_code}\n'           http://localhost:4000/health
-curl -fsS  -o /dev/null -w 'openclaw %{http_code}\n'          http://localhost:18789/healthz
-```
-
-The ports above are for the default engine set. With another `--engines`,
-`http://localhost:5999/re-registry.json` lists each instance's `re_url` and
-`pe_url`.
+### Using it
 
 | Service | Address |
 |---|---|
@@ -224,21 +171,19 @@ The ports above are for the default engine set. With another `--engines`,
 | Grafana | http://localhost:3002 (user `admin`) |
 
 The generated passwords and tokens are in `~/.realityengine/state/secrets.json`.
+The instance registry lists each engine instance's `re_url` and `pe_url`.
 
-The engines boot with the regression corpus. To load more machines:
-
-```bash
-./realityengine machines list
-./realityengine machines load --domain agriculture   # loads into every engine instance, keeping them in parity
-```
-
-Day-to-day commands:
+`install.sh` leaves the release's own command at `~/RealityEngine/realityengine`:
 
 ```bash
+cd ~/RealityEngine
+./realityengine status
 ./realityengine logs [service]
 ./realityengine down          # stop; data is kept
 ./realityengine up            # start again
 ./realityengine uninstall     # add --purge to delete the data as well
+./realityengine machines list
+./realityengine machines load --domain agriculture   # loads into every engine instance, keeping them in parity
 ```
 
 Troubleshooting is covered in [INSTALL.md](INSTALL.md#troubleshooting).
@@ -264,7 +209,7 @@ Record the outcome in `docs/ReleaseRoadmap.md` under E3. Include:
 - the Mac model and macOS version;
 - the Ollama, Node and OpenClaw versions;
 - how long the install took;
-- the output of the check in step 4;
+- `~/RealityEngine/install.log`, and the service checks `install.sh` printed at the end;
 - anything you had to do that this section doesn't describe.
 
 E3 has to pass before the candidate can be promoted to `release-v0.0.1` by
