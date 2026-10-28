@@ -303,7 +303,7 @@ else
   info "Running stopUniverse.sh --all (Docker containers left running) ..."
   TEARDOWN_LOG="$REPORT_DIR/teardown-${RUN_ID}.log"
   set +e
-  bash "$CI_DIR/stopUniverse.sh" --all > "$TEARDOWN_LOG" 2>&1
+  bash "$CI_DIR/stopUniverse.sh" --all --keep-docker --keep-ollama > "$TEARDOWN_LOG" 2>&1
   TEARDOWN_RC=$?
   set -e
   if [[ $TEARDOWN_RC -eq 0 ]]; then

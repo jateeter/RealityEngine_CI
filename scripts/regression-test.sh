@@ -957,7 +957,7 @@ prepare_docker() {
   # including the guards that refuse to kill Docker's own proxy or the macOS
   # AirPlay listener. Non-fatal — there may be nothing to stop.
   run_cmd "docker-preflight-stop" bash -lc \
-    "cd '$CI_DIR' && ./stopUniverse.sh --stop-docker" || \
+    "cd '$CI_DIR' && ./stopUniverse.sh --stop-docker --keep-ollama" || \
     log "stopUniverse returned non-zero (likely nothing was running) — continuing"
 
   # Drop the images this project built, so the run builds them again rather
@@ -1677,7 +1677,7 @@ run_arbiter_rule_sweep() {
     # the engines read ARBITRATION_REGISTRY from their own environment, so this
     # is the one channel that reaches all three identically.
     export ARBITRATION_REGISTRY="$variant"
-    bash -lc "cd '$CI_DIR' && ./stopUniverse.sh --stop-docker" >/dev/null 2>&1 || true
+    bash -lc "cd '$CI_DIR' && ./stopUniverse.sh --stop-docker --keep-ollama" >/dev/null 2>&1 || true
     if ! start_universe "arbiter-$rule"; then
       log "  arbiter sweep: universe did not come up under $rule"
       failed_rules+=("$rule(boot)")
@@ -1695,7 +1695,7 @@ run_arbiter_rule_sweep() {
   # Leave the universe on the corpus-declared registry so every later stage sees
   # the configuration it expects rather than whichever rule the sweep ended on.
   unset ARBITRATION_REGISTRY
-  bash -lc "cd '$CI_DIR' && ./stopUniverse.sh --stop-docker" >/dev/null 2>&1 || true
+  bash -lc "cd '$CI_DIR' && ./stopUniverse.sh --stop-docker --keep-ollama" >/dev/null 2>&1 || true
   start_universe "arbiter-baseline" || log "  arbiter sweep: baseline universe did not come back up"
 
   if [ ${#failed_rules[@]} -gt 0 ]; then

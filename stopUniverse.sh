@@ -10,9 +10,15 @@
 #                     [--all]
 #                     [--instance=<id>]   stop one registry instance by id
 #                     [--engines-only]    stop all native instances; leave Docker up
-#                     [--stop-docker]     also run docker compose down for all stacks
-#                                         (default: Docker containers are left running)
+#                     [--keep-docker]     leave the Docker stacks running
+#                     [--keep-ollama]     leave the host Ollama running
 #                     [--help]
+#
+# A full teardown stops everything the universe uses: the native instances, the
+# CI, localAIStack and OpenClaw Docker stacks (Qdrant, Redis, ...), the native
+# OpenClaw gateway, the regression lane's release install (compose project
+# re-regression), and the host Ollama, whoever started it. --stop-docker was the
+# opt-in for the Docker part; it is the default now and still accepted.
 # =============================================================================
 set -e
 set -o pipefail
@@ -56,7 +62,8 @@ PE_ENGINE=""
 STOP_ALL=false
 STOP_INSTANCE=""
 ENGINES_ONLY=false
-STOP_DOCKER=false   # default: leave Docker containers running
+STOP_DOCKER=true    # --keep-docker leaves the Docker stacks running
+STOP_OLLAMA=true    # --keep-ollama leaves the host Ollama running
 
 for arg in "$@"; do
   case "$arg" in
@@ -66,19 +73,24 @@ for arg in "$@"; do
     --instance=*)    STOP_INSTANCE="${arg#*=}" ;;
     --engines-only)  ENGINES_ONLY=true ;;
     --stop-docker)   STOP_DOCKER=true ;;
+    --keep-docker)   STOP_DOCKER=false ;;
+    --keep-ollama)   STOP_OLLAMA=false ;;
     --help|-h)
       cat <<'USAGE'
 Usage: ./stopUniverse.sh [--re-engine=ai|cpp|lsp] [--pe-engine=ai|cpp|lsp]
                          [--all] [--instance=<id>] [--engines-only]
-                         [--stop-docker]
+                         [--keep-docker] [--keep-ollama]
 
-Without flags, reads .universe-engine-selection and stops the engines recorded
-there.  --all tears down every engine regardless of the stamp.
+Without flags, stops everything the universe uses: the engines recorded in the
+instance registry and .universe-engine-selection, the CI, localAIStack and
+OpenClaw Docker stacks, the native OpenClaw gateway, the regression lane's
+release install (re-regression) and the host Ollama.
+--all tears down every engine regardless of the stamp.
 --instance=<id>  Stop one specific registry instance (e.g. scala-1, cpp-2)
---engines-only   Stop all native engine instances; leave Docker infrastructure up
---stop-docker    Also run docker compose down for all stacks (CI, localAIStack,
-                 OpenClaw). Default is to leave Docker containers running so that
-                 Docker Desktop remains stable across repeated test cycles.
+--engines-only   Stop all native engine instances; leave everything else up
+--keep-docker    Leave the Docker stacks, the gateway and re-regression running
+--keep-ollama    Leave the host Ollama running (the app, brew service or serve)
+--stop-docker    The default; accepted for older callers
 USAGE
       exit 0 ;;
     *) echo "Unknown argument: $arg"; exit 2 ;;
@@ -376,7 +388,7 @@ stop_openclaw_stack() {
       fail "OpenClaw compose down failed — containers may still be running"
     fi
   elif [ "$STOP_DOCKER" = false ]; then
-    info "OpenClaw: leaving its gateway and Docker containers running (use --stop-docker to tear down)"
+    info "OpenClaw: leaving its gateway and Docker containers running (--keep-docker)"
   else
     info "OpenClaw: not found at $OCS_DIR — nothing to stop"
   fi
@@ -465,19 +477,92 @@ stop_ai_stack() {
       (cd "$LAS_DIR" && docker compose down 2>/dev/null) || warn "localAIStack compose down returned non-zero"
       ok "localAIStack stopped"
     fi
+    stop_regression_release_install
   else
-    info "Docker stacks: leaving containers running (use --stop-docker to tear down)"
+    info "Docker stacks: leaving containers running (--keep-docker)"
   fi
 
-  # Stop Ollama only if startUniverse.sh started it (PID file present)
-  if [ -f "$OLLAMA_UNIVERSE_PID_FILE" ]; then
-    local pid; pid="$(cat "$OLLAMA_UNIVERSE_PID_FILE" 2>/dev/null || true)"
-    if [ -n "$pid" ] && ps -p "$pid" >/dev/null 2>&1; then
-      kill -TERM "$pid" 2>/dev/null || true
-      ok "Ollama stopped (PID $pid)"
+  stop_host_ollama
+}
+
+# The regression lane's release install (compose project re-regression, E1)
+# publishes the same host ports as the dev universe (Qdrant on 4333, the
+# instance registry on 5999, ...) and outlived every teardown, because nothing
+# here knew it. It is stopped with its containers removed and its volumes kept,
+# as `realityengine down` would; the lane installs it again on its next run.
+REGRESSION_RELEASE_PROJECT="${REGRESSION_RELEASE_PROJECT:-re-regression}"
+stop_regression_release_install() {
+  local ids dir state
+  ids="$(docker ps -aq --filter "label=com.docker.compose.project=$REGRESSION_RELEASE_PROJECT" 2>/dev/null || true)"
+  [ -n "$ids" ] || return 0
+  dir="$(docker inspect -f '{{index .Config.Labels "com.docker.compose.project.working_dir"}}' \
+    "$(printf '%s\n' "$ids" | head -1)" 2>/dev/null || true)"
+  info "Stopping the regression lane's release install ($REGRESSION_RELEASE_PROJECT${dir:+, $dir})..."
+  # Its OpenClaw gateway is the shared LaunchAgent, pointed at that install.
+  state="$(plutil -extract EnvironmentVariables.OPENCLAW_STATE_DIR raw \
+    "$HOME/Library/LaunchAgents/org.realityengine.openclaw-gateway.plist" 2>/dev/null || true)"
+  if [ -n "$dir" ] && [ -n "$state" ] && [ "${state#"$dir"/}" != "$state" ]; then
+    launchctl bootout "gui/$(id -u)/org.realityengine.openclaw-gateway" 2>/dev/null || true
+    ok "OpenClaw gateway of $REGRESSION_RELEASE_PROJECT unloaded"
+  fi
+  if docker compose -p "$REGRESSION_RELEASE_PROJECT" down --remove-orphans >/dev/null 2>&1; then
+    ok "$REGRESSION_RELEASE_PROJECT stopped (its volumes are kept)"
+  else
+    # Without its compose files, by label: the containers, then the network.
+    # shellcheck disable=SC2086  # the ids, split on purpose
+    docker rm -f $ids >/dev/null 2>&1 || true
+    # shellcheck disable=SC2046  # the network ids, split on purpose
+    docker network rm $(docker network ls -q --filter "label=com.docker.compose.project=$REGRESSION_RELEASE_PROJECT") \
+      >/dev/null 2>&1 || true
+    if [ -n "$(docker ps -aq --filter "label=com.docker.compose.project=$REGRESSION_RELEASE_PROJECT" 2>/dev/null)" ]; then
+      fail "$REGRESSION_RELEASE_PROJECT containers are still present"
+    else
+      ok "$REGRESSION_RELEASE_PROJECT stopped (its volumes are kept)"
     fi
+  fi
+}
+
+# The host Ollama, whoever started it: the universe (`ollama serve`, PID file),
+# the Ollama app, or a Homebrew service. Each is stopped the way it restarts
+# from: an app or a launchd job killed by PID comes straight back.
+OLLAMA_PORT="${OLLAMA_PORT:-11434}"
+# The app's process name and the launchd jobs that run Ollama; a test sets them
+# to names that match nothing.
+OLLAMA_APP_NAME="${OLLAMA_APP_NAME:-Ollama}"
+OLLAMA_LAUNCHD_LABELS="${OLLAMA_LAUNCHD_LABELS-homebrew.mxcl.ollama com.ollama.ollama}"
+stop_host_ollama() {
+  local pid waited
+  if [ "$STOP_OLLAMA" != true ]; then
+    info "Ollama: leaving it running (--keep-ollama)"
+    rm -f "$OLLAMA_UNIVERSE_PID_FILE"
+    return 0
+  fi
+  if [ -f "$OLLAMA_UNIVERSE_PID_FILE" ]; then
+    pid="$(cat "$OLLAMA_UNIVERSE_PID_FILE" 2>/dev/null || true)"
+    [ -n "$pid" ] && _term_and_wait "$pid" "Ollama (started by startUniverse.sh)"
     rm -f "$OLLAMA_UNIVERSE_PID_FILE"
   fi
+  if [ "$(uname -s)" = Darwin ]; then
+    if pgrep -xq "$OLLAMA_APP_NAME" 2>/dev/null; then
+      osascript -e "quit app \"$OLLAMA_APP_NAME\"" >/dev/null 2>&1 || true
+    fi
+    local label
+    for label in $OLLAMA_LAUNCHD_LABELS; do
+      launchctl bootout "gui/$(id -u)/$label" >/dev/null 2>&1 || true
+    done
+  fi
+  # A plain `ollama serve` (or an app that did not quit) still holding the port.
+  waited=0
+  while pid="$(lsof -nP -tiTCP:"$OLLAMA_PORT" -sTCP:LISTEN 2>/dev/null | head -1)" && [ -n "$pid" ]; do
+    case "$(ps -o comm= -p "$pid" 2>/dev/null)" in
+      *ollama*|*Ollama*) ;;
+      *) warn "Port $OLLAMA_PORT is held by PID $pid, which is not Ollama — left running"; return 0 ;;
+    esac
+    [ "$waited" -eq 3 ] && kill -TERM "$pid" 2>/dev/null
+    [ "$waited" -ge 15 ] && { fail "Ollama (PID $pid) still holds :$OLLAMA_PORT"; return 0; }
+    sleep 1; waited=$((waited + 1))
+  done
+  ok "Ollama stopped (:$OLLAMA_PORT is free)"
 }
 
 # ── Manifest cross-check (Phase 6 observability) ──────────────────────────────

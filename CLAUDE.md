@@ -16,7 +16,8 @@ npm run test:e2e
 npm run test:all
 npm run test:deployment
 ./startUniverse.sh --engines=cpp:1,lsp:1,scala:1 --openclaw --machine-load=runtime --pe-source-bootstrap=auto --warn-only
-./stopUniverse.sh
+./stopUniverse.sh   # everything the universe uses: engines, Docker stacks, gateway,
+                    # re-regression, host Ollama; --keep-docker / --keep-ollama opt out
 
 # Incremental corpus parity: boot with one machine, then add one corpus machine
 # per iteration over the RE/PE APIs and re-check trajectory parity after each.
@@ -88,7 +89,7 @@ npm run test:deployment
   registered as `scala-1`, `cpp-1`, `lsp-1`. The TLS-proxied `reality-engine` +
   TypeScript PE pair stays Manager's and is not an engine instance (#363).
 - `startUniverse.sh --openclaw` delegates to `localOpenClawStack/scripts/start.sh`; keep hardening, immutable image pins, WebUI bootstrap, and live verification authoritative in that native stack entrypoint.
-  - **The gateway runs natively by default (#592):** `--openclaw-runtime=native` passes `--native`, so the host's `openclaw` runs as the LaunchAgent `org.realityengine.openclaw-gateway` on 127.0.0.1:18789 with its home in `~/.realityengine/openclaw`; Open WebUI and the browser sidecar stay in Docker. `--openclaw-runtime=container` is the `openclaw-gateway` compose service. Startup cleanup unloads the LaunchAgent, and `stopUniverse.sh --stop-docker` stops it; without `--stop-docker` it is left running, like the containers.
+  - **The gateway runs natively by default (#592):** `--openclaw-runtime=native` passes `--native`, so the host's `openclaw` runs as the LaunchAgent `org.realityengine.openclaw-gateway` on 127.0.0.1:18789 with its home in `~/.realityengine/openclaw`; Open WebUI and the browser sidecar stay in Docker. `--openclaw-runtime=container` is the `openclaw-gateway` compose service. Startup cleanup unloads the LaunchAgent, and `stopUniverse.sh` stops it.
 - Keep e2e results separated by availability, instance registry alignment, contract parity, byte equivalence, and integration success.
 - **No parity or proof run against engines that are not built from current source.**
   `scripts/verify-build-provenance.py` gates this, and both `startUniverse.sh`
@@ -120,7 +121,11 @@ generates an install's engine services per instance spec, its instance UUIDs (la
 `install.sh` (repository root) is the one command a fresh Mac runs: host
 prerequisites, then `realityengine install`, against five pinned release
 constants that move with each candidate (RELEASE.md §2,
-`scripts/tests/test-install-sh.sh`).
+`scripts/tests/test-install-sh.sh`). `uninstall.sh` is its inverse. It finds
+an install, whole or partial, by its compose project's labels and names, its
+directory's markers and the gateway plist's OpenClaw home. It never removes the
+`realityengine_ci` stack's volumes or a development `~/.realityengine/openclaw`,
+and it keeps the host tools.
 
 ## Editing Rules
 
