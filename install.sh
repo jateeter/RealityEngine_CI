@@ -8,7 +8,10 @@
 # Docker Desktop, Ollama and its two models, Node, OpenClaw, then the release
 # itself, checked against the digests it was certified with. Each step is
 # skipped when the Mac already satisfies it, so running it again is safe: it
-# brings an existing install up, or upgrades it to this release.
+# brings an existing install up, or upgrades it to this release. Ollama, its
+# models and OpenClaw are looked for first, wherever they were installed (the
+# app, Homebrew, an npm prefix): one at or above this release's minimum is kept,
+# with a note when a newer release exists, and is never reinstalled.
 #
 # The details go to ~/RealityEngine/install.log; the terminal shows one line per
 # step. macOS asks for your password when something is installed system-wide
@@ -38,6 +41,7 @@ IMAGES_SHA256="1b78605b856feb6a7ee3e889f61d3418c8b0eb4ad1f1c07eb5cc03ae7af5f327"
 NODE_VERSION="26.12.1"
 NODE_PKG_SHA256="eb21cdde0d65277d388ddd4eca6a155bd0082d764372bb98334a470a290d6231"
 OLLAMA_MIN="0.40.5"
+OPENCLAW_MIN="2026.10.5"
 MODELS="nemotron-3-nano:4b-mlx embeddinggemma-2:270m"
 MACOS_MIN=26
 DISK_MIN_GB=30
@@ -57,7 +61,7 @@ while [ $# -gt 0 ]; do
     --dir) INSTALL_DIR="${2:?--dir needs a value}"; shift 2 ;;
     --dir=*) INSTALL_DIR="${1#*=}"; shift ;;
     --check) CHECK=true; shift ;;
-    -h|--help) sed -n '2,23p' "$0" | sed 's/^# \{0,1\}//'; exit 0 ;;
+    -h|--help) sed -n '2,25p' "$0" | sed 's/^# \{0,1\}//'; exit 0 ;;
     *) echo "Unknown option: $1 (see: bash install.sh --help)" >&2; exit 2 ;;
   esac
 done
@@ -179,23 +183,40 @@ else
 fi
 
 # ── 3. Ollama and its models ──────────────────────────────────────────────────
+# Looked for first: an Ollama at or above this release's minimum is kept as it
+# is, whether it came from the app or Homebrew, and only a newer release is
+# mentioned (the release's own rule: behind latest is a warning, never a
+# failure). Models are asked of the running Ollama, so none is pulled twice.
 step "Ollama and its models"
-OLLAMA_CLI="ollama"
-command -v ollama >/dev/null 2>&1 || OLLAMA_CLI="/Applications/Ollama.app/Contents/Resources/ollama"
-ollama_have=""
-[ -x "$(command -v "$OLLAMA_CLI" 2>/dev/null || true)" ] && ollama_have="$("$OLLAMA_CLI" --version 2>/dev/null | awk '{print $NF}' | sed 's/^v//')"
+OLLAMA_API="http://127.0.0.1:11434"
+ollama_version() {  # a CLI's client version; "" when it does not run
+  "$1" --version 2>/dev/null | awk '/version/ {v = $NF} END {sub(/^v/, "", v); print v}'
+}
+OLLAMA_CLI=""; ollama_have=""
+for cand in "$(command -v ollama 2>/dev/null || true)" /opt/homebrew/bin/ollama /usr/local/bin/ollama \
+    /Applications/Ollama.app/Contents/Resources/ollama; do
+  [ -n "$cand" ] && [ -x "$cand" ] || continue
+  v="$(ollama_version "$cand")"
+  [ -n "$v" ] && { OLLAMA_CLI="$cand"; ollama_have="$v"; break; }
+done
+# The server that is running answers for itself, if one is.
+running="$(curl -fsS --max-time 3 "$OLLAMA_API/api/version" 2>/dev/null | sed -n 's/.*"version": *"\([^"]*\)".*/\1/p' || true)"
+[ -n "$running" ] && ollama_have="$running"
 # Read the whole response before parsing it: an awk that exits at its match
 # makes curl fail on SIGPIPE, which pipefail turns into the script's exit.
 ollama_release="$(curl -fsS --max-time 10 https://api.github.com/repos/ollama/ollama/releases/latest 2>/dev/null || true)"
 ollama_latest="$(printf '%s\n' "$ollama_release" | awk -F'"' '/"tag_name"/ {print $4}' | sed 's/^v//' | sed -n 1p)"
-[ -n "$ollama_latest" ] || ollama_latest="$OLLAMA_MIN"
-if [ -n "$ollama_have" ] && version_ge "$ollama_have" "$ollama_latest"; then
-  ok "Ollama $ollama_have (current)"
+if [ -n "$ollama_have" ] && version_ge "$ollama_have" "$OLLAMA_MIN"; then
+  ok "Ollama $ollama_have already installed${OLLAMA_CLI:+ ($OLLAMA_CLI)}"
+  if [ -n "$ollama_latest" ] && ! version_ge "$ollama_have" "$ollama_latest"; then
+    printf '  %s!%s Ollama %s is available; this install keeps %s. To update: https://ollama.com/download\n' \
+      "$Y" "$N" "$ollama_latest" "$ollama_have"
+  fi
 elif $CHECK; then
-  todo "install Ollama $ollama_latest${ollama_have:+ (installed: $ollama_have)}"
+  todo "install Ollama ${ollama_latest:-current}${ollama_have:+ (installed: $ollama_have, below the minimum $OLLAMA_MIN)}"
 else
   quiet osascript -e 'quit app "Ollama"' || true
-  long "downloading Ollama $ollama_latest" curl -fL -o "$WORK/Ollama.dmg" \
+  long "downloading Ollama ${ollama_latest:-current}" curl -fL -o "$WORK/Ollama.dmg" \
     https://github.com/ollama/ollama/releases/latest/download/Ollama.dmg || fail "Ollama could not be downloaded."
   mnt="$(hdiutil attach -nobrowse -readonly "$WORK/Ollama.dmg" | awk -F'\t' '/\/Volumes\// {print $NF}')"
   [ -n "$mnt" ] || fail "The Ollama disk image could not be opened."
@@ -203,24 +224,33 @@ else
   quiet hdiutil detach "$mnt" || true
   rm -f "$WORK/Ollama.dmg"
   OLLAMA_CLI="/Applications/Ollama.app/Contents/Resources/ollama"
-  ollama_have="$("$OLLAMA_CLI" --version 2>/dev/null | awk '{print $NF}' | sed 's/^v//')"
+  ollama_have="$(ollama_version "$OLLAMA_CLI")"
   ok "Ollama $ollama_have installed"
 fi
-if ! $CHECK; then
-  if ! curl -fsS --max-time 3 http://127.0.0.1:11434/api/version >/dev/null 2>&1; then
-    quiet open -a Ollama || true
-    n=0
-    until curl -fsS --max-time 3 http://127.0.0.1:11434/api/version >/dev/null 2>&1; do
-      n=$((n + 1)); [ "$n" -le 60 ] || fail "Ollama did not start. Open the Ollama app, then run this again."
-      sleep 2
-    done
-  fi
-  version_ge "$("$OLLAMA_CLI" --version 2>/dev/null | awk '{print $NF}' | sed 's/^v//')" "$OLLAMA_MIN" \
-    || fail "Ollama $OLLAMA_MIN or later is required."
+if ! $CHECK && ! curl -fsS --max-time 3 "$OLLAMA_API/api/version" >/dev/null 2>&1; then
+  # The app if there is one; a Homebrew or command-line Ollama serves itself.
+  if [ -d /Applications/Ollama.app ]; then quiet open -a Ollama || true
+  else nohup "$OLLAMA_CLI" serve >> "$LOG" 2>&1 & fi
+  n=0
+  until curl -fsS --max-time 3 "$OLLAMA_API/api/version" >/dev/null 2>&1; do
+    n=$((n + 1)); [ "$n" -le 60 ] || fail "Ollama did not start. Start it, then run this again."
+    sleep 2
+  done
+fi
+# The models the running Ollama has; the CLI's list when none is running (--check).
+have_models="$WORK/ollama-models.txt"
+: > "$have_models"
+if curl -fsS --max-time 10 -o "$WORK/ollama-tags.json" "$OLLAMA_API/api/tags" 2>/dev/null; then
+  i=0
+  while name="$(json_get "$WORK/ollama-tags.json" "models.$i.name")" && [ -n "$name" ]; do
+    echo "$name" >> "$have_models"; i=$((i + 1))
+  done
+elif [ -n "$OLLAMA_CLI" ]; then
+  "$OLLAMA_CLI" list 2>/dev/null | awk 'NR > 1 {print $1}' > "$have_models" || true
 fi
 for m in $MODELS; do
-  if "$OLLAMA_CLI" list 2>/dev/null | awk 'NR > 1 {print $1}' | grep -qx "$m"; then
-    ok "model $m"
+  if grep -qx "$m" "$have_models"; then
+    ok "model $m already pulled"
   elif $CHECK; then
     todo "pull model $m"
   else
@@ -255,37 +285,54 @@ NODE_DIR="$(dirname "${NODE_BIN:-/usr/local/bin/node}")"
 export PATH="$NODE_DIR:$PATH"
 
 # ── 5. OpenClaw ───────────────────────────────────────────────────────────────
+# Looked for first, wherever npm put it: one at or above this release's minimum
+# is kept, with a note when a newer release exists; otherwise the current
+# release is installed into a user-owned prefix, without sudo.
 step "OpenClaw"
 NPM="$NODE_DIR/npm"
+openclaw_version() {  # "2026.10.8"; "" when it does not run
+  "$1" --version 2>/dev/null | awk '/^OpenClaw/ {print $2}' | sed -n 1p
+}
+OC_BIN=""; oc_have=""
+for cand in "$(command -v openclaw 2>/dev/null || true)" "$HOME/.npm-global/bin/openclaw" \
+    /opt/homebrew/bin/openclaw /usr/local/bin/openclaw; do
+  [ -n "$cand" ] && [ -x "$cand" ] || continue
+  v="$(PATH="$NODE_DIR:$PATH" openclaw_version "$cand")"
+  [ -n "$v" ] && { OC_BIN="$cand"; oc_have="$v"; break; }
+done
 oc_latest="$("$NPM" view openclaw@latest version 2>/dev/null || true)"
-# A user-owned global prefix, so OpenClaw installs without sudo, unless the
-# current one is already writable (Homebrew's is).
-npm_prefix="$("$NPM" prefix -g 2>/dev/null || true)"
-if [ -z "$npm_prefix" ] || { [ ! -w "$npm_prefix/lib" ] && [ ! -w "$npm_prefix" ]; }; then
-  npm_prefix="$HOME/.npm-global"
-fi
-export PATH="$npm_prefix/bin:$PATH"
-OC_BIN="$(command -v openclaw 2>/dev/null || true)"
-oc_have=""
-[ -n "$OC_BIN" ] && oc_have="$("$OC_BIN" --version 2>/dev/null | awk '{print $2}')"
-if [ -n "$oc_have" ] && [ -n "$oc_latest" ] && [ "$oc_have" = "$oc_latest" ]; then
-  ok "OpenClaw $oc_have (current)"
-elif $CHECK; then
-  todo "install OpenClaw ${oc_latest:-latest}${oc_have:+ (installed: $oc_have)} into $npm_prefix"
-else
-  if [ "$npm_prefix" = "$HOME/.npm-global" ]; then
-    mkdir -p "$npm_prefix"
-    quiet "$NPM" config set prefix "$npm_prefix"
-    grep -qs 'npm-global/bin' "$HOME/.zprofile" \
-      || echo 'export PATH="$HOME/.npm-global/bin:$PATH"' >> "$HOME/.zprofile"
+if [ -n "$oc_have" ] && version_ge "$oc_have" "$OPENCLAW_MIN"; then
+  ok "OpenClaw $oc_have already installed ($OC_BIN)"
+  if [ -n "$oc_latest" ] && ! version_ge "$oc_have" "$oc_latest"; then
+    printf '  %s!%s OpenClaw %s is available; this install keeps %s. To update: npm install -g openclaw@latest\n' \
+      "$Y" "$N" "$oc_latest" "$oc_have"
   fi
-  long "installing OpenClaw ${oc_latest:-latest}" "$NPM" install -g "openclaw@${oc_latest:-latest}" \
-    || fail "OpenClaw did not install."
-  hash -r
-  OC_BIN="$(command -v openclaw 2>/dev/null || true)"
-  [ -n "$OC_BIN" ] || fail "OpenClaw installed, but the openclaw command is not on PATH."
-  oc_have="$("$OC_BIN" --version 2>/dev/null | awk '{print $2}')"
-  ok "OpenClaw $oc_have installed"
+  PATH="$(dirname "$OC_BIN"):$PATH"; export PATH
+else
+  # A user-owned global prefix, so OpenClaw installs without sudo, unless the
+  # current one is already writable (Homebrew's is).
+  npm_prefix="$("$NPM" prefix -g 2>/dev/null || true)"
+  if [ -z "$npm_prefix" ] || { [ ! -w "$npm_prefix/lib" ] && [ ! -w "$npm_prefix" ]; }; then
+    npm_prefix="$HOME/.npm-global"
+  fi
+  if $CHECK; then
+    todo "install OpenClaw ${oc_latest:-latest}${oc_have:+ (installed: $oc_have, below the minimum $OPENCLAW_MIN)} into $npm_prefix"
+  else
+    if [ "$npm_prefix" = "$HOME/.npm-global" ]; then
+      mkdir -p "$npm_prefix"
+      quiet "$NPM" config set prefix "$npm_prefix"
+      grep -qs 'npm-global/bin' "$HOME/.zprofile" \
+        || echo 'export PATH="$HOME/.npm-global/bin:$PATH"' >> "$HOME/.zprofile"
+    fi
+    long "installing OpenClaw ${oc_latest:-latest}" "$NPM" install -g "openclaw@${oc_latest:-latest}" \
+      || fail "OpenClaw did not install."
+    export PATH="$npm_prefix/bin:$PATH"
+    hash -r
+    OC_BIN="$npm_prefix/bin/openclaw"
+    [ -x "$OC_BIN" ] || fail "OpenClaw installed, but $OC_BIN is missing."
+    oc_have="$(openclaw_version "$OC_BIN")"
+    ok "OpenClaw $oc_have installed"
+  fi
 fi
 export OPENCLAW_BIN="${OC_BIN:-}" OPENCLAW_NODE="$NODE_DIR/node"
 
