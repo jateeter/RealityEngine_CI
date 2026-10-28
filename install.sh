@@ -354,14 +354,18 @@ fi
 
 # ── 8. Check it ───────────────────────────────────────────────────────────────
 step "Checking the services"
+# The instance registry's port is the one this install configured
+# (RE_PORT_REGISTRY in its .env), with the release's own default.
+reg_port="$(sed -n 's/^RE_PORT_REGISTRY=//p' "$RE_DIR/.env" 2>/dev/null || true)"
+REGISTRY_URL="http://localhost:${reg_port:-${RE_PORT_REGISTRY:-5999}}/re-registry.json"
 bad=0
 check() {  # name url [-k]
   if curl -fsS ${3:-} -o /dev/null --max-time 10 "$2" 2>/dev/null; then ok "$1"
   else printf '  %s✗%s %s (%s)\n' "$R" "$N" "$1" "$2"; bad=$((bad + 1)); fi
 }
-check "instance registry" http://localhost:5999/re-registry.json
+check "instance registry" "$REGISTRY_URL"
 reg="$WORK/re-registry.json"
-if curl -fsS --max-time 10 -o "$reg" http://localhost:5999/re-registry.json 2>/dev/null; then
+if curl -fsS --max-time 10 -o "$reg" "$REGISTRY_URL" 2>/dev/null; then
   i=0
   while id="$(json_get "$reg" "instances.$i.id")" && [ -n "$id" ]; do
     for kind in re pe; do
@@ -380,7 +384,7 @@ cat <<EOF
 ${B}RealityEngine $RELEASE_TAG is installed.${N}
 
   Manager (Visualizer)   https://localhost:5173
-  Instance registry      http://localhost:5999/re-registry.json
+  Instance registry      $REGISTRY_URL
   localAI API            http://localhost:4000
   Open WebUI             http://localhost:8080
   OpenClaw gateway       http://localhost:18789
