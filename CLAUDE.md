@@ -117,6 +117,10 @@ npm run test:deployment
 `release/build-images.py` builds them natively for linux/arm64; `re-init`
 generates an install's engine services per instance spec, its instance UUIDs (lane
 `release`) and instance registry; `release/realityengine` is the installer CLI.
+`install.sh` (repository root) is the one command a fresh Mac runs: host
+prerequisites, then `realityengine install`, against five pinned release
+constants that move with each candidate (RELEASE.md §2,
+`scripts/tests/test-install-sh.sh`).
 
 ## Editing Rules
 

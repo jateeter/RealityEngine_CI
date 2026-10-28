@@ -497,6 +497,10 @@ jobs:
         working-directory: RealityEngine_CI
         run: bash scripts/tests/test-host-preflight.sh
 
+      - name: Run install.sh release-constant unit tests
+        working-directory: RealityEngine_CI
+        run: bash scripts/tests/test-install-sh.sh
+
       - name: Run manifest host-services unit tests
         working-directory: RealityEngine_CI
         run: bash scripts/tests/test-manifest-host-services.sh

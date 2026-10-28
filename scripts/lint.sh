@@ -20,6 +20,8 @@ TARGETS=(
   "$CI_DIR/scripts/deploy-validate-scheduled.sh"
   "$CI_DIR/scripts/tests/test-deploy-validate-launch-agent.sh"
   "$CI_DIR/release/realityengine"
+  "$CI_DIR/install.sh"
+  "$CI_DIR/scripts/tests/test-install-sh.sh"
   "$CI_DIR/scripts/tests/test-release-init.sh"
   "$CI_DIR/scripts/tests/test-release-images.sh"
   "$CI_DIR/../RealityEngine_CPP/start.sh"

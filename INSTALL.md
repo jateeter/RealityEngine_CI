@@ -1,7 +1,16 @@
 # Installing RealityEngine
 
 How to install and run the RealityEngine suite on a Mac from its release images.
-No source checkout, compiler or build toolchain is needed. To build and run
+No source checkout, compiler or build toolchain is needed.
+
+**The quickest way is [`install.sh`](install.sh)**, which does every step below:
+
+```bash
+curl -fsSL -o install.sh https://raw.githubusercontent.com/jateeter/RealityEngine_CI/main/install.sh
+bash install.sh
+```
+
+This guide describes the same steps by hand. To build and run
 from source instead, see `QUICKSTART.md` and `DOCKER_QUICKSTART.md`.
 
 ## What you get
