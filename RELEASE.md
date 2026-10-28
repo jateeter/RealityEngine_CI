@@ -224,6 +224,12 @@ digests to `images.json`, uploaded as the run's
 `release-images-<tag>` artifact (`gh run download <run> -n release-images-<tag>`).
 A repo left out of `pins` builds from its `main`.
 
+Downloading an artifact needs a GitHub login, which most people installing a
+candidate don't have. So commit the file, unchanged, as
+`release/candidates/<tag>.images.json`, and give its sha256 in the README's
+candidate section. Installers then fetch it from `raw.githubusercontent.com`
+anonymously and check the hash before they install.
+
 ### 3. Certify the candidate images *(pending E1, E2, E3)*
 
 Run the containerized lane on the candidate images, compare it with step 1,

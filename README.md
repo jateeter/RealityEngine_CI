@@ -146,19 +146,13 @@ chmod +x realityengine
 
 ### 2. Get the images file
 
-`images.json` pins each of the 12 images by digest. It is published as the
-artifact `release-images-release-v0.0.1-rc3` of run 40605186263, which expires
-on 2027-01-25. Get it either way:
+`images.json` pins each of the 12 images by digest, so the install runs exactly
+the images rc3 certified. Download it; this needs no GitHub account:
 
 ```bash
-# From GitHub. This needs the GitHub CLI and a login, because artifacts are never anonymous.
-brew install gh && gh auth login
-gh run download 40605186263 -R jateeter/RealityEngine_CI \
-  -n release-images-release-v0.0.1-rc3 -D ~
-
-# Or copy it from a developer Mac, where the regression lane keeps it at
-#   RealityEngine_CI/.regression-tests/candidates/release-v0.0.1-rc3.images.json
-# Save it on this Mac as ~/images.json.
+cd ~
+curl -fsSL -o images.json \
+  https://raw.githubusercontent.com/jateeter/RealityEngine_CI/main/release/candidates/release-v0.0.1-rc3.images.json
 ```
 
 Then check the file. A different hash means it isn't rc3's, so don't install:
@@ -167,6 +161,10 @@ Then check the file. A different hash means it isn't rc3's, so don't install:
 shasum -a 256 ~/images.json
 # 1b78605b856feb6a7ee3e889f61d3418c8b0eb4ad1f1c07eb5cc03ae7af5f327
 ```
+
+The same file is the artifact `release-images-release-v0.0.1-rc3` of run
+40605186263, until it expires on 2027-01-25. Downloading an artifact needs a
+GitHub login, which is why the copy above is in the repository.
 
 ### 3. Install
 
@@ -252,7 +250,7 @@ above, run this from this repository:
 
 ```bash
 ./scripts/regression-test.sh --execute --profile local-containerized \
-  --images .regression-tests/candidates/release-v0.0.1-rc3.images.json \
+  --images release/candidates/release-v0.0.1-rc3.images.json \
   --run-id e1-rc3-<yyyymmdd><letter>
 ```
 
