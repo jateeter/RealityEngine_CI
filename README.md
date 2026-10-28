@@ -186,10 +186,24 @@ cd ~/RealityEngine
 ./realityengine logs [service]
 ./realityengine down          # stop; data is kept
 ./realityengine up            # start again
-./realityengine uninstall     # add --purge to delete the data as well
 ./realityengine machines list
 ./realityengine machines load --domain agriculture   # loads into every engine instance, keeping them in parity
 ```
+
+To remove it, run [`uninstall.sh`](uninstall.sh). It also clears an install that
+stopped partway, or one whose `~/.realityengine` was deleted by hand. It lists
+what it found, asks before removing anything, and keeps Docker Desktop, Ollama
+and its models, Node and OpenClaw:
+
+```bash
+curl -fsSL -o uninstall.sh https://raw.githubusercontent.com/jateeter/RealityEngine_CI/main/uninstall.sh
+bash uninstall.sh --check     # what it would remove
+bash uninstall.sh             # add --images to also remove the 12 GB of release images
+```
+
+Run it before installing again over a failed attempt. Data left from an earlier
+install that doesn't match the new install's passwords is what stops the
+`pim-bootstrap` step with exit 1.
 
 Troubleshooting is covered in [INSTALL.md](INSTALL.md#troubleshooting).
 

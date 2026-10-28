@@ -206,7 +206,7 @@ CORPUS_WORK_DIR="/tmp/realityengine-corpus-parity-seed-$RUN_ID"
 teardown() {
   if [ "$KEEP_UNIVERSE" = false ] && [ "$SKIP_START" = false ]; then
     info "Stopping universe"
-    bash "$CI_DIR/stopUniverse.sh" --all >/dev/null 2>&1 || true
+    bash "$CI_DIR/stopUniverse.sh" --all --keep-docker --keep-ollama >/dev/null 2>&1 || true
   fi
   rm -rf "$CORPUS_WORK_DIR"
 }
@@ -219,7 +219,7 @@ if [ "$SKIP_START" = false ]; then
   } > "$MANIFEST"
 
   info "Stopping any running universe"
-  bash "$CI_DIR/stopUniverse.sh" --all >/dev/null 2>&1 || true
+  bash "$CI_DIR/stopUniverse.sh" --all --keep-docker --keep-ollama >/dev/null 2>&1 || true
 
   info "Starting universe with a 1-machine corpus"
   # --pe-source-bootstrap=off: the loop bootstraps PE sources itself after each

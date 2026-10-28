@@ -10,8 +10,11 @@
 # Sandboxed: stopUniverse.sh runs from a scratch CI directory with no stamp, no
 # .env and no sibling repos; the instance registry, every PID file and every
 # port base point into the sandbox, and --re-engine/--pe-engine=cpp keep the
-# AI-stack, Manager and Ollama steps out of it. The "engines" are local
-# listeners on free ports.
+# AI-stack, Manager and Ollama steps out of it. Where a case runs the full
+# teardown, the host Ollama it would stop is a listener on a free port, the app
+# and launchd names match nothing, the release install's compose project does
+# not exist, and the sibling stacks are absent from the sandbox. The "engines"
+# are local listeners on free ports.
 set -euo pipefail
 
 CI_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
@@ -67,6 +70,8 @@ run_stop_with() {  # [stopUniverse.sh args...]
       MCP_HTTP_PID_FILE="$TMP/mcp.pid" OPENAPI_SWAGGER_PID_FILE="$TMP/swagger.pid" \
       BRIDGE_METRICS_PID_FILE="$TMP/metrics.pid" \
       MANAGER_UNIVERSE_PID_FILE="$TMP/manager.pid" OLLAMA_UNIVERSE_PID_FILE="$TMP/ollama.pid" \
+      OLLAMA_PORT="${OLLAMA_PORT_UNDER_TEST:-$(free_port)}" OLLAMA_APP_NAME="no-such-app-$$" \
+      OLLAMA_LAUNCHD_LABELS="" REGRESSION_RELEASE_PROJECT="no-such-project-$$" \
       bash "$SANDBOX/stopUniverse.sh" "$@" 2>&1
 }
 run_stop() { run_stop_with --re-engine=cpp --pe-engine=cpp; }
@@ -146,8 +151,8 @@ kill "$ORPHAN" 2>/dev/null || true; wait "$ORPHAN" 2>/dev/null || true
 echo "a multi-engine stamp: the header names its engines, and the AI stack stops once"
 # The stamp of a --engines universe carries RE_ENGINE=ai beside ENGINES=, so the
 # header announced the single ai pair and Manager's stop ran twice. A stub
-# Manager stop.sh in the sandbox counts its calls; OPENCLAW=no and the default
-# (no --stop-docker) keep OpenClaw and Docker out of it.
+# Manager stop.sh in the sandbox counts its calls; OPENCLAW=no keeps OpenClaw
+# out of it. No flags: the full default teardown, Docker and Ollama included.
 mkdir -p "$TMP/RealityEngine_Manager"
 printf '#!/usr/bin/env bash\necho "STUB MANAGER STOP"\n' > "$TMP/RealityEngine_Manager/stop.sh"
 chmod +x "$TMP/RealityEngine_Manager/stop.sh"
@@ -159,6 +164,25 @@ check "$(grep -c 'Engine selection: ENGINES=cpp:1,lsp:1,scala:1' <<<"$out")" 1 "
 check "$(grep -c 'RE_ENGINE=ai' <<<"$out")" 0 "and not the ai pair the stamp also carries"
 check "$(grep -c 'STUB MANAGER STOP' <<<"$out")" 1 "Manager is stopped once, not twice"
 check "$([ -e "$SANDBOX/.universe-engine-selection" ] && echo present || echo removed)" removed "the stamp is removed"
+check "$(grep -c 'leaving containers running' <<<"$out")" 0 "the Docker stacks are stopped by default"
+check "$(grep -c 'Ollama stopped' <<<"$out")" 1 "the host Ollama is stopped by default"
+
+echo "--keep-docker --keep-ollama leave both running"
+printf 'RE_ENGINE=ai\nPE_ENGINE=ai\nENGINES=cpp:1\nMULTI_ENGINE_MODE=true\nOPENCLAW=no\n' \
+  > "$SANDBOX/.universe-engine-selection"
+set +e; out=$(run_stop_with --keep-docker --keep-ollama); rc=$?; set -e
+check "$rc" 0 "teardown exits 0"
+check "$(grep -c 'leaving containers running (--keep-docker)' <<<"$out")" 1 "the Docker stacks are left"
+check "$(grep -c 'Ollama: leaving it running (--keep-ollama)' <<<"$out")" 1 "Ollama is left"
+
+echo "a listener on the Ollama port that is not Ollama is never killed"
+OP=$(free_port); NOT_OLLAMA=$(other_listener "$OP"); wait_listening "$OP"
+printf 'RE_ENGINE=ai\nPE_ENGINE=ai\nENGINES=cpp:1\nMULTI_ENGINE_MODE=true\nOPENCLAW=no\n' \
+  > "$SANDBOX/.universe-engine-selection"
+set +e; out=$(OLLAMA_PORT_UNDER_TEST="$OP" run_stop_with); rc=$?; set -e
+check "$rc" 0 "teardown exits 0"
+check "$(alive "$NOT_OLLAMA")" yes "the other process still runs"
+check "$(grep -c "Port $OP is held by PID $NOT_OLLAMA, which is not Ollama" <<<"$out")" 1 "and is named, not killed"
 
 echo "no stamp: the header says the instance registry decides"
 set +e; out=$(run_stop); rc=$?; set -e

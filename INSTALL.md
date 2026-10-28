@@ -266,6 +266,21 @@ the machines you loaded.
 ./realityengine uninstall --purge    # remove everything, including all data
 ```
 
+[`uninstall.sh`](uninstall.sh) removes everything as well, and also works when
+the install is incomplete: when the first start failed, or when
+`~/.realityengine` is gone but its Docker volumes are not. It finds what an
+install left by the names Docker and macOS give it: the compose project's
+containers, volumes and network, the OpenClaw gateway's LaunchAgent, the
+installer's files in `~/.realityengine` and `~/RealityEngine`, and the local CA
+in the login keychain. It keeps Docker Desktop, Ollama and its models, Node and
+OpenClaw.
+
+```bash
+curl -fsSL -o uninstall.sh https://raw.githubusercontent.com/jateeter/RealityEngine_CI/main/uninstall.sh
+bash uninstall.sh --check            # list what it would remove
+bash uninstall.sh [--images] [--yes] # remove; --images also removes the release images
+```
+
 ## The HealthKit bridge (iPhone)
 
 The HealthKit bridge is an iOS app that sends your Health data to a Perception
@@ -301,6 +316,13 @@ holds. Stop that program, or move a port by setting it before `install` or
 `MANAGER_UI`, `MANAGER_API`, `LOCALAI`, `OPENCLAW`, `WEBUI`, `PIM`, `CSS`,
 `MCP`, `REGISTRY`, `GRAFANA`, `PROMETHEUS` and `QDRANT`. macOS's AirPlay Receiver holds
 5000 and 7000, which the release does not use.
+
+**`pim-bootstrap` didn't complete successfully: exit 1.** `docker logs
+realityengine-pim-bootstrap-1` shows why. `403 … Invalid email/password
+combination` means the Solid server's data is from an earlier install, whose
+password this install doesn't have. That happens when `~/.realityengine` was
+deleted but its Docker volumes were not. If nothing in the old install needs
+keeping, run `bash uninstall.sh`, then `bash install.sh` again.
 
 **Something stays "not ready".** Check `./realityengine status` and
 `./realityengine logs <service>`. Most often Docker Desktop has too little
