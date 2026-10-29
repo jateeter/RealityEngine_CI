@@ -23,6 +23,7 @@ COPY release/realityengine /opt/release/realityengine
 # allocator (#296), the integration registry template, and the monitoring
 # configuration and dashboards.
 COPY scripts/lib/instance_uuids.py /opt/ci/scripts/lib/
+COPY scripts/bridge-metrics-exporter.mjs /opt/ci/scripts/
 COPY config/integrations.example.json config/loki-config.yml config/grafana-datasources.yml \
      config/grafana-dashboards.yml config/regression-corpus.txt /opt/ci/config/
 COPY config/dashboards/ /opt/ci/config/dashboards/

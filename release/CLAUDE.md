@@ -14,7 +14,7 @@ with no checkout (`docs/ReleaseRoadmap.md`, decisions A1–A11; `RELEASE.md`;
 | `compose.yml` | The fixed services of an install. Third-party images pinned by tag and digest; first-party by `${RE_IMAGE_*}` |
 | `init/` | `re-init`: configures an install (engine services per instance spec, instance UUIDs, both instance-registry views, config, certificates, secrets, OpenClaw), serves the instance registry, and loads machines (C1, C2, C6) |
 | `corpus/` | `re-corpus`: the regression corpus the engines boot with, the Load Machines catalog, localAI's machines (A8) |
-| `config/` | Release-only config: Prometheus (file_sd per instance), Promtail (Docker API), the TLS proxy |
+| `config/` | Release-only config: Prometheus (file_sd per instance, and the `bridge-metrics` service running `scripts/bridge-metrics-exporter.mjs`), Promtail (Docker API, streams labelled `source=compose`; the dashboards select `source=~"host|compose"`), the TLS proxy |
 | `host-requirements.json` | What the Mac's own Ollama, OpenClaw and Node must be (#592). The CLI carries the same constants; `scripts/tests/test-host-preflight.sh` keeps them equal |
 | `realityengine` | The installer CLI. **Runs on the stock macOS `/bin/bash` 3.2**: no arrays of arrays, no `${v,,}`, no `mapfile`. All logic beyond checking the Mac and driving compose lives in `re-init` |
 

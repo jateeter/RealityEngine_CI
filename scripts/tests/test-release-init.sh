@@ -27,6 +27,7 @@ mkdir -p "$OPT/release/config" "$OPT/ci/scripts/lib" "$OPT/ci/config"
 cp "$CI_DIR/release/compose.yml" "$CI_DIR/release/images.json" "$OPT/release/"
 cp "$CI_DIR"/release/config/* "$OPT/release/config/"
 cp "$CI_DIR/scripts/lib/instance_uuids.py" "$OPT/ci/scripts/lib/"
+cp "$CI_DIR/scripts/bridge-metrics-exporter.mjs" "$OPT/ci/scripts/"
 cp "$CI_DIR"/config/{integrations.example.json,loki-config.yml,grafana-datasources.yml,grafana-dashboards.yml} "$OPT/ci/config/"
 cp -R "$CI_DIR/config/dashboards" "$OPT/ci/config/dashboards"
 
@@ -147,6 +148,22 @@ echo
 assert_eq "$(python3 -c 'import json,sys; print(any(i["name"]=="re-openclaw-gateway" for i in json.load(open(sys.argv[1]))["images"]))' "$CI_DIR/release/images.json")" "False" "images.json has no gateway image"
 assert_eq "$(grep -c '^  openclaw-gateway:' "$CI_DIR/release/compose.yml" || true)" "0" "compose.yml has no gateway service"
 assert_contains "$(cat "$CI_DIR/release/compose.yml")" '127.0.0.1:${RE_PORT_BROWSER_CDP:-9222}:9223' "the browser publishes CDP on loopback only"
+
+
+echo "the Grafana dashboards have data in a release install"
+# rc3 showed No Data on four dashboards: their Loki panels selected only the
+# native lane's source="host" while the release's Promtail labels its streams
+# source="compose", and the AI bridge metrics came from an exporter only the
+# native lane ran.
+assert_eq "$(grep -l 'source=\\"host\\"' "$INSTALL"/config/dashboards/*.json 2>/dev/null | wc -l | tr -d ' ')" "0" \
+  "no dashboard selects the native lane's log streams alone"
+assert_contains "$(cat "$INSTALL/config/promtail.yml")" "replacement: compose" "the release's Promtail labels its streams source=compose"
+assert_eq "$([ -f "$INSTALL/config/bridge-metrics-exporter.mjs" ] && echo yes || echo no)" "yes" "re-init writes the bridge exporter"
+assert_contains "$(cat "$INSTALL/config/prometheus.yml")" "bridge-metrics:7342" "Prometheus scrapes the bridge exporter"
+assert_contains "$(cat "$INSTALL/compose.yml")" "./config/bridge-metrics-exporter.mjs:/opt/bridge/bridge-metrics-exporter.mjs:ro" \
+  "the bridge-metrics service runs it"
+assert_contains "$(cat "$CI_DIR/release/init/Dockerfile")" "COPY scripts/bridge-metrics-exporter.mjs /opt/ci/scripts/" \
+  "the re-init image carries it"
 
 echo "$PASS passed, $FAIL failed"
 [ "$FAIL" -eq 0 ]
