@@ -234,6 +234,8 @@ Then point `install.sh` at the candidate. Its five release constants
 (`RELEASE_TAG`, `INSTALLER_COMMIT` and `INSTALLER_SHA256`,
 `IMAGES_COMMIT` and `IMAGES_SHA256`) name the tag, the commit the installer is
 taken from, and the commit that added the images file, each with its sha256.
+Set `release` in `release/host-requirements.json` to the tag as well;
+`scripts/tests/test-install-sh.sh` checks it against `RELEASE_TAG`.
 `bash install.sh --check` downloads both files and checks their hashes, so run
 it before merging.
 
