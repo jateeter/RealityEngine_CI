@@ -58,34 +58,41 @@ Current generated corpus:
 
   
 
-## Release candidate: release-v0.0.1-rc3
+## Release candidate: release-v0.0.1-rc4
 
-`release-v0.0.1-rc3` is the current candidate for the MVP release. It is 12
+`release-v0.0.1-rc4` is the current candidate for the MVP release. It is 12
 linux/arm64 images on `ghcr.io/jateeter`, built by `release-images.yml`
-run [40605186263](https://github.com/jateeter/RealityEngine_CI/actions/runs/40605186263)
-from this repository at `fc60831`. It replaces rc2: Ollama and the OpenClaw
-gateway now run natively on the Mac, outside Docker (#592), so the
-`re-openclaw-gateway` image is gone. The clean-Mac install (E3) is the next
-check (`docs/ReleaseRoadmap.md`).
+run [40802198200](https://github.com/jateeter/RealityEngine_CI/actions/runs/40802198200).
+It is rc3 with one fix: Grafana's Reality Engine Overview, AI Bridge
+Operations, localAIStack Overview and Native Runtime Logs dashboards showed No
+Data in a release install (#650). Every other repository is at its rc3 commit,
+so only this repository's two images, `re-init` and `re-mcp`, are built from
+new source. rc3 itself moved Ollama and the OpenClaw gateway onto the Mac,
+outside Docker (#592). The clean-Mac install (E3) is the next check
+(`docs/ReleaseRoadmap.md`).
 
-**To install rc3 on a Mac, run [`install.sh`](install.sh)** (see
+**To install rc4 on a Mac, run [`install.sh`](install.sh)** (see
 [Install on a fresh Mac](#install-on-a-fresh-mac) below). It does everything,
 from Docker Desktop to a running suite, and needs no GitHub account.
 [INSTALL.md](INSTALL.md) describes the same steps by hand.
 
-### What rc3 certifies
+### What rc4 certifies
 
 | Check | Run | Result |
 |---|---|---|
-| Containerized lane on the published images (E1, certifying form) | `e1-rc3-cert-20261028a` | completed, 0 new failures, 44 machines on each engine |
-| Containerized lane built from the same commits (E1, development form) | `e1-rc3-20261027b` | completed, 0 new failures |
+| Containerized lane on the published rc4 images (E1, certifying form) | `e1-rc4-cert-20261029a` | completed, 0 new failures, no change from rc3's `e1-rc3-cert-20261028a` |
+| Containerized lane built from rc3's commits (E1, development form) | `e1-rc3-20261027b` | completed, 0 new failures |
 | Native lane, compared with E1 (E2) | `e2-native-rc3-20261027b` | completed, 0 new failures; 52 of 57 reports identical, 5 explained |
 
-The images were built from these commits, the ones both lanes ran:
+The development form and E2 ran at rc3's commits. rc4 changes no engine,
+corpus or service source: only the release's own configuration in
+this repository.
+
+The images were built from these commits:
 
 | Repository | Commit |
 |---|---|
-| RealityEngine_CI | `fc60831` |
+| RealityEngine_CI | `d8851ef` (rc3: `fc60831`) |
 | RealityEngine_CPP | `1a66823` |
 | RealityEngine_LSP | `de28483` |
 | RealityEngine_Scala | `e5d1745` |
@@ -100,12 +107,12 @@ The five reports that differ between the lanes are:
 - when the live Yuma MQTT stream delivered;
 - whether one agent-tools source had activated when it was read;
 - an envelope id the comparison does not mask;
-- the Swagger portal and the bridge-metrics exporter, which the release does
-  not run.
+- the Swagger portal, which the release does not run, and the bridge-metrics
+  exporter, which rc3 did not run and rc4 does (#650).
 
 None is an engine difference.
 
-These are **not certified by rc3**, and must not be read as passing:
+These are **not certified by rc4**, and must not be read as passing:
 - **The HealthKit bridge.** No iPhone was connected to the Mac that ran the
   lanes, so the `healthkit-bridge` stage was skipped. The device test of
   `localHealthkitBridge` is being run separately on an iPhone, and its result
@@ -153,8 +160,8 @@ macOS asks for your password when Docker Desktop or Node is installed system-wid
 and when the certificate is trusted.
 
 Each step is skipped when the Mac already satisfies it, so `install.sh` is safe
-to run again. On a Mac where rc3 is already installed, it starts it. On an older
-install, it upgrades it to rc3, keeping its data.
+to run again. On a Mac where rc4 is already installed, it starts it. On an older
+install, rc3 included, it upgrades it to rc4, keeping its data.
 
 Options:
 - `bash install.sh --check` reports what it would do, and every requirement
@@ -207,18 +214,18 @@ install that doesn't match the new install's passwords is what stops the
 
 Troubleshooting is covered in [INSTALL.md](INSTALL.md#troubleshooting).
 
-### Re-running the regression lane on rc3 (developer Mac)
+### Re-running the regression lane on rc4 (developer Mac)
 
-To repeat E1 on a Mac with the sibling repos checked out at the rc3 commits
+To repeat E1 on a Mac with the sibling repos checked out at the rc4 commits
 above, run this from this repository:
 
 ```bash
 ./scripts/regression-test.sh --execute --profile local-containerized \
-  --images release/candidates/release-v0.0.1-rc3.images.json \
-  --run-id e1-rc3-<yyyymmdd><letter>
+  --images release/candidates/release-v0.0.1-rc4.images.json \
+  --run-id e1-rc4-<yyyymmdd><letter>
 ```
 
-The lane installs rc3 as the compose project `re-regression` and runs the
+The lane installs rc4 as the compose project `re-regression` and runs the
 regression stages against it. It also checks each image's revision label
 against the run's repo pins, so the local repos must match those commits.
 
