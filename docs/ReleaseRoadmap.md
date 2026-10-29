@@ -87,7 +87,7 @@ needing no source checkout, compiler or build toolchain on the Mac:
 | **B2** | Self-contained images | CI + repos | B1 | open | |
 | **B3** | Pin and unify third-party images | CI + repos | — | in progress | OCS#58, localAIStack#129, PIM#84 |
 | **B4** | Native arm64 builds | CI | A4, B1 | in progress | |
-| **B5** | Release image workflow | CI | A3, B4 | done: `release-v0.0.1-rc1`, `-rc2`, `-rc3` (12 images: the gateway image left with #592), then `-rc4` (current candidate: rc3 plus the Grafana fix #650), all public and anonymously pullable | runs 39300675853, 39315175811, 40605186263, 40802198200 |
+| **B5** | Release image workflow | CI | A3, B4 | done: `release-v0.0.1-rc1`, `-rc2`, `-rc3` (12 images: the gateway image left with #592), then `-rc4` (rc3 plus the Grafana fix #650) and `-rc5` (current candidate: rc4 plus Manager#304, loaded machines' test sequences on every PE), all public and anonymously pullable | runs 39300675853, 39315175811, 40605186263, 40802198200, 40821825935 |
 | **B6** | Image hygiene | all | B1 | open | |
 | **C1** | Release compose, engines generated from the instance spec | CI | B2, B3 | in progress: live on the developer Mac |  |
 | **C2** | Instance registry, MCP, config and UUIDs in containers | CI | B2 | in progress: live on the developer Mac |  |
@@ -102,9 +102,9 @@ needing no source checkout, compiler or build toolchain on the Mac:
 | **D5** | MQTT disposition | CI/MQTT | A11 | in progress: Yuma answering; stage passes | CI#578 |
 | **D6** | Release asset checks | Machines/OpenClaw/CI | A8 | in progress | |
 | **D7** | Deployment suite | CI | C3 | in progress: live suites green on the install | CPP#171, Scala#190, LSP#164, Machines#217 |
-| **E1** | `local-containerized` lane on published images | CI | B5, C3 | done: certifying form green on `release-v0.0.1-rc4` (`e1-rc4-cert-20261029a`, 0 new failures, no change from rc3's `e1-rc3-cert-20261028a`, 44 machines per engine); development form from the same commits `e1-rc3-20261027b`. Earlier: rc2 `e1-rc2-20261019a` | CI#165, CI#590, localAIStack#159 |
+| **E1** | `local-containerized` lane on published images | CI | B5, C3 | done: certifying form green on `release-v0.0.1-rc5` (`e1-rc5-cert-20261029a`, 0 new failures, no change from rc4's `e1-rc4-cert-20261029a`, 44 machines per engine); before it rc4 (`e1-rc4-cert-20261029a`, no change from rc3's `e1-rc3-cert-20261028a`, 44 machines per engine); development form from the same commits `e1-rc3-20261027b`. Earlier: rc2 `e1-rc2-20261019a` | CI#165, CI#590, localAIStack#159 |
 | **E2** | Native vs containerized comparison | CI | E1 | done for rc3: `e2-native-rc3-20261027b` vs `e1-rc3-20261027b`, 52/57 reports identical, 5 explained (README, What rc3 certifies). The first pair (`e1-rc3-20261027a`) found the release image missing localAI's 11 domain machines, fixed by localAIStack#159; repeat at F1 | |
-| **E3** | Clean-Mac install test | CI/operator | B5, C3, C4 | open: install `release-v0.0.1-rc4` on a clean Mac (README). The first rc3 attempt found the No Data dashboards (#650) and a reinstall over leftover volumes failing `pim-bootstrap` (`uninstall.sh`, #649) | |
+| **E3** | Clean-Mac install test | CI/operator | B5, C3, C4 | open: install `release-v0.0.1-rc5` on a clean Mac (README). The first rc3 attempt found the No Data dashboards (#650) and a reinstall over leftover volumes failing `pim-bootstrap` (`uninstall.sh`, #649) | |
 | **E4** | Release eligibility enforced | CI tooling | A1, A2, B5 | open | |
 | **E5** | Release documentation aligned | CI/docs | A1, A2 | in progress: `RELEASE.md` revised for A1–A11 | |
 | **F1** | Freeze and final certification | release operator | D*, E1–E5 | open | |
@@ -284,6 +284,18 @@ Each is reflected in `RELEASE.md` where it changes the process.
     manifest pull at its digest, and each `release-v0.0.1-rc4` tag resolves to
     it. Its images file is `release/candidates/release-v0.0.1-rc4.images.json`
     (sha256 `0df2d168…`).
+  - Run 40821825935 pushed `release-v0.0.1-rc5`, the current candidate, on
+    2026-10-29: rc4's pins with Manager at `2ea8d52`, which interns a loaded
+    machine's test sequences as sources on the PE paired with every RE the
+    load reached (RealityEngine_Manager#304), and CI at `b0f8b4b` (since
+    `d8851ef` only documentation, `install.sh` and host-requirements' release
+    field). Every package answers an anonymous manifest pull at its digest,
+    and each `release-v0.0.1-rc5` tag resolves to it. Its images file is
+    `release/candidates/release-v0.0.1-rc5.images.json` (sha256 `c6db5c71…`).
+    An earlier dispatch, run 40821660838, pinned CI at `d8851ef` and was
+    cancelled before it finished: E1's provenance check compares each image's
+    revision with the run's worktree, which is `origin/main`, so every pin
+    has to be its repo's `origin/main` when the certifying run starts.
   - Noticed, not fixed: `release-images.yml`'s pull-request paths omit
     `release/compose.yml`, which `re-init` carries, so CI#590 merged without
     its image being built; the rc2 dispatch built it.
@@ -382,7 +394,7 @@ Found and fixed on the way:
   had an empty nginx config and site, with the build reporting success.
   Rebuilt.
 
-**Open:** a clean Mac (E3), installing `release-v0.0.1-rc4`,
+**Open:** a clean Mac (E3), installing `release-v0.0.1-rc5`,
 and `upgrade` between two published versions.
 - [ ] **C3 — Installer CLI** (`realityengine install | up | down | status |
   upgrade | uninstall | machines`).
@@ -638,6 +650,17 @@ source, the image rebuilt, and the check re-run.
     images alone, the `bridge-metrics` service reports the gateway, localAI
     (7 services), Ollama (4 models) and Qdrant (2 collections), and Loki
     answers the dashboards' `source=~"host|compose"` selectors (#650).
+  - **Done (2026-10-29):** run `e1-rc5-cert-20261029a`, certifying form on
+    `release-v0.0.1-rc5`: completed, 0 new failures, 0 changed sections or
+    measures against `e1-rc4-cert-20261029a`, 44 machines per engine. On that
+    install, `Ag Atmospheric Controller` (a domain machine no engine held)
+    loaded through Manager's `POST /api/corpus/load` with `allEngines` got its
+    test source on the scala-1, cpp-1 and lsp-1 PEs, each under its own engine's id,
+    and Manager's `e2e/corpus-load-interns-sequences.spec.ts` passed against it
+    (Manager#304). Each native PE reported `created: 3` for that load: they
+    read no `machineIds` and intern every RE machine they lack, so two
+    resident machines without a source were interned as well, identically on
+    all three.
 - [ ] **E2 — Native vs containerized comparison.** Run the native local lane
   and E1 at the same commits and spec on the same Mac and compare the parity
   stages.
