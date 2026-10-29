@@ -585,6 +585,8 @@ def copy_config(install: pathlib.Path) -> None:
     shutil.copytree(CI / "config" / "dashboards", cfg / "dashboards")
     for name in ("prometheus.yml", "promtail.yml", "nginx.conf"):
         shutil.copyfile(RELEASE / "config" / name, cfg / name)
+    # Run by the bridge-metrics service: the same exporter as the native lane's.
+    shutil.copyfile(CI / "scripts" / "bridge-metrics-exporter.mjs", cfg / "bridge-metrics-exporter.mjs")
 
 
 # ── commands ─────────────────────────────────────────────────────────────────

@@ -102,7 +102,7 @@
             "uid": "loki"
           },
           "editorMode": "code",
-          "expr": "sum by (service) (count_over_time({app=\"reality-engine\"}[1m])) or sum by (service) (count_over_time({source=\"host\"}[1m]))",
+          "expr": "sum by (service) (count_over_time({app=\"reality-engine\"}[1m])) or sum by (service) (count_over_time({source=~\"host|compose\"}[1m]))",
           "queryType": "range",
           "refId": "A"
         }
@@ -169,7 +169,7 @@
             "uid": "loki"
           },
           "editorMode": "code",
-          "expr": "sum(count_over_time({app=\"reality-engine\"}[5m])) or sum(count_over_time({source=\"host\"}[5m]))",
+          "expr": "sum(count_over_time({app=\"reality-engine\"}[5m])) or sum(count_over_time({source=~\"host|compose\"}[5m]))",
           "queryType": "range",
           "refId": "A"
         }
@@ -216,7 +216,7 @@
             "uid": "loki"
           },
           "editorMode": "code",
-          "expr": "{source=\"host\"}",
+          "expr": "{source=~\"host|compose\"}",
           "queryType": "range",
           "refId": "B"
         }
@@ -272,7 +272,7 @@
             "uid": "loki"
           },
           "editorMode": "code",
-          "expr": "sum by (service) (count_over_time({app=\"reality-engine\"}[1h])) or sum by (service) (count_over_time({source=\"host\"}[1h]))",
+          "expr": "sum by (service) (count_over_time({app=\"reality-engine\"}[1h])) or sum by (service) (count_over_time({source=~\"host|compose\"}[1h]))",
           "queryType": "range",
           "refId": "A"
         }
@@ -319,7 +319,7 @@
             "uid": "loki"
           },
           "editorMode": "code",
-          "expr": "{source=\"host\"} |~ \"error|Error|ERROR\"",
+          "expr": "{source=~\"host|compose\"} |~ \"error|Error|ERROR\"",
           "queryType": "range",
           "refId": "B"
         }
@@ -366,7 +366,7 @@
             "uid": "loki"
           },
           "editorMode": "code",
-          "expr": "{source=\"host\", component=\"reality-engine\"}",
+          "expr": "{source=~\"host|compose\", component=\"reality-engine\"}",
           "queryType": "range",
           "refId": "B"
         }
@@ -413,7 +413,7 @@
             "uid": "loki"
           },
           "editorMode": "code",
-          "expr": "{source=\"host\", component=\"perception-engine\"}",
+          "expr": "{source=~\"host|compose\", component=\"perception-engine\"}",
           "queryType": "range",
           "refId": "B"
         }
@@ -501,7 +501,7 @@
             "uid": "loki"
           },
           "editorMode": "code",
-          "expr": "sum by (log_type) (count_over_time({app=\"reality-engine\", service=\"visualizer-frontend\"}[1m])) or sum by (runtime) (count_over_time({source=\"host\", component=\"perception-engine\"}[1m]))",
+          "expr": "sum by (log_type) (count_over_time({app=\"reality-engine\", service=\"visualizer-frontend\"}[1m])) or sum by (runtime) (count_over_time({source=~\"host|compose\", component=\"perception-engine\"}[1m]))",
           "queryType": "range",
           "refId": "A"
         }
@@ -557,7 +557,7 @@
             "uid": "loki"
           },
           "editorMode": "code",
-          "expr": "sum by (log_type) (count_over_time({app=\"reality-engine\", service=\"visualizer-frontend\"}[1h])) or sum by (runtime) (count_over_time({source=\"host\", component=\"perception-engine\"}[1h]))",
+          "expr": "sum by (log_type) (count_over_time({app=\"reality-engine\", service=\"visualizer-frontend\"}[1h])) or sum by (runtime) (count_over_time({source=~\"host|compose\", component=\"perception-engine\"}[1h]))",
           "queryType": "range",
           "refId": "A"
         }
@@ -604,7 +604,7 @@
             "uid": "loki"
           },
           "editorMode": "code",
-          "expr": "{source=\"host\", component=\"perception-engine\"}",
+          "expr": "{source=~\"host|compose\", component=\"perception-engine\"}",
           "queryType": "range",
           "refId": "B"
         }
@@ -643,7 +643,7 @@
             "uid": "loki"
           },
           "editorMode": "code",
-          "expr": "sum by (service) (count_over_time({app=\"reality-engine\", service=~\"perception-engine-backend|perception-engine-frontend\"}[1m])) or sum by (runtime) (count_over_time({source=\"host\", component=\"perception-engine\"}[1m]))",
+          "expr": "sum by (service) (count_over_time({app=\"reality-engine\", service=~\"perception-engine-backend|perception-engine-frontend\"}[1m])) or sum by (runtime) (count_over_time({source=~\"host|compose\", component=\"perception-engine\"}[1m]))",
           "queryType": "range",
           "refId": "A"
         }

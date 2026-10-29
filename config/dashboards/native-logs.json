@@ -1,5 +1,5 @@
 {
-  "_comment": "Native runtime log explorer — tails RE and PE log files from CPP, LSP, and Scala host-native instances via Promtail. Requires the promtail service in docker-compose.yml to be running.",
+  "_comment": "Native runtime log explorer — tails RE and PE log files from CPP, LSP, and Scala host-native instances (source=host) or, in a release install, from its containers (source=compose) via Promtail.",
   "title": "Reality Engine — Native Runtime Logs",
   "uid": "native-logs",
   "schemaVersion": 38,
@@ -14,28 +14,32 @@
         "name": "runtime",
         "label": "Runtime",
         "type": "custom",
+        "query": "cpp,lsp,scala",
         "options": [
-          { "text": "All", "value": "", "selected": true },
+          { "text": "All", "value": "$__all", "selected": true },
           { "text": "cpp",   "value": "cpp" },
           { "text": "lsp",   "value": "lsp" },
           { "text": "scala", "value": "scala" }
         ],
-        "current": { "selected": true, "text": "All", "value": "" },
+        "current": { "selected": true, "text": "All", "value": "$__all" },
         "multi": false,
-        "includeAll": false
+        "includeAll": true,
+        "allValue": ".+"
       },
       {
         "name": "component",
         "label": "Component",
         "type": "custom",
+        "query": "reality-engine,perception-engine",
         "options": [
-          { "text": "All",               "value": "",                   "selected": true },
+          { "text": "All",               "value": "$__all",             "selected": true },
           { "text": "reality-engine",    "value": "reality-engine" },
           { "text": "perception-engine", "value": "perception-engine" }
         ],
-        "current": { "selected": true, "text": "All", "value": "" },
+        "current": { "selected": true, "text": "All", "value": "$__all" },
         "multi": false,
-        "includeAll": false
+        "includeAll": true,
+        "allValue": ".+"
       }
     ]
   },
@@ -49,7 +53,7 @@
       "targets": [
         {
           "refId": "A",
-          "expr": "sum by (runtime, component) (count_over_time({source=\"host\", runtime=~\"$runtime\", component=~\"$component\"}[1m]))",
+          "expr": "sum by (runtime, component) (count_over_time({source=~\"host|compose\", runtime=~\"$runtime\", component=~\"$component\"}[1m]))",
           "legendFormat": "{{runtime}}/{{component}}"
         }
       ],
@@ -72,7 +76,7 @@
       "targets": [
         {
           "refId": "A",
-          "expr": "{source=\"host\", component=\"reality-engine\", runtime=~\"$runtime|.+\"}",
+          "expr": "{source=~\"host|compose\", component=\"reality-engine\", runtime=~\"$runtime|.+\"}",
           "legendFormat": ""
         }
       ],
@@ -96,7 +100,7 @@
       "targets": [
         {
           "refId": "A",
-          "expr": "{source=\"host\", component=\"perception-engine\", runtime=~\"$runtime|.+\"}",
+          "expr": "{source=~\"host|compose\", component=\"perception-engine\", runtime=~\"$runtime|.+\"}",
           "legendFormat": ""
         }
       ],
@@ -145,7 +149,7 @@
       "targets": [
         {
           "refId": "A",
-          "expr": "{source=\"host\"} |~ \"(?i)(error|warn|exception|fatal|panic|killed)\"",
+          "expr": "{source=~\"host|compose\"} |~ \"(?i)(error|warn|exception|fatal|panic|killed)\"",
           "legendFormat": ""
         }
       ],

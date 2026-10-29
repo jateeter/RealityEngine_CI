@@ -353,6 +353,28 @@ services:
       timeout: 5s
       retries: 10
 
+  # The AI bridge metrics the AI Bridge Operations and localAIStack Overview
+  # dashboards read: the OpenClaw gateway, localAI, Qdrant and the Mac's Ollama,
+  # probed at scrape time. The native lane runs the same exporter on the host
+  # (startUniverse.sh); here it runs on the Manager backend image, which has Node.
+  bridge-metrics:
+    <<: *common
+    image: ${RE_IMAGE_VISUALIZER_BACKEND}
+    user: "1000:1000"
+    entrypoint: ["node", "/opt/bridge/bridge-metrics-exporter.mjs"]
+    command: []
+    environment:
+      BRIDGE_METRICS_HOST: 0.0.0.0
+      BRIDGE_METRICS_PORT: "7342"
+      OPENCLAW_GATEWAY_URL: http://host.docker.internal:${RE_PORT_OPENCLAW:-18789}
+      OPENCLAW_GATEWAY_TOKEN: ${OPENCLAW_GATEWAY_TOKEN}
+      LOCALAI_API_URL: http://localai-api:8000
+      QDRANT_URL: http://qdrant:6333
+      OLLAMA_BASE_URL: http://host.docker.internal:11434
+    volumes:
+      - ./config/bridge-metrics-exporter.mjs:/opt/bridge/bridge-metrics-exporter.mjs:ro
+    security_opt: [no-new-privileges:true]
+
   # Ships every container's log to Loki through the Docker API; no logging
   # plugin is needed on the Mac.
   promtail:

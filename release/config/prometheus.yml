@@ -32,6 +32,19 @@ scrape_configs:
       - files: [/etc/prometheus/file_sd/perception-engine-targets.json]
         refresh_interval: 10s
 
+  # The AI bridge exporter (the bridge-metrics service): gateway, localAI,
+  # Qdrant and Ollama health. It probes localAI /health, which can take ~10s.
+  - job_name:     ai-bridge-metrics
+    metrics_path: /metrics
+    scrape_interval: 15s
+    scrape_timeout:  12s
+    honor_labels: true
+    static_configs:
+      - targets: [bridge-metrics:7342]
+        labels:
+          component: ai-bridge-metrics
+          source:    compose
+
   - job_name:     qdrant
     metrics_path: /metrics
     honor_labels: true

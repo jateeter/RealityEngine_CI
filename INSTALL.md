@@ -25,7 +25,7 @@ One command starts the whole suite. Most of it runs in Docker:
 - **Open WebUI**, and OpenClaw's browser sidecar.
 - **PIM and a Solid server:** the authoritative store of your health data.
 - **MCP.**
-- **Monitoring:** Prometheus, Loki and Grafana.
+- **Monitoring:** Prometheus, Loki and Grafana, with an exporter for the OpenClaw gateway, localAI, Qdrant and Ollama health.
 
 The engines boot with the regression corpus, and you can load further machines
 from `RealityEngine_Machines` at any time.
