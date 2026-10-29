@@ -11,9 +11,12 @@ import { endpointOr } from '../lib/registry';
  *
  * Selectors here are the ones the Manager's own passing e2e suite uses
  * (RealityEngine_Manager/visualizer/frontend/e2e/), plus classes observed in
- * the live DOM. Prefer stable classes over role+name: "Interconnect" matches
- * both the nav button and a `.vis-filter-chip` labelled "Interconnects", which
- * is a strict-mode violation.
+ * the live DOM. Prefer stable test ids and classes over role+name.
+ *
+ * Manager has two top-level views, Machines and Perception, switched by the
+ * `[Machines] [Perception]` buttons at the upper left of both
+ * (RealityEngine_Manager#306). The Interconnection view and its button are
+ * gone; the machine graph is on the Machines view itself.
  */
 
 const VISUALIZER_URL = endpointOr('manager_frontend', 'https://localhost:5173');
@@ -34,11 +37,10 @@ test.describe('Visualizer UI - Stable Behavior', () => {
     await gotoLanding(page);
 
     await expect(page.locator('.rep-subtitle')).toBeVisible();
-    // .rep-nav-interconnect disambiguates from the "Interconnects" filter chip.
-    await expect(page.locator('.rep-nav-interconnect')).toBeVisible();
-    // The PE nav button is labelled "Perception", not "PE Manager". Its title
-    // is the stable handle — the visible text sits next to a ◎ icon span.
-    await expect(page.getByTitle('Open Perception Engine management')).toBeVisible();
+    // The view nav, with the Machines view active (Manager#306).
+    await expect(page.getByTestId('nav-machines')).toHaveAttribute('aria-pressed', 'true');
+    await expect(page.getByTestId('nav-perception')).toHaveAttribute('aria-pressed', 'false');
+    await expect(page.locator('.rep-nav-interconnect')).toHaveCount(0);
     // Icon-only button; "Help" is its aria-label.
     await expect(page.getByRole('button', { name: 'Help' })).toBeVisible();
   });
@@ -77,11 +79,21 @@ test.describe('Visualizer UI - Stable Behavior', () => {
     await expect(tree.getByRole('treeitem').first()).toBeVisible();
   });
 
-  test('should navigate to machine interconnection view and render graph container', async ({ page }) => {
+  test('should render the machine graph on the Machines view', async ({ page }) => {
     await gotoLanding(page);
 
-    await page.locator('.rep-nav-interconnect').click();
-
     await expect(page.locator('.machine-graph-view')).toBeVisible({ timeout: 30000 });
+  });
+
+  test('should flip between the Machines and Perception views', async ({ page }) => {
+    await gotoLanding(page);
+
+    await page.getByTestId('nav-perception').click();
+    await expect(page.getByTestId('pe-view-title')).toBeVisible({ timeout: 20000 });
+    await expect(page.getByTestId('nav-perception')).toHaveAttribute('aria-pressed', 'true');
+
+    await page.getByTestId('nav-machines').click();
+    await expect(page.locator('.rep-title')).toContainText('Reality Engine', { timeout: 20000 });
+    await expect(page.getByTestId('nav-machines')).toHaveAttribute('aria-pressed', 'true');
   });
 });

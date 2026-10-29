@@ -214,12 +214,12 @@ async function installNoCacheFetch(page: Page): Promise<void> {
 async function loadCompleteTree(page: Page): Promise<{ rowCount: number; loadedOk: boolean }> {
   await page.goto('/', { waitUntil: 'domcontentloaded' });
   await expect(page.locator('.rep-title')).toContainText(/Reality\s*Engine/, { timeout: 30_000 });
-  await expect(page.getByTitle('Open Perception Engine management')).toBeVisible({ timeout: 10_000 });
+  await expect(page.getByTestId('nav-perception')).toBeVisible({ timeout: 10_000 });
   return waitForTreeRows(page);
 }
 
 async function openPEManager(page: Page): Promise<void> {
-  await page.getByTitle('Open Perception Engine management').click();
+  await page.getByTestId('nav-perception').click();
   await expect(page.getByText('PERCEPTION ENGINE', { exact: true })).toBeVisible({ timeout: 20_000 });
   await expect(page.getByText(/Assembled Vector - \d+ elements|Assembled Vector . \d+ elements/)).toBeVisible({ timeout: 20_000 });
 }
@@ -290,8 +290,10 @@ async function forceAllSourcesOn(page: Page, request: APIRequestContext): Promis
 }
 
 async function returnToTree(page: Page): Promise<{ rowCount: number; loadedOk: boolean }> {
-  await page.getByTitle('Back to Reality Engine').click();
-  await expect(page.getByTitle('Open Perception Engine management')).toBeVisible({ timeout: 30_000 });
+  // The Machines button replaced the PE view's back button (Manager#306). Both
+  // views show both buttons, so arriving is read from which one is active.
+  await page.getByTestId('nav-machines').click();
+  await expect(page.getByTestId('nav-machines')).toHaveAttribute('aria-pressed', 'true', { timeout: 30_000 });
   return waitForTreeRows(page);
 }
 
