@@ -304,6 +304,11 @@ Each is reflected in `RELEASE.md` where it changes the process.
     each `release-v0.0.1-rc6` tag resolves to it, and every revision label
     equals its pin. Its images file is
     `release/candidates/release-v0.0.1-rc6.images.json` (sha256 `a747159b…`).
+    The hosted parity job then failed on the candidate PR (#658): two of this
+    repository's e2e specs still drove Manager's removed Interconnect and back
+    buttons. #659 moved them to the new navigation; it changes only
+    `e2e/tests/`, which no image contains, so rc6's images and certification
+    are unaffected.
   - Noticed, not fixed: `release-images.yml`'s pull-request paths omit
     `release/compose.yml`, which `re-init` carries, so CI#590 merged without
     its image being built; the rc2 dispatch built it.
