@@ -104,7 +104,7 @@ needing no source checkout, compiler or build toolchain on the Mac:
 | **D7** | Deployment suite | CI | C3 | in progress: live suites green on the install | CPP#171, Scala#190, LSP#164, Machines#217 |
 | **E1** | `local-containerized` lane on published images | CI | B5, C3 | done: certifying form green on `release-v0.0.1-rc6` (`e1-rc6-cert-20261029a`, 0 new failures, no change from rc5's `e1-rc5-cert-20261029a`, 44 machines per engine); before it rc5 (`e1-rc5-cert-20261029a`, no change from rc4's `e1-rc4-cert-20261029a`) and rc4 (`e1-rc4-cert-20261029a`, no change from rc3's `e1-rc3-cert-20261028a`, 44 machines per engine); development form from the same commits `e1-rc3-20261027b`. Earlier: rc2 `e1-rc2-20261019a` | CI#165, CI#590, localAIStack#159 |
 | **E2** | Native vs containerized comparison | CI | E1 | done for rc3: `e2-native-rc3-20261027b` vs `e1-rc3-20261027b`, 52/57 reports identical, 5 explained (README, What rc3 certifies). The first pair (`e1-rc3-20261027a`) found the release image missing localAI's 11 domain machines, fixed by localAIStack#159; repeat at F1 | |
-| **E3** | Clean-Mac install test | CI/operator | B5, C3, C4 | open: install `release-v0.0.1-rc6` on a clean Mac (README). The first rc3 attempt found the No Data dashboards (#650) and a reinstall over leftover volumes failing `pim-bootstrap` (`uninstall.sh`, #649) | |
+| **E3** | Clean-Mac install test | CI/operator | B5, C3, C4 | done on `release-v0.0.1-rc6` (2026-10-29, owner, second Mac) except the full wipe: upgrade from rc5, uninstall, fresh install, machine load, spec change and uninstall all succeeded; the host tools were already present, so their from-scratch installation was not exercised (below). The first rc3 attempt found the No Data dashboards (#650) and a reinstall over leftover volumes failing `pim-bootstrap` (`uninstall.sh`, #649) | |
 | **E4** | Release eligibility enforced | CI tooling | A1, A2, B5 | open | |
 | **E5** | Release documentation aligned | CI/docs | A1, A2 | in progress: `RELEASE.md` revised for A1–A11 | |
 | **F1** | Freeze and final certification | release operator | D*, E1–E5 | open | |
@@ -721,7 +721,7 @@ source, the image rebuilt, and the check re-run.
         between any two runs by design.
     - **Done for the development form.** F1 repeats the comparison on the
       certified candidate's images.
-- [ ] **E3 — Clean-Mac install test.** A Mac with Apple Silicon on macOS 26 with
+- [x] **E3 — Clean-Mac install test.** A Mac with Apple Silicon on macOS 26 with
   no checkouts, toolchains or cached images, and only Docker Desktop and native
   Ollama installed. Follow `INSTALL.md` word for word, run the smoke tests and
   D7, sync and load a machine (C6), then change the spec, upgrade, roll back
@@ -730,6 +730,29 @@ source, the image rebuilt, and the check re-run.
     Docker inside a macOS VM is not reliable on Apple Silicon.
   - **Done:** a timed transcript, with the Docker Desktop minimum version
     recorded.
+  - **Progress (2026-10-29): `install.sh` upgrade, rc5 to rc6, on a second
+    Mac.** A Mac Studio, M1 Max, 32 GB, macOS 27.0.1, Docker Desktop 29.9.2
+    with 16 GB, holding the owner's earlier rc5 install. `bash install.sh`
+    reported "upgrade from release-v0.0.1-rc5" and took about 15 minutes. It
+    kept the Mac's own Ollama 0.40.6 (0.40.13 current: warned, not changed)
+    with both models already pulled, Node 26.12.1, and OpenClaw 2026.10.7
+    (2026.10.9 current: warned, not changed). The installer and images file
+    matched their certified sha256. All service checks passed: the instance
+    registry, the RE and PE of scala-1, cpp-1 and lsp-1, Manager, localAI and
+    the OpenClaw gateway. The owner reports nothing went wrong.
+    - Then, on the same Mac, the owner ran the rest of E3 on rc6 and reports
+      all of it finished: `uninstall.sh`, a fresh `install.sh`, a domain
+      loaded in Manager (machines in the graph without a reload, their test
+      sources in the Perception view), a spec change
+      (`--engines cpp:2,lsp:1,scala:1`) and `realityengine uninstall`.
+    - Not exercised, by decision: the full wipe (a new macOS user or an erased
+      Mac), so the from-scratch installation of Docker Desktop, Ollama, Node
+      and OpenClaw and the model pulls ran only in their keep-what-is-there
+      form. Ollama 0.40.6 and OpenClaw 2026.10.7 were behind the current
+      releases and kept, with a warning each; the owner leaves them for this
+      release (no pin either way).
+    - Docker Desktop 29.9.2 is the first version recorded working on a second
+      Mac (A5).
 - [ ] **E4 — Release eligibility enforced** (was R03, extended). The release
   cutter refuses when:
   - an image digest is missing, or an image's `revision` differs from its pin;
