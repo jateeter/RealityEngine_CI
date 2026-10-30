@@ -67,6 +67,9 @@ def main():
     disclosure = json.loads((assets / "acceptance/synthetic/source-disclosure-cases.json").read_text())
     assert disclosure["synthetic"]
     foundation["cases"].extend(disclosure["cases"])
+    reporting = json.loads((assets / "acceptance/synthetic/reporting-cases.json").read_text())
+    assert reporting["synthetic"]
+    foundation["cases"].extend(reporting["cases"])
     for case in foundation["cases"]:
         case["period"] = case["facts"].get("periodStart", "2027")[:4]
         entity = next(e for e in package["entities"] if e["entityId"] == case["entityId"])
@@ -82,6 +85,8 @@ def main():
                                               description="Fictional lease contract and reviewed-judgment reference for development cases; not independent review"))
     package["supportingRecords"].append(dict(recordId="SYNTHETIC-SOURCE-RECORD", entityId="SYNTHETIC-ASTER-SERVICES", period="2027", synthetic=True,
                                               description="Fictional source/disclosure judgments for development acceptance; independent review required"))
+    package["supportingRecords"].append(dict(recordId="SYNTHETIC-REPORTING-RECORD", entityId="SYNTHETIC-ASTER-SERVICES", period="2027", synthetic=True,
+                                              description="Fictional dividend resolutions, financing movements, supplier terms and comparative reporting records; independent review required"))
     graph = json.loads((assets / "accounting-workflow-graph.json").read_text())
     catalog = {a["assetTypeId"]: a for a in json.loads((assets / "document-asset-catalog.json").read_text())["assetTypes"]}
     source = json.loads((args.bundle / "ingestion-manifest.json").read_text())
@@ -89,7 +94,7 @@ def main():
     receipt = {"evidenceClass": "synthetic", "accountingAcceptance": "REPRESENTATIVE_DEVELOPMENT_CASES_ONLY", "nativeParity": "NOT_MEASURED_HERE", "independentAccountingReview": "REQUIRED", "phases": {}, "artifacts": []}
     def fingerprints():
         paths = list((args.machines / "machines/domains/ifrs-accounting").glob("*.json"))
-        paths += [assets / name for name in ["document-asset-catalog.json", "accounting-workflow-graph.json", "runbook-resolution.json", "acceptance/synthetic/accounting-package.json", "acceptance/synthetic/foundation-cases.json", "foundation-source-dispositions.json", "acceptance/synthetic/policy-cases.json", "policy-source-dispositions.json", "semantic-amendments.json", "acceptance/synthetic/lease-compliance-cases.json", "lease-compliance-source-dispositions.json", "acceptance/synthetic/source-disclosure-cases.json", "source-disclosure-dispositions.json", "source-reference-map.json", "source-requirements.json", "tools/compliance_evidence.py", "tools/document_workflow.py", "tools/accounting_controls.py"]]
+        paths += [assets / name for name in ["document-asset-catalog.json", "accounting-workflow-graph.json", "runbook-resolution.json", "acceptance/synthetic/accounting-package.json", "acceptance/synthetic/foundation-cases.json", "foundation-source-dispositions.json", "acceptance/synthetic/policy-cases.json", "policy-source-dispositions.json", "semantic-amendments.json", "acceptance/synthetic/lease-compliance-cases.json", "lease-compliance-source-dispositions.json", "acceptance/synthetic/source-disclosure-cases.json", "source-disclosure-dispositions.json", "acceptance/synthetic/reporting-cases.json", "reporting-source-dispositions.json", "tools/reporting_controls.py", "source-reference-map.json", "source-requirements.json", "tools/compliance_evidence.py", "tools/document_workflow.py", "tools/accounting_controls.py"]]
         paths += [args.localai / path for path in ["services/api/core/domain_evidence.py", "services/api/core/entity_evidence.py", "services/api/routers/domain_evidence.py"]]
         paths += [args.openclaw / path for path in ["document-workflows/service.py", "document-workflows/worker.py", "plugins/ifrs-documents/index.mjs", "plugins/ifrs-documents/openclaw.plugin.json"]]
         paths += [Path(__file__).resolve()]
@@ -193,7 +198,8 @@ def main():
         projected = post(rag, "/rag/evidence/entity/retrieve", dict(entityId=context["entityId"], period=context["period"], assetTypeId="RAG-RECEIPTS"))
         assert projected["head"]["status"] == "APPROVED" and projected["evidenceClass"] == "synthetic"
         receipt["phases"]["currentSyntheticProjection"] = "PASS"
-        calculations = []
+        calculations, reporting_artifacts = [], []
+        reporting_targets = set()
         for case in package["cases"]:
             section = control_sources.source_section(case["control"], case["facts"])
             case_context = next(c for c in contexts if c["entityId"] == case["entityId"] and c["period"] == case["period"])
@@ -212,25 +218,37 @@ def main():
                 assert screen["blockerCount"] > 0 and not screen["releasePerformed"]
                 assert any(b["reason"] == "OPEN_OR_UNASSESSED_ACCOUNTING_REQUIREMENTS" for b in screen["blockers"])
                 receipt["phases"]["canonicalComplianceBlocksUnreviewedScope"] = "PASS_REAL_CANONICAL_READ_NOT_CALLER_STATUSES"
+            if case.get("expectedDraftAssetTypeId"):
+                aid = case["expectedDraftAssetTypeId"]
+                before = command("inspect", dict(assetTypeId=aid), actor(aid), case_context)
+                head = command("draft-from-case", dict(assetTypeId=aid, caseId=case["caseId"], interactionId=section_receipts[section]["interactionId"], expectedRevision=before["head"]["revision"] if before["head"] else 0, changeReason="Synthetic reporting case " + case["caseId"]), actor(aid), case_context)["result"]
+                artifact = command("inspect", dict(assetTypeId=aid), actor(aid), case_context)
+                assert head["status"] == "DRAFT" and artifact["revision"]["content"]["typedProducerReceipt"]["caseId"] == case["caseId"]
+                assert artifact["revision"]["content"]["unresolved"] == []
+                reporting_artifacts.append(dict(caseId=case["caseId"], assetTypeId=aid, artifact=artifact))
+                reporting_targets.add(aid)
             calculations.append(result)
         write(out / "synthetic-accounting-cases.json", calculations)
+        write(out / "typed-reporting-artifacts.json", reporting_artifacts)
+        receipt["phases"]["ownedTypedReportingDrafts"] = {"result": "PASS", "cases": len(reporting_artifacts), "assetTypes": sorted(reporting_targets), "independentReview": "REQUIRED"}
         receipt["phases"]["representativeAccountingControls"] = {"result": "PASS", "cases": len(calculations), "scope": "SYNTHETIC_ADVISORY_CONTROLS"}
         if args.openclaw_bin:
             receipt["gatewayVersion"] = json.loads((args.openclaw_bin.parent / "package.json").read_text())["version"]
             agent_id = "ifrs-document-verifier"
+            reporting_agent_id = "ifrs-reporting-verifier"
             gateway_token = secrets.token_urlsafe(32)
             gateway_port = port()
             gateway_url = "http://127.0.0.1:" + str(gateway_port)
             model = "ollama/nemotron-3-nano:4b-mlx"
             private_tools = runtime / "gateway-tools.json"
-            write(private_tools, {"url": doc_url, "agents": {agent_id: {"token": actor("SOURCE-REGISTER")["token"], "context": context}}}, private=True)
+            write(private_tools, {"url": doc_url, "agents": {agent_id: {"token": actor("SOURCE-REGISTER")["token"], "context": context}, reporting_agent_id: {"token": actor("DIVIDEND-REGISTER")["token"], "context": context}}}, private=True)
             workspace = runtime / "gateway-workspace"; workspace.mkdir()
             (workspace / "AGENTS.md").write_text("You verify synthetic IFRS document connectors. Use the installed ifrs_document_* and ifrs_source_retrieve tools. Never approve, post or release. Never invent a tool result. Native completion channels are outside this task.\n")
             gateway_config = {"gateway": {"mode": "local", "bind": "loopback", "port": gateway_port, "auth": {"mode": "token"}, "http": {"endpoints": {"chatCompletions": {"enabled": True}}}},
                               "models": {"providers": {"ollama": {"api": "ollama", "baseUrl": os.environ.get("OLLAMA_BASE_URL", "http://127.0.0.1:11434"), "apiKey": "ollama-local", "params": {"num_ctx": 16384}, "models": [{"id": "nemotron-3-nano:4b-mlx", "name": "IFRS synthetic verification"}]}}},
                               "agents": {"ownership": "explicit", "defaults": {"model": {"primary": model}, "modelPolicy": {"allow": [model]}, "systemAgent": {"agentId": "main"}, "heartbeat": {"agentId": "main"}},
-                                         "entries": {"main": {"workspace": str(workspace), "model": {"primary": model}}, agent_id: {"workspace": str(workspace), "model": {"primary": model}, "sandbox": {"mode": "off"}}}},
-                              "talk": {"agentId": "main"}, "tools": {"allow": ["ifrs_document_inspect", "ifrs_document_resource", "ifrs_source_retrieve", "ifrs_document_draft", "ifrs_eligibility_draft", "ifrs_document_tasks", "ifrs_accounting_calculate", "ifrs_document_request_review"]},
+                                         "entries": {"main": {"workspace": str(workspace), "model": {"primary": model}}, agent_id: {"workspace": str(workspace), "model": {"primary": model}, "sandbox": {"mode": "off"}}, reporting_agent_id: {"workspace": str(workspace), "model": {"primary": model}, "sandbox": {"mode": "off"}}}},
+                              "talk": {"agentId": "main"}, "tools": {"allow": ["ifrs_document_inspect", "ifrs_document_resource", "ifrs_source_retrieve", "ifrs_document_draft", "ifrs_eligibility_draft", "ifrs_reporting_draft", "ifrs_document_tasks", "ifrs_accounting_calculate", "ifrs_document_request_review"]},
                               "plugins": {"allow": ["ifrs-documents", "ollama"], "load": {"paths": [str((args.openclaw / "plugins/ifrs-documents").resolve())]}, "entries": {"ifrs-documents": {"enabled": True, "config": {"configurationFile": str(private_tools)}}}}}
             write(runtime / "openclaw.json", gateway_config, private=True)
             gateway_env = dict(env, OPENCLAW_STATE_DIR=str(runtime / "gateway-state"), OPENCLAW_CONFIG_PATH=str(runtime / "openclaw.json"), OPENCLAW_GATEWAY_TOKEN=gateway_token, OLLAMA_API_KEY="ollama-local")
@@ -268,6 +286,16 @@ def main():
             drafted = command("inspect", {"assetTypeId": "ELIGIBILITY-MEMO"}, actor("ELIGIBILITY-MEMO"))
             assert drafted["head"]["status"] == "DRAFT" and drafted["revision"]["evidenceClass"] == "synthetic"
             assert drafted["revision"]["content"]["conclusion"] == "ELIGIBLE_SUBJECT_TO_REVIEW", "Agent draft contradicts the independently specified synthetic eligibility case"
+            reporting_result = worker.dispatch(dict(stateDirectory=str(runtime / "reporting-worker"), documentURL=doc_url, gatewayURL=gateway_url,
+                                                  gatewayToken=gateway_token, operatorToken=principals[0]["token"], context=context,
+                                                  assetRoutes={"DIVIDEND-REGISTER": {"agentId": reporting_agent_id, "token": actor("DIVIDEND-REGISTER")["token"], "caseId": "SYNTHETIC-REPORTING-DIVIDEND"}}), limit=1)
+            write(out / "gateway-reporting-task.json", reporting_result)
+            receipt["phases"]["proactiveReportingTask"] = [a["status"] for a in reporting_result["attempts"]]
+            assert reporting_result["attempts"] and reporting_result["attempts"][-1]["status"] == "ARTIFACT_OBSERVED_REVIEW_REQUIRED", "No canonical server-derived reporting artifact; narrative is not completion"
+            reported = command("inspect", dict(assetTypeId="DIVIDEND-REGISTER"), actor("DIVIDEND-REGISTER"))
+            assert reported["revision"]["content"]["typedProducerReceipt"]["caseId"] == "SYNTHETIC-REPORTING-DIVIDEND"
+            assert reported["revision"]["content"]["advisoryDetermination"]["unrecognisedProposedDeclaredAmount"] == "1000.00"
+            write(out / "gateway-reporting-artifact.json", reported)
         wrong = client.post("/tools/execute", headers={"Authorization": "Bearer " + actor("SOURCE-REGISTER")["token"]}, json=dict(dispatchId="self-approve", operation="approve", context=context, arguments={}))
         assert wrong.status_code == 403
         revised = command("draft", dict(assetTypeId="SOURCE-REGISTER", content={**source_content, "sourceGaps": source_content["sourceGaps"] + ["synthetic source-update event"]}, evidenceRefs=["synthetic:new-source-review"], expectedRevision=1, changeReason="synthetic upstream maintenance"), actor("SOURCE-REGISTER"))
@@ -275,6 +303,9 @@ def main():
         assert blocked.status_code == 409  # stale projection fails before delivery catches up
         post(rag, "/rag/evidence/entity/reconcile")
         assert rag.post("/rag/evidence/entity/retrieve", json=dict(entityId=context["entityId"], period=context["period"], assetTypeId="RAG-RECEIPTS")).status_code == 409
+        for aid in reporting_targets:
+            assert command("inspect", dict(assetTypeId=aid), actor(aid))["head"]["status"] == "STALE", "Source update failed to invalidate typed reporting draft"
+        receipt["phases"]["typedReportingStalePropagation"] = "PASS"
         histories.append(revised)
         write(out / "document-lifecycle.json", histories)
         receipt["phases"]["deployedSyntheticLifecycleAndProjection"] = "PASS"
