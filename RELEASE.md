@@ -119,8 +119,7 @@ Only the local lanes run Ollama, OpenClaw and the PIM mirror, so only a local
 run can certify them. A stage the run **skipped** (an unreachable MQTT broker,
 an iPhone that isn't connected) is recorded in the manifest with its reason and
 is not certified by it: name it in the release notes. The `pim-mirror` stage
-may not be skipped (D2); `cut-release.sh` refuses a manifest where it is
-*(pending E4)*.
+may not be skipped (D2); `cut-release.sh` refuses a manifest where it is.
 
 A clean-Mac install from the published candidate images, following `INSTALL.md`
 word for word, is part of acceptance *(pending E3)*.
@@ -248,21 +247,44 @@ and install the candidate on a clean Mac following `INSTALL.md`.
 
 ```bash
 scripts/release-manifest.py generate \
-  --run-dir .regression-tests/runs/<run-id> \
-  --images <candidate images.json> \
+  --run-dir .regression-tests/runs/<E1 run-id> \
+  --images release/candidates/<candidate>.images.json \
+  --native-run-dir .regression-tests/runs/<native run-id> \
+  --omission <stage>="<why the release accepts it>" \
   --version release-v0.0.1 \
   --out releases/release-v0.0.1.json
 ```
 
-*(`--images` pending F2.)* The manifest records the run's profile, its
-coverage, every stage's result (skips included), every repo's commit, and
-every image's digest.
+The repos are pinned from the E1 run, the containerized lane on the candidate
+images, because its pins are the commits the images were built from. The
+manifest records every repo's commit, every image's digest and the images
+file's sha256, and, for each lane, the run's profile, its coverage and every
+stage's result from `reports/regression-status.json` (the structured record,
+never `stage-results.tsv`), skips included with their reasons.
 
-Generating from a run that did not pass is **refused**. `--allow-unverified`
-overrides it and stamps the manifest `provisional`, and `cut-release.sh`
-refuses to tag a provisional manifest, so an uncertified set cannot reach a
-release name by accident. An image whose `revision` label differs from its
-repo's pin is refused *(pending E4)*.
+Generation is **refused** (exit 2) unless the manifest is eligible, and
+`release-manifest.py check` re-derives the same answer from the manifest alone,
+which `cut-release.sh` runs before anything else (E4). A manifest is eligible
+when:
+
+- the certifying run is the `local-containerized` lane and `completed`, and ran
+  exactly the images in `--images` (its own `reports/images.json`);
+- every image has a digest and was built from its repo's pin, and the images
+  file was pushed;
+- every required stage is present and passed: `service-inventory`,
+  `trajectory-parity`, `universal-vectors`, `machine-set-parity`,
+  `export-parity`, `pe-step-contract`, `engine-process-parity`, `mcp`,
+  `openclaw`, `local-ai` and `pim-mirror` (D2), plus any stage named
+  `*parity*`; none of these can be omitted;
+- no stage or stage report failed, and every other stage that was skipped or
+  not run has a decision recorded with `--omission STAGE=REASON`;
+- for a release (not a candidate), the native lane (`--native-run-dir`) is
+  `completed` under the same rules, and every repo it ran at another commit
+  than the pin has a reason recorded with `--native-drift REPO=REASON`.
+
+`--allow-unverified` writes the manifest anyway, stamped `provisional` with the
+problems, and `cut-release.sh` refuses to tag a provisional manifest, so an
+uncertified set cannot reach a release name by accident.
 
 ### 5. Rehearse the cut
 
@@ -270,11 +292,20 @@ repo's pin is refused *(pending E4)*.
 scripts/cut-release.sh --manifest releases/release-v0.0.1.json
 ```
 
-Dry run by default. It verifies the workspace still matches the pinned set and
-prints what it would tag. Drift is a hard stop: tagging a drifted workspace
-puts the release name on commits that were never certified together. It also
-checks that no repo, locally or on its remote, and no image already carries the
-tag at a different commit or digest *(remote and image checks pending E4)*.
+Dry run by default. It checks the manifest is eligible, verifies the workspace
+still matches the pinned set, and prints what it would tag. Drift is a hard
+stop: tagging a drifted workspace puts the release name on commits that were
+never certified together. It also checks that no repo, locally or on its
+remote, and no image already carries the tag at a different commit or digest,
+and that every candidate digest is still in the registry
+(`release-manifest.py published --expect absent-or-equal`). A remote or
+registry it cannot read is a refusal, not an absence.
+
+`RealityEngine_CI`'s `main` moves on after certification (the images file,
+`install.sh`, this cut's own tooling), while the manifest pins the commit the
+images were built from. Run the cutter from `main`, against a workspace in
+which every repo is at its pin: the sibling checkouts where they already are,
+and `RealityEngine_CI` as a `git worktree` at its pin.
 
 ### 6. Tag, then publish
 
@@ -284,17 +315,21 @@ scripts/cut-release.sh --manifest releases/release-v0.0.1.json --execute --push 
 ```
 
 Then promote the certified candidate images to the release tag **by digest,
-without rebuilding** *(pending F4)*:
+without rebuilding**, and confirm every repo tag and every image resolves to
+the manifest:
 
 ```bash
 gh workflow run release-images.yml --ref main \
-  -f promote=releases/release-v0.0.1.json
+  -f tag=release-v0.0.1 -f promote_from=release-v0.0.1-rcN
+scripts/release-manifest.py published --manifest releases/release-v0.0.1.json \
+  --expect equal
 ```
 
 Pushing is a separate opt-in because a pushed tag is the hard-to-reverse step.
 A partial publication (a tag missing on one remote, an image not promoted) is
-not a release: the cutter reports every failure and exits nonzero
-*(pending E4)*.
+not a release: the cutter names every repo it could not push and exits
+nonzero, and `published --expect equal` fails until every tag and image is in
+place.
 
 ### 7. Commit the manifest and publish the notes
 

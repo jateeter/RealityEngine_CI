@@ -105,7 +105,7 @@ needing no source checkout, compiler or build toolchain on the Mac:
 | **E1** | `local-containerized` lane on published images | CI | B5, C3 | done: certifying form green on `release-v0.0.1-rc6` (`e1-rc6-cert-20261029a`, 0 new failures, no change from rc5's `e1-rc5-cert-20261029a`, 44 machines per engine); before it rc5 (`e1-rc5-cert-20261029a`, no change from rc4's `e1-rc4-cert-20261029a`) and rc4 (`e1-rc4-cert-20261029a`, no change from rc3's `e1-rc3-cert-20261028a`, 44 machines per engine); development form from the same commits `e1-rc3-20261027b`. Earlier: rc2 `e1-rc2-20261019a` | CI#165, CI#590, localAIStack#159 |
 | **E2** | Native vs containerized comparison | CI | E1 | done for rc3: `e2-native-rc3-20261027b` vs `e1-rc3-20261027b`, 52/57 reports identical, 5 explained (README, What rc3 certifies). The first pair (`e1-rc3-20261027a`) found the release image missing localAI's 11 domain machines, fixed by localAIStack#159; repeat at F1 | |
 | **E3** | Clean-Mac install test | CI/operator | B5, C3, C4 | done on `release-v0.0.1-rc6` (2026-10-29, owner, second Mac) except the full wipe: upgrade from rc5, uninstall, fresh install, machine load, spec change and uninstall all succeeded; the host tools were already present, so their from-scratch installation was not exercised (below). The first rc3 attempt found the No Data dashboards (#650) and a reinstall over leftover volumes failing `pim-bootstrap` (`uninstall.sh`, #649) | |
-| **E4** | Release eligibility enforced | CI tooling | A1, A2, B5 | open | |
+| **E4** | Release eligibility enforced | CI tooling | A1, A2, B5 | done (2026-10-29): `release-manifest.py check` and `published`, run by `cut-release.sh`; `--images`, `--native-run-dir` for F2 | |
 | **E5** | Release documentation aligned | CI/docs | A1, A2 | in progress: `RELEASE.md` revised for A1–A11 | |
 | **F1** | Freeze and final certification | release operator | D*, E1–E5 | open | |
 | **F2** | Versioned manifest with image digests | release operator | F1 | open | |
@@ -753,7 +753,7 @@ source, the image rebuilt, and the check re-run.
       release (no pin either way).
     - Docker Desktop 29.9.2 is the first version recorded working on a second
       Mac (A5).
-- [ ] **E4 — Release eligibility enforced** (was R03, extended). The release
+- [x] **E4 — Release eligibility enforced** (was R03, extended). The release
   cutter refuses when:
   - an image digest is missing, or an image's `revision` differs from its pin;
   - the E1 lane is missing or not green;
@@ -770,6 +770,25 @@ source, the image rebuilt, and the check re-run.
     collisions in GHCR.
   - Failed tag or image pushes are aggregated into a nonzero result.
   - **Done:** positive and refusal tests for each case.
+  - **Done (2026-10-29).** `release-manifest.py check` derives eligibility from
+    the manifest alone; `generate` refuses an ineligible manifest unless
+    `--allow-unverified` stamps it provisional, and `cut-release.sh` runs
+    `check` before anything else. The rules are in `RELEASE.md`, step 4.
+    `generate --images` records every image digest and the images file's
+    sha256 and requires the certifying run to have run exactly those images;
+    `--native-run-dir` records the native lane (required for a release, not a
+    candidate), with `--native-drift REPO=REASON` for a repo it ran at another
+    commit; `--omission STAGE=REASON` records each accepted skip, and a
+    required stage (`pim-mirror` and every `*parity*` among them) cannot be
+    omitted. Stage status is read from `reports/regression-status.json`.
+    `release-manifest.py published` checks every origin with `git ls-remote`
+    and every image in the registry: `--expect absent-or-equal` before the
+    cut (a remote or registry it cannot read is a refusal),
+    `--expect equal` after F4. The tag text comes from the manifest, and a
+    failed push fails the cut, naming each repo.
+    `scripts/tests/test-release-manifest.sh` covers each case, positive and
+    refusal, against local bare remotes and a stub registry (108 checks).
+    Checked against the live remotes and GHCR on rc6: 22/22 clear.
 - [ ] **E5 — Release documentation aligned** (was R02). `RELEASE.md` covers the
   ten-repo inventory, the image model (A2), the platform (A4–A6), the two
   certifying lanes, and the command order. `docs/README.md` indexes this file
