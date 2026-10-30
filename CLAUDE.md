@@ -28,6 +28,8 @@ npm run test:deployment
 
 ## Runtime Contract
 
+- IFRS candidate connector verification is `scripts/verify-ifrs-workflows.py`: real local embedding/RAG services, transactional document sidecar, optional private OpenClaw gateway/model tool use, and explicit synthetic accounting cases. It uses isolated ports/state and stops only its child processes. Its connector receipt does not establish native parity or domain admission; those remain separate canonical gates.
+
 - Prefer `RE_REGISTRY_URL` for Manager, Machines, and CI e2e tests.
 - **The universe model is `nemotron-3-nano:4b-mlx`**, the MLX build of NVIDIA
   Nemotron 3 Nano 4B from the Ollama library (`ollama pull
