@@ -1,19 +1,28 @@
 #!/usr/bin/env bash
 # Cut a release from a certified regression run.
 #
-# A release is a *pinned set of commits across every repo*, not a build
-# artifact — the application is composed from sibling repos at run time. So
-# cutting one means: take the manifest a green certification run produced,
-# confirm the workspace still matches it, and tag every repo at the commit that
-# run actually built.
+# A release is a pinned set of commits across every repo plus the images built
+# from exactly those commits, by digest (RELEASE.md, decision A2). Cutting one
+# means: take the manifest generated from the certifying runs, confirm the
+# workspace still matches it, and tag every repo at the commit those runs
+# built. The images are promoted to the same tag afterwards, by digest
+# (release-images.yml with promote_from).
 #
 # Dry-run by default. Nothing is tagged and nothing is pushed until --execute,
 # and pushing tags is a separate opt-in on top of that, because a pushed tag is
 # the hard-to-reverse step.
 #
-#   scripts/cut-release.sh --manifest releases/v0.1.0-rc1.json          # rehearse
-#   scripts/cut-release.sh --manifest releases/v0.1.0-rc1.json --execute
-#   scripts/cut-release.sh --manifest releases/v0.1.0-rc1.json --execute --push
+#   scripts/cut-release.sh --manifest releases/release-v0.0.1.json          # rehearse
+#   scripts/cut-release.sh --manifest releases/release-v0.0.1.json --execute
+#   scripts/cut-release.sh --manifest releases/release-v0.0.1.json --execute --push
+#
+# Before anything is tagged, the manifest must be eligible
+# (`release-manifest.py check`, ReleaseRoadmap E4: images by digest from their
+# pins, the E1 lane and the native lane green, pim-mirror and every parity
+# stage passed, every omission decided), the workspace must match it, and no
+# repo's origin and no registry image may carry the tag at another commit or
+# digest (`release-manifest.py published`). RE_IMAGETOOLS replaces
+# `docker buildx imagetools` for tests.
 #
 set -euo pipefail
 
@@ -76,6 +85,12 @@ if [ "$PROVISIONAL" = "yes" ]; then
   die "refusing to cut a release from a provisional manifest"
 fi
 
+# ── The manifest must be eligible (E4) ──────────────────────────────────────
+
+python3 "$CI_DIR/scripts/release-manifest.py" check --manifest "$MANIFEST" \
+  || die "refusing to cut $VERSION: the manifest is not eligible"
+echo
+
 # ── The workspace must still be the thing that was certified ────────────────
 
 echo "Verifying the workspace matches the pinned set..."
@@ -98,10 +113,34 @@ for r in json.load(open(sys.argv[1]))['repos']:
     print(r['name'], r['sha'])
 " "$MANIFEST")
 
-TAG_MESSAGE="RealityEngine $VERSION
+# ── Nothing on a remote or in the registry may already disagree ─────────────
 
-Certified by regression run $RUN_ID (hosted profile, cpp:1,lsp:1,scala:1).
-Every repo in this release is pinned by ${MANIFEST##*/}."
+echo "Checking every origin and the registry for $VERSION..."
+python3 "$CI_DIR/scripts/release-manifest.py" published --manifest "$MANIFEST" \
+  --workspace "$WORKSPACE" --expect absent-or-equal \
+  || die "refusing to cut $VERSION: a remote tag or an image already disagrees with the manifest, or could not be checked"
+echo
+
+# The tag text is the manifest's own account of what certified it.
+TAG_MESSAGE=$(python3 - "$MANIFEST" <<'EOF'
+import json, sys
+m = json.load(open(sys.argv[1]))
+c = m["certifiedBy"]
+lines = [f"RealityEngine {m['version']}", ""]
+lines.append(f"Certified by run {c['runId']} ({c.get('profile', '?')} lane, {c.get('engineSpec', '?')}) "
+             f"on {len(m.get('images', []))} images by digest from {m.get('imagesFile', {}).get('tag', '?')}.")
+n = c.get("native")
+if n:
+    lines.append(f"Native lane: run {n['runId']} ({n.get('profile', '?')}, {n.get('engineSpec', '?')}).")
+    for name, d in sorted((n.get("drift") or {}).items()):
+        lines.append(f"Native lane ran {name} at {d['sha'][:12]}: {d.get('reason', '')}")
+omitted = {**c.get("omissions", {}), **((n or {}).get("omissions", {}))}
+for name, reason in sorted(omitted.items()):
+    lines.append(f"Omitted: {name}: {reason}")
+lines.append(f"Every repo and image in this release is pinned by releases/{m['version']}.json.")
+print("\n".join(lines))
+EOF
+)
 
 echo "Tagging $VERSION:"
 FAILED=0
@@ -152,12 +191,26 @@ if [ "$PUSH" != true ]; then
 fi
 
 echo "Pushing tags:"
+PUSH_FAILED=()
 while read -r name sha; do
   [ -n "$name" ] || continue
-  git -C "$WORKSPACE/$name" push origin "refs/tags/$VERSION" >/dev/null 2>&1 \
-    && echo "  pushed $name" \
-    || echo "  FAILED $name — push it manually"
+  if git -C "$WORKSPACE/$name" push origin "refs/tags/$VERSION" >/dev/null 2>&1; then
+    echo "  pushed $name"
+  else
+    echo "  FAILED $name"
+    PUSH_FAILED+=("$name")
+  fi
 done <<< "$REPOS"
 
 echo
-echo "Release $VERSION cut and pushed."
+if [ "${#PUSH_FAILED[@]}" -gt 0 ]; then
+  echo "error: $VERSION was not pushed to ${#PUSH_FAILED[@]} repo(s): ${PUSH_FAILED[*]}" >&2
+  echo "A partial publication is not a release. Push those tags, then check:" >&2
+  echo "    python3 scripts/release-manifest.py published --manifest $MANIFEST --expect equal" >&2
+  exit 1
+fi
+CANDIDATE=$(python3 -c "import json,sys;print(json.load(open(sys.argv[1])).get('imagesFile',{}).get('tag',''))" "$MANIFEST")
+echo "Tags for $VERSION pushed to every repo. Promote the images by digest next:"
+echo "    gh workflow run release-images.yml --ref main -f tag=$VERSION -f promote_from=$CANDIDATE"
+echo "then confirm every tag and image resolves to the manifest:"
+echo "    python3 scripts/release-manifest.py published --manifest $MANIFEST --expect equal"
