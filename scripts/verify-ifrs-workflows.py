@@ -6,6 +6,7 @@ Source passages, runtime credentials, entity assets and vector data stay outside
 Git. Never equate representative controls with all-IFRS financial acceptance.
 """
 import argparse
+from importlib.util import spec_from_file_location, module_from_spec
 import hashlib
 import json
 import os
@@ -49,6 +50,8 @@ def main():
     out.chmod(0o700)
     runtime = out / "runtime"; runtime.mkdir(mode=0o700)
     assets = args.machines / "machine_factory/domains/ifrs-accounting"
+    source_spec = spec_from_file_location("ifrs_control_sources", assets / "tools/accounting_controls.py")
+    control_sources = module_from_spec(source_spec); source_spec.loader.exec_module(control_sources)
     package = json.loads((assets / "acceptance/synthetic/accounting-package.json").read_text())
     assert package["synthetic"] and package["evidenceClass"] == "synthetic"
     foundation = json.loads((assets / "acceptance/synthetic/foundation-cases.json").read_text())
@@ -61,6 +64,9 @@ def main():
     lease = json.loads((assets / "acceptance/synthetic/lease-compliance-cases.json").read_text())
     assert lease["synthetic"]
     foundation["cases"].extend(lease["cases"])
+    disclosure = json.loads((assets / "acceptance/synthetic/source-disclosure-cases.json").read_text())
+    assert disclosure["synthetic"]
+    foundation["cases"].extend(disclosure["cases"])
     for case in foundation["cases"]:
         case["period"] = case["facts"].get("periodStart", "2027")[:4]
         entity = next(e for e in package["entities"] if e["entityId"] == case["entityId"])
@@ -74,6 +80,8 @@ def main():
                                               description="Fictional operator policy judgments; independent accounting review required"))
     package["supportingRecords"].append(dict(recordId="SYNTHETIC-LEASE-RECORD", entityId="SYNTHETIC-ASTER-SERVICES", period="2027", synthetic=True,
                                               description="Fictional lease contract and reviewed-judgment reference for development cases; not independent review"))
+    package["supportingRecords"].append(dict(recordId="SYNTHETIC-SOURCE-RECORD", entityId="SYNTHETIC-ASTER-SERVICES", period="2027", synthetic=True,
+                                              description="Fictional source/disclosure judgments for development acceptance; independent review required"))
     graph = json.loads((assets / "accounting-workflow-graph.json").read_text())
     catalog = {a["assetTypeId"]: a for a in json.loads((assets / "document-asset-catalog.json").read_text())["assetTypes"]}
     source = json.loads((args.bundle / "ingestion-manifest.json").read_text())
@@ -81,7 +89,7 @@ def main():
     receipt = {"evidenceClass": "synthetic", "accountingAcceptance": "REPRESENTATIVE_DEVELOPMENT_CASES_ONLY", "nativeParity": "NOT_MEASURED_HERE", "independentAccountingReview": "REQUIRED", "phases": {}, "artifacts": []}
     def fingerprints():
         paths = list((args.machines / "machines/domains/ifrs-accounting").glob("*.json"))
-        paths += [assets / name for name in ["document-asset-catalog.json", "accounting-workflow-graph.json", "runbook-resolution.json", "acceptance/synthetic/accounting-package.json", "acceptance/synthetic/foundation-cases.json", "foundation-source-dispositions.json", "acceptance/synthetic/policy-cases.json", "policy-source-dispositions.json", "semantic-amendments.json", "acceptance/synthetic/lease-compliance-cases.json", "lease-compliance-source-dispositions.json", "source-requirements.json", "tools/compliance_evidence.py", "tools/document_workflow.py", "tools/accounting_controls.py"]]
+        paths += [assets / name for name in ["document-asset-catalog.json", "accounting-workflow-graph.json", "runbook-resolution.json", "acceptance/synthetic/accounting-package.json", "acceptance/synthetic/foundation-cases.json", "foundation-source-dispositions.json", "acceptance/synthetic/policy-cases.json", "policy-source-dispositions.json", "semantic-amendments.json", "acceptance/synthetic/lease-compliance-cases.json", "lease-compliance-source-dispositions.json", "acceptance/synthetic/source-disclosure-cases.json", "source-disclosure-dispositions.json", "source-reference-map.json", "source-requirements.json", "tools/compliance_evidence.py", "tools/document_workflow.py", "tools/accounting_controls.py"]]
         paths += [args.localai / path for path in ["services/api/core/domain_evidence.py", "services/api/core/entity_evidence.py", "services/api/routers/domain_evidence.py"]]
         paths += [args.openclaw / path for path in ["document-workflows/service.py", "document-workflows/worker.py", "plugins/ifrs-documents/index.mjs", "plugins/ifrs-documents/openclaw.plugin.json"]]
         paths += [Path(__file__).resolve()]
@@ -187,7 +195,7 @@ def main():
         receipt["phases"]["currentSyntheticProjection"] = "PASS"
         calculations = []
         for case in package["cases"]:
-            section = {"section-1-eligibility": "01", "section-23-contract-cost": "23", "trial-balance": "03", "version-3-period-applicability": "A", "section-2-recognition-screen": "02", "section-2-substance-screen": "02", "section-1-fiduciary-screen": "01", "section-2-undue-cost-screen": "02", "section-12-bid-ask-screen": "12", "section-18-useful-life-screen": "18", "section-19-goodwill-life-screen": "19", "section-28-actuarial-policy-screen": "28", "section-3-compliance-evidence-screen": "03", "section-20-classification-screen": "20", "section-20-finance-initial-measurement": "20"}[case["control"]]
+            section = control_sources.source_section(case["control"], case["facts"])
             case_context = next(c for c in contexts if c["entityId"] == case["entityId"] and c["period"] == case["period"])
             result = command("calculate", dict(caseId=case["caseId"], interactionId=section_receipts[section]["interactionId"]), actor("SOURCE-REGISTER"), case_context)
             for key, value in case["expected"].items():
