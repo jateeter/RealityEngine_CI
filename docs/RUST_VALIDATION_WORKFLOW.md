@@ -14,7 +14,7 @@ non-voting conformance follower, is CI#607.
 | tier | what it is | where it runs | needs | proves |
 |---|---|---|---|---|
 | **R0** static | `cargo fmt --check`, `clippy -D warnings`, unit tests, release build, toolchain pin | hosted, `RealityEngine_Rust/.github/workflows/validate.yml` | the Rust checkout | it builds, lints and its unit tests pass |
-| **R1** conformance | the regression corpus, vendored, replayed through the HTTP router against what the corpus declares | hosted, same workflow | the Rust checkout | Rust conforms to the corpus snapshot it carries |
+| **R1** conformance | the regression corpus, vendored, replayed through the HTTP router against what the corpus declares; and every route `SURFACE_SPEC.md` defines, probed for its implementation status | hosted, same workflow | the Rust checkout | Rust conforms to the corpus snapshot it carries, and the implementation status of every specified route is known |
 | **R2** follower | Rust beside a live 3-of-3 universe as a non-voting extra runtime: the RE-only parity stages, plus the corpus declarations held against the three engines | local, `scripts/validate.sh r2` → `RealityEngine_CI/scripts/rust-conformance.sh` | sibling checkouts, a universe | Rust agrees with the voters on what it implements |
 | **R3** full suite | `scripts/regression-test.sh` with Rust registered as a follower | local, from `RealityEngine_CI` | the whole workspace | the release candidate, Rust included, end to end |
 
@@ -72,6 +72,50 @@ events, Rust#3, which masks #4 and #5 behind it; `eventDimension` absent,
 Rust#6), 30 not compared, 0 unexpected. That is the evaluation's "as shipped"
 result reproduced without a live engine.
 
+## R1: the API surface
+
+`RealityEngine_Rust/tests/surface.rs`, also run by `scripts/validate.sh r1`.
+Its goal: **every API the specification defines exists in a record, with its
+implementation status known.** The readable answer is
+`RealityEngine_Rust/conformance/SURFACE_STATUS.md`.
+
+- **Driven by the spec, not a hand list.** `scripts/refresh-surface.sh` parses
+  the route tables of this repo's `SURFACE_SPEC.md` into
+  `conformance/surface/spec-routes.json`. That file holds the spec's commit,
+  its sha256 and a digest of the parsed routes, which R1 recomputes. It takes
+  the RE and PE `| Method | Path | CPP | LSP | Scala |` and `| Protocol | ... |`
+  tables (79 RE and 47 PE routes, streaming included) and the 5 phase-2 K-line
+  routes, which the spec writes outside those tables. The Manager section is
+  Manager's surface and is left out.
+- **Probed, black box.** Each route is sent through the router in process, with
+  `{}` as its body and `probe` for each path parameter, and classified as one of:
+  - `implemented`: the router serves it, without a 5xx, and any 4xx carries
+    `{"error"}`;
+  - `implemented-bad-envelope`;
+  - `implemented-error`;
+  - `declared-unsupported`: it answers with the participation state;
+  - `missing`: the router's own empty 404/405, or no service (Rust has no PE).
+
+  A unit test holds the classifier to each state against a synthetic router.
+- **The record.** `conformance/surface-status.json` gives each route its status
+  and, for anything not implemented, its tracking issue. R1 fails when:
+  - an observed status differs from the record;
+  - a spec route has no entry;
+  - an entry names no spec route;
+  - a non-implemented route names no issue;
+  - the generated `SURFACE_STATUS.md` is out of date.
+
+  So a newly added route, or a new route in the spec, cannot go unrecorded.
+- **Existence, not behaviour.** A route recorded `implemented` may still be
+  non-conforming. The record's notes name the known shape defects
+  (`/api/config` #6, `json/list` #7, `engine/process` #5), and behaviour is the
+  corpus replay and R2.
+
+At the first record: RE 14 of 79 implemented, PE 0 of 47 (no PE),
+phase 2 0 of 5. Every `missing` route answers silently, which "Participation
+States" forbids; declaring them is Rust#15, which waits on the wire shape
+(CI#607).
+
 ## R2 in detail — to be built
 
 `scripts/rust-conformance.sh` does not exist yet; `validate.sh r2` reports
@@ -85,7 +129,8 @@ unavailable until it does. It is CI#607 step 2, and needs:
 2. **The runner.** Build Rust, start it on 5801 beside a running universe on
    the same corpus, run `machine-set-parity`, `engine-process-parity`,
    `export-parity` and `engine-config-parity --no-step` with Rust as the
-   follower, and `refresh-corpus.sh --check` so a stale snapshot is named.
+   follower. It also runs `refresh-corpus.sh --check` and
+   `refresh-surface.sh --check`, so a stale snapshot is named.
    Provenance (`verify-build-provenance.py`) covers Rust for this lane.
 3. **The declaration cross-check.** For every sequence R1 compares, replay it
    on the three voters and compare their 3-of-3 agreement with the corpus
@@ -105,6 +150,13 @@ Rust in its own section and never folds it into the certifying verdict. R3 is
 what a release candidate that ships `re-rust` must pass.
 
 ## Noticed, not chased
+
+- The evaluation of 2026-10-24 counted 78 RE and 45 PE route rows. The spec at
+  `fc60831` has 79 and 47, counting the streaming rows (SSE `/api/engine/stream`,
+  SSE `/api/events`, WebSocket `/ws`) that sit in `Protocol` tables. Which
+  counting the evaluation used was not re-derived.
+- The surface probe cannot see routes Rust serves that the spec does not define
+  (axum does not list its routes). Today all 14 of Rust's routes are in the spec.
 
 - 30 of the 59 regression-corpus input sequences declare no
   `expectedOutputCount`/`expectedOutputVector`. They carry other vocabularies
