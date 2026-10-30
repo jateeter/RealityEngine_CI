@@ -148,7 +148,9 @@ while read -r name sha; do
   [ -n "$name" ] || continue
   repo_dir="$WORKSPACE/$name"
 
-  if [ ! -d "$repo_dir/.git" ]; then
+  # -e, not -d: in a git worktree .git is a file. RealityEngine_CI is cut from
+  # a worktree at its pin, because its main moves on after certification.
+  if [ ! -e "$repo_dir/.git" ]; then
     echo "  SKIP  $name — not checked out"
     FAILED=1
     continue
