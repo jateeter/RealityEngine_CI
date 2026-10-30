@@ -119,5 +119,22 @@ check "$(grep -c '^- Arbiter conformance: `skipped`$' "$TMP/r6/summary.md")" 1 "
 check "$(grep -c '^- local-ai: `failed`$' "$TMP/r6/summary.md")" 1 "a non-zero exit stays failed whatever report it left"
 
 echo ""
+echo "native build-only leaves runtime ports and services untouched"
+eval "$(sed -n '/^prepare_docker() {/,/^}/p' "$CI_DIR/scripts/regression-test.sh")"
+step() { :; }
+start_docker_daemon() { echo called >> "$TMP/docker-called"; return 1; }
+BUILD=true; START=false; LIVE_TESTS=false; CONTAINERIZED=false; PROFILE=local
+prepare_docker
+check "$(test -e "$TMP/docker-called" && echo called || echo untouched)" untouched "native build-only never reaches Docker/runtime preflight"
+CONTAINERIZED=true
+if (prepare_docker); then STATUS=0; else STATUS=$?; fi
+check "$STATUS" 1 "containerized build still requires Docker"
+check "$(cat "$TMP/docker-called")" called "containerized build reaches its existing Docker prerequisite"
+rm "$TMP/docker-called"
+CONTAINERIZED=false; START=true; LIVE_TESTS=true
+if (prepare_docker); then STATUS=0; else STATUS=$?; fi
+check "$STATUS" 1 "runtime lane still enforces its Docker prerequisite"
+check "$(cat "$TMP/docker-called")" called "runtime lane still enters preflight"
+
 echo "  $PASS passed, $FAIL failed"
 [ "$FAIL" -eq 0 ]

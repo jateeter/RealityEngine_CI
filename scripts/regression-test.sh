@@ -917,6 +917,13 @@ stop_previous_native_universe() {
 }
 
 prepare_docker() {
+  # Native build-only compiles artifacts; no runtime port or Docker teardown
+  # is necessary. Preserve the existing release stack and system listeners.
+  # Containerized builds still require the Docker daemon below.
+  if [ "$BUILD" = true ] && [ "$START" = false ] && [ "$LIVE_TESTS" = false ] && [ "$CONTAINERIZED" = false ]; then
+    log "Native build-only: runtime/Docker preflight not applicable; leaving services untouched."
+    return 0
+  fi
   if [ "$CONTAINERIZED" = true ]; then
     # Nothing of the operator's is stopped: the installer refuses a held port
     # (realityengine check_ports), naming it, before it starts anything.
@@ -1115,6 +1122,11 @@ repo_root() {
 
 build_repos() {
   [ "$BUILD" = true ] || return 0
+  # Some stages call scripts directly, rather than through bash -lc. Select
+  # the pinned Node for the parent too, so those stages cannot inherit a
+  # broken or older system/Homebrew Node while child login-shell builds pass.
+  source "$CI_DIR/scripts/lib/node-env.sh"
+  RE_NODE_VERSION="$NODE_VERSION" establish_node
   step "Full build"
   for repo in "${REPOS[@]}"; do
     record_repo_provenance "$repo"
