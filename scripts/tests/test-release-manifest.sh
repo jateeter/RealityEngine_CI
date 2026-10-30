@@ -387,6 +387,17 @@ assert_eq "$CODE" "0" "an eligible manifest rehearses cleanly"
 assert_contains "$OUT" "would tag RepoA" "the dry run names what it would tag"
 assert_eq "$(git -C "$PUBWS/RepoA" tag -l release-v9.9.8)" "" "the dry run tags nothing"
 
+# A repo whose main moved on is cut from a git worktree at its pin, where .git
+# is a file, not a directory.
+WTWS="$TMP/wtws"
+mkdir -p "$WTWS"
+ln -s "$PUBWS/RepoA" "$WTWS/RepoA"
+git -C "$PUBWS/RepoB" worktree add -q --detach "$WTWS/RepoB" "$PB"
+cut "$TMP/cut.json" --workspace "$WTWS"
+assert_eq "$CODE" "0" "a repo checked out as a git worktree is cut like any other"
+assert_contains "$OUT" "would tag RepoB" "the worktree repo is tagged, not skipped"
+git -C "$PUBWS/RepoB" worktree remove "$WTWS/RepoB"
+
 # A collision on a remote stops the cut before any local tag.
 git -C "$PUBWS/RepoA" tag -a release-v9.9.8 -m x "$PA"
 git -C "$PUBWS/RepoA" push -q origin refs/tags/release-v9.9.8
