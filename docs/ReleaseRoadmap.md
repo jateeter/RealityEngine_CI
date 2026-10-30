@@ -1,6 +1,6 @@
 # Release Roadmap: Release 0.01 / MVP (`release-v0.0.1`)
 
-Last reviewed: 2026-10-29
+Last reviewed: 2026-10-30
 
 This is the task tracker for the first MVP release of the integrated RealityEngine
 application. It is the one place where release work is listed, ordered and
@@ -16,6 +16,12 @@ together with the work the primary target adds; the
 
 **Decisions A1–A11 were made on 2026-10-17** (below). Work proceeds A → B → C →
 D → E → F, followed by the full release documentation.
+
+**`release-v0.0.1` was released on 2026-10-30** (F4): candidate `-rc6`
+promoted by digest, every repo tagged, recorded in
+[`releases/release-v0.0.1.json`](../releases/release-v0.0.1.json) with notes in
+[`releases/release-v0.0.1.md`](../releases/release-v0.0.1.md). F5's released-set
+smoke and the full documentation set remain.
 
 ## The release target
 
@@ -87,7 +93,7 @@ needing no source checkout, compiler or build toolchain on the Mac:
 | **B2** | Self-contained images | CI + repos | B1 | open | |
 | **B3** | Pin and unify third-party images | CI + repos | — | in progress | OCS#58, localAIStack#129, PIM#84 |
 | **B4** | Native arm64 builds | CI | A4, B1 | in progress | |
-| **B5** | Release image workflow | CI | A3, B4 | done: `release-v0.0.1-rc1`, `-rc2`, `-rc3` (12 images: the gateway image left with #592), then `-rc4` (rc3 plus the Grafana fix #650) `-rc5` (rc4 plus Manager#304, loaded machines' test sequences on every PE) and `-rc6` (current candidate: rc5 plus Manager#306/#307, Machines/Perception navigation and graph refresh after a load), all public and anonymously pullable | runs 39300675853, 39315175811, 40605186263, 40802198200, 40821825935, 40928992020 |
+| **B5** | Release image workflow | CI | A3, B4 | done: `release-v0.0.1-rc1`, `-rc2`, `-rc3` (12 images: the gateway image left with #592), then `-rc4` (rc3 plus the Grafana fix #650) `-rc5` (rc4 plus Manager#304, loaded machines' test sequences on every PE) and `-rc6` (rc5 plus Manager#306/#307, Machines/Perception navigation and graph refresh after a load), all public and anonymously pullable; rc6 promoted to `release-v0.0.1` by digest | runs 39300675853, 39315175811, 40605186263, 40802198200, 40821825935, 40928992020; promotion 41001743259 |
 | **B6** | Image hygiene | all | B1 | open | |
 | **C1** | Release compose, engines generated from the instance spec | CI | B2, B3 | in progress: live on the developer Mac |  |
 | **C2** | Instance registry, MCP, config and UUIDs in containers | CI | B2 | in progress: live on the developer Mac |  |
@@ -103,15 +109,15 @@ needing no source checkout, compiler or build toolchain on the Mac:
 | **D6** | Release asset checks | Machines/OpenClaw/CI | A8 | in progress | |
 | **D7** | Deployment suite | CI | C3 | in progress: live suites green on the install | CPP#171, Scala#190, LSP#164, Machines#217 |
 | **E1** | `local-containerized` lane on published images | CI | B5, C3 | done: certifying form green on `release-v0.0.1-rc6` (`e1-rc6-cert-20261029a`, 0 new failures, no change from rc5's `e1-rc5-cert-20261029a`, 44 machines per engine); before it rc5 (`e1-rc5-cert-20261029a`, no change from rc4's `e1-rc4-cert-20261029a`) and rc4 (`e1-rc4-cert-20261029a`, no change from rc3's `e1-rc3-cert-20261028a`, 44 machines per engine); development form from the same commits `e1-rc3-20261027b`. Earlier: rc2 `e1-rc2-20261019a` | CI#165, CI#590, localAIStack#159 |
-| **E2** | Native vs containerized comparison | CI | E1 | done for rc3: `e2-native-rc3-20261027b` vs `e1-rc3-20261027b`, 52/57 reports identical, 5 explained (README, What rc3 certifies). The first pair (`e1-rc3-20261027a`) found the release image missing localAI's 11 domain machines, fixed by localAIStack#159; repeat at F1 | |
+| **E2** | Native vs containerized comparison | CI | E1 | done for the release: `f1-native-rc6-20261029a` vs `e1-rc6-cert-20261029a`, 53/57 reports identical, 4 explained (`releases/release-v0.0.1.md`). Before it rc3: `e2-native-rc3-20261027b` vs `e1-rc3-20261027b`, 52/57, 5 explained; the first pair (`e1-rc3-20261027a`) found the release image missing localAI's 11 domain machines, fixed by localAIStack#159 | |
 | **E3** | Clean-Mac install test | CI/operator | B5, C3, C4 | done on `release-v0.0.1-rc6` (2026-10-29, owner, second Mac) except the full wipe: upgrade from rc5, uninstall, fresh install, machine load, spec change and uninstall all succeeded; the host tools were already present, so their from-scratch installation was not exercised (below). The first rc3 attempt found the No Data dashboards (#650) and a reinstall over leftover volumes failing `pim-bootstrap` (`uninstall.sh`, #649) | |
 | **E4** | Release eligibility enforced | CI tooling | A1, A2, B5 | done (2026-10-29): `release-manifest.py check` and `published`, run by `cut-release.sh`; `--images`, `--native-run-dir` for F2 | |
 | **E5** | Release documentation aligned | CI/docs | A1, A2 | in progress: `RELEASE.md` revised for A1–A11 | |
-| **F1** | Freeze and final certification | release operator | D*, E1–E5 | open | |
-| **F2** | Versioned manifest with image digests | release operator | F1 | open | |
-| **F3** | Cut rehearsal | release operator | F2 | open | |
-| **F4** | Publish tags and images | release owner | F3 | open | |
-| **F5** | Release notes, full release documentation, released-set smoke | CI/docs | F4 | open | |
+| **F1** | Freeze and final certification | release operator | D*, E1–E5 | done (2026-10-30): native `f1-native-rc6-20261029a` at rc6's commits, with E1 `e1-rc6-cert-20261029a` | |
+| **F2** | Versioned manifest with image digests | release operator | F1 | done: `releases/release-v0.0.1.json`, 10 repos and 12 digests, not provisional | CI#664 |
+| **F3** | Cut rehearsal | release operator | F2 | done: no drift, 22/22 tags and images clear | CI#665 |
+| **F4** | Publish tags and images | release owner | F3 | done (2026-10-30): 10 tags pushed, 12 images promoted (run 41001743259), 22/22 resolve to the manifest | |
+| **F5** | Release notes, full release documentation, released-set smoke | CI/docs | F4 | in progress: notes published; operator guide, full documentation set and released-set smoke open | |
 
 ---
 
@@ -686,7 +692,7 @@ source, the image rebuilt, and the check re-run.
     `openclaw-portal.spec.ts:174` (18 of 18 machine-corpus agents not loaded in
     OpenClaw) and `tree-to-pe-manager-equivalence.spec.ts` (API response byte
     mismatches across engines). Neither is chased here.
-- [ ] **E2 — Native vs containerized comparison.** Run the native local lane
+- [x] **E2 — Native vs containerized comparison.** Run the native local lane
   and E1 at the same commits and spec on the same Mac and compare the parity
   stages.
   - A disagreement that is still there after a re-run blocks the release; this
@@ -800,7 +806,7 @@ source, the image rebuilt, and the check re-run.
 
 ## F. Freeze, cut and publish
 
-- [ ] **F1 — Freeze and final certification** (was R11). Every accepted fix is
+- [x] **F1 — Freeze and final certification** (was R11). Every accepted fix is
   merged; every repo is clean and current with `origin/main`. Then run, at the
   same commits:
   - the native local lane:
@@ -809,7 +815,7 @@ source, the image rebuilt, and the check re-run.
   - **Done:** both runs are non-provisional, with no required skip or failure,
     clean provenance, and a recorded decision for every optional omission.
     Any runtime change after this needs recertification.
-- [ ] **F2 — Versioned manifest** (was R12). Run
+- [x] **F2 — Versioned manifest** (was R12). Run
   `scripts/release-manifest.py generate --run-dir .regression-tests/runs/<final> --images <candidate images.json> --version release-v0.0.1 --out releases/release-v0.0.1.json`.
   `--images` records every image digest and is added for this task.
   - Never hand-edit a pin, and never pass `--allow-unverified`.
@@ -818,18 +824,42 @@ source, the image rebuilt, and the check re-run.
   - `releases/v0.1.0-rc1.json` (8 repos, 2026-08-09) is historical and is
     superseded.
   - **Done:** ten full SHAs and every image digest, with no provisional marker.
-- [ ] **F3 — Cut rehearsal** (was R13). `release-manifest.py verify` and the
+- [x] **F3 — Cut rehearsal** (was R13). `release-manifest.py verify` and the
   cutter without `--execute`, with E4's collision checks.
   - Generate the manifest without moving CI's HEAD; the record is committed
     after the cut through a docs PR.
   - **Done:** no drift, no conflicting tag or image, and the dry run names the
     certified set.
-- [ ] **F4 — Publish tags and images** (was R14). Create the tags with
+- [x] **F4 — Publish tags and images** (was R14). Create the tags with
   `--execute` and review them; push with `--execute --push`; promote the
   candidate images to `release-v0.0.1` by digest, without rebuilding. Attach the
   installer to the GitHub release.
   - **Done:** every remote tag resolves to its manifest SHA and every release
     image to its manifest digest. A partial publication is not a release.
+- **Done (2026-10-30), F1–F4.** The owner chose `release-v0.0.1` (A1) for rc6
+  and asked for E4, F1 and F2's tooling first.
+  - F1: `f1-native-rc6-20261029a`, the native lane with every engine,
+    corpus and service repo at rc6's pins: completed, 0 new failures, no change
+    from `e1-rc6-cert-20261029a`. `RealityEngine_CI` ran at `2d0f5ac`, past
+    the pin `5213088` by docs, the e2e spec update #659, `install.sh` and
+    host-requirements' `release` field; the manifest records it with that
+    reason. E2 on the pair: 53 of 57 reports identical, the 4 others the
+    explained ones (LLM answer length and bridge target, agent-tools
+    activation timing, Swagger and the unpublished bridge-metrics port).
+  - F2: generated with `--images` (the rc6 images file), `--native-run-dir`,
+    and an `--omission` for each of `healthkit-bridge` (A10), `arbiter-sweep`
+    and the deployment suite. Both runs' evidence is also kept outside run
+    history, in `~/.reality-engine/release-evidence/release-v0.0.1/` on the
+    developer Mac.
+  - F3: from `main`, against a workspace with `RealityEngine_CI` as a
+    worktree at its pin (RELEASE.md step 5); the first rehearsal found the
+    cutter skipping a worktree (CI#665).
+  - F4: `cut-release.sh --execute`, the tag text reviewed, then `--push`: 10
+    of 10 pushed. `release-images.yml` promoted `-rc6` to `release-v0.0.1`
+    (run 41001743259); `published --expect equal` 22/22, and all 12 images
+    pull anonymously. The promoted images file is
+    `release/candidates/release-v0.0.1.images.json`, and `install.sh` points
+    at the release.
 - [ ] **F5 — Release notes, full release documentation, and released-set
   smoke** (was R15).
   - Publish the release notes: the manifest and the certifying run IDs, the
