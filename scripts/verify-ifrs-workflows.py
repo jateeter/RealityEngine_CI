@@ -55,6 +55,9 @@ def main():
     assert foundation["synthetic"]
     # Pin each fixture to its own reporting scope, including pre-effective periods.
     # The synthetic operator record is never treated as independently reviewed.
+    policy = json.loads((assets / "acceptance/synthetic/policy-cases.json").read_text())
+    assert policy["synthetic"]
+    foundation["cases"].extend(policy["cases"])
     for case in foundation["cases"]:
         case["period"] = case["facts"].get("periodStart", "2027")[:4]
         entity = next(e for e in package["entities"] if e["entityId"] == case["entityId"])
@@ -64,6 +67,8 @@ def main():
     for entity_id, period in sorted({(c["entityId"], c["period"]) for c in foundation["cases"]}):
         package["supportingRecords"].append(dict(recordId="SYNTHETIC-FOUNDATION-RECORD", entityId=entity_id, period=period,
                                                   synthetic=True, description="Fictional operator judgments for foundation control paths; independent review required"))
+    package["supportingRecords"].append(dict(recordId="SYNTHETIC-POLICY-RECORD", entityId="SYNTHETIC-ASTER-SERVICES", period="2027", synthetic=True,
+                                              description="Fictional operator policy judgments; independent accounting review required"))
     graph = json.loads((assets / "accounting-workflow-graph.json").read_text())
     catalog = {a["assetTypeId"]: a for a in json.loads((assets / "document-asset-catalog.json").read_text())["assetTypes"]}
     source = json.loads((args.bundle / "ingestion-manifest.json").read_text())
@@ -71,7 +76,7 @@ def main():
     receipt = {"evidenceClass": "synthetic", "accountingAcceptance": "REPRESENTATIVE_DEVELOPMENT_CASES_ONLY", "nativeParity": "NOT_MEASURED_HERE", "independentAccountingReview": "REQUIRED", "phases": {}, "artifacts": []}
     def fingerprints():
         paths = list((args.machines / "machines/domains/ifrs-accounting").glob("*.json"))
-        paths += [assets / name for name in ["document-asset-catalog.json", "accounting-workflow-graph.json", "runbook-resolution.json", "acceptance/synthetic/accounting-package.json", "acceptance/synthetic/foundation-cases.json", "foundation-source-dispositions.json", "tools/document_workflow.py", "tools/accounting_controls.py"]]
+        paths += [assets / name for name in ["document-asset-catalog.json", "accounting-workflow-graph.json", "runbook-resolution.json", "acceptance/synthetic/accounting-package.json", "acceptance/synthetic/foundation-cases.json", "foundation-source-dispositions.json", "acceptance/synthetic/policy-cases.json", "policy-source-dispositions.json", "semantic-amendments.json", "tools/document_workflow.py", "tools/accounting_controls.py"]]
         paths += [args.localai / path for path in ["services/api/core/domain_evidence.py", "services/api/core/entity_evidence.py", "services/api/routers/domain_evidence.py"]]
         paths += [args.openclaw / path for path in ["document-workflows/service.py", "document-workflows/worker.py", "plugins/ifrs-documents/index.mjs", "plugins/ifrs-documents/openclaw.plugin.json"]]
         paths += [Path(__file__).resolve()]
@@ -177,13 +182,13 @@ def main():
         receipt["phases"]["currentSyntheticProjection"] = "PASS"
         calculations = []
         for case in package["cases"]:
-            section = {"section-1-eligibility": "01", "section-23-contract-cost": "23", "trial-balance": "03", "version-3-period-applicability": "A", "section-2-recognition-screen": "02", "section-2-substance-screen": "02"}[case["control"]]
+            section = {"section-1-eligibility": "01", "section-23-contract-cost": "23", "trial-balance": "03", "version-3-period-applicability": "A", "section-2-recognition-screen": "02", "section-2-substance-screen": "02", "section-1-fiduciary-screen": "01", "section-2-undue-cost-screen": "02", "section-12-bid-ask-screen": "12", "section-18-useful-life-screen": "18", "section-19-goodwill-life-screen": "19", "section-28-actuarial-policy-screen": "28"}[case["control"]]
             case_context = next(c for c in contexts if c["entityId"] == case["entityId"] and c["period"] == case["period"])
             result = command("calculate", dict(caseId=case["caseId"], interactionId=section_receipts[section]["interactionId"]), actor("SOURCE-REGISTER"), case_context)
             for key, value in case["expected"].items():
                 assert result["result"]["determination"][key] == value, case["caseId"]
             if case in foundation["cases"]:
-                wrong_section = "01"
+                wrong_section = "03" if section == "01" else "01"
                 denied = client.post("/tools/execute", headers={"Authorization": "Bearer " + actor("SOURCE-REGISTER")["token"]},
                                      json=dict(dispatchId=str(uuid.uuid4()), operation="calculate", context=case_context,
                                                arguments=dict(caseId=case["caseId"], interactionId=section_receipts[wrong_section]["interactionId"])))
