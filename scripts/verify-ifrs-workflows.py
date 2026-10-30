@@ -221,7 +221,10 @@ def main():
                                                  assetRoutes={"ELIGIBILITY-MEMO": {"agentId": agent_id, "token": actor("ELIGIBILITY-MEMO")["token"]}}), limit=1)
             write(out / "gateway-document-task.json", worker_result)
             receipt["phases"]["proactiveDocumentTask"] = [attempt["status"] for attempt in worker_result["attempts"]]
-            assert worker_result["attempts"] and worker_result["attempts"][0]["status"] == "ARTIFACT_OBSERVED_REVIEW_REQUIRED", "Gateway task did not create a canonical owned draft; no narrative-only pass"
+            assert worker_result["attempts"] and worker_result["attempts"][-1]["status"] == "ARTIFACT_OBSERVED_REVIEW_REQUIRED", "Gateway task did not create a canonical owned draft after bounded retries; no narrative-only pass"
+            drafted = command("inspect", {"assetTypeId": "ELIGIBILITY-MEMO"}, actor("ELIGIBILITY-MEMO"))
+            assert drafted["head"]["status"] == "DRAFT" and drafted["revision"]["evidenceClass"] == "synthetic"
+            assert drafted["revision"]["content"]["conclusion"] == "ELIGIBLE_SUBJECT_TO_REVIEW", "Agent draft contradicts the independently specified synthetic eligibility case"
         wrong = client.post("/tools/execute", headers={"Authorization": "Bearer " + actor("SOURCE-REGISTER")["token"]}, json=dict(dispatchId="self-approve", operation="approve", context=context, arguments={}))
         assert wrong.status_code == 403
         revised = command("draft", dict(assetTypeId="SOURCE-REGISTER", content={**source_content, "sourceGaps": source_content["sourceGaps"] + ["synthetic source-update event"]}, evidenceRefs=["synthetic:new-source-review"], expectedRevision=1, changeReason="synthetic upstream maintenance"), actor("SOURCE-REGISTER"))
