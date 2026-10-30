@@ -103,3 +103,10 @@ These were skipped or not run, by decision, and must not be read as passing:
   bytes differ across engines) fail, as they did before rc6.
 - The native PEs intern every RE machine lacking a source on a bootstrap and
   ignore `machineIds` (noted on Manager#304).
+- **Data in motion is not fully encrypted.** Manager is served over HTTPS
+  through its TLS proxy. Most other traffic between the system's parts is
+  plain HTTP: the engines' RE and PE APIs, the instance registry, localAI,
+  MCP, Ollama, the OpenClaw gateway on loopback, and the services on the
+  compose network. Every link must be encrypted to the current highest
+  standard (TLS 1.3, loopback included, outside parties held strictly) as a
+  gate for `release-v0.0.2` (#668).
