@@ -58,76 +58,50 @@ Current generated corpus:
 
   
 
-## Release candidate: release-v0.0.1-rc6
+## Release: release-v0.0.1
 
-`release-v0.0.1-rc6` is the current candidate for the MVP release. It is 12
-linux/arm64 images on `ghcr.io/jateeter`, built by `release-images.yml`
-run [40928992020](https://github.com/jateeter/RealityEngine_CI/actions/runs/40928992020).
-It is rc5 with two Manager changes (RealityEngine_Manager#308):
-- **Navigation:** Manager has two views, Machines and Perception, switched by
-  two buttons at the upper left of both. The Interconnection view and the
-  Perception view's back button are gone (RealityEngine_Manager#306).
-- **Graph refresh:** after machines or a domain are loaded, the directed graph
-  shows them without a page reload (RealityEngine_Manager#307).
+`release-v0.0.1` (Release 0.01) is the first release of the integrated
+RealityEngine application: the ten repositories at the commits below, each
+tagged `release-v0.0.1`, and 12 linux/arm64 images on `ghcr.io/jateeter`,
+tagged `release-v0.0.1` and pinned by digest in
+[`releases/release-v0.0.1.json`](releases/release-v0.0.1.json). It is
+candidate `release-v0.0.1-rc6`, promoted by digest without rebuilding
+(`release-images.yml` run
+[41001743259](https://github.com/jateeter/RealityEngine_CI/actions/runs/41001743259)).
+The release notes, with what certified it and what it does not cover, are
+[`releases/release-v0.0.1.md`](releases/release-v0.0.1.md).
 
-Manager moves to `c134d78`, and this repository to `5213088`, which changes
-only documentation, `install.sh` and host-requirements' `release` field since
-rc5. Every other repository is at its rc5 commit. rc5 added loaded machines'
-test sequences to every PE (RealityEngine_Manager#304), rc4 fixed Grafana's No
-Data dashboards (#650), and rc3 moved Ollama and the OpenClaw gateway onto the
-Mac, outside Docker (#592). The clean-Mac install (E3) is the next check
-(`docs/ReleaseRoadmap.md`).
-
-**To install rc6 on a Mac, run [`install.sh`](install.sh)** (see
+**To install it on a Mac, run [`install.sh`](install.sh)** (see
 [Install on a fresh Mac](#install-on-a-fresh-mac) below). It does everything,
 from Docker Desktop to a running suite, and needs no GitHub account.
 [INSTALL.md](INSTALL.md) describes the same steps by hand.
 
-### What rc6 certifies
+### What certifies it
 
 | Check | Run | Result |
 |---|---|---|
-| Containerized lane on the published rc6 images (E1, certifying form) | `e1-rc6-cert-20261029a` | completed, 0 new failures, no change from rc5's `e1-rc5-cert-20261029a`; on that install Manager's navigation and graph-refresh e2e specs passed |
-| Containerized lane built from rc3's commits (E1, development form) | `e1-rc3-20261027b` | completed, 0 new failures |
-| Native lane, compared with E1 (E2) | `e2-native-rc3-20261027b` | completed, 0 new failures; 52 of 57 reports identical, 5 explained |
-
-The development form and E2 ran at rc3's commits. Since rc3, rc4 changed only
-the release's own configuration in this repository, and rc5 and rc6 change only
-Manager's machine-load path and its user interface. No engine, corpus or other service source has
-changed.
-
-The images were built from these commits:
+| Containerized lane on the rc6 images (E1, the certifying run) | `e1-rc6-cert-20261029a` | completed, 0 new failures, 44 machines per engine |
+| Native lane at the same commits (F1) | `f1-native-rc6-20261029a` | completed, 0 new failures, no change from E1 |
+| Native vs containerized measurements (E2) | the two runs above | 53 of 57 reports identical, 4 explained, none an engine difference |
+| Clean-Mac install (E3) | owner, second Mac | upgrade, uninstall, fresh install, domain load, spec change and uninstall succeeded; the host tools were already installed |
 
 | Repository | Commit |
 |---|---|
-| RealityEngine_CI | `5213088` (rc5: `b0f8b4b`) |
+| RealityEngine_CI | `5213088` |
 | RealityEngine_CPP | `1a66823` |
 | RealityEngine_LSP | `de28483` |
 | RealityEngine_Scala | `e5d1745` |
 | RealityEngine_Machines | `7d9bf07` |
-| RealityEngine_Manager | `c134d78` (rc5: `2ea8d52`) |
+| RealityEngine_Manager | `c134d78` |
 | localAIStack | `f894e0f` |
 | localOpenClawStack | `ef036c9` |
 | OpenCommons-Health---Personal-Information-Management | `521e1d9` |
+| localHealthkitBridge | `3d3f5a7` (source only) |
 
-The five reports that differ between the lanes are:
-- the length of an LLM answer and which engine localAI's bridge targeted;
-- when the live Yuma MQTT stream delivered;
-- whether one agent-tools source had activated when it was read;
-- an envelope id the comparison does not mask;
-- the Swagger portal, which the release does not run, and the bridge-metrics
-  exporter, which rc3 did not run and rc4 does (#650).
-
-None is an engine difference.
-
-These are **not certified by rc6**, and must not be read as passing:
-- **The HealthKit bridge.** No iPhone was connected to the Mac that ran the
-  lanes, so the `healthkit-bridge` stage was skipped. The device test of
-  `localHealthkitBridge` is being run separately on an iPhone, and its result
-  is recorded in #592.
-- **The arbiter sweep**, which compares the engines under every arbiter rule.
-  It is off unless asked for, so it did not run.
-- **The deployment suite**, which neither lane runs.
+**Not certified by this release**, and not to be read as passing: the
+HealthKit bridge (no iPhone connected; an Xcode development deployment, A10),
+the arbiter sweep (off unless requested), the deployment suite (neither lane
+runs it), and a from-scratch install of the host tools.
 
 ### Install on a fresh Mac
 
@@ -168,8 +142,9 @@ macOS asks for your password when Docker Desktop or Node is installed system-wid
 and when the certificate is trusted.
 
 Each step is skipped when the Mac already satisfies it, so `install.sh` is safe
-to run again. On a Mac where rc6 is already installed, it starts it. On an older
-install, rc5 included, it upgrades it to rc6, keeping its data.
+to run again. On a Mac where release-v0.0.1 is already installed, it starts it.
+On an older install, a release candidate included, it upgrades it to
+release-v0.0.1, keeping its data.
 
 Options:
 - `bash install.sh --check` reports what it would do, and every requirement
@@ -222,29 +197,27 @@ install that doesn't match the new install's passwords is what stops the
 
 Troubleshooting is covered in [INSTALL.md](INSTALL.md#troubleshooting).
 
-### Re-running the regression lane on rc6 (developer Mac)
+### Re-running the regression lane on the release (developer Mac)
 
-To repeat E1 on a Mac with the sibling repos checked out at the rc6 commits
-above, run this from this repository:
+To repeat E1 on a Mac with the sibling repos checked out at the release's
+commits (`scripts/release-manifest.py verify --manifest releases/release-v0.0.1.json`),
+run this from this repository:
 
 ```bash
 ./scripts/regression-test.sh --execute --profile local-containerized \
-  --images release/candidates/release-v0.0.1-rc6.images.json \
-  --run-id e1-rc6-<yyyymmdd><letter>
+  --images release/candidates/release-v0.0.1.images.json \
+  --run-id e1-release-<yyyymmdd><letter>
 ```
 
-The lane installs rc6 as the compose project `re-regression` and runs the
-regression stages against it. It also checks each image's revision label
+The lane installs the release as the compose project `re-regression` and runs
+the regression stages against it. It also checks each image's revision label
 against the run's repo pins, so the local repos must match those commits.
 
-### Reporting the clean-Mac result (E3)
+### Reporting an install problem
 
-Record the outcome in `docs/ReleaseRoadmap.md` under E3. Include:
+Open an issue in this repository with:
 - the Mac model and macOS version;
 - the Ollama, Node and OpenClaw versions;
 - how long the install took;
 - `~/RealityEngine/install.log`, and the service checks `install.sh` printed at the end;
 - anything you had to do that this section doesn't describe.
-
-E3 has to pass before the candidate can be promoted to `release-v0.0.1` by
-digest (`docs/ReleaseRoadmap.md` F4), and the remaining release gates still apply after it.

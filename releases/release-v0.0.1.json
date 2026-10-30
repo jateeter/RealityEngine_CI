@@ -1,0 +1,375 @@
+{
+  "certifiedBy": {
+    "coverage": {
+      "localAI": true,
+      "machineCorpus": "regression",
+      "openclaw": true
+    },
+    "engineSpec": "cpp:1,lsp:1,scala:1",
+    "native": {
+      "drift": {
+        "RealityEngine_CI": {
+          "reason": "main moved on after the images were built, with no runtime source: the e2e spec update for Manager's navigation (#659), the rc6 images file and README (#658), install.sh and host-requirements' release field (#660), and the roadmap (#662)",
+          "sha": "2d0f5ac00c56b02d1036ee945602938515c9fda3"
+        }
+      },
+      "engineSpec": "cpp:1,lsp:1,scala:1",
+      "omissions": {
+        "arbiter-sweep": "off unless requested (--arbiter-sweep); the arbiter conformance stage passed",
+        "healthkit-bridge": "A10: the HealthKit bridge is an untested Xcode development deployment; no iPhone was connected to the Mac that ran the lanes",
+        "section:deployment": "neither lane runs the deployment suite; D7's live suites ran on the install"
+      },
+      "profile": "local",
+      "runId": "f1-native-rc6-20261029a",
+      "stageResults": {
+        "agent-corpus-current": {
+          "status": "passed"
+        },
+        "arbiter": {
+          "status": "passed"
+        },
+        "arbiter-sweep": {
+          "reason": "not requested; pass --arbiter-sweep to compare ISRE/OSRE under every arbiter rule",
+          "status": "skipped"
+        },
+        "arbitration-retention": {
+          "status": "passed"
+        },
+        "boot-source-declaration": {
+          "status": "passed"
+        },
+        "engine-process-parity": {
+          "status": "passed"
+        },
+        "escalation-dispatch": {
+          "status": "passed"
+        },
+        "export-parity": {
+          "status": "passed"
+        },
+        "healthkit-bridge": {
+          "reason": "no connected iPhone: pair one with Developer Mode on; the simulator is not used",
+          "status": "skipped"
+        },
+        "local-ai": {
+          "status": "passed"
+        },
+        "localai-machines": {
+          "status": "passed"
+        },
+        "machine-set-parity": {
+          "status": "passed"
+        },
+        "mcp": {
+          "status": "passed"
+        },
+        "mqtt-yuma": {
+          "status": "passed"
+        },
+        "openclaw": {
+          "status": "passed"
+        },
+        "pe-step-contract": {
+          "status": "passed"
+        },
+        "pim-mirror": {
+          "status": "passed"
+        },
+        "reset-contract": {
+          "status": "passed"
+        },
+        "section:build": {
+          "status": "passed"
+        },
+        "section:deployment": {
+          "status": "not-run"
+        },
+        "service-inventory": {
+          "status": "passed"
+        },
+        "trajectory-parity": {
+          "status": "passed"
+        },
+        "universal-vectors": {
+          "status": "passed"
+        }
+      },
+      "status": "completed"
+    },
+    "omissions": {
+      "arbiter-sweep": "off unless requested (--arbiter-sweep); the arbiter conformance stage passed",
+      "healthkit-bridge": "A10: the HealthKit bridge is an untested Xcode development deployment; no iPhone was connected to the Mac that ran the lanes",
+      "section:deployment": "neither lane runs the deployment suite; D7's live suites ran on the install"
+    },
+    "profile": "local-containerized",
+    "runId": "e1-rc6-cert-20261029a",
+    "serviceInventoryStatus": "passed",
+    "stageResults": {
+      "agent-corpus-current": {
+        "status": "passed"
+      },
+      "arbiter": {
+        "status": "passed"
+      },
+      "arbiter-sweep": {
+        "reason": "not requested; pass --arbiter-sweep to compare ISRE/OSRE under every arbiter rule",
+        "status": "skipped"
+      },
+      "arbitration-retention": {
+        "status": "passed"
+      },
+      "boot-source-declaration": {
+        "status": "passed"
+      },
+      "engine-process-parity": {
+        "status": "passed"
+      },
+      "escalation-dispatch": {
+        "status": "passed"
+      },
+      "export-parity": {
+        "status": "passed"
+      },
+      "healthkit-bridge": {
+        "reason": "no connected iPhone: pair one with Developer Mode on; the simulator is not used",
+        "status": "skipped"
+      },
+      "local-ai": {
+        "status": "passed"
+      },
+      "localai-machines": {
+        "status": "passed"
+      },
+      "machine-set-parity": {
+        "status": "passed"
+      },
+      "mcp": {
+        "status": "passed"
+      },
+      "mqtt-yuma": {
+        "status": "passed"
+      },
+      "openclaw": {
+        "status": "passed"
+      },
+      "pe-step-contract": {
+        "status": "passed"
+      },
+      "pim-mirror": {
+        "status": "passed"
+      },
+      "reset-contract": {
+        "status": "passed"
+      },
+      "section:build": {
+        "status": "passed"
+      },
+      "section:deployment": {
+        "status": "not-run"
+      },
+      "service-inventory": {
+        "status": "passed"
+      },
+      "trajectory-parity": {
+        "status": "passed"
+      },
+      "universal-vectors": {
+        "status": "passed"
+      }
+    },
+    "stages": {
+      "arbiter": "passed",
+      "arbiter-sweep-skipped": "skipped",
+      "arbitration-retention": "passed",
+      "engine-config-parity": "passed",
+      "engine-process-parity": "passed",
+      "escalation-dispatch": "passed",
+      "export-parity": "passed",
+      "healthkit-bridge-skipped": "skipped",
+      "images": "passed",
+      "local-ai": "passed",
+      "machine-set-parity": "passed",
+      "mcp-smoke": "passed",
+      "mqtt-yuma-cpp-1": "passed",
+      "mqtt-yuma-lsp-1": "passed",
+      "mqtt-yuma-scala-1": "passed",
+      "openclaw-integration-cpp-1": "passed",
+      "openclaw-integration-lsp-1": "passed",
+      "openclaw-integration-scala-1": "passed",
+      "pe-step-contract": "passed",
+      "pim-mirror": "passed",
+      "regression-comparison": "compared",
+      "regression-status": "passed",
+      "service-inventory": "passed"
+    },
+    "status": "completed"
+  },
+  "generatedAt": "2026-10-30T03:30:12Z",
+  "images": [
+    {
+      "digest": "sha256:c4bfe4fd2331918e8eb14bbfab99be17814e1ecc68cdd95912f74e110bd530fd",
+      "name": "re-corpus",
+      "ref": "ghcr.io/jateeter/re-corpus",
+      "repo": "RealityEngine_Machines",
+      "revision": "7d9bf071a8f1f28355712dd7633ed870302b3783"
+    },
+    {
+      "digest": "sha256:07a3a60f276b9b84cbd47f123a4bd4870ded7304dcb601f9a55b596480ea03e3",
+      "name": "re-cpp",
+      "ref": "ghcr.io/jateeter/re-cpp",
+      "repo": "RealityEngine_CPP",
+      "revision": "1a668235bc84b53a88f6adb162c53538041ea7df"
+    },
+    {
+      "digest": "sha256:8ed802cffdba094fc1484a9374a3f609e98d7d43ef002676558eaea547254004",
+      "name": "re-css",
+      "ref": "ghcr.io/jateeter/re-css",
+      "repo": "OpenCommons-Health---Personal-Information-Management",
+      "revision": "521e1d93f8c0cf48cf2894b64b26b252c6d15c20"
+    },
+    {
+      "digest": "sha256:e9f333d042b7961077b99191d13b27b625863a38674f8ad2dc773a7e4fe39d9d",
+      "name": "re-init",
+      "ref": "ghcr.io/jateeter/re-init",
+      "repo": "RealityEngine_CI",
+      "revision": "521308886566375b7dc287bbf887fead58dfdf26"
+    },
+    {
+      "digest": "sha256:ca439fed11b9ec4d8d49e33a0d3c960bffd4b29125c109d072dc5273fe98b234",
+      "name": "re-localai-api",
+      "ref": "ghcr.io/jateeter/re-localai-api",
+      "repo": "localAIStack",
+      "revision": "f894e0f6567f0e962ffa882a9c35c4db4c69e41e"
+    },
+    {
+      "digest": "sha256:c35ca0b7170038fad32d1471b7dbde65083e95800ddfea1773ede9c10c184328",
+      "name": "re-lsp",
+      "ref": "ghcr.io/jateeter/re-lsp",
+      "repo": "RealityEngine_LSP",
+      "revision": "de284836bc37505d20877d8cd9ec0da13c462be4"
+    },
+    {
+      "digest": "sha256:014bebd726ef98f3ba0127afc574e7d927ba0aa4275854a5bee32ed43960a2db",
+      "name": "re-mcp",
+      "ref": "ghcr.io/jateeter/re-mcp",
+      "repo": "RealityEngine_CI",
+      "revision": "521308886566375b7dc287bbf887fead58dfdf26"
+    },
+    {
+      "digest": "sha256:8c43b38ffcbcd6cc59e0071573d7799cc0c4b74c6ffdc460da4e643718f201b3",
+      "name": "re-pim",
+      "ref": "ghcr.io/jateeter/re-pim",
+      "repo": "OpenCommons-Health---Personal-Information-Management",
+      "revision": "521e1d93f8c0cf48cf2894b64b26b252c6d15c20"
+    },
+    {
+      "digest": "sha256:b57f578cc9729d0793a31c9ffbea242947b08f12e49cb4b2453786a654177138",
+      "name": "re-scala",
+      "ref": "ghcr.io/jateeter/re-scala",
+      "repo": "RealityEngine_Scala",
+      "revision": "e5d174539f8c8978a8ed4189a704b82c78c02b75"
+    },
+    {
+      "digest": "sha256:cd7111d395d8e95c9f79f7c908c3d8659be4f736f57e441554ea0f4967fbb8fc",
+      "name": "re-scala-pe",
+      "ref": "ghcr.io/jateeter/re-scala-pe",
+      "repo": "RealityEngine_Scala",
+      "revision": "e5d174539f8c8978a8ed4189a704b82c78c02b75"
+    },
+    {
+      "digest": "sha256:e69713aeea4c38d842ecf3d35e87bbb2708681a0cadb709793b3f6da74f84eea",
+      "name": "re-visualizer-backend",
+      "ref": "ghcr.io/jateeter/re-visualizer-backend",
+      "repo": "RealityEngine_Manager",
+      "revision": "c134d78d46d9900f7de0a4f749998241dfa2cb04"
+    },
+    {
+      "digest": "sha256:6f54e4609efc9cfda76066dda0c60c7e951cbaa4cea91f31fb47bf91829ae815",
+      "name": "re-visualizer-frontend",
+      "ref": "ghcr.io/jateeter/re-visualizer-frontend",
+      "repo": "RealityEngine_Manager",
+      "revision": "c134d78d46d9900f7de0a4f749998241dfa2cb04"
+    }
+  ],
+  "imagesFile": {
+    "platform": "linux/arm64",
+    "pushed": true,
+    "registry": "ghcr.io/jateeter",
+    "sha256": "a747159bf636d3afd4bda0fcb1cfd69562430e714b63ec4046d88deaca585aff",
+    "tag": "release-v0.0.1-rc6"
+  },
+  "repos": [
+    {
+      "buildStatus": "passed",
+      "name": "OpenCommons-Health---Personal-Information-Management",
+      "originMainShaAtRun": "521e1d93f8c0cf48cf2894b64b26b252c6d15c20",
+      "remoteUrl": "https://github.com/jateeter/OpenCommons-Health---Personal-Information-Management.git",
+      "sha": "521e1d93f8c0cf48cf2894b64b26b252c6d15c20"
+    },
+    {
+      "buildStatus": "passed",
+      "name": "RealityEngine_CI",
+      "originMainShaAtRun": "521308886566375b7dc287bbf887fead58dfdf26",
+      "remoteUrl": "git@github.com:jateeter/RealityEngine_CI.git",
+      "sha": "521308886566375b7dc287bbf887fead58dfdf26"
+    },
+    {
+      "buildStatus": "unknown",
+      "name": "RealityEngine_CPP",
+      "originMainShaAtRun": "1a668235bc84b53a88f6adb162c53538041ea7df",
+      "remoteUrl": "git@github.com:jateeter/RealityEngine_CPP.git",
+      "sha": "1a668235bc84b53a88f6adb162c53538041ea7df"
+    },
+    {
+      "buildStatus": "unknown",
+      "name": "RealityEngine_LSP",
+      "originMainShaAtRun": "de284836bc37505d20877d8cd9ec0da13c462be4",
+      "remoteUrl": "git@github.com:jateeter/RealityEngine_LSP.git",
+      "sha": "de284836bc37505d20877d8cd9ec0da13c462be4"
+    },
+    {
+      "buildStatus": "passed",
+      "name": "RealityEngine_Machines",
+      "originMainShaAtRun": "7d9bf071a8f1f28355712dd7633ed870302b3783",
+      "remoteUrl": "git@github.com:jateeter/RealityEngine_Machines.git",
+      "sha": "7d9bf071a8f1f28355712dd7633ed870302b3783"
+    },
+    {
+      "buildStatus": "passed",
+      "name": "RealityEngine_Manager",
+      "originMainShaAtRun": "c134d78d46d9900f7de0a4f749998241dfa2cb04",
+      "remoteUrl": "git@github.com:jateeter/RealityEngine_Manager.git",
+      "sha": "c134d78d46d9900f7de0a4f749998241dfa2cb04"
+    },
+    {
+      "buildStatus": "unknown",
+      "name": "RealityEngine_Scala",
+      "originMainShaAtRun": "e5d174539f8c8978a8ed4189a704b82c78c02b75",
+      "remoteUrl": "git@github.com:jateeter/RealityEngine_Scala.git",
+      "sha": "e5d174539f8c8978a8ed4189a704b82c78c02b75"
+    },
+    {
+      "buildStatus": "unknown",
+      "name": "localAIStack",
+      "originMainShaAtRun": "f894e0f6567f0e962ffa882a9c35c4db4c69e41e",
+      "remoteUrl": "git@github.com:jateeter/localAIStack.git",
+      "sha": "f894e0f6567f0e962ffa882a9c35c4db4c69e41e"
+    },
+    {
+      "buildStatus": "passed",
+      "name": "localHealthkitBridge",
+      "originMainShaAtRun": "3d3f5a75be67e5fff6a7c02d638b68ada0097bac",
+      "remoteUrl": "https://github.com/jateeter/localHealthkitBridge.git",
+      "sha": "3d3f5a75be67e5fff6a7c02d638b68ada0097bac"
+    },
+    {
+      "buildStatus": "unknown",
+      "name": "localOpenClawStack",
+      "originMainShaAtRun": "ef036c94f02fc28e748706a3cfcd19c251b28f41",
+      "remoteUrl": "git@github.com:jateeter/localOpenClawStack.git",
+      "sha": "ef036c94f02fc28e748706a3cfcd19c251b28f41"
+    }
+  ],
+  "schemaVersion": 1,
+  "version": "release-v0.0.1"
+}
