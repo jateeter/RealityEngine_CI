@@ -13,12 +13,12 @@ Machine  ←  DFA state = activation pattern across ALL vectors in ALL CESs
  └─ CriticalEventSequence (CES)   ← one recognizer component
      ├─ RealityEvent (contributes bits to the machine's DFA state)
      │    elements: [(value, comparator), ...]   ← acceptance condition for one input symbol
-     │    outputVectors: [...]                    ← Mealy-style emission on acceptance
-     │    nextVectorIds: [q₁, q₂, ...]           ← successor vectors to activate
+     │    outputEvents: [...]                    ← Mealy-style emission on acceptance
+     │    nextEventIds: [q₁, q₂, ...]           ← successor vectors to activate
      └─ RealityEvent ...
 ```
 
-A single vector with multiple `nextVectorIds` activates all listed successors on acceptance — this is not non-deterministic choice but **powerset construction already baked in**: the runtime tracks the full *set* of active vectors, and the transition `(active-set, input) → next-active-set` is single-valued and total.
+A single vector with multiple `nextEventIds` activates all listed successors on acceptance — this is not non-deterministic choice but **powerset construction already baked in**: the runtime tracks the full *set* of active vectors, and the transition `(active-set, input) → next-active-set` is single-valued and total.
 
 ### DFA State Representation
 
@@ -31,23 +31,31 @@ Each individual RealityEvent holds:
 | `id` | string | Unique state identifier |
 | `isInitial` | bool | Whether this is a start state (q₀) |
 | `elements` | `[{value, comparatorType, threshold}]` | Acceptance condition for one input symbol |
-| `outputVectors` | `[{id, vector}]` | Mealy-style emission on acceptance |
-| `nextVectorIds` | string[] | State transitions to activate on acceptance |
-| `matchAlgorithm` | string | Element-level comparator (`gte` or `equals`) |
+| `outputEvents` | `[{id, vector}]` | Mealy-style emission on acceptance |
+| `nextEventIds` | string[] | State transitions to activate on acceptance |
+| `matchAlgorithm` | string | Copied from the machine's `matchAlgorithm` (`gte` or `equals`) at load; not read from the vector itself |
 
 All initial vectors are **always active** (they are part of the fixed start state and remain active across cycles). A vector activates its successors when its acceptance condition is met; successors join the active set in the *next* cycle (deferred activation prevents same-cycle cascade). The resulting active set is the new DFA state.
 
 ### Transitions
 
-A vector accepts an input symbol when every element's comparator is satisfied:
+A vector accepts an input symbol when every element's comparator is satisfied.
+The canonical statement is `SURFACE_SPEC.md` § "Comparators"; this table
+summarizes it (`t` is the element's `threshold`, else the default shown):
 
 | Comparator | Condition |
 |---|---|
-| `gte` (default) | `inputCell ≥ value` |
-| `equals` | `inputCell == value` (exact) |
-| `threshold` | `inputCell ≥ threshold` |
+| `gte` (default) | both sides binarized at `t` (default 0.5) agree: `(inputCell ≥ t) == (value ≥ t)` |
+| `equals` | `inputCell == value` (exact); `custom` is an alias |
+| `threshold` | `abs(value − inputCell) ≤ t` (default 0.1) |
+| `pattern` | `1 − abs(value − inputCell) ≥ t` (default 0.5) |
 
-Acceptance is checked per element, then ANDed across all elements. The machine-level `matchAlgorithm` sets the default; individual elements may override with their own `comparatorType`.
+Acceptance is checked per element, then ANDed across all elements. An element's own `comparatorType` wins, then the machine's `matchAlgorithm`, then `gte`.
+
+**`gte` is not numeric `≥`**: under it a `0` means "this cell must be off". This
+table said `inputCell ≥ value` until 2026-10-30, which described no engine; the
+owner ruled the engines the source of truth (RealityEngine_CI#606). Further
+comparator work, toward a quantum resolution, is RealityEngine_CI#672.
 
 ### Recognized Languages are Regular
 
@@ -63,7 +71,7 @@ Within a single CES, the contribution is:
 L(CES) = { w ∈ Σ* : w drives the CES component from its initial vectors to some emitting vector }
 ```
 
-A single-vector CES with one `isInitial` vector recognizes **single-symbol patterns** — equivalent to the regular expression `{w : elements(w)}`. A chain of vectors `q₀ → q₁ → q₂` recognizes sequences matching `r₀ · r₁ · r₂` (concatenation of three symbol regexes). Branches in `nextVectorIds` (multiple successors) expand the active set — equivalent to **union** (`r₀ · (r₁ | r₂)`). Loops create **Kleene closure** (`r*`).
+A single-vector CES with one `isInitial` vector recognizes **single-symbol patterns** — equivalent to the regular expression `{w : elements(w)}`. A chain of vectors `q₀ → q₁ → q₂` recognizes sequences matching `r₀ · r₁ · r₂` (concatenation of three symbol regexes). Branches in `nextEventIds` (multiple successors) expand the active set — equivalent to **union** (`r₀ · (r₁ | r₂)`). Loops create **Kleene closure** (`r*`).
 
 ---
 
@@ -163,13 +171,13 @@ The arbiter's chosen output vector is **merged** into `perceptualMapping.output`
         "deprecatedAt": "ISO-8601 date (optional)",
         "replacedBy":   "sequence id (optional)",
         "metadata":     {},
-        "vectors": [
+        "events": [
           {
             "id":        "string",
             "isInitial": true,
             "elements":  [{ "value": 1, "comparatorType": "gte" }],
-            "outputVectors": [{ "id": "out-0", "vector": [1, 0] }],
-            "nextVectorIds": []
+            "outputEvents": [{ "id": "out-0", "vector": [1, 0] }],
+            "nextEventIds": []
           }
         ]
       }
