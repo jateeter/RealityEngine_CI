@@ -61,7 +61,6 @@ while [ $# -gt 0 ]; do
   esac
 done
 
-RUST_REPO="$(cd "$RUST_REPO" && pwd)"
 OUT="${OUT:-$CI_DIR/test-results/rust-conformance/$(date -u +%Y%m%dT%H%M%SZ)}"
 mkdir -p "$OUT"
 LIB="$CI_DIR/scripts/lib"
@@ -112,6 +111,8 @@ done
 [ -n "$WIDTH" ] || unavailable "no voter reported eventDimension on GET /api/config"
 
 # --- the build ---------------------------------------------------------------
+[ -d "$RUST_REPO" ] || unavailable "no RealityEngine_Rust checkout at $RUST_REPO; pass --rust-repo"
+RUST_REPO="$(cd "$RUST_REPO" && pwd)"
 say "build: $RUST_REPO"
 if $BUILD; then
   (cd "$RUST_REPO" && cargo build --release --quiet) || { echo "rust-conformance: build failed" >&2; exit 1; }
