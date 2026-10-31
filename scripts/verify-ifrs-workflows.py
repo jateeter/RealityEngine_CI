@@ -70,6 +70,9 @@ def main():
     reporting = json.loads((assets / "acceptance/synthetic/reporting-cases.json").read_text())
     assert reporting["synthetic"]
     foundation["cases"].extend(reporting["cases"])
+    remaining = json.loads((assets / "acceptance/synthetic/remaining-cases.json").read_text())
+    assert remaining["synthetic"]
+    foundation["cases"].extend(remaining["cases"])
     for case in foundation["cases"]:
         case["period"] = case["facts"].get("periodStart", "2027")[:4]
         entity = next(e for e in package["entities"] if e["entityId"] == case["entityId"])
@@ -87,6 +90,7 @@ def main():
                                               description="Fictional source/disclosure judgments for development acceptance; independent review required"))
     package["supportingRecords"].append(dict(recordId="SYNTHETIC-REPORTING-RECORD", entityId="SYNTHETIC-ASTER-SERVICES", period="2027", synthetic=True,
                                               description="Fictional dividend resolutions, financing movements, supplier terms and comparative reporting records; independent review required"))
+    package["supportingRecords"].append(dict(recordId="SYNTHETIC-COMPLETION-RECORD", entityId="SYNTHETIC-ASTER-SERVICES", period="2027", synthetic=True, description="Fictional completion-control facts; independent accounting review required"))
     graph = json.loads((assets / "accounting-workflow-graph.json").read_text())
     catalog = {a["assetTypeId"]: a for a in json.loads((assets / "document-asset-catalog.json").read_text())["assetTypes"]}
     source = json.loads((args.bundle / "ingestion-manifest.json").read_text())
@@ -94,7 +98,7 @@ def main():
     receipt = {"evidenceClass": "synthetic", "accountingAcceptance": "REPRESENTATIVE_DEVELOPMENT_CASES_ONLY", "nativeParity": "NOT_MEASURED_HERE", "independentAccountingReview": "REQUIRED", "phases": {}, "artifacts": []}
     def fingerprints():
         paths = list((args.machines / "machines/domains/ifrs-accounting").glob("*.json"))
-        paths += [assets / name for name in ["document-asset-catalog.json", "accounting-workflow-graph.json", "runbook-resolution.json", "acceptance/synthetic/accounting-package.json", "acceptance/synthetic/foundation-cases.json", "foundation-source-dispositions.json", "acceptance/synthetic/policy-cases.json", "policy-source-dispositions.json", "semantic-amendments.json", "acceptance/synthetic/lease-compliance-cases.json", "lease-compliance-source-dispositions.json", "acceptance/synthetic/source-disclosure-cases.json", "source-disclosure-dispositions.json", "acceptance/synthetic/reporting-cases.json", "reporting-source-dispositions.json", "tools/reporting_controls.py", "source-reference-map.json", "source-requirements.json", "tools/compliance_evidence.py", "tools/document_workflow.py", "tools/accounting_controls.py"]]
+        paths += [assets / name for name in ["tools/remaining_controls.py", "remaining-control-map.json", "acceptance/synthetic/remaining-cases.json", "document-asset-catalog.json", "accounting-workflow-graph.json", "runbook-resolution.json", "acceptance/synthetic/accounting-package.json", "acceptance/synthetic/foundation-cases.json", "foundation-source-dispositions.json", "acceptance/synthetic/policy-cases.json", "policy-source-dispositions.json", "semantic-amendments.json", "acceptance/synthetic/lease-compliance-cases.json", "lease-compliance-source-dispositions.json", "acceptance/synthetic/source-disclosure-cases.json", "source-disclosure-dispositions.json", "acceptance/synthetic/reporting-cases.json", "reporting-source-dispositions.json", "tools/reporting_controls.py", "source-reference-map.json", "source-requirements.json", "tools/compliance_evidence.py", "tools/document_workflow.py", "tools/accounting_controls.py"]]
         paths += [args.localai / path for path in ["services/api/core/domain_evidence.py", "services/api/core/entity_evidence.py", "services/api/routers/domain_evidence.py"]]
         paths += [args.openclaw / path for path in ["document-workflows/service.py", "document-workflows/worker.py", "plugins/ifrs-documents/index.mjs", "plugins/ifrs-documents/openclaw.plugin.json"]]
         paths += [Path(__file__).resolve()]
@@ -198,12 +202,24 @@ def main():
         projected = post(rag, "/rag/evidence/entity/retrieve", dict(entityId=context["entityId"], period=context["period"], assetTypeId="RAG-RECEIPTS"))
         assert projected["head"]["status"] == "APPROVED" and projected["evidenceClass"] == "synthetic"
         receipt["phases"]["currentSyntheticProjection"] = "PASS"
-        calculations, reporting_artifacts = [], []
+        calculations, reporting_artifacts, contributions = [], [], []
         reporting_targets = set()
         for case in package["cases"]:
             section = control_sources.source_section(case["control"], case["facts"])
             case_context = next(c for c in contexts if c["entityId"] == case["entityId"] and c["period"] == case["period"])
-            result = command("calculate", dict(caseId=case["caseId"], interactionId=section_receipts[section]["interactionId"]), actor("SOURCE-REGISTER"), case_context)
+            calculation_args = dict(caseId=case["caseId"], interactionId=section_receipts[section]["interactionId"], dependencyInteractionIds=[section_receipts[sec]["interactionId"] for sec in case.get("dependencySections", []) if sec != section])
+            result = command("calculate", calculation_args, actor("SOURCE-REGISTER"), case_context)
+            required = set(result["result"]["determination"].get("requiredSections", [])) - {section}
+            if result["result"]["determination"].get("status") == "ADVISORY":
+                assert required <= {d["sectionId"] for d in result["result"]["verifiedDependencyInteractions"]}
+                if required:
+                    missing = client.post("/tools/execute", headers={"Authorization": "Bearer " + actor("SOURCE-REGISTER")["token"]}, json=dict(dispatchId=str(uuid.uuid4()), operation="calculate", context=case_context, arguments=dict(caseId=case["caseId"], interactionId=section_receipts[section]["interactionId"])))
+                    assert missing.status_code == 409, case["caseId"]
+            if case in remaining["cases"]:
+                aid = case["targetAssetTypeId"]
+                contribution = command("contribute", dict(assetTypeId=aid, content=dict(caseId=case["caseId"], advisory=result["result"], independentReview="REQUIRED"), evidenceRefs=case["facts"]["evidenceRefs"] + [calculation_args["interactionId"]] + calculation_args["dependencyInteractionIds"]), actor(aid), case_context)["result"]
+                assert contribution["status"] == "OPEN" and contribution["targetMachine"] == graph["assetStewards"][aid]
+                contributions.append(contribution)
             for key, value in case["expected"].items():
                 assert result["result"]["determination"][key] == value, case["caseId"]
             if case in foundation["cases"]:
@@ -228,6 +244,8 @@ def main():
                 reporting_artifacts.append(dict(caseId=case["caseId"], assetTypeId=aid, artifact=artifact))
                 reporting_targets.add(aid)
             calculations.append(result)
+        write(out / "remaining-control-contributions.json", contributions)
+        receipt["phases"]["remainingControlContributions"] = dict(result="PASS", cases=len(contributions), status="OPEN_REQUIRES_STEWARD_AND_INDEPENDENT_REVIEW", nativeWrites=0)
         write(out / "synthetic-accounting-cases.json", calculations)
         write(out / "typed-reporting-artifacts.json", reporting_artifacts)
         receipt["phases"]["ownedTypedReportingDrafts"] = {"result": "PASS", "cases": len(reporting_artifacts), "assetTypes": sorted(reporting_targets), "independentReview": "REQUIRED"}
