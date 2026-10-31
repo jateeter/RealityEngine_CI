@@ -406,7 +406,8 @@ def quorum_composition(instances: list[dict[str, str]]) -> dict[str, Any]:
     Reported, never fatal: refusing to run would make a launch failure look
     like a parity failure, which is the inversion this stage exists to avoid.
     """
-    present = {inst["runtime"] for inst in instances}
+    # A conformance follower is never part of the quorum (QUORUM_CONTRACT.md section 1).
+    present = {inst["runtime"] for inst in instances if inst.get("role") != "follower"}
     missing = [runtime for runtime in NATIVE_QUORUM if runtime not in present]
     return {
         "rule": "3-of-3",

@@ -90,6 +90,7 @@ from urllib import error, request
 
 sys.path.insert(0, str(Path(__file__).resolve().parent / "lib"))
 from parity_identity import strip_engine_identity  # noqa: E402
+from followers import voters  # noqa: E402
 from reset_contract import reset_instances  # noqa: E402
 
 
@@ -141,13 +142,15 @@ def load_instances(registry_path: Path) -> list[dict[str, str]]:
     """
     document = json.loads(registry_path.read_text(encoding="utf-8"))
     out = []
-    for instance in document.get("instances", []):
+    # A conformance follower never votes (docs/QUORUM_CONTRACT.md section 1).
+    for instance in voters(document.get("instances", [])):
         re_url = instance.get("re_url") or instance.get("reUrl") or ""
         pe_url = instance.get("pe_url") or instance.get("peUrl") or ""
         if not re_url:
             continue
         out.append({"id": instance.get("id") or instance.get("instanceId") or re_url,
-                    "re_url": re_url.rstrip("/"), "pe_url": pe_url.rstrip("/")})
+                    "re_url": re_url.rstrip("/"), "pe_url": pe_url.rstrip("/"),
+                    "pe_participation": instance.get("pe_participation")})
     return out
 
 

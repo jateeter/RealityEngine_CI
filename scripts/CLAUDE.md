@@ -25,6 +25,15 @@ If you are adding a stage and reach for "compare everything against
 `instance_order[0]`", that is the defect in #138 and the reason this rule is
 written down.
 
+**A conformance follower never votes** (`"role": "follower"`, QUORUM_CONTRACT.md
+section 1, #607). `lib/followers.py` `voters()` drops followers. A stage that
+reads instance data runs it through `voters()` before composing a quorum, as the
+four RE-only stages and both `quorum_composition()`s do. A new stage does the
+same. Followers are judged only by the follower lane, `rust-conformance.sh`,
+which runs each stage on the voters and then jointly. Its verdicts are
+`agrees`, `differs`, `unsupported` and `not-compared`; see
+`docs/RUST_VALIDATION_WORKFLOW.md`.
+
 ## The CES contract
 
 `record-ces-contracts.py` derives the shards in `config/ces-contracts/` from

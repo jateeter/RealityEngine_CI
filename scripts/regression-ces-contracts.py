@@ -175,7 +175,8 @@ def quorum_composition(instances: list[dict[str, str]]) -> dict[str, Any]:
     artifact written from two runtimes would be *consumed* later as the
     contract, carrying no trace that the third never answered.
     """
-    present = {i["runtime"] for i in instances}
+    # A conformance follower is never part of the quorum (QUORUM_CONTRACT.md section 1).
+    present = {i["runtime"] for i in instances if i.get("role") != "follower"}
     missing = [r for r in NATIVE_QUORUM if r not in present]
     return {"rule": "3-of-3", "required": list(NATIVE_QUORUM),
             "present": sorted(present), "missing": missing, "formed": not missing}

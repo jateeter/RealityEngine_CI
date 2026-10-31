@@ -49,6 +49,7 @@ from pathlib import Path
 from urllib import error, request
 
 sys.path.insert(0, str(Path(__file__).resolve().parent / "lib"))
+from followers import voters  # noqa: E402
 from registry_url import registry_url  # noqa: E402
 
 CI_DIR = Path(__file__).resolve().parent.parent
@@ -126,8 +127,11 @@ def read_registry(source: str) -> list[dict]:
     """
     if source.startswith(("http://", "https://")):
         with request.urlopen(source, timeout=30) as response:
-            return json.loads(response.read().decode("utf-8")).get("instances", [])
-    return json.loads(Path(source).read_text(encoding="utf-8")).get("instances", [])
+            document = json.loads(response.read().decode("utf-8"))
+    else:
+        document = json.loads(Path(source).read_text(encoding="utf-8"))
+    # A conformance follower never votes (docs/QUORUM_CONTRACT.md section 1).
+    return voters(document.get("instances", []))
 
 
 def read_config(base: str) -> tuple[dict | None, str | None]:

@@ -41,6 +41,7 @@ Usage:
     ./scripts/verify-build-provenance.py                 # report, exit 1 on any failure
     ./scripts/verify-build-provenance.py --warn-only     # report, always exit 0
     ./scripts/verify-build-provenance.py --repos cpp,scala
+    ./scripts/verify-build-provenance.py --repos rust    # opt-in: the follower lane only
     ./scripts/verify-build-provenance.py --no-fetch      # skip the remote comparison
 """
 
@@ -144,6 +145,16 @@ TARGETS: dict[str, dict] = {
         "artifacts": [],
         "optional_artifacts": ["bin/reality-engine-lsp"],
         "sources": ["src/**/*.lisp"],
+    },
+    # The conformance follower (QUORUM_CONTRACT.md section 1). Opt-in: checked
+    # only when --repos names it, so the certifying run, which checks the three
+    # voters, never depends on Rust (owner decision, 2026-10-30). The follower
+    # lane, scripts/rust-conformance.sh, names it before it launches the build.
+    "rust": {
+        "dir": "RealityEngine_Rust",
+        "opt_in": True,
+        "artifacts": ["target/release/reality-engine"],
+        "sources": ["src/**/*.rs", "Cargo.toml", "Cargo.lock"],
     },
     "machines": {"dir": "RealityEngine_Machines", "artifacts": [], "sources": []},
     "manager": {"dir": "RealityEngine_Manager", "artifacts": [], "sources": []},
@@ -265,7 +276,7 @@ def check_repo(key: str, spec: dict, branch: str, fetch: bool, lane: str) -> lis
     dirty = [
         line[3:]
         for line in porcelain.splitlines()
-        if line[3:].endswith((".cpp", ".hpp", ".scala", ".lisp", ".py", ".ts", ".tsx"))
+        if line[3:].endswith((".cpp", ".hpp", ".scala", ".lisp", ".rs", ".py", ".ts", ".tsx"))
     ]
     if dirty:
         failures.append(
@@ -343,7 +354,9 @@ def main() -> int:
                              "local artifact exists to verify")
     args = parser.parse_args()
 
-    keys = [k.strip() for k in args.repos.split(",") if k.strip()] or list(TARGETS)
+    keys = [k.strip() for k in args.repos.split(",") if k.strip()] or [
+        k for k, spec in TARGETS.items() if not spec.get("opt_in")
+    ]
     unknown = [k for k in keys if k not in TARGETS]
     if unknown:
         print(f"[fail] unknown repo key(s): {', '.join(unknown)}", file=sys.stderr)
