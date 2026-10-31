@@ -1,11 +1,11 @@
 # MVP Release Roadmap — V0.01 evaluation
 
-Last reviewed: 2026-10-25
+Last reviewed: 2026-10-30
 
 The route from the local `v0.0.1-baseline` snapshot to a tagged MVP release of
 the integrated RealityEngine application. **V0.01 is the requested milestone
-label; its exact Git tag is an evaluation decision (R01).** The existing
-approved application tag is `release-v0.1.0`; this update does not change it.
+label; its exact Git tag was an evaluation decision (R01), settled by decision
+A1 as `release-v0.0.1`.**
 
 `ROADMAP.md` in this repo covers deployment and testing infrastructure and is
 complete. This file covers what remains before the composed application can be
@@ -17,8 +17,9 @@ released, and is the place to record gate status as it changes.
 > is settled: decision A1 (2026-10-17) names the release `release-v0.0.1`. This
 > file keeps the gate history (G1–G4), decisions D1–D3 and the evidence behind
 > them. The candidate, pins and task status below are as of 2026-10-08 and are
-> kept as the record; the current candidate is rc3 (`ReleaseRoadmap.md` B5, E1,
-> E2).
+> kept as the record. **`release-v0.0.1` was released on 2026-10-30** from
+> candidate rc6 ([`../releases/release-v0.0.1.md`](../releases/release-v0.0.1.md));
+> marking G1–G4 accepted, with references, is part of `ReleaseRoadmap.md` F5.
 
 ## Gate summary
 

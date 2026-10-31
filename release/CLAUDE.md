@@ -9,7 +9,7 @@ with no checkout (`docs/ReleaseRoadmap.md`, decisions A1–A11; `RELEASE.md`;
 |---|---|
 | `images.json` | The image catalog: every first-party image, its repo, build context and Dockerfile (B1). `scripts/check-release-images.py` validates it |
 | `build-images.py` | Builds the catalog natively for linux/arm64, labels each image with its commit, and writes an images file of digests (B4, B5) |
-| `candidates/` | Each published candidate's images file (`<tag>.images.json`), committed unchanged from the release run's artifact, so a candidate installs without a GitHub login (the artifact needs one). The README gives its sha256 |
+| `candidates/` | Each published candidate's images file (`<tag>.images.json`), committed unchanged from the release run's artifact, so a candidate installs without a GitHub login (the artifact needs one). A release's promotion run's file is committed the same way (`release-v0.0.1.images.json`); `install.sh`'s `IMAGES_SHA256` is the sha256 of the one it installs |
 | `promote-images.py` | Retags certified candidates as a release, by digest, never moving a release tag |
 | `compose.yml` | The fixed services of an install. Third-party images pinned by tag and digest; first-party by `${RE_IMAGE_*}` |
 | `init/` | `re-init`: configures an install (engine services per instance spec, instance UUIDs, both instance-registry views, config, certificates, secrets, OpenClaw), serves the instance registry, and loads machines (C1, C2, C6) |

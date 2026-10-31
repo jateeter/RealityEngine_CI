@@ -25,8 +25,11 @@ runtimes — the two that cross-runtime parity is measured against. A gate that
 silently covers less than it appears to is the failure mode this whole
 verification posture exists to avoid.
 
-Every repo the release manifest pins is now listed, except `RealityEngine_CI`
-itself, which is the repo running the check.
+Of the ten repos the release manifest pins, three are not listed:
+`RealityEngine_CI` itself, which is the repo running the check;
+`OpenCommons-Health---Personal-Information-Management`; and
+`localHealthkitBridge`. `scripts/release-manifest.py verify` checks all ten
+against a release's pins.
 
 ## Usage
 
@@ -39,7 +42,7 @@ bash scripts/validate-versions.sh --warn-only
 ```
 
 To pin a specific release tag once repos are tagged, change the version
-field from `any` to the tag name (e.g. `v2.1.0`).
+field from `any` to the tag name (e.g. `release-v0.0.1`).
 
 ## Changelog
 

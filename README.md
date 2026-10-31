@@ -24,39 +24,44 @@ back to these files rather than redefining ports or environment names.
 
 ## Example Machine Corpus
 
-- [Example Machine Compendium](Example-Machine-Compendium) — searchable index of
+- [Example Machine Compendium](https://github.com/jateeter/RealityEngine_CI/wiki/Example-Machine-Compendium) — searchable index of
   all active domains, machines, AI triggers, agents, vector mappings, and
-  interconnections generated from `examples/machines/*.json`.
-- [Machine Interconnection Index](Machine-Interconnection-Index) — searchable
+  interconnections generated from `RealityEngine_Machines/machines/`.
+- [Machine Interconnection Index](https://github.com/jateeter/RealityEngine_CI/wiki/Machine-Interconnection-Index) — searchable
   output-to-input overlap index for domain-local and cross-domain machine
   interconnections.
-- [Life Balance Machines](Life-Balance-Machines) — `100` lifestyle-psychiatry
+- [Life Balance Machines](https://github.com/jateeter/RealityEngine_CI/wiki/Life-Balance-Machines) — `100` lifestyle-psychiatry
   tracking, automation, projection, and e2e validation machines.
 
-Current generated corpus:
+The corpus at `release-v0.0.1` (`RealityEngine_Machines` `7d9bf07`,
+[`docs/EXAMPLE_DOMAIN_COMPENDIUM.md`](docs/EXAMPLE_DOMAIN_COMPENDIUM.md)):
 
-- `1006` machines
-- `11` active domains
-- `4109` used perceptual positions
-- `1361` machine-level interconnections
-- `135` cross-domain interconnections
+- `1327` machines
+- `14` active domains
+- `9486` used perceptual positions
+- `1427` machine-level interconnections
+- `95` cross-domain interconnections
 
-- ## System Depoloyment
-  Clone the following github repos into your local workspace:
-  RealityEngine_CI
-  RealityEngine_Machines
-  RealityEngine_Manager
-  RealityEngine_CPP
-  RealityEngine_LSP
-  RealityEngine_Scala
-  localAIStack
-  localOpenclawStack
-  localHealthkitBridge
+## Running from source
 
-  from within the RealityEngine_CI repository, enter:
-  ./startUniverse.sh --engines=cpp:1,lsp:1,scala:1
+Clone these ten repositories side by side in one workspace directory:
 
-  
+- RealityEngine_CI
+- RealityEngine_Machines
+- RealityEngine_Manager
+- RealityEngine_CPP
+- RealityEngine_LSP
+- RealityEngine_Scala
+- localAIStack
+- localOpenClawStack
+- localHealthkitBridge
+- OpenCommons-Health---Personal-Information-Management
+
+Then, from `RealityEngine_CI`:
+
+```bash
+./startUniverse.sh --engines=cpp:1,lsp:1,scala:1
+```
 
 ## Release: release-v0.0.1
 
@@ -134,7 +139,8 @@ A first run takes 20–40 minutes, mostly downloading. It:
    the current release into a user-owned npm prefix, with no `sudo`.
 6. Downloads the release installer and the images file, and checks both
    against the sha256 they were certified with.
-7. Installs the suite, about 12 GB of images, and starts it.
+7. Installs the suite, downloading about 4.5 GB of images (about 15 GB on
+   disk), and starts it.
 8. Trusts the suite's local certificate, so the browser accepts Manager.
 9. Checks every service and prints the addresses.
 
@@ -188,7 +194,7 @@ and its models, Node and OpenClaw:
 ```bash
 curl -fsSL -o uninstall.sh https://raw.githubusercontent.com/jateeter/RealityEngine_CI/main/uninstall.sh
 bash uninstall.sh --check     # what it would remove
-bash uninstall.sh             # add --images to also remove the 12 GB of release images
+bash uninstall.sh             # add --images to also remove the 12 re-* release images
 ```
 
 Run it before installing again over a failed attempt. Data left from an earlier

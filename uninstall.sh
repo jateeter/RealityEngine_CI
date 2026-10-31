@@ -15,7 +15,8 @@
 #   - the install directory (~/.realityengine), only what the installer wrote;
 #   - the "RealityEngine Local CA" certificate from the login keychain;
 #   - the installer files in ~/RealityEngine (the logs are kept);
-#   - with --images, the release's images (about 12 GB; a reinstall pulls them).
+#   - with --images, the 12 ghcr.io/jateeter/re-* release images (a reinstall
+#     pulls them); third-party images such as Open WebUI are kept.
 # Docker Desktop, Ollama and its models, Node and OpenClaw stay: install.sh keeps
 # them, and other software may use them.
 #

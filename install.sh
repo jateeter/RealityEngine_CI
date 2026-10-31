@@ -387,7 +387,7 @@ if $CHECK; then
   printf '\nCheck complete. Run without --check to install.\n'
   exit 0
 fi
-[ "$action" = install ] && printf '  The first install downloads about 12 GB and takes 10–20 minutes.\n'
+[ "$action" = install ] && printf '  The first install downloads about 4.5 GB of images and takes 10–20 minutes.\n'
 long "$action" "$RE" "${cmd[@]}" || fail "realityengine ${cmd[0]} did not finish."
 ok "RealityEngine $RELEASE_TAG is running"
 

@@ -112,7 +112,7 @@ needing no source checkout, compiler or build toolchain on the Mac:
 | **E2** | Native vs containerized comparison | CI | E1 | done for the release: `f1-native-rc6-20261029a` vs `e1-rc6-cert-20261029a`, 53/57 reports identical, 4 explained (`releases/release-v0.0.1.md`). Before it rc3: `e2-native-rc3-20261027b` vs `e1-rc3-20261027b`, 52/57, 5 explained; the first pair (`e1-rc3-20261027a`) found the release image missing localAI's 11 domain machines, fixed by localAIStack#159 | |
 | **E3** | Clean-Mac install test | CI/operator | B5, C3, C4 | done on `release-v0.0.1-rc6` (2026-10-29, owner, second Mac) except the full wipe: upgrade from rc5, uninstall, fresh install, machine load, spec change and uninstall all succeeded; the host tools were already present, so their from-scratch installation was not exercised (below). The first rc3 attempt found the No Data dashboards (#650) and a reinstall over leftover volumes failing `pim-bootstrap` (`uninstall.sh`, #649) | |
 | **E4** | Release eligibility enforced | CI tooling | A1, A2, B5 | done (2026-10-29): `release-manifest.py check` and `published`, run by `cut-release.sh`; `--images`, `--native-run-dir` for F2 | |
-| **E5** | Release documentation aligned | CI/docs | A1, A2 | in progress: `RELEASE.md` revised for A1–A11 | |
+| **E5** | Release documentation aligned | CI/docs | A1, A2 | done (2026-10-30): no step pending in `RELEASE.md`; `INSTALL.md`, README and the roadmaps checked against the release | CI#TBD |
 | **F1** | Freeze and final certification | release operator | D*, E1–E5 | done (2026-10-30): native `f1-native-rc6-20261029a` at rc6's commits, with E1 `e1-rc6-cert-20261029a` | |
 | **F2** | Versioned manifest with image digests | release operator | F1 | done: `releases/release-v0.0.1.json`, 10 repos and 12 digests, not provisional | CI#664 |
 | **F3** | Cut rehearsal | release operator | F2 | done: no drift, 22/22 tags and images clear | CI#665 |
@@ -795,7 +795,7 @@ source, the image rebuilt, and the check re-run.
     `scripts/tests/test-release-manifest.sh` covers each case, positive and
     refusal, against local bare remotes and a stub registry (108 checks).
     Checked against the live remotes and GHCR on rc6: 22/22 clear.
-- [ ] **E5 — Release documentation aligned** (was R02). `RELEASE.md` covers the
+- [x] **E5 — Release documentation aligned** (was R02). `RELEASE.md` covers the
   ten-repo inventory, the image model (A2), the platform (A4–A6), the two
   certifying lanes, and the command order. `docs/README.md` indexes this file
   and `INSTALL.md`.
@@ -803,6 +803,16 @@ source, the image rebuilt, and the check re-run.
     tooling is not yet built are marked *pending* with their task.
   - **Done:** no step marked pending, and no contradiction between
     `RELEASE.md`, this file and `MVP_ROADMAP.md`.
+  - **Done (2026-10-30), CI#TBD**, checked against the release as published:
+    `RELEASE.md`'s pending markers removed and its steps 3, 7 and 8 written
+    as run (the lane comparison, the images file, `install.sh` and the GitHub
+    release); `INSTALL.md`'s by-hand install downloads the release's real
+    asset, `release-v0.0.1.images.json` (it named `images.json`, which 404s),
+    and checks both hashes; the image download size corrected to about
+    4.5 GB everywhere (measured from the registry: 1.0 GB first-party,
+    3.25 GB third-party); `MVP_ROADMAP.md` no longer names `release-v0.1.0`
+    or rc3 as current; the README's wiki links and corpus counts; the known
+    limitations below brought level with the notes.
 
 ## F. Freeze, cut and publish
 
@@ -906,6 +916,17 @@ source, the image rebuilt, and the check re-run.
   Certification comes from the local and containerized lanes.
 - MQTT Yuma availability is external (D5); no MQTT-parity claim (A11).
 - LLM drift is recorded but not evaluated (A11).
+- Ollama and OpenClaw are kept at whatever the Mac has, with a warning when
+  behind the current release; from the next release they are updated (#663).
+- Data in motion is not fully encrypted: Manager is HTTPS, most other links
+  are plain HTTP. A gate for `release-v0.0.2` (#668).
+- Manager e2e: `openclaw-portal.spec.ts:174` and
+  `tree-to-pe-manager-equivalence.spec.ts` fail, as before rc6.
+- The native PEs intern every RE machine lacking a source on a bootstrap and
+  ignore `machineIds` (Manager#304).
+
+The published list is the one in
+[`releases/release-v0.0.1.md`](../releases/release-v0.0.1.md).
 
 ## Next release (A11) and backlog
 
@@ -916,6 +937,13 @@ source, the image rebuilt, and the check re-run.
 - CI#563: drift record in a full universe; cap the drift file.
 - CI#564: gate order: `dynamic_validation_test` and MCP calls from later suites.
 - CI#317: the deterministic MQTT parity stage.
+
+**Gates for `release-v0.0.2`** (owner, 2026-10-29 and 2026-10-30):
+
+- CI#663: Ollama and OpenClaw always updated to current; minimum floors kept,
+  `OPENCLAW_VERSION` pin dropped, Node stays exact.
+- CI#668: all data in motion encrypted, TLS 1.3 only, loopback included,
+  outside parties held strictly.
 
 **Backlog, not scheduled:**
 
