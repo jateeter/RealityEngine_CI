@@ -200,6 +200,10 @@ Recorded rather than pursued, per the engineering contract:
 
 ## Repair plan, after the RC3 milestone
 
+How each repair is validated, and how often the live tiers run, is
+[`RUST_VALIDATION_WORKFLOW.md`](RUST_VALIDATION_WORKFLOW.md) (2026-10-30). Its R1
+tier reproduces this document's "as shipped" result without a live engine.
+
 None of this starts before `release-v0.0.1-rc3` is certified, and none of it is part of
 `release-v0.0.1` (ReleaseRoadmap A11). Sizes are estimates for one developer. The plan, with an issue
 per item, is `jateeter/RealityEngine_Rust#2`.

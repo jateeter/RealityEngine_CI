@@ -91,6 +91,12 @@ npm run test:deployment
 - `startUniverse.sh --openclaw` delegates to `localOpenClawStack/scripts/start.sh`; keep hardening, immutable image pins, WebUI bootstrap, and live verification authoritative in that native stack entrypoint.
   - **The gateway runs natively by default (#592):** `--openclaw-runtime=native` passes `--native`, so the host's `openclaw` runs as the LaunchAgent `org.realityengine.openclaw-gateway` on 127.0.0.1:18789 with its home in `~/.realityengine/openclaw`; Open WebUI and the browser sidecar stay in Docker. `--openclaw-runtime=container` is the `openclaw-gateway` compose service. Startup cleanup unloads the LaunchAgent, and `stopUniverse.sh` stops it.
 - Keep e2e results separated by availability, instance registry alignment, contract parity, byte equivalence, and integration success.
+- **RealityEngine_Rust validates itself (owner decision, 2026-10-30).** It is a
+  non-voting follower with its own self-contained lane (R0 static, R1 corpus
+  replay) and runs the live tiers on a slower cadence: R2 beside a universe, R3
+  the full `regression-test.sh` per release candidate. Nothing about Rust is in
+  the daily certifying run. Tiers and cadence: `docs/RUST_VALIDATION_WORKFLOW.md`;
+  the bounded exception: `docs/ENGINEERING_CONTRACT.md`.
 - **No parity or proof run against engines that are not built from current source.**
   `scripts/verify-build-provenance.py` gates this, and both `startUniverse.sh`
   (before the multi-engine spawn) and `scripts/regression-test.sh` (before the

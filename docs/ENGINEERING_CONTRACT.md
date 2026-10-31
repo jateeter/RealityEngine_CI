@@ -222,6 +222,35 @@ not a direction to build toward incrementally, and a peripheral lane should not
 grow "towards" it a job at a time. When that change is made it will be made
 here, on purpose, and this section will say so.
 
+### The one exception: RealityEngine_Rust validates itself (owner decision, 2026-10-30)
+
+`RealityEngine_Rust` is the one repository that carries its own self-contained
+validation workflow, and the full regression suite runs on it **much less
+often** than on the three voting engines. It is not in the focus set above. The
+tiers, their cadence and what each one proves are
+[`RUST_VALIDATION_WORKFLOW.md`](RUST_VALIDATION_WORKFLOW.md); the exception is
+bounded here so it cannot drift into the general case:
+
+- **Self-contained means one checkout.** The hosted lane (R0 static, R1 corpus
+  replay) still checks out no sibling repository and starts no universe. What
+  R1 needs from the corpus is vendored into the Rust repo as a snapshot pinned
+  by commit and per-file digest, refreshed by a local script, and checked
+  against the corpus by R2. A lane that clones siblings is still out of bounds.
+- **Its oracle is never an engine.** R1 checks Rust against what the corpus
+  declares. Agreement with C++, LSP and Scala is R2 and R3, run beside a live
+  universe, and quorum stays 3-of-3 among the voters
+  ([`QUORUM_CONTRACT.md`](QUORUM_CONTRACT.md)): Rust is a follower.
+- **Green R0/R1 is still not verification of a parity claim.** It says the
+  checkout conforms to the snapshot it carries. A Rust change that a release or
+  a parity statement depends on is verified by R2, and by R3 before it ships.
+- **Where the corpus and the engines disagree, the owner arbitrates.** R1's
+  oracle is a document. When R2 or R3 finds the three engines and a corpus
+  declaration (or any specification) disagree, the run reports it to the owner
+  as a disagreement to arbitrate, and neither side is changed to make the
+  other pass.
+- **It is not a precedent.** No other repository's lane grows because this one
+  did; a second exception is a second decision, recorded in this section.
+
 ---
 
 ## MUST: the guidance file is `CLAUDE.md`, in uppercase
