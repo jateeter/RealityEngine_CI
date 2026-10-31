@@ -149,7 +149,8 @@ def load_instances(registry_path: Path) -> list[dict[str, str]]:
         if not re_url:
             continue
         out.append({"id": instance.get("id") or instance.get("instanceId") or re_url,
-                    "re_url": re_url.rstrip("/"), "pe_url": pe_url.rstrip("/")})
+                    "re_url": re_url.rstrip("/"), "pe_url": pe_url.rstrip("/"),
+                    "pe_participation": instance.get("pe_participation")})
     return out
 
 

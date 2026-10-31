@@ -154,6 +154,21 @@ for stage in regression-universal-vectors.py regression-ces-contracts.py; do
     "$(composition "$stage")"
 done
 
+# ── a declared-unsupported PE is not a failed reset ──────────────────────────
+resets() {
+  python3 - "$CI_DIR/scripts/lib" "$1" <<'PY'
+import sys
+sys.path.insert(0, sys.argv[1])
+from reset_contract import reset_instances
+instance = {"id": "rust-1", "re": "http://re", "pe": ""}
+if sys.argv[2]:
+    instance["pe_participation"] = sys.argv[2]
+print(len(reset_instances(lambda url, body: (200, {}), [instance])))
+PY
+}
+expect "a follower declaring its PE unsupported resets cleanly" 0 "$(resets unsupported)"
+expect "an instance missing its PE without declaring it is still a failed reset" 1 "$(resets '')"
+
 # ── the lane: unavailable is exit 3, never a pass ────────────────────────────
 lane() { "$CI_DIR/scripts/rust-conformance.sh" --out "$TMP/lane" --no-build "$@" >"$TMP/lane.out" 2>&1; echo $?; }
 expect "the lane with no universe is unavailable" 3 \

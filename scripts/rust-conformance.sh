@@ -155,7 +155,8 @@ src, dst, url, uuid = sys.argv[1:]
 doc = json.load(open(src))
 doc.setdefault("instances", []).append({
     "id": "rust-1", "runtime": "rust", "role": "follower",
-    "re_url": url, "pe_url": "", "instance_uuid": uuid, "status": "running"})
+    "re_url": url, "pe_url": "", "pe_participation": "unsupported",
+    "instance_uuid": uuid, "status": "running"})
 json.dump(doc, open(dst, "w"), indent=2)
 PY
 python3 "$LIB/followers.py" split "$OUT/follower-registry.json" \

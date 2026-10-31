@@ -41,6 +41,7 @@ def reset_pair(
     re_url: str | None,
     pe_url: str | None,
     label: str,
+    pe_unsupported: bool = False,
 ) -> list[str]:
     """Return the engine to a defined starting state. Returns failure strings.
 
@@ -49,7 +50,10 @@ def reset_pair(
     caller unable to tell "the RE refused" from "the RE refused and so did the
     PE". A missing url is reported rather than skipped silently — a stage that
     thinks it reset and did not is the exact failure this module exists to
-    prevent.
+    prevent. The one exception is declared, not silent: an instance whose PE
+    participation is `unsupported` (a conformance follower with no PE, such as
+    RealityEngine_Rust) has no PE half to reset (SURFACE_SPEC.md, "Participation
+    States").
     """
     failures: list[str] = []
 
@@ -64,7 +68,7 @@ def reset_pair(
         status, _ = post(f"{pe_url}/api/reset", {})
         if not 200 <= status < 300:
             failures.append(f"{label}: POST /api/reset returned {status}")
-    else:
+    elif not pe_unsupported:
         failures.append(f"{label}: no pe_url — PE run state was not reset")
 
     return failures
@@ -91,6 +95,7 @@ def reset_instances(
                 instance.get(re_key),
                 instance.get(pe_key),
                 str(instance.get(id_key, "<unidentified>")),
+                pe_unsupported=instance.get("pe_participation") == "unsupported",
             )
         )
     return failures

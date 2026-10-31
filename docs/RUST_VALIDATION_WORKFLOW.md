@@ -182,6 +182,21 @@ has none), and the parity stages below.
 - **Every stage resets every voter**, as it does in the regression run. Run it
   beside a development universe, not one whose state you want to keep.
 
+First live result (2026-10-31). The voters were cpp-1, lsp-1 and scala-1 built
+from current main, on the full corpus (1327 machines) at width 16944. They
+agreed on every stage, so each row is Rust alone:
+
+| stage | rust-1 | why |
+|---|---|---|
+| machine-set | agrees | |
+| engine-process | differs | all 167 outputs are numerically identical, but Rust encodes integral values as `1.0` where all three emit `1` (Rust#33) |
+| export | unsupported | `GET /api/machines/:id/export` answers the ruled 501 |
+| engine-config | differs | seven of the eight universal controls are absent (Rust#11, #12) |
+
+A follower has no PE, so its registry entry declares `pe_participation:
+"unsupported"`, and `reset_contract` resets only its RE half. An undeclared
+missing PE is still a failed reset.
+
 Still to build:
 
 3. **The declaration cross-check.** For every sequence R1 compares, replay it
