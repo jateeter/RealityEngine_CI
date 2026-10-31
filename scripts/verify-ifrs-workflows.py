@@ -165,7 +165,8 @@ def main():
         scopes = [[c["entityId"], c["period"]] for c in contexts]
         principals = [{"name": "synthetic-operator", "role": "operator", "token": secrets.token_urlsafe(32), "scopes": scopes},
                       {"name": "synthetic-projection", "role": "projection", "token": secrets.token_urlsafe(32), "scopes": scopes}]
-        for mid in sorted(set(graph["assetStewards"].values())):
+        machine_bindings = {path.stem: json.loads(path.read_text())["machine"] for path in (args.machines / "machines/domains/ifrs-accounting").glob("*.json")}
+        for mid in sorted(machine_bindings):
             principals.append(dict(name=mid, role="agent", machineId=mid, token=secrets.token_urlsafe(32), scopes=scopes))
         for name in sorted({a["reviewerName"] for a in catalog.values()}):
             principals.append(dict(name=name, role="reviewer", token=secrets.token_urlsafe(32), scopes=scopes))
@@ -217,7 +218,7 @@ def main():
                     assert missing.status_code == 409, case["caseId"]
             if case in remaining["cases"]:
                 aid = case["targetAssetTypeId"]
-                contribution = command("contribute", dict(assetTypeId=aid, content=dict(caseId=case["caseId"], advisory=result["result"], independentReview="REQUIRED"), evidenceRefs=case["facts"]["evidenceRefs"] + [calculation_args["interactionId"]] + calculation_args["dependencyInteractionIds"]), actor(aid), case_context)["result"]
+                contribution = command("contribute", dict(assetTypeId=aid, content=dict(caseId=case["caseId"], advisory=result["result"], independentReview="REQUIRED"), evidenceRefs=case["facts"]["evidenceRefs"] + [calculation_args["interactionId"]] + calculation_args["dependencyInteractionIds"]), next(p for p in principals if p.get("machineId") in machine_bindings and any(d["assetTypeId"] == aid for d in machine_bindings[p["machineId"]]["metadata"]["documentAssetWorkflow"]["duties"])), case_context)["result"]
                 assert contribution["status"] == "OPEN" and contribution["targetMachine"] == graph["assetStewards"][aid]
                 contributions.append(contribution)
             for key, value in case["expected"].items():
