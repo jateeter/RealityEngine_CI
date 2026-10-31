@@ -147,23 +147,43 @@ single-machine route fails beyond the 7680 seed.
 Not yet compared: `POST /api/engine/process` (the universal path), the PE (Rust
 has none), and the parity stages below.
 
-### Still to build: the follower lane
+### Built: the follower lane (CI#607, 2026-10-31)
 
-`scripts/rust-conformance.sh` does not exist yet. Without `RE_REFERENCE_URL`,
-`validate.sh r2` reports unavailable until it does. It is CI#607 step 2, can call
-`differential.py` once per voter, and needs:
+`scripts/rust-conformance.sh` is the runner. `validate.sh r2` calls it without
+`RE_REFERENCE_URL`, after its own `refresh-corpus.sh --check` and
+`refresh-surface.sh --check`, so a stale snapshot is named first.
 
-1. **Follower support in the harness.** A `role: follower` on the instance the
-   parity stages read; followers excluded from `quorum_composition()`; a
-   surface a follower lacks reported `unsupported`, never "QUORUM NOT FORMED".
-   A test that a 2-1 split among the voters stays a disagreement whatever the
-   follower says.
-2. **The runner.** Build Rust, start it on 5801 beside a running universe on
-   the same corpus, run `machine-set-parity`, `engine-process-parity`,
-   `export-parity` and `engine-config-parity --no-step` with Rust as the
-   follower. It also runs `refresh-corpus.sh --check` and
-   `refresh-surface.sh --check`, so a stale snapshot is named.
-   Provenance (`verify-build-provenance.py`) covers Rust for this lane.
+- **Follower support in the harness** (`scripts/lib/followers.py`). An instance
+  with `"role": "follower"` never votes (QUORUM_CONTRACT.md section 1). The four
+  RE-only stages drop it when they read instance data, and both
+  `quorum_composition()`s leave it out. `scripts/tests/test-followers.sh`
+  covers this, including that a 2-1 split among the voters stays a
+  disagreement whichever side the follower takes.
+- **The runner.** It builds Rust and checks its provenance:
+  `verify-build-provenance.py --repos rust`. `rust` is an opt-in target there,
+  so the certifying run never checks it. The runner then starts `rust-1` on
+  5801 beside the universe, on the corpus the universe booted and at the width
+  the voters report. Its UUID is allocated as `native/rust-1`. It writes its own
+  instance data, the universe's plus `rust-1` as a follower, and never touches
+  the universe's instance registry.
+- **One verdict per stage.** The runner covers `machine-set`, `engine-process`,
+  `export` and `engine-config --no-step`, and runs each stage twice: the voters
+  alone, then the voters with Rust as one more instance. The stage's own
+  comparison decides both runs.
+  - `agrees`: the voters agree and the joint run passes.
+  - `differs`: the voters agree and the joint run fails. The joint report names
+    the difference.
+  - `unsupported`: Rust answers one of the stage's essential routes with the
+    ruled `501`.
+  - `not-compared`: the voters disagree, so there is nothing to follow.
+- **Exit status.** 0 when at least one stage agrees and none differs. 1 when a
+  stage differs, the build is stale, or Rust will not start. 3 when the lane is
+  unavailable or nothing was compared.
+- **Every stage resets every voter**, as it does in the regression run. Run it
+  beside a development universe, not one whose state you want to keep.
+
+Still to build:
+
 3. **The declaration cross-check.** For every sequence R1 compares, replay it
    on the three voters and compare their 3-of-3 agreement with the corpus
    declaration. Agreement confirms R1's oracle for that sequence. **A

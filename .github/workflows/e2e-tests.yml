@@ -530,6 +530,9 @@ jobs:
       - name: Run parity agreement unit tests
         working-directory: RealityEngine_CI
         run: bash scripts/tests/test-parity-agreement.sh
+      - name: Run conformance follower unit tests
+        working-directory: RealityEngine_CI
+        run: bash scripts/tests/test-followers.sh
 
       - name: Run parity source census unit tests
         working-directory: RealityEngine_CI

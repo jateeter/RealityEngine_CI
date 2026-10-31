@@ -66,6 +66,9 @@ import sys
 from pathlib import Path
 from urllib import error, request
 
+sys.path.insert(0, str(Path(__file__).resolve().parent / "lib"))
+from followers import voters  # noqa: E402
+
 
 def read_instances(source: str) -> list[dict]:
     """The instance registry, from a URL or a path."""
@@ -74,7 +77,8 @@ def read_instances(source: str) -> list[dict]:
             payload = json.loads(response.read().decode("utf-8"))
     else:
         payload = json.loads(Path(source).read_text(encoding="utf-8"))
-    return payload.get("instances", [])
+    # A conformance follower never votes (docs/QUORUM_CONTRACT.md section 1).
+    return voters(payload.get("instances", []))
 
 
 def machine_names(instance: dict) -> tuple[set[str], str | None]:

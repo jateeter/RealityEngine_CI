@@ -85,6 +85,7 @@ from typing import Any
 from urllib import error, request
 
 sys.path.insert(0, str(Path(__file__).resolve().parent / "lib"))
+from followers import voters  # noqa: E402
 from reset_contract import reset_instances  # noqa: E402
 
 # Load timestamps. Stamped when the machine is ingested, so two engines started
@@ -103,7 +104,8 @@ def read_instances(source: str) -> list[dict]:
             payload = json.loads(response.read().decode("utf-8"))
     else:
         payload = json.loads(Path(source).read_text(encoding="utf-8"))
-    return payload.get("instances", [])
+    # A conformance follower never votes (docs/QUORUM_CONTRACT.md section 1).
+    return voters(payload.get("instances", []))
 
 
 def get_json(url: str) -> tuple[Any, str | None]:
