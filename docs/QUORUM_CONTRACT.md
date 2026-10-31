@@ -18,6 +18,26 @@ number, and silently records the third's behaviour as acceptable deviation.
 **The TypeScript PE follows suit**, and Manager follows it. It conforms to the
 agreed contract; it is not a fourth vote that can outnumber a disagreement.
 
+### Conformance followers
+
+Owner decision, 2026-10-30; promotion rule ruled 2026-10-31 (RealityEngine_CI#607).
+A runtime outside C++, LSP and Scala, today `RealityEngine_Rust`, is a
+**conformance follower**:
+
+- It is measured against what the three voters agree on. It never votes, so it
+  can neither form nor break a quorum. A 2-1 split among the voters stays a
+  disagreement whatever the follower says.
+- It is kept out of `quorum_composition()`, and it is not listed in the main
+  instance registry. It runs in its own lane
+  (`docs/RUST_VALIDATION_WORKFLOW.md`).
+- A surface it does not implement is reported as its declared participation
+  state (`unsupported`), never as "QUORUM NOT FORMED".
+
+**Promotion.** A follower becomes a voter only when it implements the whole RE
+and PE surface and has then passed three consecutive certifying runs. The
+quorum then becomes N-of-N in one deliberate change to this contract, which
+sweeps every file that names the voting set.
+
 ### Why not a majority
 
 The worked example, and the reason this is not abstract
@@ -149,7 +169,8 @@ A harness conforms when, for every compared signature, it can answer:
 
 Known non-conformance at the time of writing:
 
-- Participation states are specified in `SURFACE_SPEC.md` but not yet emitted by
+- Participation states are specified in `SURFACE_SPEC.md`, with the `501`
+  wire shape for an unimplemented route since 2026-10-31, but not yet emitted by
   the runtimes; until they are, "no answer" cannot be distinguished from
   "declined", and §2 is enforced by *presence* of a response rather than by a
   declared state. `unanimousSilence()` reads a unanimous non-2xx as the closest

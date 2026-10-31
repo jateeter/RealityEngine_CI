@@ -3214,6 +3214,30 @@ one surface staying quiet where it should have declared.
   unbuilt surface becomes visible instead of looking like a surface nobody
   happened to exercise.
 
+### An unimplemented route answers `unsupported`
+
+Owner ruling, 2026-10-31 (jateeter/RealityEngine_Rust#15). A route this
+specification defines and a runtime does not implement answers **`501 Not
+Implemented`** with the error envelope and two more keys:
+
+```json
+{
+  "error": "GET /api/arbitration is not implemented by this runtime",
+  "participation": "unsupported",
+  "surface": "GET /api/arbitration"
+}
+```
+
+- `surface` is the method and the route as this specification writes it
+  (`:param` placeholders, not the request's values), so callers can match it
+  against the route tables.
+- `501`, not `404`: a 404 says the resource is absent on a route that exists,
+  and a caller that reads only the status could not tell the two apart. It stays
+  non-2xx, so a gate that reads a unanimous non-2xx as unanimous silence keeps
+  working while runtimes adopt this.
+- Only for routes this specification defines. A path it does not define is
+  still a plain `404`.
+
 ---
 
 ## Response Shape Conventions
@@ -3229,12 +3253,19 @@ All runtimes must conform to these envelope shapes. Deviations are bugs in the r
 ```json
 { "error": "<message>" }
 ```
-HTTP status: 400 for bad input, 404 for not found, 500 for runtime error.
+HTTP status: 400 for bad input, 404 for not found, 500 for runtime error, 501 for a
+specified route this runtime does not implement ("An unimplemented route answers
+`unsupported`").
 
 ### Health response
 ```json
 { "status": "healthy", "timestamp": 1748000000000, "version": "x.y.z" }
 ```
+
+**This shape is authoritative** (owner ruling, 2026-10-31, RealityEngine_CI#610).
+C++, LSP and Scala return `{status}` and are brought to it. `version` is a
+deliberate release value, not a build string. `timestamp` changes on every call,
+so no gate compares health bodies byte for byte.
 
 ### Streaming events (SSE and WebSocket)
 
