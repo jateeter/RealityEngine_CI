@@ -116,10 +116,42 @@ phase 2 0 of 5. Every `missing` route answers silently, which "Participation
 States" forbids; declaring them is Rust#15, which waits on the wire shape
 (CI#607).
 
-## R2 in detail — to be built
+## R2 in detail
 
-`scripts/rust-conformance.sh` does not exist yet; `validate.sh r2` reports
-unavailable until it does. It is CI#607 step 2, and needs:
+### Built: the live comparison (Rust#9, 2026-10-30)
+
+`RealityEngine_Rust/scripts/differential.py` compares a candidate RE with a
+reference RE, both running on the same corpus. For every corpus input
+sequence it resets both engines and drives each event through
+`POST /api/machines/:id/process` (`{"inputEvent": ...}`). It then compares each
+step's `machineOutput.vector` (the arbiter's pick) and `mergedOutput` (what the
+machine presents). A difference carries both emissions.
+`RE_REFERENCE_URL=<re> scripts/validate.sh r2` starts the Rust build on the
+same corpus and runs it. Check the reference's build provenance first.
+
+First live result, on the full corpus (1327 machines, 5846 sequences), with
+each engine built from current `main`:
+
+| Rust vs | identical |
+|---|---|
+| C++ | 5846 / 5846 |
+| LSP | 5844 (2 differ) |
+| Scala, seed 16944 | 5841 (5 differ) |
+
+Every difference is the arbiter's representative pick, never the presented
+output, and the reference engines disagree among themselves on exactly those
+sequences (#678). A Rust build with the retired numeric `gte` fails with 2289
+different. Found along the way: RealityEngine_Scala#200, where the
+single-machine route fails beyond the 7680 seed.
+
+Not yet compared: `POST /api/engine/process` (the universal path), the PE (Rust
+has none), and the parity stages below.
+
+### Still to build: the follower lane
+
+`scripts/rust-conformance.sh` does not exist yet. Without `RE_REFERENCE_URL`,
+`validate.sh r2` reports unavailable until it does. It is CI#607 step 2, can call
+`differential.py` once per voter, and needs:
 
 1. **Follower support in the harness.** A `role: follower` on the instance the
    parity stages read; followers excluded from `quorum_composition()`; a
