@@ -112,7 +112,7 @@ needing no source checkout, compiler or build toolchain on the Mac:
 | **E2** | Native vs containerized comparison | CI | E1 | done for the release: `f1-native-rc6-20261029a` vs `e1-rc6-cert-20261029a`, 53/57 reports identical, 4 explained (`releases/release-v0.0.1.md`). Before it rc3: `e2-native-rc3-20261027b` vs `e1-rc3-20261027b`, 52/57, 5 explained; the first pair (`e1-rc3-20261027a`) found the release image missing localAI's 11 domain machines, fixed by localAIStack#159 | |
 | **E3** | Clean-Mac install test | CI/operator | B5, C3, C4 | done on `release-v0.0.1-rc6` (2026-10-29, owner, second Mac) except the full wipe: upgrade from rc5, uninstall, fresh install, machine load, spec change and uninstall all succeeded; the host tools were already present, so their from-scratch installation was not exercised (below). The first rc3 attempt found the No Data dashboards (#650) and a reinstall over leftover volumes failing `pim-bootstrap` (`uninstall.sh`, #649) | |
 | **E4** | Release eligibility enforced | CI tooling | A1, A2, B5 | done (2026-10-29): `release-manifest.py check` and `published`, run by `cut-release.sh`; `--images`, `--native-run-dir` for F2 | |
-| **E5** | Release documentation aligned | CI/docs | A1, A2 | done (2026-10-30): no step pending in `RELEASE.md`; `INSTALL.md`, README and the roadmaps checked against the release | CI#TBD |
+| **E5** | Release documentation aligned | CI/docs | A1, A2 | done (2026-10-30): no step pending in `RELEASE.md`; `INSTALL.md`, README and the roadmaps checked against the release | CI#679 |
 | **F1** | Freeze and final certification | release operator | D*, E1–E5 | done (2026-10-30): native `f1-native-rc6-20261029a` at rc6's commits, with E1 `e1-rc6-cert-20261029a` | |
 | **F2** | Versioned manifest with image digests | release operator | F1 | done: `releases/release-v0.0.1.json`, 10 repos and 12 digests, not provisional | CI#664 |
 | **F3** | Cut rehearsal | release operator | F2 | done: no drift, 22/22 tags and images clear | CI#665 |
@@ -803,7 +803,7 @@ source, the image rebuilt, and the check re-run.
     tooling is not yet built are marked *pending* with their task.
   - **Done:** no step marked pending, and no contradiction between
     `RELEASE.md`, this file and `MVP_ROADMAP.md`.
-  - **Done (2026-10-30), CI#TBD**, checked against the release as published:
+  - **Done (2026-10-30), CI#679**, checked against the release as published:
     `RELEASE.md`'s pending markers removed and its steps 3, 7 and 8 written
     as run (the lane comparison, the images file, `install.sh` and the GitHub
     release); `INSTALL.md`'s by-hand install downloads the release's real
