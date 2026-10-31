@@ -54,6 +54,12 @@ cd RealityEngine_CI
 ./scripts/regression-test.sh --execute --skip-build   # use what is already built
 ```
 
+Native `--build-only` skips runtime/Docker preflight and teardown: compilation
+must not require free service ports or stop an installed release. Containerized
+image builds still validate Docker. The build phase establishes the pinned Node
+in its parent shell as well as login-shell stages, including direct validation
+scripts that invoke npm.
+
 ### 2.1 RealityEngine_Scala is two builds, not one build with two subprojects
 
 This is the misconception worth naming, because the repository layout invites it
