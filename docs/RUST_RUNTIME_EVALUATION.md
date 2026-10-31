@@ -9,6 +9,10 @@ Tracking: the repair plan and index of every finding is `jateeter/RealityEngine_
 `/api/health` disagreement #610, the application map #611, and the quorum role and conformance lane
 #607.
 
+This is the 2026-10-24 measurement; findings resolved since are annotated where they stand. For the
+current route-by-route status, read `RealityEngine_Rust/conformance/SURFACE_STATUS.md`, which is
+generated from the build.
+
 ## Verdict
 
 **Not yet a conforming runtime, and not ready to be a voting member of the quorum.** It is a
@@ -118,7 +122,7 @@ fixable things: key names, comparator semantics, and the shape of `outputs[]`.
 | Participation states ("silence is not a state") | not emitted: an unimplemented route answers a bare 404 with an empty body. No runtime emits them yet (`QUORUM_CONTRACT.md` lists it as known non-conformance and has the harness read a non-2xx as the proxy), and the wire shape for an unimplemented route is not specified, so this is blocked on a spec decision, not on Rust (jateeter/RealityEngine_Rust#15) |
 | `GET /api/engine/config` pathway, `/api/metrics`, `/api/arbitration`, step completion (`/api/engine/steps/:n/pair`), perceptual simulation, sampler, vectors/sequences CRUD, semantic buses, machine graph, whatif, demo | not implemented (64 of the 78 RE rows) |
 | Perception Engine (45 route rows), `POST /api/push`, sources, sensors, integrations | not implemented; there is no PE |
-| Instance identity (#296: `INSTANCE_UUID`, clock dir, exclusive lock, `X-RE-Instance`) | none |
+| Instance identity (#296: `INSTANCE_UUID`, clock dir, exclusive lock) | none. **Resolved 2026-10-31** (jateeter/RealityEngine_Rust#31): all three, and `GET /api/engine/clock`. This row first also listed `X-RE-Instance`, which is not an engine requirement: it is the request header Manager's visualizer backend binds a call to an engine instance with (`engineBinding.ts`; SURFACE_SPEC.md, the instance-qualified reads), and no engine sends or reads it |
 
 ## Integration into the _CI workflow
 
