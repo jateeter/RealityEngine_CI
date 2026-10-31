@@ -80,6 +80,11 @@ The engines agree with one another and disagree with the document; neither the s
 `SURFACE_SPEC.md` defines the comparators, so the document is the only written statement and it is
 wrong. Rust followed the document. This is tracked as RealityEngine_CI#606.
 
+**Resolved 2026-10-30:** the owner ruled the engines the source of truth. The
+table is corrected and stated canonically in `SURFACE_SPEC.md` § "Comparators"
+(which also adds `pattern`, and fixes precedence as element, then machine, then
+`gte`); further comparator work is RealityEngine_CI#672.
+
 ### `POST /api/engine/process` (SURFACE_SPEC, "map across machines, in parallel")
 
 Partially conforms. Right: the `{result:{inputEvent, outputs, timestamp}}` envelope, universal-event
@@ -185,7 +190,7 @@ Recorded rather than pursued, per the engineering contract:
 
 ## Specification defects found along the way
 
-- **`MACHINE_CONCEPT.md` comparator table is wrong** against all three engines (above).
+- **`MACHINE_CONCEPT.md` comparator table is wrong** against all three engines (above). Resolved 2026-10-30 (#606).
 - **The "integrated application map" is a copy of this repo's `CLAUDE.md`, not a map.** Every
   `CLAUDE.md` says to update `/Users/johnt/workspace/GitHub/CLAUDE.md`. That file was absent when
   this was measured and has since been added, but it is byte-identical to `RealityEngine_CI/CLAUDE.md`:

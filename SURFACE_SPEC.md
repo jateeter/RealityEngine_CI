@@ -3232,6 +3232,40 @@ Script location: `scripts/smoke-test.sh` (accepts `--target <url>` for RE and `-
 
 Route parity (a route exists) is necessary but not sufficient. The following contracts specify the exact JSON fields each endpoint must emit and accept. Deviations are bugs in the runtime.
 
+### Comparators: how a Reality Event element accepts an input cell
+
+**Owner ruling, 2026-10-30 (RealityEngine_CI#606): the three engines are the
+source of truth, and this is what they do.** A Reality Event accepts an input
+symbol when every element accepts its cell; the elements are ANDed.
+
+| `comparatorType` | accepts when | `threshold` default |
+|---|---|---|
+| `gte` (the default) | both sides are binarized at `t` and agree: `(input ≥ t) == (value ≥ t)` | 0.5 |
+| `equals` | `input == value`, exactly | — |
+| `threshold` | `abs(value − input) ≤ t` | 0.1 |
+| `pattern` | `1 − abs(value − input) ≥ t` | 0.5 |
+
+- `t` is the element's own `threshold`, else the default in the table. No
+  engine-wide or machine-wide threshold enters the comparison.
+- `custom` is accepted as an alias of `equals` by all three engines.
+- Precedence: the element's `comparatorType`, else the machine's
+  `matchAlgorithm`, else `gte`. Each engine's loader copies the machine's
+  `matchAlgorithm` onto every Reality Event; none reads a `matchAlgorithm` on
+  the event itself, and no corpus event declares one. A route that takes an
+  explicit comparator override applies it above all three.
+- **`gte` is not numeric `≥`.** Under `gte` a `0` means "this cell must be off",
+  not "any input". The corpus is written that way: replayed under numeric `≥`,
+  2,081 of 5,846 input sequences emit differently and 2,012 contradict their
+  own declared outputs (RealityEngine_CI#672).
+
+C++ `RealityEvent::match` (`src/reality.cpp`), LSP `match-element`
+(`src/model.lisp`) and Scala `RealityEvent.match`
+(`models/RealityEvent.scala`) implement exactly this table, and each also
+computes a graded match score that is not part of the contract. The comparator
+is the subject of a line of experiments whose stated goal is a quantum
+resolution (RealityEngine_CI#672). Until one is agreed, this table is the
+contract.
+
 ### Vectors
 
 `/api/vectors` is a **JSON document store**, not a Reality Event constructor.
