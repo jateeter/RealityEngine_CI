@@ -33,9 +33,8 @@ from `RealityEngine_Machines` at any time.
 **Ollama and the OpenClaw gateway run natively on your Mac**, outside Docker,
 from your own installation of each, so that models run on Apple Silicon's MLX
 runtime. Ollama has used MLX by default since v0.40.0. Each `realityengine up`
-starts both services and loads the suite's configuration and agents into them.
-This is new in `release-v0.0.1-rc3` (#592). Through rc2, the gateway ran in a
-container.
+starts both services and loads the suite's configuration and agents into them
+(#592).
 
 ## Requirements
 
@@ -134,16 +133,19 @@ place. If Node is managed by nvm, `nvm install 26.12.1` is also fine, as long as
 ## Install
 
 ```bash
-curl -fsSL -o realityengine \
-  https://github.com/jateeter/RealityEngine_CI/releases/download/release-v0.0.1/realityengine
-curl -fsSL -o images.json \
-  https://github.com/jateeter/RealityEngine_CI/releases/download/release-v0.0.1/images.json
+curl -fsSL -O https://github.com/jateeter/RealityEngine_CI/releases/download/release-v0.0.1/realityengine
+curl -fsSL -O https://github.com/jateeter/RealityEngine_CI/releases/download/release-v0.0.1/release-v0.0.1.images.json
+shasum -a 256 -c - <<'SUMS'
+406963c0dcd62603fc920b655de835cee698cb924becc611380282c6e27ae26c  realityengine
+56dae114197188d7cce495fdab477f50bcb0e43453b47b949719516f84ec7ecc  release-v0.0.1.images.json
+SUMS
 chmod +x realityengine
-./realityengine install --version release-v0.0.1 --images images.json
+./realityengine install --version release-v0.0.1 --images release-v0.0.1.images.json
 ```
 
-`images.json` pins every image of the release by digest, so what you run is
-exactly what was certified.
+The two hashes are the ones the release was certified with, and the ones
+`install.sh` checks. `release-v0.0.1.images.json` pins every image of the
+release by digest, so what you run is exactly what was certified.
 
 `install` does the following:
 1. Checks the Mac: macOS version, Apple Silicon, Docker Desktop and its memory,
@@ -154,7 +156,8 @@ exactly what was certified.
    - a local certificate authority and server certificate;
    - generated passwords and tokens;
    - OpenClaw's configuration and agents.
-3. Pulls the images (about 15 GB the first time) and starts everything.
+3. Pulls the images (about 4.5 GB to download the first time, about 15 GB on
+   disk) and starts everything.
 4. Waits until every service is ready, then prints the addresses.
 
 A first install takes 10–20 minutes, most of it downloading. The install
@@ -252,7 +255,7 @@ failed sync leaves the catalog as it was.
 
 ```bash
 ./realityengine upgrade --to release-v0.0.2 --images images-v0.0.2.json
-./realityengine upgrade --to release-v0.0.1 --images images.json   # roll back
+./realityengine upgrade --to release-v0.0.1 --images release-v0.0.1.images.json   # roll back
 ```
 
 An upgrade changes the images and keeps everything else: the instance UUIDs and
@@ -278,7 +281,7 @@ OpenClaw.
 ```bash
 curl -fsSL -o uninstall.sh https://raw.githubusercontent.com/jateeter/RealityEngine_CI/main/uninstall.sh
 bash uninstall.sh --check            # list what it would remove
-bash uninstall.sh [--images] [--yes] # remove; --images also removes the release images
+bash uninstall.sh [--images] [--yes] # remove; --images also removes the 12 re-* release images
 ```
 
 ## The HealthKit bridge (iPhone)
@@ -314,7 +317,8 @@ PIM → Solid pod) is tested from the Mac.
 holds. Stop that program, or move a port by setting it before `install` or
 `up`, for example `RE_PORT_WEBUI=18080 ./realityengine up`. The names are
 `MANAGER_UI`, `MANAGER_API`, `LOCALAI`, `OPENCLAW`, `WEBUI`, `PIM`, `CSS`,
-`MCP`, `REGISTRY`, `GRAFANA`, `PROMETHEUS` and `QDRANT`. macOS's AirPlay Receiver holds
+`MCP`, `REGISTRY`, `GRAFANA`, `PROMETHEUS`, `QDRANT` and `BROWSER_CDP`
+(OpenClaw's browser sidecar, 9222). macOS's AirPlay Receiver holds
 5000 and 7000, which the release does not use.
 
 **`pim-bootstrap` didn't complete successfully: exit 1.** `docker logs
@@ -343,3 +347,11 @@ and restart the browser.
 - MQTT ingest from the Yuma broker depends on that external broker. This
   release makes no MQTT-parity claim.
 - LLM drift between engines is recorded but not evaluated.
+- Ollama and OpenClaw are kept at whatever version the Mac has, at or above
+  the minimum, with a warning when behind the current release (#663).
+- Data in motion is not fully encrypted. Manager is served over HTTPS; most
+  other traffic between the suite's parts, on loopback and on the compose
+  network, is plain HTTP (#668).
+
+The release notes, [`releases/release-v0.0.1.md`](releases/release-v0.0.1.md),
+list every limitation and what the release's certification does not cover.

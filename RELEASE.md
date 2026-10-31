@@ -1,6 +1,6 @@
 # Releasing RealityEngine
 
-Last reviewed: 2026-10-17
+Last reviewed: 2026-10-30
 
 How a release of the integrated RealityEngine application is defined, built,
 certified, cut, published, installed and rolled back.
@@ -10,10 +10,10 @@ certified, cut, published, installed and rolled back.
 `ROADMAP.md` covers the deployment and testing infrastructure. This file is the
 process itself.
 
-> **Implementation status.** The process below is decided (2026-10-17). Steps
-> whose tooling is still being built name the roadmap task that delivers it,
-> as *(pending Bn)*. Until that task is done, that step can't be run as
-> written.
+> **Status.** The process below was decided on 2026-10-17 and was run end to
+> end for `release-v0.0.1`, released on 2026-10-30 from `release-v0.0.1-rc6`
+> ([`releases/release-v0.0.1.md`](releases/release-v0.0.1.md)). Every step's
+> tooling exists.
 
 ---
 
@@ -42,7 +42,7 @@ images, and both are the same release.
 
 | Repo | Role in the release | Ships as |
 |---|---|---|
-| `RealityEngine_CI` | orchestration, the harness, the installer, this process | the installer bundle; `re-init` and `re-registry` images |
+| `RealityEngine_CI` | orchestration, the harness, the installer, this process | the installer CLI and `install.sh`; images `re-init` (configuration, instance UUIDs, and the instance registry it serves) and `re-mcp` |
 | `RealityEngine_CPP` | C++ RE + PE | image `re-cpp` |
 | `RealityEngine_LSP` | Common Lisp RE + PE | image `re-lsp` |
 | `RealityEngine_Scala` | Scala/Akka RE + standalone PE | images `re-scala`, `re-scala-pe` |
@@ -54,7 +54,7 @@ images, and both are the same release.
 | `localHealthkitBridge` | iOS HealthKit → PE bridge | **source**, a development deployment built with Xcode (A10) |
 
 The image catalog (repo, Dockerfile, image name) is
-`release/images.json` *(pending B1)*. Third-party images (Loki, Prometheus,
+`release/images.json`: twelve images. Third-party images (Loki, Prometheus,
 Promtail, Grafana, Qdrant, Redis, Open WebUI, nginx, the OpenClaw browser) are
 pinned by digest in the release compose file and are part of the release too
 (B3).
@@ -65,7 +65,7 @@ pinned by digest in the release compose file and are part of the release too
 |---|---|
 | Host | a Mac with **Apple Silicon** (M1 or later), **macOS 26** or later (A4) |
 | Images | `linux/arm64` only; no `amd64` image is released (A4) |
-| Container runtime | **Docker Desktop**, minimum version set by the clean-Mac test E3 (A5) |
+| Container runtime | **Docker Desktop** (A5), with at least 8 GB of memory. No minimum version is enforced; E3 ran Docker 29.9.2 |
 | Ollama | **native on the host**, not in a container, so it uses the Apple GPU (A6). Containers reach it at `host.docker.internal:11434` |
 | Image registry | public GitHub Container Registry, `ghcr.io/jateeter/re-<component>` (A3) |
 
@@ -85,8 +85,9 @@ monitoring stack.
   A8). After deployment, machines can be loaded dynamically from
   `RealityEngine_Machines`, which is expected to grow and change between
   releases: the installer refreshes the machine catalog from the repo, and
-  machines are loaded into running engines through the RE API or Manager's Load
-  Machines modal *(pending C6)*.
+  machines are loaded into running engines through `realityengine machines
+  load` or Manager's Load Machines modal, both through Manager's
+  `POST /api/corpus/load`.
 - **The HealthKit bridge is not part of the image deployment.** It is a Swift
   app installed on an iPhone from source with Xcode. In `release-v0.0.1` it
   ships as an **untested development deployment** (A10); the PIM mirror it
@@ -101,15 +102,18 @@ Two green runs at the same commits:
 1. **The native local lane on `main` of every repo** (D3, 2026-10-07). This is
    the run the parity results rest on.
 2. **The containerized lane on the candidate images** built from those commits
-   *(pending E1, CI#165)*. This proves the images are the same application.
+   (E1, CI#165). This proves the images are the same application, and it is
+   the run the manifest pins its repos from.
 
-The two runs are compared stage by stage *(pending E2)*. A disagreement that is
-still there after a re-run blocks the release.
+The two runs are compared stage by stage with `scripts/compare-lane-runs.py`
+(E2). A disagreement that is still there after a re-run, and is not explained
+as a difference between the lanes rather than the engines, blocks the
+release; the release notes name each explained one.
 
 | | Native local lane | Containerized lane |
 |---|---|---|
 | Where | operator hardware: a Mac with Docker, Ollama and Xcode | the same Mac |
-| Command | `bash scripts/regression-test.sh --execute --profile local` | `bash scripts/regression-test.sh --execute --profile local-containerized --images <candidate manifest>` *(pending E1)* |
+| Command | `bash scripts/regression-test.sh --execute --profile local` | `bash scripts/regression-test.sh --execute --profile local-containerized --images release/candidates/<tag>.images.json` |
 | Free ports | `RE_FREE_PORTS=true` when a template port is held (macOS AirPlay holds 5000) | the installer's port check |
 | Success | the run's `summary.md` reads `Status: completed`: no stage failed | same |
 | Engines | `cpp:1,lsp:1,scala:1` by default; any `--engines=` spec | same spec |
@@ -122,7 +126,7 @@ is not certified by it: name it in the release notes. The `pim-mirror` stage
 may not be skipped (D2); `cut-release.sh` refuses a manifest where it is.
 
 A clean-Mac install from the published candidate images, following `INSTALL.md`
-word for word, is part of acceptance *(pending E3)*.
+word for word, is part of acceptance (E3).
 
 ### The hosted nightly is the per-merge gate, not the certifier
 
@@ -225,8 +229,8 @@ A repo left out of `pins` builds from its `main`.
 
 Downloading an artifact needs a GitHub login, which most people installing a
 candidate don't have. So commit the file, unchanged, as
-`release/candidates/<tag>.images.json`, and give its sha256 in the README's
-candidate section. Installers then fetch it from `raw.githubusercontent.com`
+`release/candidates/<tag>.images.json`; its sha256 is one of `install.sh`'s
+release constants below. Installers then fetch it from `raw.githubusercontent.com`
 anonymously and check the hash before they install.
 
 Then point `install.sh` at the candidate. Its five release constants
@@ -238,10 +242,18 @@ Set `release` in `release/host-requirements.json` to the tag as well;
 `bash install.sh --check` downloads both files and checks their hashes, so run
 it before merging.
 
-### 3. Certify the candidate images *(pending E1, E2, E3)*
+### 3. Certify the candidate images
 
-Run the containerized lane on the candidate images, compare it with step 1,
-and install the candidate on a clean Mac following `INSTALL.md`.
+Run the containerized lane on the candidate images, compare it with the native
+lane at the same commits, and install the candidate on a clean Mac following
+`INSTALL.md`:
+
+```bash
+bash scripts/regression-test.sh --execute --profile local-containerized \
+  --images release/candidates/<tag>.images.json --run-id <E1 run-id>
+python3 scripts/compare-lane-runs.py \
+  .regression-tests/runs/<native run-id> .regression-tests/runs/<E1 run-id>
+```
 
 ### 4. Produce the manifest
 
@@ -339,21 +351,54 @@ git add releases/release-v0.0.1.json && git commit -m "release: release-v0.0.1"
 
 Commit through a documentation PR; the CI commit the manifest pins stays the one
 that was certified and tagged. The manifest is the record. Keep it even if the
-tags are later moved. The release notes name the certifying runs, every stage
-they skipped and why, and the known limitations.
+tags are later moved. The release notes, `releases/<tag>.md`, name the
+certifying runs, every stage they skipped and why, and the known limitations.
+Commit with them the promotion run's images file, unchanged, as
+`release/candidates/<tag>.images.json`.
+
+### 8. Point `install.sh` at the release, and create the GitHub release
+
+In a second PR, after the first has merged, set `install.sh`'s five release
+constants (step 2) to the release: `IMAGES_COMMIT` is the commit that added
+the release's images file. Set `release` in `release/host-requirements.json`
+too, and run `bash install.sh --check` before merging.
+
+Then create the GitHub release on `RealityEngine_CI`'s tag, with the notes as
+its body and three assets: the installer CLI at the pinned commit, the
+manifest, and the images file:
+
+```bash
+git show <CI pin>:release/realityengine > realityengine
+gh release create release-v0.0.1 --verify-tag --title "release-v0.0.1" \
+  --notes-file releases/release-v0.0.1.md \
+  realityengine releases/release-v0.0.1.json release/candidates/release-v0.0.1.images.json
+```
+
+The installer asset must hash to `INSTALLER_SHA256`, and the images file to
+`IMAGES_SHA256`; `INSTALL.md`'s by-hand install checks both.
 
 ---
 
 ## Installing and verifying a release
 
-### Install from the images *(pending C3, C5)*
+### Install from the images
 
-On a Mac that meets the platform table above:
+On a Mac that meets the platform table above, `install.sh` does everything,
+host tools included:
 
 ```bash
-curl -fsSL https://github.com/jateeter/RealityEngine_CI/releases/download/release-v0.0.1/realityengine -o realityengine
+curl -fsSL -o install.sh https://raw.githubusercontent.com/jateeter/RealityEngine_CI/main/install.sh
+bash install.sh
+```
+
+By hand, with the host tools already installed, from the GitHub release's
+assets (`INSTALL.md` §Install also checks their hashes):
+
+```bash
+curl -fsSL -O https://github.com/jateeter/RealityEngine_CI/releases/download/release-v0.0.1/realityengine
+curl -fsSL -O https://github.com/jateeter/RealityEngine_CI/releases/download/release-v0.0.1/release-v0.0.1.images.json
 chmod +x realityengine
-./realityengine install --version release-v0.0.1 --engines=cpp:1,lsp:1,scala:1
+./realityengine install --version release-v0.0.1 --images release-v0.0.1.images.json --engines cpp:1,lsp:1,scala:1
 ```
 
 `INSTALL.md` covers the prerequisites, first run, URLs, troubleshooting,
@@ -440,10 +485,10 @@ release.
 
 **An installed release** rolls back to the previous release's images, keeping
 its data volumes (instance UUIDs and clocks, localAI state, Qdrant, the PIM
-PODs) *(pending C4)*:
+PODs):
 
 ```bash
-./realityengine upgrade --to release-v<previous>
+./realityengine upgrade --to release-v<previous> --images release-v<previous>.images.json
 ```
 
 **A source checkout** returns to a previous release by checking each repo out
@@ -474,3 +519,4 @@ tag makes the manifest and the tag disagree, and the manifest is the record.
 - [ ] Manifest committed under `releases/` through a documentation PR
 - [ ] `docs/ReleaseRoadmap.md` task status updated in the same change, naming the runs
 - [ ] Release notes name every stage the certifying runs skipped, with its reason, and the known limitations
+- [ ] `install.sh` points at the release, and the GitHub release carries the installer, manifest and images file

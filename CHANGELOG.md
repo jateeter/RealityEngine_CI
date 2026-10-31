@@ -2,6 +2,12 @@
 
 All notable changes to the Reality Engine AI project will be documented in this file.
 
+> **Application releases are not recorded here.** Each release of the
+> integrated RealityEngine application has its manifest and notes under
+> [`releases/`](releases/): the first is
+> [`release-v0.0.1`](releases/release-v0.0.1.md) (2026-10-30). The entries
+> below are the earlier Reality Engine AI project's, kept as history.
+
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 

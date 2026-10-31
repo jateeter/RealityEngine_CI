@@ -17,6 +17,7 @@ reports and obsolete fixed-vector notes have been removed.
 | [ReleaseRoadmap.md](ReleaseRoadmap.md) | Release 0.01 / MVP task tracker: downloadable Docker images for a full deployment on macOS 26+, and every task to the tagged release. |
 | [../RELEASE.md](../RELEASE.md) | What a release is, how it is cut, certified, verified and rolled back. |
 | [../INSTALL.md](../INSTALL.md) | Installing and running the suite on a Mac from the release images. |
+| [../releases/release-v0.0.1.md](../releases/release-v0.0.1.md) | Release notes for `release-v0.0.1`: contents, certification, what it does not cover, and known limitations. |
 | [BIBLIOGRAPHY.md](BIBLIOGRAPHY.md) | External and project references. |
 
 ## APIs And Operations
