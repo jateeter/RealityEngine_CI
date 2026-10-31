@@ -218,7 +218,7 @@ def main():
                     assert missing.status_code == 409, case["caseId"]
             if case in remaining["cases"]:
                 aid = case["targetAssetTypeId"]
-                contribution = command("contribute", dict(assetTypeId=aid, content=dict(caseId=case["caseId"], advisory=result["result"], independentReview="REQUIRED"), evidenceRefs=case["facts"]["evidenceRefs"] + [calculation_args["interactionId"]] + calculation_args["dependencyInteractionIds"]), next(p for p in principals if p.get("machineId") in machine_bindings and any(d["assetTypeId"] == aid for d in machine_bindings[p["machineId"]]["metadata"]["documentAssetWorkflow"]["duties"])), case_context)["result"]
+                contribution = command("contribute", dict(assetTypeId=aid, content=dict(caseId=case["caseId"], advisory=result["result"], independentReview="REQUIRED"), evidenceRefs=case["facts"]["evidenceRefs"] + [calculation_args["interactionId"]] + calculation_args["dependencyInteractionIds"]), next(p for p in principals if p.get("machineId") in machine_bindings and (any(d["assetTypeId"] == aid for d in machine_bindings[p["machineId"]]["metadata"]["documentAssetWorkflow"]["duties"]) or aid in machine_bindings[p["machineId"]]["metadata"].get("documentStewardship", []))), case_context)["result"]
                 assert contribution["status"] == "OPEN" and contribution["targetMachine"] == graph["assetStewards"][aid]
                 contributions.append(contribution)
             for key, value in case["expected"].items():
