@@ -334,6 +334,22 @@ step exactly, where a refusal drops the merge operation and leaves
 rather than a redefined one: making `machineOutput` the fold would have deleted
 the only evidence that a refusing machine fired at all.
 
+##### GET /api/config
+
+```json
+{ "eventDimension": 16944, "matchThreshold": 0.5,
+  "qdrantUrl": "http://localhost:4333", "collectionName": "reality-events" }
+```
+
+| key | holds |
+|---|---|
+| `eventDimension` | the width of the perceptual space **as the engine holds it now**, never the launch seed (#422; "The perceptual space width is per-engine") |
+| `matchThreshold` | the value last written by `PUT /api/config/threshold`, else `0.5` |
+| `qdrantUrl` | `QDRANT_URL`, else `http://localhost:4333` |
+| `collectionName` | `COLLECTION_NAME`, else `reality-events` |
+
+Exactly these four keys, on every runtime.
+
 ##### PUT /api/config/dimension is read-only downward
 
 The perceptual space grows during machine loading to fit every resident
@@ -381,6 +397,29 @@ This was violated three different ways, all answering `success: true`:
 A write that reports success and changes nothing is not harmless: it is
 indistinguishable from one that worked, so a caller cannot tell that the control
 it is using has no effect (#425).
+
+##### PUT /api/config/threshold: the write takes effect and is reported
+
+**Owner ruling, 2026-10-30 (#674): the route stays, specified as C++
+implements it.** `PUT /api/config/threshold?threshold=<number>`:
+
+| request | behaviour |
+|---|---|
+| `threshold` is a finite number | stored; `200 {"success": true, "threshold": <the stored value>}` |
+| `threshold` absent or empty | nothing changes; `200 {"success": true, "threshold": <the current value>}` |
+| `threshold` present but not a whole finite number (`high`, `0.7abc`, `nan`) | `400 {"error": ...}`; nothing changes |
+
+`GET /api/config` then reports the stored value as `matchThreshold`. A write
+that reports success must be one a reader can observe. Before this was
+specified, LSP stored the value but its `GET` always answered `0.5`, Scala stored
+nothing, and C++ answered a non-number with a 500. That is the same defect
+#425 removed from the dimension route.
+
+**`matchThreshold` governs nothing yet.** No engine reads it when matching: a
+comparator's `t` is the element's own `threshold` or the comparator's default
+(§ "Comparators"). It is held and reported so that it can become a
+**learning knob**, a declared control a learning cycle may tune, once there is
+a decision about what it governs (#675).
 
 ##### POST /api/perceive takes an optional `only` selector
 
