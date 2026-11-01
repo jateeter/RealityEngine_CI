@@ -28,7 +28,8 @@ written down.
 **A conformance follower never votes** (`"role": "follower"`, QUORUM_CONTRACT.md
 section 1, #607). `lib/followers.py` `voters()` drops followers. A stage that
 reads instance data runs it through `voters()` before composing a quorum, as the
-four RE-only stages and both `quorum_composition()`s do. A new stage does the
+four RE-only parity stages, `regression-arbitration-retention.py` and both
+`quorum_composition()`s do. A new stage does the
 same. Followers are judged only by the follower lane, `rust-conformance.sh`,
 which runs each stage on the voters and then jointly. Its verdicts are
 `agrees`, `differs`, `unsupported` and `not-compared`; see

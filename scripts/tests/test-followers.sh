@@ -169,6 +169,56 @@ PY
 expect "a follower declaring its PE unsupported resets cleanly" 0 "$(resets unsupported)"
 expect "an instance missing its PE without declaring it is still a failed reset" 1 "$(resets '')"
 
+# regression-arbitration-retention.py resets each instance itself, through
+# reset_pair, so it carries the declaration from the instance data too.
+retention_resets() {
+  python3 - "$CI_DIR/scripts/regression-arbitration-retention.py" "$1" "$TMP/retention.json" <<'PY'
+import importlib.util, json, sys
+spec = importlib.util.spec_from_file_location("stage", sys.argv[1])
+stage = importlib.util.module_from_spec(spec)
+spec.loader.exec_module(stage)
+entry = {"id": "rust-1", "runtime": "rust", "re_url": "http://re"}
+if sys.argv[2]:
+    entry["pe_participation"] = sys.argv[2]
+open(sys.argv[3], "w").write(json.dumps({"instances": [entry]}))
+stage.http = lambda method, url, payload=None: (200, {})
+rt = stage.Runtime(stage.load_instances(stage.Path(sys.argv[3]))[0], 1000)
+rt.reset()
+print(len(rt.failures))
+PY
+}
+expect "arbitration-retention resets a follower declaring its PE unsupported cleanly" 0 \
+  "$(retention_resets unsupported | tail -1)"
+expect "arbitration-retention still fails an undeclared missing PE" 1 "$(retention_resets '' | tail -1)"
+retention_voters() {
+  python3 - "$CI_DIR/scripts/regression-arbitration-retention.py" "$TMP/retention-voters.json" <<'PY'
+import importlib.util, json, sys
+spec = importlib.util.spec_from_file_location("stage", sys.argv[1])
+stage = importlib.util.module_from_spec(spec)
+spec.loader.exec_module(stage)
+open(sys.argv[2], "w").write(json.dumps({"instances": [
+    {"id": "cpp-1", "runtime": "cpp", "re_url": "http://cpp", "pe_url": "http://cpp-pe"},
+    {"id": "rust-1", "runtime": "rust", "re_url": "http://rust", "role": "follower"}]}))
+print(",".join(i["id"] for i in stage.load_instances(stage.Path(sys.argv[2]))))
+PY
+}
+expect "arbitration-retention: a follower does not vote" "cpp-1" "$(retention_voters)"
+
+# Recording one runtime's legacy baseline keeps every other runtime's bodies.
+record_merge() {
+  python3 - <<'PY'
+current = {"fixture": {"cpp": "c", "lsp": "l"}, "empty": {"cpp": "e"}}
+recorded = {"fixture": {"rust": "r"}, "empty": {"rust": "re"}}
+for label, bodies in recorded.items():
+    current.setdefault(label, {}).update(bodies)
+print(",".join(sorted(current["fixture"])), ",".join(sorted(current["empty"])))
+PY
+}
+expect "a per-runtime baseline merge keeps the others" "cpp,lsp,rust cpp,rust" "$(record_merge)"
+grep -q 'current.setdefault(label, {}).update(bodies)' "$CI_DIR/scripts/regression-arbitration-retention.py" \
+  && ok "regression-arbitration-retention.py records per runtime" \
+  || bad "regression-arbitration-retention.py replaces each label's whole map when recording"
+
 # ── the lane: unavailable is exit 3, never a pass ────────────────────────────
 lane() { "$CI_DIR/scripts/rust-conformance.sh" --out "$TMP/lane" --no-build "$@" >"$TMP/lane.out" 2>&1; echo $?; }
 expect "the lane with no universe is unavailable" 3 \

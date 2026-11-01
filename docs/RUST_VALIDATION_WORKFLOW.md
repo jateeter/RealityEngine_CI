@@ -167,7 +167,8 @@ has none), and the parity stages below.
   instance data, the universe's plus `rust-1` as a follower, and never touches
   the universe's instance registry.
 - **One verdict per stage.** The runner covers `machine-set`, `engine-process`,
-  `export` and `engine-config --no-step`, and runs each stage twice: the voters
+  `export`, `engine-config --no-step` and `arbitration-retention`, and runs each
+  stage twice: the voters
   alone, then the voters with Rust as one more instance. The stage's own
   comparison decides both runs.
   - `agrees`: the voters agree and the joint run passes.
@@ -196,6 +197,20 @@ agreed on every stage, so each row is Rust alone:
 A follower has no PE, so its registry entry declares `pe_participation:
 "unsupported"`, and `reset_contract` resets only its RE half. An undeclared
 missing PE is still a failed reset.
+
+`arbitration-retention` joined the lane on 2026-11-01, when Rust gained
+`GET /api/arbitration` (Rust#12). The stage resets each instance itself, so it
+reads the same declaration, and `config/arbitration-legacy-baseline.json` carries
+a `rust` legacy body. That body was recorded from Rust and is byte-identical to
+C++'s. Against standalone C++ on the regression corpus, with Rust as a follower
+in the joint registry, the stage passes 2 of 2 with the retained bodies
+byte-identical. The lane has not yet run it against a live universe.
+
+**Stages a follower cannot join yet.** `regression-trajectory-parity.py`,
+`regression-corpus-parity-loop.py` and `regression-arbiter.py` drive their steps
+through each instance's PE (`/api/push`, PE sources). A follower with no PE has
+nothing to drive, so these wait for the Rust PE (Rust#17, #20). Rust#11's and
+#12's acceptance criteria name them.
 
 Still to build:
 

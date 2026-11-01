@@ -4,7 +4,8 @@
 #
 # Builds RealityEngine_Rust, starts it beside a running universe on the same
 # corpus and width, and holds it against the three voters on the RE-only parity
-# stages: machine-set, engine-process, export and engine-config (--no-step).
+# stages: machine-set, engine-process, export, engine-config (--no-step) and
+# arbitration-retention.
 # Rust is a conformance follower (docs/QUORUM_CONTRACT.md section 1): it never
 # votes, and it is never written into the universe's instance registry. The lane
 # writes its own copies under --out.
@@ -173,8 +174,9 @@ declare -A ROUTES=(
   [engine-process]="POST /api/engine/process|GET /api/engine/config/transitionsInhibited"
   [export]="GET /api/machines/probe/export"
   [engine-config]="GET /api/engine/config"
+  [arbitration-retention]="GET /api/arbitration"
 )
-STAGES=(machine-set engine-process export engine-config)
+STAGES=(machine-set engine-process export engine-config arbitration-retention)
 
 run_stage() {  # run_stage <stage> <registry> <report>
   local stage="$1" registry="$2" report="$3"
@@ -187,6 +189,8 @@ run_stage() {  # run_stage <stage> <registry> <report>
       --registry "$registry" --machines 24 --out "$report" ;;
     engine-config) python3 "$CI_DIR/scripts/regression-engine-config-parity.py" \
       --registry "$registry" --json "$report" --no-step ;;
+    arbitration-retention) python3 "$CI_DIR/scripts/regression-arbitration-retention.py" \
+      --registry "$registry" --out "$report" ;;
   esac
 }
 
