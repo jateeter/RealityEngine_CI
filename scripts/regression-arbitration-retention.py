@@ -50,6 +50,7 @@ from typing import Any
 from urllib import error, request
 
 sys.path.insert(0, str(Path(__file__).resolve().parent / "lib"))
+from followers import voters  # noqa: E402
 from reset_contract import reset_pair  # noqa: E402
 from step_observer import DEFAULT_WINDOW_MS, StepObserver  # noqa: E402
 
@@ -124,13 +125,18 @@ def steps_of(body: Any) -> Any:
 def load_instances(registry_path: Path) -> list[dict[str, str]]:
     document = json.loads(registry_path.read_text(encoding="utf-8"))
     out = []
-    for instance in document.get("instances", []):
+    # A conformance follower never votes (docs/QUORUM_CONTRACT.md section 1);
+    # the follower lane compares it through a joint registry without the role.
+    for instance in voters(document.get("instances", [])):
         re_url = instance.get("re_url") or instance.get("reUrl") or ""
         if not re_url:
             continue
         out.append({"id": instance.get("id", "?"), "runtime": instance.get("runtime", "?"),
                     "re": re_url.rstrip("/"),
-                    "pe": (instance.get("pe_url") or instance.get("peUrl") or "").rstrip("/")})
+                    "pe": (instance.get("pe_url") or instance.get("peUrl") or "").rstrip("/"),
+                    # A conformance follower declares it has no PE; its reset
+                    # is the RE half alone (SURFACE_SPEC.md, "Participation States").
+                    "pe_unsupported": instance.get("pe_participation") == "unsupported"})
     return out
 
 
@@ -152,7 +158,8 @@ class Runtime:
 
     def reset(self) -> None:
         for failure in reset_pair(lambda url, body: http("POST", url, body),
-                                  self.re, self.instance["pe"], self.instance["id"]):
+                                  self.re, self.instance["pe"], self.instance["id"],
+                                  pe_unsupported=self.instance.get("pe_unsupported", False)):
             self.check(False, failure)
         self.observer.last_step = None
 
@@ -354,7 +361,10 @@ def main() -> int:
 
     if recorded is not None and not report["failures"]:
         current = json.loads(BASELINE.read_text(encoding="utf-8")) if BASELINE.exists() else {}
-        current.update(recorded)
+        # Per runtime: recording one runtime must not drop the others' bodies,
+        # which a top-level update of each label's whole map did.
+        for label, bodies in recorded.items():
+            current.setdefault(label, {}).update(bodies)
         BASELINE.write_text(json.dumps(current, indent=2) + "\n", encoding="utf-8")
         print(f"\nlegacy baseline recorded: {BASELINE}")
 
