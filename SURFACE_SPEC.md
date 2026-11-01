@@ -2339,6 +2339,17 @@ the native Ollama every engine shares.
 Before this ruling, every engine defaulted to `https://api.openai.com/v1` with
 model `gpt-5`, and refused both routes without a key.
 
+**Structured output follows the Ollama route's rule** (owner ruling, 2026-11-01;
+`docs/OLLAMA_INTEGRATION.md`, "Structured output"). The universe model cannot take
+a schema: Ollama's MLX runner answers `json_schema` with `structured output is
+unavailable`. So for a model whose family (the tag before `:`) is in the
+no-structured-output list (`nemotron-3-nano`), the dispatch sends **no
+`text.format`** and appends the completion-contract prompt to `instructions`. That
+prompt is the same text, byte for byte, that the Ollama route appends to its
+system prompt. A request's own `text` object, or an explicit `responseFormatMode`,
+still wins. Every other model keeps the strict `json_schema` built from the
+mapping.
+
 #### localAI invoke contract *(settled 2026-09-23, 3-of-3)*
 
 Settled under `docs/INTEGRATION_ROADMAP.md` §6 Q7 (with Q1), and closes

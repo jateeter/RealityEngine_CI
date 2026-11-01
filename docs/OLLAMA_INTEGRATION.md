@@ -180,12 +180,19 @@ Ollama 0.40.6 on 2026-10-24:
 - `thinking` is on by default and does not help when the task is to fill in
   named fields: the engines send `think: false` for this model (measured below).
 
-**Ollama 0.40.11 no longer refuses `format`.** On 2026-10-25 both builds
-answered `format: "json"` and a JSON-schema `format` with conforming JSON. The
-PEs still omit `format` for the whole `nemotron-3-nano` family, keyed on the
-name before the colon, so `:4b-mlx` is treated like `:4b`. Sending `format`
-again changes all four PE runtimes together and needs the Ollama minimum raised
-to 0.40.11; it has not been done.
+**Ollama 0.40.13 refuses `format` again.** On 2026-10-25, Ollama 0.40.11
+answered `format: "json"` and a JSON-schema `format` with conforming JSON from
+both builds. On 2026-11-01, Ollama 0.40.13 refused them again for every model on
+the MLX runner. It refused both `format` values on `/api/chat`, and
+`text.format: json_schema` on `/v1/responses`, for `nemotron-3-nano:4b-mlx`,
+`nemotron-3-nano:4b` and `qwen3.5:4b`, all of which load as safetensors on MLX
+here. It accepted `json_object` on `/v1/responses`. `gemma3:4b`, which loads as
+GGUF, accepted the schema. So structured output depends on the runner and the
+Ollama release, and no Ollama minimum restores it. The PEs keep omitting
+`format` for the whole `nemotron-3-nano` family, keyed on the name before the
+colon, so `:4b-mlx` is treated like `:4b`. The OpenAI route applies the same
+rule to `text.format` (SURFACE_SPEC.md, "The OpenAI route's provider is the
+local LLM").
 
 The interim universe model `gemma3:4b` honoured `format: "json"` but refused
 `tools`. `tinyllama-mlx` (TinyLlama 1.1B Chat on the MLX runner), the model
