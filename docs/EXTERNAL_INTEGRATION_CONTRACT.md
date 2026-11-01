@@ -122,6 +122,19 @@ ingest callback the HTTP `POST /api/signals` path uses."* An integration that
 needs a downstream special case has not finished converting its observation into
 a fact.
 
+**Each PE connects to a broker under an MQTT client id of its own** (owner
+direction, 2026-11-01). A broker drops an existing session when another
+connects with its client id, so two bridges sharing one evict each other in
+turn: on 2026-11-01, `cpp-1` reconnected 81 times beside `rust-1`, both as
+`reality-engine-pe`. A PE uses `MQTT_CLIENT_ID` both at boot and for
+`POST /api/mqtt/enable` when no bridge is running; with it unset, it uses its
+runtime's own fallback (`reality-engine-pe-<runtime>`). A launcher sets it per
+instance: `scripts/lib/pe-env.sh` `mqtt_client_id` gives
+`re-pe-<instance id>-<last 8 hex digits of the instance UUID>`. That is the
+form for native spawns (`startUniverse.sh`), the release's per-instance env
+files (`release/init/reinit.py`) and the follower lane. The Docker path names
+`re-pe-docker-<runtime>-1`.
+
 ## 4. The evidence chain
 
 An integration is demonstrated when one external event can be followed to its

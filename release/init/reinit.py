@@ -165,8 +165,12 @@ def allocate_uuids(install: pathlib.Path, insts: list[dict]) -> None:
         instance_uuids.LANES = (*instance_uuids.LANES, LANE)
     for inst in insts:
         inst["instance_uuid"] = instance_uuids.allocate(LANE, inst["id"])
+        # A unique MQTT client id per instance (scripts/lib/pe-env.sh
+        # mqtt_client_id): two PEs sharing one evict each other on a broker.
+        client_id = f"re-pe-{inst['id']}-{inst['instance_uuid'].replace('-', '')[-8:]}"
         write(install / "engines" / f"{inst['id']}.env",
-              f"INSTANCE_UUID={inst['instance_uuid']}\nINSTANCE_CLOCK_DIR={CLOCK_DIR}\n")
+              f"INSTANCE_UUID={inst['instance_uuid']}\nINSTANCE_CLOCK_DIR={CLOCK_DIR}\n"
+              f"MQTT_CLIENT_ID={client_id}\n")
     held: dict[str, list[str]] = {}
     for inst in insts:
         held.setdefault(inst["instance_uuid"], []).append(inst["id"])

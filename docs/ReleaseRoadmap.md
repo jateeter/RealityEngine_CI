@@ -141,8 +141,9 @@ Each is reflected in `RELEASE.md` where it changes the process.
 - [x] **A5 — Docker Desktop.** The minimum version is set by E3. Other runtimes
   are not tested.
 - [x] **A6 — Ollama native, not in Docker,** so it uses the Apple GPU. Containers
-  reach it at `host.docker.internal:11434`. The installer checks for it and pulls
-  `llama3.1:8b`, the model the local lane pins.
+  reach it at `host.docker.internal:11434`. The installer checks for it and for
+  the universe model `nemotron-3-nano:4b-mlx` (and the embedding model), the
+  models the local lane pins.
 - [x] **A7 — Not a fixed trio: each start-up configures its own instance
   deployment,** as `startUniverse.sh --engines=cpp:N,lsp:N,scala:N` does
   natively. The engine services are generated from that spec (C1), each

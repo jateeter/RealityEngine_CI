@@ -241,6 +241,8 @@ services:
       dockerfile: ../../RealityEngine_CI/docker/scala-perception-engine/Dockerfile
     container_name: re-engine-scala-pe
     environment:
+      # One MQTT client id per PE: two sharing one evict each other on a broker.
+      - MQTT_CLIENT_ID=re-pe-docker-scala-1
       - PORT=3004
       - PERCEPTION_ENGINE_PORT=3004
       - REALITY_ENGINE_URL=http://engine-scala-re:3000
@@ -316,6 +318,8 @@ services:
       dockerfile: ../RealityEngine_CI/docker/cpp/Dockerfile
     container_name: re-engine-cpp-pe
     environment:
+      # One MQTT client id per PE: two sharing one evict each other on a broker.
+      - MQTT_CLIENT_ID=re-pe-docker-cpp-1
       - MACHINES_DIR=/app/machines
       - VECTOR_DIMENSION=${VECTOR_DIMENSION:-7680}
       - QDRANT_URL=http://host.docker.internal:4333
@@ -388,6 +392,8 @@ services:
       dockerfile: ../RealityEngine_CI/docker/lsp/Dockerfile
     container_name: re-engine-lsp-pe
     environment:
+      # One MQTT client id per PE: two sharing one evict each other on a broker.
+      - MQTT_CLIENT_ID=re-pe-docker-lsp-1
       - PERCEPTION_ENGINE_PORT=3004
       - REALITY_ENGINE_URL=http://engine-lsp-re:3000
       - MACHINES_DIR=/app/machines

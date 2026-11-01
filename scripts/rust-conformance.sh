@@ -160,10 +160,27 @@ fi
 grep -m2 'reality-engine:' "$OUT/rust-1.log" || true
 
 # Its PE, driving its RE. It interns the RE's machines as it boots, so it is
-# started once the RE is answering.
-PERCEPTION_ENGINE_PORT="$PE_PORT" RE_URL="$RUST_URL" MACHINES_DIR="$CORPUS" \
-  VECTOR_DIMENSION="$WIDTH" \
-  "$RUST_REPO/target/release/perception-engine" > "$OUT/rust-1-pe.log" 2>&1 &
+# started once the RE is answering. It gets the environment startUniverse.sh
+# gives the voters' PEs (scripts/lib/pe-env.sh): trigger dispatch, the
+# integrations configuration, ACP/OpenClaw, the HealthKit token when the
+# universe has one, localAI, and an MQTT client id of its own. The eight stages
+# read none of it, but escalation dispatch, metrics and HealthKit do.
+# shellcheck source=scripts/lib/pe-env.sh
+source "$LIB/pe-env.sh"
+# shellcheck source=scripts/lib/healthkit-token.sh
+source "$LIB/healthkit-token.sh"
+HK_TOKEN="$(healthkit_token_read "$CI_DIR" 2>/dev/null || true)"
+(
+  pe_env_defaults "$CI_DIR/config/integrations.json"
+  [ -n "$HK_TOKEN" ] && export HEALTHKIT_BRIDGE_TOKEN="$HK_TOKEN"
+  export LOCAL_AI_API_URL="${LOCAL_AI_API_URL:-http://localhost:4000}"
+  export LOCAL_AI_MACHINES_DIR="${LOCAL_AI_MACHINES_DIR:-$CI_DIR/../localAIStack/data/machines}"
+  export MQTT_CLIENT_ID; MQTT_CLIENT_ID="$(mqtt_client_id rust-1 "$UUID")"
+  export MQTT_BROKER_HOST=""
+  PERCEPTION_ENGINE_PORT="$PE_PORT" RE_URL="$RUST_URL" MACHINES_DIR="$CORPUS" \
+    VECTOR_DIMENSION="$WIDTH" \
+    exec "$RUST_REPO/target/release/perception-engine"
+) > "$OUT/rust-1-pe.log" 2>&1 &
 PE_PID=$!
 RUST_PE_URL="http://127.0.0.1:$PE_PORT"
 started=false

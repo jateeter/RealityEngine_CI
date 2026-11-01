@@ -218,7 +218,7 @@ Mutating tools must be policy-gated.
 
 ### Ollama model default and precedence
 
-The canonical default (`llama3.1:8b`), the three-rank resolution order, and why
+The canonical default (`nemotron-3-nano:4b-mlx`, the universe model), the three-rank resolution order, and why
 that order is fixed rather than incidental are in the MCP-pattern worked
 instance:
 
