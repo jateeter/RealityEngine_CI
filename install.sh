@@ -40,7 +40,7 @@ IMAGES_SHA256="56dae114197188d7cce495fdab477f50bcb0e43453b47b949719516f84ec7ecc"
 # Host requirements (release/host-requirements.json for this release).
 NODE_VERSION="26.12.1"
 NODE_PKG_SHA256="eb21cdde0d65277d388ddd4eca6a155bd0082d764372bb98334a470a290d6231"
-OLLAMA_MIN="0.40.5"
+OLLAMA_MIN="0.40.13"
 OPENCLAW_MIN="2026.10.5"
 MODELS="nemotron-3-nano:4b-mlx embeddinggemma-2:270m"
 MACOS_MIN=26

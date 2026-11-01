@@ -81,7 +81,7 @@ without_openclaw() { [ -f "$BIN/openclaw" ] && mv "$BIN/openclaw" "$T/openclaw.o
 without_openclaw
 d="$T/c1"; out="$T/c1.out"
 set +e
-FAKE_OLLAMA_API=0.35.0 RE_LATEST_OLLAMA=0.40.8 RE_LATEST_OPENCLAW=2026.10.7 RE_HOST_UPDATE_ISSUES=0 run "$d" host-check >"$out" 2>&1
+FAKE_OLLAMA_API=0.35.0 RE_LATEST_OLLAMA=0.40.20 RE_LATEST_OPENCLAW=2026.10.7 RE_HOST_UPDATE_ISSUES=0 run "$d" host-check >"$out" 2>&1
 rc=$?
 set -e
 [ "$rc" -ne 0 ]; expect "Ollama 0.35.0 fails the check" $? "exit $rc"
@@ -92,29 +92,29 @@ grep -q '"status": "below-min"' "$d/state/host-services.json"; expect "...and re
 # The gateway is native (#592), so OpenClaw is required.
 with_openclaw
 d="$T/c2"
-FAKE_OLLAMA_API=0.40.8 FAKE_OC=2026.10.7 RE_LATEST_OLLAMA=0.40.8 RE_LATEST_OPENCLAW=2026.10.7 RE_HOST_UPDATE_ISSUES=0 run "$d" host-check >"$T/c2.out" 2>&1
+FAKE_OLLAMA_API=0.40.20 FAKE_OC=2026.10.7 RE_LATEST_OLLAMA=0.40.20 RE_LATEST_OPENCLAW=2026.10.7 RE_HOST_UPDATE_ISSUES=0 run "$d" host-check >"$T/c2.out" 2>&1
 expect "current Ollama and OpenClaw pass" $?
-grep -q '"installed": "0.40.8"' "$d/state/host-services.json"; expect "...and records the version" $?
+grep -q '"installed": "0.40.20"' "$d/state/host-services.json"; expect "...and records the version" $?
 [ ! -f "$d/state/host-updates.md" ]; expect "...and writes no update note" $?
 
 # ── 3. behind the release: warn, write the note, and never duplicate ─────────
 with_openclaw
 d="$T/c3"
-env FAKE_OLLAMA_API=0.40.6 FAKE_OC=2026.10.6 RE_LATEST_OLLAMA=0.40.8 RE_LATEST_OPENCLAW=2026.10.7 RE_HOST_UPDATE_ISSUES=0 \
+env FAKE_OLLAMA_API=0.40.14 FAKE_OC=2026.10.6 RE_LATEST_OLLAMA=0.40.20 RE_LATEST_OPENCLAW=2026.10.7 RE_HOST_UPDATE_ISSUES=0 \
   REALITYENGINE_DIR="$d" PATH="$BIN:$SYS" /bin/bash "$CLI" host-check >"$T/c3.out" 2>&1
 expect "behind the release still passes (warn, not fail)" $?
-grep -q "Host update: Ollama 0.40.8 available (installed 0.40.6)" "$d/state/host-updates.md"; expect "note names Ollama" $?
+grep -q "Host update: Ollama 0.40.20 available (installed 0.40.14)" "$d/state/host-updates.md"; expect "note names Ollama" $?
 grep -q "Host update: OpenClaw 2026.10.7 available (installed 2026.10.6)" "$d/state/host-updates.md"; expect "note names OpenClaw" $?
-env FAKE_OLLAMA_API=0.40.6 FAKE_OC=2026.10.6 RE_LATEST_OLLAMA=0.40.8 RE_LATEST_OPENCLAW=2026.10.7 RE_HOST_UPDATE_ISSUES=0 \
+env FAKE_OLLAMA_API=0.40.14 FAKE_OC=2026.10.6 RE_LATEST_OLLAMA=0.40.20 RE_LATEST_OPENCLAW=2026.10.7 RE_HOST_UPDATE_ISSUES=0 \
   REALITYENGINE_DIR="$d" PATH="$BIN:$SYS" /bin/bash "$CLI" host-check >/dev/null 2>&1
 [ "$(grep -c '^- Host update' "$d/state/host-updates.md")" -eq 2 ]; expect "a second run does not duplicate it" $?
-env FAKE_OLLAMA_API=0.40.8 FAKE_OC=2026.10.7 RE_LATEST_OLLAMA=0.40.8 RE_LATEST_OPENCLAW=2026.10.7 RE_HOST_UPDATE_ISSUES=0 \
+env FAKE_OLLAMA_API=0.40.20 FAKE_OC=2026.10.7 RE_LATEST_OLLAMA=0.40.20 RE_LATEST_OPENCLAW=2026.10.7 RE_HOST_UPDATE_ISSUES=0 \
   REALITYENGINE_DIR="$d" PATH="$BIN:$SYS" /bin/bash "$CLI" host-check >/dev/null 2>&1
 [ ! -f "$d/state/host-updates.md" ]; expect "the note is removed once current" $?
 
 # ── 4. a failed lookup is reported, never read as current ────────────────────
 d="$T/c4"
-env FAKE_OLLAMA_API=0.40.6 FAKE_OC=2026.10.6 RE_LATEST_OLLAMA= RE_LATEST_OPENCLAW= RE_HOST_UPDATE_ISSUES=0 \
+env FAKE_OLLAMA_API=0.40.14 FAKE_OC=2026.10.6 RE_LATEST_OLLAMA= RE_LATEST_OPENCLAW= RE_HOST_UPDATE_ISSUES=0 \
   REALITYENGINE_DIR="$d" PATH="$BIN:$SYS" /bin/bash "$CLI" host-check >"$T/c4.out" 2>&1
 expect "an unreachable release lookup does not fail" $?
 grep -q "NOT checked" "$T/c4.out"; expect "...and says currency was not checked" $?
@@ -122,21 +122,21 @@ grep -q '"lookups_skipped": true' "$d/state/host-services.json"; expect "...and 
 
 # ── 5. issues: filed once, refreshed (not duplicated) on the next run ────────
 d="$T/c5"; export GH_LOG="$T/gh.log"; : > "$GH_LOG"
-env FAKE_OLLAMA_API=0.40.6 FAKE_OC=2026.10.7 RE_LATEST_OLLAMA=0.40.8 RE_LATEST_OPENCLAW=2026.10.7 RE_GH="$BIN/gh" \
+env FAKE_OLLAMA_API=0.40.14 FAKE_OC=2026.10.7 RE_LATEST_OLLAMA=0.40.20 RE_LATEST_OPENCLAW=2026.10.7 RE_GH="$BIN/gh" \
   REALITYENGINE_DIR="$d" PATH="$BIN:$SYS" /bin/bash "$CLI" host-check >"$T/c5.out" 2>&1
 grep -q "issue create .*--label host-update .*--milestone release-v0.0.1-rc3" "$GH_LOG"; expect "files a labelled, milestoned issue" $?
 [ ! -f "$d/state/host-updates.md" ]; expect "...and then needs no note" $?
 : > "$GH_LOG"
-env FAKE_OLLAMA_API=0.40.6 FAKE_OC=2026.10.7 RE_LATEST_OLLAMA=0.40.8 RE_LATEST_OPENCLAW=2026.10.7 RE_GH="$BIN/gh" \
+env FAKE_OLLAMA_API=0.40.14 FAKE_OC=2026.10.7 RE_LATEST_OLLAMA=0.40.20 RE_LATEST_OPENCLAW=2026.10.7 RE_GH="$BIN/gh" \
   GH_EXISTING=77 REALITYENGINE_DIR="$d" PATH="$BIN:$SYS" /bin/bash "$CLI" host-check >/dev/null 2>&1
 { grep -q "issue edit 77" "$GH_LOG" && ! grep -q "issue create" "$GH_LOG"; }; expect "an open issue is refreshed, not duplicated" $?
-env FAKE_OLLAMA_API=0.40.6 FAKE_OC=2026.10.7 RE_LATEST_OLLAMA=0.40.8 RE_LATEST_OPENCLAW=2026.10.7 RE_GH="$BIN/gh" \
+env FAKE_OLLAMA_API=0.40.14 FAKE_OC=2026.10.7 RE_LATEST_OLLAMA=0.40.20 RE_LATEST_OPENCLAW=2026.10.7 RE_GH="$BIN/gh" \
   GH_PERM=READ REALITYENGINE_DIR="$T/c5b" PATH="$BIN:$SYS" /bin/bash "$CLI" host-check >/dev/null 2>&1
 [ -f "$T/c5b/state/host-updates.md" ]; expect "without write access it falls back to the note" $?
 
 # ── 6. Node and OpenClaw are required: the gateway runs on the Mac (#592) ────
 set +e
-env FAKE_OLLAMA_API=0.40.8 FAKE_OC=2026.10.7 FAKE_NODE=25.6.1 RE_LATEST_OLLAMA=0.40.8 RE_LATEST_OPENCLAW=2026.10.7 RE_HOST_UPDATE_ISSUES=0 \
+env FAKE_OLLAMA_API=0.40.20 FAKE_OC=2026.10.7 FAKE_NODE=25.6.1 RE_LATEST_OLLAMA=0.40.20 RE_LATEST_OPENCLAW=2026.10.7 RE_HOST_UPDATE_ISSUES=0 \
   REALITYENGINE_DIR="$T/c6" PATH="$BIN:$SYS" /bin/bash "$CLI" host-check >"$T/c6.out" 2>&1
 rc=$?
 set -e
@@ -144,15 +144,15 @@ set -e
 grep -q "26.12.1" "$T/c6.out"; expect "...and names the pinned version" $?
 without_openclaw
 set +e
-env FAKE_OLLAMA_API=0.40.8 RE_LATEST_OLLAMA=0.40.8 RE_LATEST_OPENCLAW=2026.10.7 RE_HOST_UPDATE_ISSUES=0 \
+env FAKE_OLLAMA_API=0.40.20 RE_LATEST_OLLAMA=0.40.20 RE_LATEST_OPENCLAW=2026.10.7 RE_HOST_UPDATE_ISSUES=0 \
   REALITYENGINE_DIR="$T/c6c" PATH="$BIN:$SYS" /bin/bash "$CLI" host-check >"$T/c6c.out" 2>&1
 rc=$?
 set -e
 [ "$rc" -ne 0 ] && grep -q "npm install -g openclaw@latest" "$T/c6c.out"; expect "a missing OpenClaw fails, naming the install" $?
 
 # ── 7. --json is what the regression manifest embeds ─────────────────────────
-js="$(FAKE_OLLAMA_API=0.40.8 RE_LATEST_OLLAMA=0.40.8 RE_LATEST_OPENCLAW=2026.10.7 REALITYENGINE_DIR="$T/c7" PATH="$BIN:$SYS" /bin/bash "$CLI" host-check --json 2>/dev/null)"
-printf '%s' "$js" | python3 -I -c 'import json,sys; d=json.load(sys.stdin); assert d["ollama"]["installed"]=="0.40.8" and d["node"]["required"]=="26.12.1"'
+js="$(FAKE_OLLAMA_API=0.40.20 RE_LATEST_OLLAMA=0.40.20 RE_LATEST_OPENCLAW=2026.10.7 REALITYENGINE_DIR="$T/c7" PATH="$BIN:$SYS" /bin/bash "$CLI" host-check --json 2>/dev/null)"
+printf '%s' "$js" | python3 -I -c 'import json,sys; d=json.load(sys.stdin); assert d["ollama"]["installed"]=="0.40.20" and d["node"]["required"]=="26.12.1"'
 expect "host-check --json is valid and carries the versions" $?
 
 # ── 8. the runner of a model: loaded beats declared, declared is labelled ────

@@ -33,7 +33,7 @@ npm run test:deployment
 - Prefer `RE_REGISTRY_URL` for Manager, Machines, and CI e2e tests.
 - **The universe model is `nemotron-3-nano:4b-mlx`**, the MLX build of NVIDIA
   Nemotron 3 Nano 4B from the Ollama library (`ollama pull
-  nemotron-3-nano:4b-mlx`, Ollama 0.40.5+). The plain `:4b` tag is the GGUF
+  nemotron-3-nano:4b-mlx`; the stack needs Ollama 0.40.13+). The plain `:4b` tag is the GGUF
   build and runs on llama.cpp, so it breaks the MLX owner rule (#593). The local
   lane pins it through `OLLAMA_MODEL`, and `localAIStack`, the native OpenClaw
   gateway and the release bundle default to it. It calls tools and has a 256K

@@ -4,7 +4,7 @@
   "milestone": "release-v0.0.1-rc3",
   "node": { "exact": "26.12.1" },
   "ollama": {
-    "min": "0.40.5",
+    "min": "0.40.13",
     "latest_from": "https://api.github.com/repos/ollama/ollama/releases/latest"
   },
   "openclaw": {
@@ -13,5 +13,5 @@
     "required": true
   },
   "models": { "defaults_run_on": "mlx" },
-  "notes": "ollama.min is the first release that runs MLX-supported models on MLX. The OpenClaw gateway runs natively (RealityEngine_CI#592), so a missing OpenClaw, or one on a Node other than node.exact, fails install. The constants in release/realityengine are checked against this file by scripts/tests/test-host-preflight.sh."
+  "notes": "ollama.min is the floor the stack needs (0.40.13, owner 2026-11-01); hosts follow the current release from latest_from and are never pinned (RealityEngine_CI#663). MLX-supported models run on MLX from 0.40.0, and the MLX build of the universe model from 0.40.5. The OpenClaw gateway runs natively (RealityEngine_CI#592), so a missing OpenClaw, or one on a Node other than node.exact, fails install. The constants in release/realityengine are checked against this file by scripts/tests/test-host-preflight.sh."
 }
