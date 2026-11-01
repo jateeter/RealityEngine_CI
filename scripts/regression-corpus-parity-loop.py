@@ -540,17 +540,55 @@ def longest_sequence(instances: list[dict[str, Any]]) -> int:
     return longest
 
 
-def push(instance: dict[str, Any], steps: int, window_ms: int) -> list[str]:
+def _engine_reported_ms(payload: Any) -> dict[str, float]:
+    """Numeric duration fields the push response reports about itself, if any.
+
+    Runtimes differ in what they report, so this takes whatever `*ms*` /
+    `*duration*` numbers sit at the top of the response or under `step`
+    rather than naming one runtime's field.
+    """
+    found: dict[str, float] = {}
+    if not isinstance(payload, dict):
+        return found
+    for prefix, block in (("", payload), ("step.", payload.get("step"))):
+        if not isinstance(block, dict):
+            continue
+        for key, value in block.items():
+            low = key.lower()
+            if (isinstance(value, (int, float)) and not isinstance(value, bool)
+                    and ("ms" in low or "duration" in low or "elapsed" in low)
+                    and "timeout" not in low):
+                found[prefix + key] = float(value)
+    return found
+
+
+def push(instance: dict[str, Any], steps: int, window_ms: int,
+         breakdown: dict[str, Any] | None = None) -> list[str]:
     """Advance every active source `steps` times, reading each step at its
     completion point (RealityEngine_CI#375).
 
     No sensor writes: the interned test sources carry the stimulus and advance
     themselves one vector per push, so a push is the whole step.
+
+    `breakdown`, when given, receives where the step loop spent its time on
+    this runtime: `push` is POST PE /api/push (PE assembly over the active
+    sources plus the RE step it drives), `pair` is the wait on
+    GET RE /api/engine/steps/:n/pair for that step's completion point, and
+    `engineReported` sums any duration the push response states about itself.
     """
     failures = []
     observer = TP.StepObserver(TP.get_json, instance["re"], window_ms)
+    bd = breakdown if breakdown is not None else {}
+    bd.update({"steps": 0, "push": 0.0, "pushMax": 0.0, "pair": 0.0, "pairMax": 0.0,
+               "engineReported": {}})
     for index in range(steps):
+        _p0 = time.perf_counter()
         status, payload = TP.post_json(f"{instance['pe']}/api/push", {"compact": True})
+        _p1 = time.perf_counter()
+        bd["push"] += _p1 - _p0
+        bd["pushMax"] = max(bd["pushMax"], _p1 - _p0)
+        for key, ms in _engine_reported_ms(payload).items():
+            bd["engineReported"][key] = bd["engineReported"].get(key, 0.0) + ms
         if status != 200:
             failures.append(f"{instance['id']}: push {index} failed (status {status})")
             break
@@ -559,6 +597,14 @@ def push(instance: dict[str, Any], steps: int, window_ms: int) -> list[str]:
         except (TP.StepNotResolved, TP.StepNotRetained, RuntimeError) as exc:
             failures.append(f"{instance['id']}: push {index}: {exc}")
             break
+        finally:
+            _p2 = time.perf_counter()
+            bd["pair"] += _p2 - _p1
+            bd["pairMax"] = max(bd["pairMax"], _p2 - _p1)
+            bd["steps"] += 1
+    for key in ("push", "pushMax", "pair", "pairMax"):
+        bd[key] = round(bd[key], 4)
+    bd["engineReported"] = {k: round(v, 2) for k, v in bd["engineReported"].items()}
     failures.extend(f"{instance['id']}: {v}" for v in observer.violations)
     return failures
 
@@ -769,8 +815,11 @@ def run_iteration(instances: list[dict[str, Any]], machines_root: Path, rel: str
     record["timings"]["longestSequenceProbe"] = round(time.time() - _t0, 2)
     record["steps"] = steps
     _t0 = time.time()
+    record["stepBreakdown"] = {}
     for instance in instances:
-        record["health"]["failures"].extend(push(instance, steps, args.step_window_ms))
+        bd: dict[str, Any] = {}
+        record["health"]["failures"].extend(push(instance, steps, args.step_window_ms, bd))
+        record["stepBreakdown"][instance["id"]] = bd
     _elapsed = time.time() - _t0
     record["timings"]["stepCycle"] = round(_elapsed, 2)
     # Per step per runtime — the number that stays comparable as the step count
@@ -982,6 +1031,15 @@ def main() -> int:
                 print(f"          {tm.get('total', 0)}s total — {parts} "
                       f"[{record.get('steps', 0)} steps, "
                       f"{tm.get('perStepPerRuntime', 0)}s/step/runtime]")
+                # Inside stepCycle, per runtime: PE push (assembly + RE step)
+                # against the wait for the step's pair at its completion point.
+                for iid, bd in (record.get("stepBreakdown") or {}).items():
+                    n = max(bd.get("steps", 0), 1)
+                    eng = " ".join(f"{k}={v}ms" for k, v in bd.get("engineReported", {}).items())
+                    print(f"          step {iid}: push={bd['push']}s "
+                          f"({bd['push'] / n * 1000:.0f}ms/step, max {bd['pushMax'] * 1000:.0f}) "
+                          f"pair={bd['pair']}s ({bd['pair'] / n * 1000:.0f}ms/step, "
+                          f"max {bd['pairMax'] * 1000:.0f})" + (f" engine: {eng}" if eng else ""))
             for failures in (record["loadParity"]["failures"],
                              record["guardrail"]["failures"],
                              record["capacity"]["failures"],
