@@ -210,6 +210,42 @@ agreed on every stage, so each row is Rust alone:
 | export | unsupported | `GET /api/machines/:id/export` answers the ruled 501 |
 | engine-config | differs | seven of the eight universal controls are absent (Rust#11, #12) |
 
+Second live result (2026-11-01), with `rust-1` a full RE+PE pair. The voters
+were cpp-1, lsp-1 and scala-1, a native universe built from current main on
+the regression corpus plus the IFRS domain (269 machines, 225 of them IFRS) at
+width 16960. Each row is Rust alone where the voters agreed:
+
+| stage | rust-1 | why |
+|---|---|---|
+| machine-set | agrees | |
+| engine-process | agrees | |
+| export | not-compared | the voters split: Scala drops an explicit `comparatorType: "equals"` from IFRS sequence elements on export |
+| engine-config | agrees | |
+| arbitration-retention | agrees | |
+| trajectory | agrees | after Rust#67: the chain folds now read cells as chain members (C++ `mv_value`), where Rust had folded raw floats, so `join` of a lone 0.5 presented 0.5 instead of 1 |
+| pe-step-contract | agrees | |
+| reset-contract | agrees | |
+
+Run the same way, outside the runner, with the voters' PE environment given to
+`rust-1`: `escalation-dispatch` (31 steps, 21 RED escalations on every
+runtime), `arbiter` and `verify-metrics-parity.sh` agree. `test-mqtt-yuma.sh`
+passed 4 of 4 on `rust-1` and `cpp-1` against the live broker. Not exercised:
+the HealthKit bridge (it needs a device) and the OpenClaw e2e (it targets the
+active engine, not an instance).
+
+Found on the way:
+- **The localAI slice** was missing from `rust-1` (#694, now in the runner).
+- **The runner starts `rust-1`'s PE without the voters' PE environment:**
+  `TRIGGERS_ENABLED`, `INTEGRATIONS_CONFIG`, the `ACP_*` settings, and the
+  HealthKit token. None of the eight stages reads them, but escalation dispatch
+  and metrics do.
+- **Every PE connects to the MQTT broker as `reality-engine-pe`.** On a real
+  broker each new connection evicts the last, so two enabled bridges flap: 81
+  reconnects on cpp-1 during the run.
+- **A visualizer left open on the universe moves the voters.** Its Load
+  Machines action loads into the active engine only, and its Play button
+  auto-pushes it, which split the voters until both were undone.
+
 Until Rust had a PE (Rust#20), its registry entry declared `pe_participation:
 "unsupported"` and `reset_contract` reset only its RE half. Since 2026-11-01 it
 carries `rust-1`'s `pe_url` and is reset as a pair. The declaration stays
