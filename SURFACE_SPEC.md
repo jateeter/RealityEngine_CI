@@ -2317,6 +2317,28 @@ observed at the next reset — makes it inactive again.
 | POST | `/api/integrations/localai/invoke` | ✓ | ✓ | ✓ |
 | GET | `/api/integrations/localai/ledger` | ✓ | ✓ | ✓ |
 
+#### The OpenAI route's provider is the local LLM *(owner ruling, 2026-11-01)*
+
+`GET /api/integrations/openai/status` and `POST /api/integrations/openai/dispatch`
+speak the OpenAI Responses API, to the engine's **local** LLM, never to OpenAI by
+default. Each engine is attached to its own LLM in localAIStack. Today that is
+the native Ollama every engine shares.
+
+- **Default base URL `http://localhost:11434/v1`**: localAIStack's Ollama, which
+  serves the OpenAI-compatible `/v1/responses` and `/v1/models`. **Default model:**
+  the universe model, `nemotron-3-nano:4b-mlx`.
+- **The overrides are unchanged:** `OPENAI_BASE_URL` and `OPENAI_MODEL`, and the
+  `openai` integration's `baseUrl` and `model` in `INTEGRATIONS_CONFIG`.
+  `config/integrations.example.json` names the same local endpoint.
+- **The API key is optional.** With `OPENAI_API_KEY` set, it is sent as
+  `Authorization: Bearer <key>`. Its absence is not an error: dispatch proceeds,
+  and status asks `{baseUrl}/models` either way. The local LLM ignores the key.
+- **No engine, test or gate sends a request to a cloud provider by default.** A
+  deployment that wants one names it explicitly.
+
+Before this ruling, every engine defaulted to `https://api.openai.com/v1` with
+model `gpt-5`, and refused both routes without a key.
+
 #### localAI invoke contract *(settled 2026-09-23, 3-of-3)*
 
 Settled under `docs/INTEGRATION_ROADMAP.md` §6 Q7 (with Q1), and closes
