@@ -86,8 +86,8 @@
       "id": "openai-agents",
       "kind": "openai",
       "enabled": false,
-      "baseUrl": "https://api.openai.com/v1",
-      "model": "gpt-5",
+      "baseUrl": "http://localhost:11434/v1",
+      "model": "nemotron-3-nano:4b-mlx",
       "completionSourceMappingId": "agent-completion-risk",
       "triggerRulesFile": "config/agent-triggers.example.json",
       "mcp": {
