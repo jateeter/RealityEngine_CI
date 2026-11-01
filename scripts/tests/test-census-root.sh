@@ -43,6 +43,18 @@ echo '{"sequences": [{"vectors": []}]}' > "$TMP/full/RealityEngine_CPP/fixture.j
 set +e; python3 "$CENSUS" --root "$TMP/full" >"$TMP/out" 2>&1; rc=$?; set -e
 check "$rc" 1 "a legacy key under --root is still a failure"
 
+# Factory schema copies reject legacy keys too; their location is not an
+# exemption. A positive legacy property in the same file must still fail.
+echo '{"events": []}' > "$TMP/full/RealityEngine_CPP/fixture.json"
+mkdir -p "$TMP/full/RealityEngine_Machines/machine_factory/example/schemas"
+schema="$TMP/full/RealityEngine_Machines/machine_factory/example/schemas/machine.schema.json"
+echo '{"$schema":"https://json-schema.org/draft/2020-12/schema","not":{"required":["vectors"]}}' > "$schema"
+set +e; python3 "$CENSUS" --root "$TMP/full" >"$TMP/out" 2>&1; rc=$?; set -e
+check "$rc" 0 "a copied schema prohibition is recognized structurally"
+echo '{"$schema":"https://json-schema.org/draft/2020-12/schema","properties":{"vectors":{"type":"array"}},"not":{"required":["vectors"]}}' > "$schema"
+set +e; python3 "$CENSUS" --root "$TMP/full" >"$TMP/out" 2>&1; rc=$?; set -e
+check "$rc" 1 "a copied schema that positively uses a legacy key still fails"
+
 # The default root is the directory containing this repository.
 check "$(python3 -c "import importlib.util as u; s=u.spec_from_file_location('c','$CENSUS'); m=u.module_from_spec(s); s.loader.exec_module(m); print(m.ROOT)")" \
       "$(cd "$CI_DIR/.." && pwd -P)" "the default root is the parent of RealityEngine_CI"

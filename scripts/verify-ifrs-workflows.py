@@ -44,6 +44,7 @@ def main():
     parser.add_argument("--live-model", action="store_true")
     parser.add_argument("--openclaw-bin", type=Path, help="Installed OpenClaw entrypoint; execute a private gateway/tool proof")
     parser.add_argument("--index-state", type=Path, help="Persistent private parent for evidence/ and qdrant/; reuse vectors, never model answers")
+    parser.add_argument("--native-observations", type=Path, help="Hash-verified three-runtime capture; creates assessment tasks, never accounting fact changes")
     args = parser.parse_args()
     out = args.output.resolve()
     out.mkdir(parents=True, exist_ok=False)
@@ -315,6 +316,41 @@ def main():
             assert reported["revision"]["content"]["typedProducerReceipt"]["caseId"] == "SYNTHETIC-REPORTING-DIVIDEND"
             assert reported["revision"]["content"]["advisoryDetermination"]["unrecognisedProposedDeclaredAmount"] == "1000.00"
             write(out / "gateway-reporting-artifact.json", reported)
+        if args.native_observations:
+            capture_spec = spec_from_file_location("ifrs_native_capture", Path(__file__).with_name("capture-ifrs-native-observations.py"))
+            capture = module_from_spec(capture_spec); capture_spec.loader.exec_module(capture)
+            native = capture.validate_bundle(args.native_observations, args.machines / "machines/domains/ifrs-accounting")
+            heads_before = {aid: command("inspect", {"assetTypeId": aid}, actor(aid))["head"] for aid in catalog}
+            native_receipts, native_tasks = [], {}
+            for observed in native["observations"]:
+                principal = next(p for p in principals if p.get("machineId") == observed["machineId"])
+                envelope = {k: observed[k] for k in ["machineId", "sequenceId", "outputVector", "providerRef"]}
+                dispatch = str(uuid.uuid4())
+                result = command("observe", {"observation": envelope}, principal, dispatch=dispatch)
+                assert result == command("observe", {"observation": envelope}, principal, dispatch=dispatch)
+                assert result["nativeWrites"] == 0 and result["result"]
+                for task in result["result"]:
+                    assert task["action"] == "ASSESS_DOCUMENT_IMPACT" and task["noAutoRelease"]
+                    assert task["requestedByMachine"] == observed["machineId"]
+                    assert task["ownerName"] == catalog[task["assetTypeId"]]["ownerName"]
+                    native_tasks[task["taskId"]] = task
+                native_receipts.append(result)
+            assert heads_before == {aid: command("inspect", {"assetTypeId": aid}, actor(aid))["head"] for aid in catalog}, "Native observation changed document heads"
+            write(out / "native-observation-handoffs.json", native_receipts)
+            receipt["phases"]["nativeObservationHandoff"] = dict(result="PASS", machines=len(native["machineSHA256"]), observations=len(native_receipts), tasks=len(native_tasks), nativeWrites=0, documentHeads="UNCHANGED", approvalContext="TEST_ONLY", independentApproval=False, rawSHA256=native["rawSHA256"], bundleSHA256=hashlib.sha256(args.native_observations.read_bytes()).hexdigest())
+            if args.openclaw_bin:
+                native_worker_results = []
+                for aid, target_agent in [("ELIGIBILITY-MEMO", agent_id), ("DIVIDEND-REGISTER", reporting_agent_id)]:
+                    selected = {tid for tid, task in native_tasks.items() if task["assetTypeId"] == aid and task["requestedByMachine"] == actor(aid)["machineId"]}
+                    assert selected, "Native owner assessment task missing"
+                    route = {"agentId": target_agent, "token": actor(aid)["token"]}
+                    if aid == "DIVIDEND-REGISTER": route["caseId"] = "SYNTHETIC-REPORTING-DIVIDEND"
+                    result = worker.dispatch_once(dict(stateDirectory=str(runtime / ("native-worker-" + aid)), documentURL=doc_url, gatewayURL=gateway_url, gatewayToken=gateway_token, operatorToken=principals[0]["token"], context=context, assetRoutes={aid: route}), limit=1, task_ids=selected)
+                    assert result["attempts"] and result["attempts"][0]["taskId"] in selected
+                    assert result["attempts"][0]["status"] == "ASSESSMENT_REQUIRES_CANONICAL_DISPOSITION"
+                    native_worker_results.append(result)
+                write(out / "native-agent-rag-assessments.json", native_worker_results)
+                receipt["phases"]["nativeAgentRagAssessments"] = dict(result="PASS_HANDOFF_ASSESSMENTS_REMAIN_OPEN", cases=2, automaticApproval=False, nativeWrites=0)
         wrong = client.post("/tools/execute", headers={"Authorization": "Bearer " + actor("SOURCE-REGISTER")["token"]}, json=dict(dispatchId="self-approve", operation="approve", context=context, arguments={}))
         assert wrong.status_code == 403
         revised = command("draft", dict(assetTypeId="SOURCE-REGISTER", content={**source_content, "sourceGaps": source_content["sourceGaps"] + ["synthetic source-update event"]}, evidenceRefs=["synthetic:new-source-review"], expectedRevision=1, changeReason="synthetic upstream maintenance"), actor("SOURCE-REGISTER"))

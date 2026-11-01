@@ -673,6 +673,10 @@ jobs:
         working-directory: RealityEngine_CI
         run: bash scripts/tests/test-machine-set-parity.sh
 
+      - name: Run native IFRS evidence integrity tests
+        working-directory: RealityEngine_CI
+        run: python3 scripts/tests/test-ifrs-native-observations.py
+
       # The generators' own drift checks. Four offered --check and nothing
       # invoked any of them (#352) — a check that exists and never runs is
       # indistinguishable from one that passes. It cost the aihr-healthy ->

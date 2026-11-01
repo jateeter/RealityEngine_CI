@@ -40,6 +40,7 @@ staleness of the regression agents is `materialize_agents.py --check`'s job
 from __future__ import annotations
 
 import argparse
+import importlib.util
 import json
 import re
 import sys
@@ -105,6 +106,21 @@ def main() -> int:
                         help="fail unless provenance.corpus.digest is the corpus's current fingerprint")
     args = parser.parse_args()
 
+    expected = dict(machines=EXPECTED_MACHINES, domains=EXPECTED_DOMAINS, agents=EXPECTED_AGENTS,
+                    agentBindings=EXPECTED_AGENT_BINDINGS, projections=EXPECTED_PROJECTIONS)
+    transition = args.machines / 'domains/corpus-contract.json'
+    if transition.exists():
+        helper = args.machines / 'scripts/corpus_contract.py'
+        try:
+            spec = importlib.util.spec_from_file_location('admission_corpus_contract', helper)
+            module = importlib.util.module_from_spec(spec); spec.loader.exec_module(module)
+            contract = module.validate(args.machines.resolve())
+            expected = contract['counts']
+            print(f"  ok   versioned corpus transition {module.sha(contract)} ({contract.get('approvalContext', 'PUBLISHED_BASELINE')}; inventory only, no domain approval)")
+        except (OSError, ValueError, KeyError, TypeError, ImportError) as exc:
+            print(f'exit-criteria: FAIL corpus transition: {exc}', file=sys.stderr)
+            return 1
+
     domains_dir = args.machines / "machines" / "domains"
     if not domains_dir.is_dir():
         print(f"exit-criteria: FAIL no corpus at {domains_dir}", file=sys.stderr)
@@ -120,10 +136,10 @@ def main() -> int:
     # ---- §3.1 corpus shape ----------------------------------------------
     machine_paths = sorted(domains_dir.glob("*/*.json"))
     domains = {path.parent.name for path in machine_paths}
-    check(len(machine_paths) == EXPECTED_MACHINES, "§3.1 machine count",
-          f"{len(machine_paths)} (expected {EXPECTED_MACHINES})")
-    check(len(domains) == EXPECTED_DOMAINS, "§3.1 domain count",
-          f"{len(domains)} (expected {EXPECTED_DOMAINS})")
+    check(len(machine_paths) == expected['machines'], "§3.1 machine count",
+          f"{len(machine_paths)} (expected {expected['machines']})")
+    check(len(domains) == expected['domains'], "§3.1 domain count",
+          f"{len(domains)} (expected {expected['domains']})")
 
     # ---- §3.2 identity ---------------------------------------------------
     by_name: dict[str, str] = {}
@@ -153,17 +169,20 @@ def main() -> int:
           f"{len(by_name)} distinct names for {len(machine_paths)} machines")
 
     # ---- §3.3 / §3.4 corpus-side counts ----------------------------------
-    check(binding_count == EXPECTED_AGENT_BINDINGS, "§3.3 agentBinding count",
-          f"{binding_count} (expected {EXPECTED_AGENT_BINDINGS})")
-    check(projection_count == EXPECTED_PROJECTIONS, "§3.3 openClawProjection count",
-          f"{projection_count} (expected {EXPECTED_PROJECTIONS})")
+    check(binding_count == expected['agentBindings'], "§3.3 agentBinding count",
+          f"{binding_count} (expected {expected['agentBindings']})")
+    check(projection_count == expected['projections'], "§3.3 openClawProjection count",
+          f"{projection_count} (expected {expected['projections']})")
     check(not observe_with_writeback, "§3.4 observe bindings are egress-only",
           f"{len(observe_with_writeback)} with a write-back: {observe_with_writeback[:3]}")
 
     # ---- cross-repo: only when the agent corpus is present ----------------
     agents_dir = args.openclaw / "machine-behaviors" / "agents" if args.openclaw else None
     if not agents_dir or not agents_dir.is_dir():
-        print("  skip  §3.3/§3.7 agent corpus — localOpenClawStack not checked out")
+        if args.require_current_digest:
+            check(False, '§3.7(4) current dependent provenance required', 'localOpenClawStack agent corpus is absent')
+        else:
+            print("  skip  §3.3/§3.7 agent corpus — localOpenClawStack not checked out")
     else:
         specs = sorted(agents_dir.glob("*/*.oc-agent.json"))
         agent_axes: dict[str, list] = {}
@@ -181,8 +200,8 @@ def main() -> int:
             if write_back.get("semantics"):
                 agent_axes[key] = list(write_back["semantics"])
 
-        check(len(specs) == EXPECTED_AGENTS, "§3.3 agent spec count",
-              f"{len(specs)} (expected {EXPECTED_AGENTS})")
+        check(len(specs) == expected['agents'], "§3.3 agent spec count",
+              f"{len(specs)} (expected {expected['agents']})")
         check(not orphans, "§3.2 every agent joins a machine",
               f"{len(orphans)} orphans: {orphans[:3]}")
         uncovered = {path.stem for path in machine_paths} - joined
