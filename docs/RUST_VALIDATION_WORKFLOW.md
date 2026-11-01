@@ -15,7 +15,7 @@ non-voting conformance follower, is CI#607.
 |---|---|---|---|---|
 | **R0** static | `cargo fmt --check`, `clippy -D warnings`, unit tests, release build, toolchain pin | hosted, `RealityEngine_Rust/.github/workflows/validate.yml` | the Rust checkout | it builds, lints and its unit tests pass |
 | **R1** conformance | the regression corpus, vendored, replayed through the HTTP router against what the corpus declares; and every route `SURFACE_SPEC.md` defines, probed for its implementation status | hosted, same workflow | the Rust checkout | Rust conforms to the corpus snapshot it carries, and the implementation status of every specified route is known |
-| **R2** follower | Rust beside a live 3-of-3 universe as a non-voting extra runtime: the RE-only parity stages, plus the corpus declarations held against the three engines | local, `scripts/validate.sh r2` → `RealityEngine_CI/scripts/rust-conformance.sh` | sibling checkouts, a universe | Rust agrees with the voters on what it implements |
+| **R2** follower | Rust beside a live 3-of-3 universe as a non-voting extra RE+PE pair: the RE parity stages, the stages that push through each PE, plus the corpus declarations held against the three engines | local, `scripts/validate.sh r2` → `RealityEngine_CI/scripts/rust-conformance.sh` | sibling checkouts, a universe | Rust agrees with the voters on what it implements |
 | **R3** full suite | `scripts/regression-test.sh` with Rust registered as a follower | local, from `RealityEngine_CI` | the whole workspace | the release candidate, Rust included, end to end |
 
 Every tier reports availability, contract conformance and parity separately,
@@ -27,7 +27,7 @@ as the e2e rules require. A tier that could not run reports **unavailable**
 | tier | when | rough cost |
 |---|---|---|
 | R0 + R1 | every push and pull request on `RealityEngine_Rust` | ~2 min hosted; R1 itself is under a second |
-| R2 | each phase exit of the repair plan (Rust#2), any Rust change to engine-visible behaviour before it is relied on, and weekly while Rust is under active development | a universe boot plus the RE-only stages |
+| R2 | each phase exit of the repair plan (Rust#2), any Rust change to engine-visible behaviour before it is relied on, and weekly while Rust is under active development | a universe boot plus the follower lane's eight stages |
 | R3 | each release candidate that carries Rust (release-v0.0.2 and later), and monthly otherwise | a full regression run |
 
 R3 is deliberately **not** on the 09:17 daily regression cron, and nothing about
@@ -144,8 +144,8 @@ sequences (#678). A Rust build with the retired numeric `gte` fails with 2289
 different. Found along the way: RealityEngine_Scala#200, where the
 single-machine route fails beyond the 7680 seed.
 
-Not yet compared: `POST /api/engine/process` (the universal path), the PE (Rust
-has none), and the parity stages below.
+Not compared by the differential: `POST /api/engine/process` (the universal
+path) and the PE. The follower lane below covers both.
 
 ### Built: the follower lane (CI#607, 2026-10-31)
 
@@ -163,11 +163,17 @@ has none), and the parity stages below.
   `verify-build-provenance.py --repos rust`. `rust` is an opt-in target there,
   so the certifying run never checks it. The runner then starts `rust-1` on
   5801 beside the universe, on the corpus the universe booted and at the width
-  the voters report. Its UUID is allocated as `native/rust-1`. It writes its own
-  instance data, the universe's plus `rust-1` as a follower, and never touches
-  the universe's instance registry.
+  the voters report. Its UUID is allocated as `native/rust-1`. Once the RE
+  answers, the runner starts `rust-1`'s PE on 5800 (`--pe-port`) driving that
+  RE; it interns the RE's machines as it boots unless `PE_SOURCE_BOOTSTRAP`
+  says not to. It writes its own instance data, the universe's plus `rust-1` as
+  a follower with both URLs, and never touches the universe's instance registry.
 - **One verdict per stage.** The runner covers `machine-set`, `engine-process`,
-  `export`, `engine-config --no-step` and `arbitration-retention`, and runs each
+  `export`, `engine-config --no-step` and `arbitration-retention`, and the three
+  stages that push through each instance's PE: `trajectory`
+  (`regression-trajectory-parity.py`), `pe-step-contract` and `reset-contract`
+  (`--skip-trajectory`), each invoked as `regression-test.sh` invokes it. An
+  essential route marked `pe:` is probed on `rust-1`'s PE. It runs each
   stage twice: the voters
   alone, then the voters with Rust as one more instance. The stage's own
   comparison decides both runs.
@@ -194,9 +200,11 @@ agreed on every stage, so each row is Rust alone:
 | export | unsupported | `GET /api/machines/:id/export` answers the ruled 501 |
 | engine-config | differs | seven of the eight universal controls are absent (Rust#11, #12) |
 
-A follower has no PE, so its registry entry declares `pe_participation:
-"unsupported"`, and `reset_contract` resets only its RE half. An undeclared
-missing PE is still a failed reset.
+Until Rust had a PE (Rust#20), its registry entry declared `pe_participation:
+"unsupported"` and `reset_contract` reset only its RE half. Since 2026-11-01 it
+carries `rust-1`'s `pe_url` and is reset as a pair. The declaration stays
+supported for any follower without a PE; an undeclared missing PE is still a
+failed reset.
 
 `arbitration-retention` joined the lane on 2026-11-01, when Rust gained
 `GET /api/arbitration` (Rust#12). The stage resets each instance itself, so it
@@ -206,11 +214,16 @@ C++'s. Against standalone C++ on the regression corpus, with Rust as a follower
 in the joint registry, the stage passes 2 of 2 with the retained bodies
 byte-identical. The lane has not yet run it against a live universe.
 
-**Stages a follower cannot join yet.** `regression-trajectory-parity.py`,
-`regression-corpus-parity-loop.py` and `regression-arbiter.py` drive their steps
-through each instance's PE (`/api/push`, PE sources). A follower with no PE has
-nothing to drive, so these wait for the Rust PE (Rust#17, #20). Rust#11's and
-#12's acceptance criteria name them.
+**The PE stages joined on 2026-11-01**, when Rust gained a PE that drives its RE
+(Rust#46, #48, #50, #52). Against two standalone C++ RE+PE pairs on the
+regression corpus as the voters, the lane reports all eight stages `agrees`; the
+joint runs compare three runtimes, `rust-1`'s PE among them (trajectory over 31
+steps). The lane has not yet run them against a live universe.
+
+**Stages a follower cannot join yet.** `regression-corpus-parity-loop.py` (its
+own universe lifecycle) and `regression-arbiter.py` (whose 9b reads the PE's
+fold record through sensors the Rust PE now serves, but has not been run with
+it) are not in the lane. Rust#11's and #12's acceptance criteria name them.
 
 Still to build:
 
