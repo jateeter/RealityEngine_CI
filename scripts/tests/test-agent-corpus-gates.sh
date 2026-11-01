@@ -68,6 +68,8 @@ PY
   check "$(gate "$TMP/stale.json")" 0 "a stale digest passes without --require-current-digest (per-run is item 2's job)"
   check "$(gate "$TMP/stale.json" --require-current-digest)" 1 "a stale digest fails with --require-current-digest"
   check "$(grep -c 'FAIL §3.7(4) provenance names the current corpus' "$TMP/out")" 1 "and says which corpus it names"
+  check "$(gate "$INDEX" --openclaw "$TMP/missing-dependent" --require-current-digest)" 1 \
+    "current-digest admission fails when the dependent agent corpus is absent"
   rc=$(gate "$INDEX" --require-current-digest)
   if [ "$rc" = 0 ]; then
     check "$rc" 0 "the committed index names the current corpus"
