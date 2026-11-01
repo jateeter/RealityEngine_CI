@@ -1,39 +1,19 @@
-# IFRS extension versus the published corpus exit contract
+# Corpus growth reconciliation in domain approval
 
-The native-observation integration passes local measured testing, but its
-hosted corpus-exit job is blocked by a published-contract mismatch. This is
-not a native parity failure or an accounting acceptance decision.
+Corpus growth is expected during admission. The gate verifies the published baseline plus the exact declared domain delta. This applies to additions, updates and removals.
 
-`RealityEngine_Machines/docs/CORPUS_EXIT_CRITERIA.md` pins its settled numbers
-to `corpus-exit-v2.0` and requires a new major revision for settled changes.
-`scripts/check-corpus-exit-criteria.py` enforces those numbers. The hosted job
-checks current Machines and OpenClaw main, which already include the IFRS
-extension, against that older published baseline.
+Machines owns `scripts/corpus_contract.py`, the current transition at `domains/corpus-contract.json`, and immutable predecessor snapshots under `domains/corpus-contracts/`. The Bash approval entrypoint exposes `reconcile-counts` (dry run by default, `--write` to stage). Production `prepare` executes reconciliation before generators, binds its hash in the Git ledger, and runs the dependent corpus-count gate with current-digest verification.
 
-| Check | Published v2.0 | Current measured corpus | Difference |
+The CI count gate validates complete transition history, declared changes, current file hashes and manifest counts before accepting resulting totals. Without a transition it retains the published baseline. Agent joins, fixture exclusions, axes, egress-only bindings and provenance checks remain enabled. Counts do not refresh CES or semantic shards, close accounting findings, or approve domains.
+
+| Measure | Verified baseline | IFRS delta | Result |
 | --- | ---: | ---: | ---: |
-| Machines | 1,327 | 1,552 | +225 IFRS machines |
-| Domains | 12 | 13 | +1 experimental IFRS domain |
-| Agent specs | 1,322 | 1,547 | +225 IFRS agent specs |
-| Native agent bindings | 1,058 | 1,058 | 0 |
-| OpenClaw projections | 1,184 | 1,184 | 0 |
-| Intentionally agent-free arbitration fixtures | 5 | 5 | 0 |
+| Machines | 1,327 | +225 | 1,552 |
+| Domains | 12 | +1 | 13 |
+| Agent specs | 1,322 | +225 | 1,547 |
+| Native agent bindings | 1,058 | 0 | 1,058 |
+| OpenClaw projections | 1,184 | 0 | 1,184 |
 
-The same job confirms unique machine names, zero orphan agents, exact
-arbitration-fixture exclusions, zero axis mismatches, and egress-only observe
-bindings. These checks remain enabled. The three count assertions remain
-failing rather than silently accepting larger limits.
+The baseline is Machines commit `1baddcbaa1a52c6abca884ac4cdbf26dfe85f90a`. All 1,327 baseline file hashes remain unchanged; the transition contains exactly 225 added IFRS files. It retains TEST_ONLY and productionApproval=false. Existing dependent agent provenance already names the current corpus digest and is reverified without artificial churn.
 
-Before merge, reconcile the published contract and the gate's input scope in
-a reviewed change: either publish a new corpus contract with remeasured settled
-criteria and regenerate dependent provenance against its pinned ref, or define
-and test an explicit experimental-domain overlay while retaining every v2.0
-baseline assertion. Neither approach should mark IFRS production-accepted or
-treat its test-only signoff waiver as a production release decision.
-
-Evidence: RealityEngine_CI workflow run `41347964828`, PR #690. The independent
-native/connected evidence is recorded in Machines PR #234. The legacy-key
-census failure from that run was separately corrected: factory-schema names
-used exclusively in exact `not/required` prohibitions are rejection guards,
-not active legacy keys. Positive legacy properties in the same schema still
-fail the census, verified by regression tests.
+The complete sequence for affected machine registries, semantic shards, review, tags, Git ledger and Manager loading is in `RealityEngine_Machines/docs/DOMAIN_APPROVAL_WORKFLOW.md`. Machines PR #234 supplies the companion helper/artifacts; CI PR #690 consumes them. The first hosted failure in run `41347964828` is retained as historical evidence. The reconciled gate passes locally; hosted verification requires the companion Machines changes.
