@@ -30,6 +30,42 @@ REPOS = [
 
 # The four keys layer 1 renames, as they appear in source.
 KEYS = ["outputVectorIds", "outputVectors", "nextVectorIds", "vectors"]
+
+
+def rejection_only_schema(text: str) -> bool:
+    """Recognize schema copies whose legacy names occur only in prohibitions.
+
+    A nested factory schema is not exempt by directory. Every legacy token
+    must belong to an exact not/required or not/anyOf/required prohibition.
+    Positive legacy properties or requirements keep the migration gate red.
+    """
+    try:
+        schema = json.loads(text)
+    except ValueError:
+        return False
+    if not isinstance(schema, dict) or 'json-schema.org' not in str(schema.get('$schema', '')):
+        return False
+    all_names, rejected = [], []
+
+    def walk(node):
+        if isinstance(node, str) and node in KEYS:
+            all_names.append(node)
+        elif isinstance(node, list):
+            for item in node: walk(item)
+        elif isinstance(node, dict):
+            prohibition = node.get('not')
+            if isinstance(prohibition, dict):
+                branches = prohibition.get('anyOf', [prohibition])
+                if isinstance(branches, list):
+                    for branch in branches:
+                        if isinstance(branch, dict) and set(branch) == {'required'}:
+                            required = branch['required']
+                            if isinstance(required, list) and len(required) == 1 and required[0] in KEYS:
+                                rejected.append(required[0])
+            for key, value in node.items():
+                walk(key); walk(value)
+    walk(schema)
+    return bool(all_names) and sorted(all_names) == sorted(rejected)
 # Only key-shaped occurrences: a quoted key, a property access, an object-literal
 # key, or a subscript. A bare identifier named `vectors` is a local variable and
 # has nothing to do with the schema.
@@ -214,9 +250,11 @@ def main(argv: list[str] | None = None) -> int:
             if not KEY_RE.search(text):
                 continue
             rel = str(path.relative_to(base))
+            rejection_schema = path.suffix == '.json' and rejection_only_schema(text)
             for n, line in enumerate(text.splitlines(), 1):
                 if KEY_RE.search(line):
-                    rows.append((repo, rel, n, classify(repo, rel, line), line.strip()[:160]))
+                    verdict = 'GATE: schema rejects the old key' if rejection_schema else classify(repo, rel, line)
+                    rows.append((repo, rel, n, verdict, line.strip()[:160]))
 
     by_class: dict[str, list] = defaultdict(list)
     for r in rows:
