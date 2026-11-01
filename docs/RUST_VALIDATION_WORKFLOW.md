@@ -168,6 +168,16 @@ path) and the PE. The follower lane below covers both.
   RE; it interns the RE's machines as it boots unless `PE_SOURCE_BOOTSTRAP`
   says not to. It writes its own instance data, the universe's plus `rust-1` as
   a follower with both URLs, and never touches the universe's instance registry.
+- **The localAI slice.** localAIStack declares its `localai/*` machines and
+  sensors in every engine its instance registry names, once, from its API's
+  startup hooks. `rust-1` joins later and is in no registry localAI reads, so the
+  runner runs the same hooks, in the same order, inside the `localai_api`
+  container, against an instance registry naming `rust-1` alone. It then interns
+  them on `rust-1`'s PE (`POST /api/sources/bootstrap-from-machines`), as
+  `--pe-source-bootstrap=auto` does for the voters, and prints both slices
+  (machines, and `localai/*` sources of every kind). Without this, the first
+  live run (2026-11-01) reported 18 machines and four stages as Rust
+  differences that were stimulus.
 - **One verdict per stage.** The runner covers `machine-set`, `engine-process`,
   `export`, `engine-config --no-step` and `arbitration-retention`, and the three
   stages that push through each instance's PE: `trajectory`
