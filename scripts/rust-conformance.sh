@@ -179,6 +179,69 @@ if ! $started; then
 fi
 grep -m2 'perception-engine:' "$OUT/rust-1-pe.log" || true
 
+# --- the localAI slice -------------------------------------------------------
+# localAIStack declares its machines and sensors (`localai/*`) in every engine
+# its instance registry names, once, from its API's startup hooks. rust-1 joins
+# after that and is in no registry localAI reads, so without this step the
+# voters hold a slice rust-1 does not, and every stage reports that stimulus as
+# an engine difference. The lane runs the same hooks, in the same order, inside
+# the localAI API container, against an instance registry naming rust-1 alone.
+LOCALAI_CONTAINER="${LOCALAI_CONTAINER:-localai_api}"
+if docker ps --format '{{.Names}}' 2>/dev/null | grep -qx "$LOCALAI_CONTAINER"; then
+  say "localAI slice: registering localAIStack's machines and sensors in rust-1"
+  python3 - "$OUT/localai-follower-registry.json" "$PORT" "$PE_PORT" "$UUID" <<'PY'
+import json, sys
+dst, port, pe_port, uuid = sys.argv[1:]
+host = "http://host.docker.internal"
+json.dump({"instances": [{"id": "rust-1", "runtime": "rust", "role": "follower",
+                          "re_url": f"{host}:{port}", "pe_url": f"{host}:{pe_port}",
+                          "instance_uuid": uuid, "status": "running"}]},
+          open(dst, "w"))
+PY
+  docker cp "$OUT/localai-follower-registry.json" "$LOCALAI_CONTAINER:/tmp/rust-follower-registry.json" >/dev/null
+  # main.py's lifespan sequence (localAIStack services/api/main.py).
+  if ! docker exec -w /app -e RE_REGISTRY_URL=file:///tmp/rust-follower-registry.json \
+      "$LOCALAI_CONTAINER" python -c '
+import json
+from core import reality_bridge as r
+steps = {"sensors": r.register_sensors(), "rag_machine": r.import_machine_if_missing(),
+         "session_machines": r.import_session_machines(), "health_machine": r.import_health_machines(),
+         "carekit_machine": r.import_carekit_machine(), "domain_machines": r.import_domain_machines(),
+         "topology": r.bind_graph_topology()}
+print(json.dumps(steps))
+' > "$OUT/localai-slice.json" 2> "$OUT/localai-slice.log"; then
+    echo "rust-conformance: the localAI registration failed; see $OUT/localai-slice.log" >&2
+  fi
+  # The machines arrived after rust-1's PE interned at boot. Intern them now,
+  # as startUniverse.sh's --pe-source-bootstrap=auto does for the voters, so
+  # each localai/* machine has its test source.
+  curl -sf --max-time 120 -X POST "$RUST_PE_URL/api/sources/bootstrap-from-machines" \
+    -H 'Content-Type: application/json' -d '{}' > "$OUT/localai-bootstrap.json" ||
+    echo "rust-conformance: rust-1's PE bootstrap failed" >&2
+  python3 - "$OUT/universe-registry.json" "$RUST_URL" "$RUST_PE_URL" "$OUT/localai-slice.json" <<'PY'
+import json, sys, urllib.request
+registry, re_url, pe_url, steps = sys.argv[1:]
+def slice_of(re, pe):
+    get = lambda u: json.load(urllib.request.urlopen(u, timeout=30))
+    machines = get(re + "/api/machines")
+    machines = machines.get("machines", machines) if isinstance(machines, dict) else machines
+    sources = get(pe + "/api/sources")["sources"]
+    return (sorted(m["name"] for m in machines if str(m.get("name", "")).startswith("localai/")),
+            sorted((s.get("type"), s.get("name", "")) for s in sources
+                   if str(s.get("name", "")).startswith("localai/")))
+voter = next(i for i in json.load(open(registry))["instances"] if i.get("role") != "follower")
+theirs, ours = slice_of(voter["re_url"], voter["pe_url"]), slice_of(re_url, pe_url)
+# The hooks log to stdout; their results are the last line.
+lines = open(steps).read().strip().splitlines()
+print(f"  steps {lines[-1] if lines else '(none)'}")
+print(f"  {voter['id']}: {len(theirs[0])} machines, {len(theirs[1])} sources; "
+      f"rust-1: {len(ours[0])} machines, {len(ours[1])} sources"
+      + ("" if theirs == ours else " — the slices differ; stages will report it"))
+PY
+else
+  say "localAI slice: no $LOCALAI_CONTAINER container; rust-1 holds no localai/* slice"
+fi
+
 # The lane's own instance data: the universe's, plus rust-1 as a follower.
 python3 - "$OUT/universe-registry.json" "$OUT/follower-registry.json" "$RUST_URL" "$RUST_PE_URL" "$UUID" <<'PY'
 import json, sys
