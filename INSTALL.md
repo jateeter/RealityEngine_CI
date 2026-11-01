@@ -45,7 +45,7 @@ starts both services and loads the suite's configuration and agents into them
 | Memory | 16 GB. Give Docker Desktop at least **8 GB** (Settings → Resources). The default `cpp:1,lsp:1,scala:1` uses about 4 GB when idle, and more under load. Ollama needs about 4 GB of its own for `nemotron-3-nano:4b-mlx` (2.9 GB) |
 | Disk | 30 GB free: the images (about 15 GB), the models (about 4 GB), and the data |
 | Docker | [Docker Desktop](https://www.docker.com/products/docker-desktop/), current release, running. Other container runtimes are not tested |
-| Ollama | The **current public release**, v0.40.5 or later (the MLX build of the model needs it), installed on the Mac and running, with both models pulled: `nemotron-3-nano:4b-mlx`, and localAI's embedding model `embeddinggemma-2:270m`. Both run on MLX |
+| Ollama | The **current public release**, v0.40.13 or later (the minimum the stack needs), installed on the Mac and running, with both models pulled: `nemotron-3-nano:4b-mlx`, and localAI's embedding model `embeddinggemma-2:270m`. Both run on MLX |
 | Node | **Exactly 26.12.1**, the version this release pins for OpenClaw (`release/host-requirements.json`) |
 | OpenClaw | The **current public release**, npm `latest`, installed globally for your user |
 

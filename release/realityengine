@@ -150,7 +150,7 @@ preflight() {
 # release/host-requirements.json (scripts/tests/test-host-preflight.sh keeps them
 # equal; this script ships alone, so it cannot read the file).
 HOST_REQ_NODE=26.12.1
-HOST_REQ_OLLAMA_MIN=0.40.5
+HOST_REQ_OLLAMA_MIN=0.40.13
 HOST_REQ_OPENCLAW_MIN=2026.10.5
 HOST_REQ_OPENCLAW_REQUIRED=true
 HOST_MILESTONE=release-v0.0.1-rc3
