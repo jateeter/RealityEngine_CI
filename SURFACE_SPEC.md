@@ -3257,6 +3257,23 @@ HTTP status: 400 for bad input, 404 for not found, 500 for runtime error, 501 fo
 specified route this runtime does not implement ("An unimplemented route answers
 `unsupported`").
 
+**A request body that is not valid JSON is bad input: `400` with the error
+envelope** (owner ruling, 2026-11-01). It applies to every RE and PE route that
+reads a JSON body: `{nope`, a truncated `[1,` and plain text alike answer
+`400 {"error": "<message>"}`, with `Content-Type: application/json`. The message
+is the runtime's own and is not compared; it names the parse failure and does not
+expose the runtime's internals. A malformed body is never a `500`. The ruling
+concerns a body the route reads. A route that ignores its body (`POST
+/api/reset`) and a check a route makes before it reads the body (`PUT
+/api/mqtt/mappings` without a bridge answers `409`) are unaffected.
+
+Found on 2026-11-01 by sending three malformed bodies to ten PE routes on every
+engine: C++ and LSP answered `500` (their parse error falls through to the
+route's general handler; LSP's message is a Lisp stream or `ECASE` condition),
+Scala answered `400` with akka-http's plain-text rejection rather than the
+envelope, and RealityEngine_Rust answered `400 {"error": "invalid JSON body:
+…"}`. Each RE parses bodies the same way as its PE.
+
 ### Health response
 ```json
 { "status": "healthy", "timestamp": 1748000000000, "version": "x.y.z" }
