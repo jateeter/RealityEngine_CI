@@ -144,6 +144,15 @@ notes are in `docs/CES_CONTRACT_RETIRED_RECORDER.md`.
   of the ~1.1 s; the remainder is PE-side assembly over the active sources and
   wants its own measurement. The fold itself measures 0.028 ms (#256).
 
+  `--quarantine-failures` turns a sweep into a defect walk: each machine that
+  fails, errors, trips the cycle guardrail or exceeds capacity is appended,
+  with its record, its corpus document and what was loaded before it, to
+  `defects-queue.jsonl`; a fail or error is also unloaded from every runtime so
+  the walk continues without it. The walk halts only when an RE or PE half
+  stops answering `/api/health`. Every iteration prints
+  `Machine #<n>: <name>` (1-based corpus position) before it runs, so a tailed
+  log names the machine in flight.
+
 - `regression-reset-contract.py`: the acceptance stage for
   `RealityEngine_CI#163` and `#166`. Registers the corpus-test integration
   (`POST /api/sources/bootstrap-from-machines`), then reads `GET /api/sources`
