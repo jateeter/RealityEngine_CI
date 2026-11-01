@@ -29,6 +29,9 @@
 #   --step-window-ms N      Wait up to N ms for each step's (ISRE, OSRE) pair at its
 #                           completion point (default: 5000; RealityEngine_CI#375)
 #   --stop-on-fail          Halt at the first machine that breaks parity
+#   --quarantine-failures   Queue each machine that fails (with its record and
+#                           context) in defects-queue.jsonl, unload it from every
+#                           runtime and keep walking the corpus
 #   --resume                Reuse the running universe and append to existing
 #                           results, skipping iterations already recorded
 #   --skip-start            Do not start a universe; use the one already running
@@ -91,6 +94,7 @@ START_INDEX=0
 STEPS=0
 STEP_WINDOW_MS=5000
 STOP_ON_FAIL=false
+QUARANTINE=false
 RESUME=false
 SKIP_START=false
 KEEP_UNIVERSE=false
@@ -114,6 +118,7 @@ while [[ $# -gt 0 ]]; do
     --step-window-ms=*) STEP_WINDOW_MS="${1#*=}"; shift ;;
     --step-window-ms)  STEP_WINDOW_MS="$2"; shift 2 ;;
     --stop-on-fail)    STOP_ON_FAIL=true; shift ;;
+    --quarantine-failures) QUARANTINE=true; shift ;;
     --resume)          RESUME=true; SKIP_START=true; shift ;;
     --skip-start)      SKIP_START=true; shift ;;
     --keep-universe)   KEEP_UNIVERSE=true; shift ;;
@@ -377,6 +382,7 @@ LOOP_ARGS=(
   --skip "$SEED_MACHINE"
 )
 [ "$STOP_ON_FAIL" = true ] && LOOP_ARGS+=(--stop-on-fail)
+[ "$QUARANTINE" = true ]   && LOOP_ARGS+=(--quarantine-failures)
 [ "$RESUME" = true ]       && LOOP_ARGS+=(--resume)
 
 LOOP_STATUS=0
@@ -392,6 +398,7 @@ fi
 echo "  Baseline  $BASELINE_DIR/corpus-parity-summary.json"
 echo "  Loop      $LOOP_DIR/corpus-parity-summary.json"
 echo "  Per-machine records  $LOOP_DIR/corpus-parity-loop.jsonl"
+[ "$QUARANTINE" = true ] && echo "  Defects queue        $LOOP_DIR/defects-queue.jsonl"
 echo "============================================================"
 
 exit "$LOOP_STATUS"

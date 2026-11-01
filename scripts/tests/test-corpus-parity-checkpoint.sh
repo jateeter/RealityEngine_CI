@@ -124,6 +124,25 @@ assert_contains "$CMD" "--machine-corpus-manifest=repro.txt" \
 assert_contains "$CMD" "--no-local-ai" \
   "command excludes localAI, as #167's contaminated first attempt requires"
 
+echo "== residency follows what the loop actually loaded =="
+# non-binary and guardrail iterations return before the load; capacity is
+# decided after it; a fail under --quarantine-failures is unloaded at the end of
+# its own iteration and marked `quarantined` in its record.
+python3 - "$TMP/res.jsonl" <<'PYEOF'
+import json, sys
+rows = [(1, "pass", False), (2, "non-binary", False), (3, "guardrail", False),
+        (4, "capacity", False), (5, "fail", True), (6, "fail", False), (7, "pass", False)]
+with open(sys.argv[1], "w") as fh:
+    for i, status, quarantined in rows:
+        rec = {"index": i, "machineFile": f"R{i}.json", "status": status, "mode": "cumulative"}
+        if quarantined:
+            rec["quarantined"] = True
+        fh.write(json.dumps(rec) + "\n")
+PYEOF
+RES="$(python3 "$TOOL" manifest --results "$TMP/res.jsonl" 2>/dev/null | grep -v '^#' | tr '\n' ' ')"
+assert_eq "$RES" "R1.json R4.json R6.json R7.json " \
+  "resident = pass, capacity and unquarantined fail; non-binary, guardrail and quarantined excluded"
+
 echo
 echo "Totals: $PASS passed, $FAIL failed"
 [ "$FAIL" -eq 0 ]

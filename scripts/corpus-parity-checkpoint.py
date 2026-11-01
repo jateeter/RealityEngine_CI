@@ -51,10 +51,13 @@ from pathlib import Path
 import sys
 from typing import Any
 
-# Statuses where the machine was loaded and stayed loaded. A `skipped` iteration
-# never loaded its machine, so including it would manufacture a corpus the run
-# never had — the failure this tool exists to avoid, one level down.
-RESIDENT_STATUSES = {"pass", "fail", "non-binary", "guardrail", "capacity"}
+# Statuses where the machine was loaded and stayed loaded. `skipped`,
+# `non-binary` and `guardrail` iterations return before the load, and including
+# them would manufacture a corpus the run never had — the failure this tool
+# exists to avoid, one level down. `capacity` is decided after the load, so the
+# machine is resident. A record marked `quarantined` (--quarantine-failures)
+# was unloaded from every runtime at the end of its own iteration.
+RESIDENT_STATUSES = {"pass", "fail", "capacity"}
 
 
 def load_records(path: Path) -> list[dict[str, Any]]:
@@ -92,7 +95,8 @@ def resident_at(records: list[dict[str, Any]], before: int | None) -> list[str]:
         index = record.get("index")
         if before is not None and isinstance(index, int) and index >= before:
             break
-        if record.get("status") in RESIDENT_STATUSES and record.get("machineFile"):
+        if (record.get("status") in RESIDENT_STATUSES and record.get("machineFile")
+                and not record.get("quarantined")):
             resident.append(str(record["machineFile"]))
     # Dedupe preserving load order: the order machines arrived is the one thing
     # a boot-load cannot reproduce, but keeping it makes the manifest diffable

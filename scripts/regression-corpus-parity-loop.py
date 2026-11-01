@@ -314,6 +314,46 @@ def clear_machines(instances: list[dict[str, Any]]) -> list[str]:
     return failures
 
 
+def quarantine_machine(instances: list[dict[str, Any]], name: str) -> list[str]:
+    """Unload one machine, by corpus name, from every runtime (--quarantine-failures).
+
+    In cumulative mode a machine that broke parity stays loaded, so every
+    iteration after it inherits the break and the sweep stops saying anything
+    about the machines that follow. Removing it lets the walk continue against
+    the corpus without it. Its interned test source goes with it: the PE source
+    set is cleared and the next iteration's bootstrap rebuilds it from the
+    machines still loaded.
+    """
+    failures = []
+    for instance in instances:
+        status, payload = TP.get_json(f"{instance['re']}/api/machines")
+        if status != 200:
+            failures.append(f"{instance['id']}: GET /api/machines returned {status}")
+            continue
+        for machine in payload.get("machines") or []:
+            if not isinstance(machine, dict) or machine.get("name") != name:
+                continue
+            mid = machine.get("id")
+            if not mid:
+                continue
+            status, _ = TP.delete_json(f"{instance['re']}/api/machines/{mid}")
+            if status != 200:
+                failures.append(f"{instance['id']}: DELETE /api/machines/{mid} returned {status}")
+    failures.extend(clear_sources(instances))
+    return failures
+
+
+def unhealthy_endpoints(instances: list[dict[str, Any]]) -> list[str]:
+    """RE/PE halves that no longer answer /api/health."""
+    down = []
+    for instance in instances:
+        for half in ("re", "pe"):
+            status, _ = TP.get_json(f"{instance[half]}/api/health")
+            if status != 200:
+                down.append(f"{instance['id']} {half.upper()} {instance[half]} (status {status})")
+    return down
+
+
 def load_machine(instances: list[dict[str, Any]], wrapper: dict[str, Any]) -> list[str]:
     failures = []
     for instance in instances:
@@ -500,17 +540,55 @@ def longest_sequence(instances: list[dict[str, Any]]) -> int:
     return longest
 
 
-def push(instance: dict[str, Any], steps: int, window_ms: int) -> list[str]:
+def _engine_reported_ms(payload: Any) -> dict[str, float]:
+    """Numeric duration fields the push response reports about itself, if any.
+
+    Runtimes differ in what they report, so this takes whatever `*ms*` /
+    `*duration*` numbers sit at the top of the response or under `step`
+    rather than naming one runtime's field.
+    """
+    found: dict[str, float] = {}
+    if not isinstance(payload, dict):
+        return found
+    for prefix, block in (("", payload), ("step.", payload.get("step"))):
+        if not isinstance(block, dict):
+            continue
+        for key, value in block.items():
+            low = key.lower()
+            if (isinstance(value, (int, float)) and not isinstance(value, bool)
+                    and ("ms" in low or "duration" in low or "elapsed" in low)
+                    and "timeout" not in low):
+                found[prefix + key] = float(value)
+    return found
+
+
+def push(instance: dict[str, Any], steps: int, window_ms: int,
+         breakdown: dict[str, Any] | None = None) -> list[str]:
     """Advance every active source `steps` times, reading each step at its
     completion point (RealityEngine_CI#375).
 
     No sensor writes: the interned test sources carry the stimulus and advance
     themselves one vector per push, so a push is the whole step.
+
+    `breakdown`, when given, receives where the step loop spent its time on
+    this runtime: `push` is POST PE /api/push (PE assembly over the active
+    sources plus the RE step it drives), `pair` is the wait on
+    GET RE /api/engine/steps/:n/pair for that step's completion point, and
+    `engineReported` sums any duration the push response states about itself.
     """
     failures = []
     observer = TP.StepObserver(TP.get_json, instance["re"], window_ms)
+    bd = breakdown if breakdown is not None else {}
+    bd.update({"steps": 0, "push": 0.0, "pushMax": 0.0, "pair": 0.0, "pairMax": 0.0,
+               "engineReported": {}})
     for index in range(steps):
+        _p0 = time.perf_counter()
         status, payload = TP.post_json(f"{instance['pe']}/api/push", {"compact": True})
+        _p1 = time.perf_counter()
+        bd["push"] += _p1 - _p0
+        bd["pushMax"] = max(bd["pushMax"], _p1 - _p0)
+        for key, ms in _engine_reported_ms(payload).items():
+            bd["engineReported"][key] = bd["engineReported"].get(key, 0.0) + ms
         if status != 200:
             failures.append(f"{instance['id']}: push {index} failed (status {status})")
             break
@@ -519,6 +597,14 @@ def push(instance: dict[str, Any], steps: int, window_ms: int) -> list[str]:
         except (TP.StepNotResolved, TP.StepNotRetained, RuntimeError) as exc:
             failures.append(f"{instance['id']}: push {index}: {exc}")
             break
+        finally:
+            _p2 = time.perf_counter()
+            bd["pair"] += _p2 - _p1
+            bd["pairMax"] = max(bd["pairMax"], _p2 - _p1)
+            bd["steps"] += 1
+    for key in ("push", "pushMax", "pair", "pairMax"):
+        bd[key] = round(bd[key], 4)
+    bd["engineReported"] = {k: round(v, 2) for k, v in bd["engineReported"].items()}
     failures.extend(f"{instance['id']}: {v}" for v in observer.violations)
     return failures
 
@@ -580,8 +666,6 @@ def run_iteration(instances: list[dict[str, Any]], machines_root: Path, rel: str
     if loaded_regions is not None:
         record["guardrail"]["failures"] = guardrail_violations(machine, loaded_regions)
         record["guardrail"]["ok"] = not record["guardrail"]["failures"]
-        loaded_regions[machine.get("name") or rel] = (
-            region_span(machine, "input"), region_span(machine, "output"))
         if not record["guardrail"]["ok"]:
             record["status"] = "guardrail"
             return record
@@ -592,6 +676,14 @@ def run_iteration(instances: list[dict[str, Any]], machines_root: Path, rel: str
         record["skipReason"] = "machine declares no perceptualMapping.input region"
         return record
     record["seedRegion"] = region
+
+    # Registered only once the machine is going to be loaded. A machine the
+    # guardrail refused, or one skipped above, never reaches the engines, and
+    # checking later machines for cycles against it reports cycles with
+    # something no runtime holds.
+    if loaded_regions is not None:
+        loaded_regions[machine.get("name") or rel] = (
+            region_span(machine, "input"), region_span(machine, "output"))
 
     if args.mode == "isolated":
         record["health"]["failures"].extend(clear_machines(instances))
@@ -729,8 +821,11 @@ def run_iteration(instances: list[dict[str, Any]], machines_root: Path, rel: str
     record["timings"]["longestSequenceProbe"] = round(time.time() - _t0, 2)
     record["steps"] = steps
     _t0 = time.time()
+    record["stepBreakdown"] = {}
     for instance in instances:
-        record["health"]["failures"].extend(push(instance, steps, args.step_window_ms))
+        bd: dict[str, Any] = {}
+        record["health"]["failures"].extend(push(instance, steps, args.step_window_ms, bd))
+        record["stepBreakdown"][instance["id"]] = bd
     _elapsed = time.time() - _t0
     record["timings"]["stepCycle"] = round(_elapsed, 2)
     # Per step per runtime — the number that stays comparable as the step count
@@ -840,11 +935,16 @@ def main() -> int:
                         help="skip the run-start source quarantine. Diagnostic only: sources left "
                              "over from an earlier run are stimulus one runtime has and another "
                              "does not, and read as engine divergence")
+    parser.add_argument("--quarantine-failures", action="store_true",
+                        help="on a fail or error, append the machine and its record to "
+                             "defects-queue.jsonl, unload it from every runtime, and continue, "
+                             "so one break does not fail every iteration after it")
     args = parser.parse_args()
 
     args.out.mkdir(parents=True, exist_ok=True)
     results_path = args.out / "corpus-parity-loop.jsonl"
     summary_path = args.out / "corpus-parity-summary.json"
+    defects_path = args.out / "defects-queue.jsonl"
 
     instances = TP.load_instances(args.registry)
     if len(instances) < 2:
@@ -855,8 +955,10 @@ def main() -> int:
     entries = corpus_entries(args.machines_root)
     skip = set(args.skip)
     already = completed_indices(results_path) if args.resume else set()
-    if not args.resume and results_path.exists():
-        results_path.unlink()
+    if not args.resume:
+        for stale in (results_path, defects_path):
+            if stale.exists():
+                stale.unlink()
 
     selected = [(i, rel) for i, rel in enumerate(entries)
                 if i >= args.start_index and rel not in skip and i not in already]
@@ -892,12 +994,27 @@ def main() -> int:
     loaded_regions: dict[str, tuple] = {}
     reset_drift = {"iterations": 0, "byRuntime": {}}
     first_failure: dict[str, Any] | None = None
+    quarantined: list[dict[str, Any]] = []
+    halted_reason: str | None = None
     started = time.time()
 
     with results_path.open("a", encoding="utf-8") as sink:
         for position, (index, rel) in enumerate(selected, start=1):
+            parsed = read_machine(args.machines_root, rel)
+            label = (parsed[1].get("name") if parsed else None) or rel
+            print(f"Machine #{index + 1}: {label}  [{position}/{len(selected)}] {rel}",
+                  flush=True)
+            loaded_before = len(loaded_regions)
             record = run_iteration(instances, args.machines_root, rel, index, args,
                                    loaded_regions)
+            # Marked before the record is written, so the results file says
+            # which machines left the corpus: corpus-parity-checkpoint.py
+            # rebuilds the resident set from it, and a quarantined machine is
+            # not resident after its own iteration.
+            unload = (args.quarantine_failures and record["status"] in ("fail", "error")
+                      and bool(record.get("machineName")))
+            if unload:
+                record["quarantined"] = True
             # Written and flushed per iteration: a 1328-machine run is long
             # enough that partial results must be readable while it is running.
             sink.write(json.dumps(record, sort_keys=True) + "\n")
@@ -929,6 +1046,15 @@ def main() -> int:
                 print(f"          {tm.get('total', 0)}s total — {parts} "
                       f"[{record.get('steps', 0)} steps, "
                       f"{tm.get('perStepPerRuntime', 0)}s/step/runtime]")
+                # Inside stepCycle, per runtime: PE push (assembly + RE step)
+                # against the wait for the step's pair at its completion point.
+                for iid, bd in (record.get("stepBreakdown") or {}).items():
+                    n = max(bd.get("steps", 0), 1)
+                    eng = " ".join(f"{k}={v}ms" for k, v in bd.get("engineReported", {}).items())
+                    print(f"          step {iid}: push={bd['push']}s "
+                          f"({bd['push'] / n * 1000:.0f}ms/step, max {bd['pushMax'] * 1000:.0f}) "
+                          f"pair={bd['pair']}s ({bd['pair'] / n * 1000:.0f}ms/step, "
+                          f"max {bd['pairMax'] * 1000:.0f})" + (f" engine: {eng}" if eng else ""))
             for failures in (record["loadParity"]["failures"],
                              record["guardrail"]["failures"],
                              record["capacity"]["failures"],
@@ -957,6 +1083,39 @@ def main() -> int:
                             print(f"          {kind} {name}: head step={head['stepNumber']} "
                                   f"depth={depth} set={head['nonZeroCount']} [{cells}{more}]")
 
+            # Defects queue: every machine that did not come through, with what
+            # was loaded around it, so each one can be picked up on its own.
+            # Non-binary and skipped machines are set aside by design, not
+            # defects, and stay in the summary only.
+            if args.quarantine_failures and record["status"] in (
+                    "fail", "error", "guardrail", "capacity"):
+                defect = {
+                    "index": index,
+                    "machineFile": rel,
+                    "machineName": record.get("machineName"),
+                    "status": record["status"],
+                    "corpusLoadedBefore": loaded_before,
+                    "quarantinedBefore": [q["machineName"] for q in quarantined],
+                    "record": record,
+                    "machine": parsed[0] if parsed else None,
+                }
+                if unload:
+                    defect["quarantineFailures"] = quarantine_machine(
+                        instances, record["machineName"])
+                    loaded_regions.pop(record["machineName"], None)
+                    quarantined.append({"index": index, "machineName": record["machineName"]})
+                    print(f"          quarantined {record['machineName']!r} — unloaded from "
+                          f"every runtime, walk continues without it")
+                    for item in defect["quarantineFailures"]:
+                        print(f"          {item}")
+                defect["engineDown"] = unhealthy_endpoints(instances)
+                with defects_path.open("a", encoding="utf-8") as queue:
+                    queue.write(json.dumps(defect, sort_keys=True) + "\n")
+                if defect["engineDown"]:
+                    halted_reason = "engine endpoint(s) down: " + "; ".join(defect["engineDown"])
+                    print(f"\nHalting — {halted_reason}")
+                    break
+
             if record["status"] == "fail" and first_failure is None:
                 first_failure = {"index": index, "machineFile": rel,
                                  "machineName": record.get("machineName"),
@@ -976,6 +1135,9 @@ def main() -> int:
         "firstFailure": first_failure,
         "resetSemanticsDrift": reset_drift,
         "nonBinaryMachines": non_binary,
+        "quarantined": quarantined,
+        "haltedReason": halted_reason,
+        "defectsQueue": str(defects_path) if args.quarantine_failures else None,
         "elapsedSeconds": round(time.time() - started, 1),
         "results": str(results_path),
     }

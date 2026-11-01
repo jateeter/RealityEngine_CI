@@ -144,6 +144,33 @@ notes are in `docs/CES_CONTRACT_RETIRED_RECORDER.md`.
   of the ~1.1 s; the remainder is PE-side assembly over the active sources and
   wants its own measurement. The fold itself measures 0.028 ms (#256).
 
+  `stepCycle` is split per runtime under `stepBreakdown` and printed beneath
+  the timing line: `push` is `POST PE /api/push` (PE assembly over the active
+  sources plus the RE step it drives), `pair` is the wait on
+  `GET RE /api/engine/steps/:n/pair`. `engineReported` sums any duration field
+  the push response states about itself; no runtime reports one yet, so the
+  PE/RE split inside a push is still unmeasured. Full corpus on
+  `release-v0.0.1` (2026-11-01, 1270 machines, 6.6 h): push was 97–99% of every
+  step on all three and the pair wait stayed at 1–12 ms. Push cost per step
+  grows linearly in the loaded machine count: cpp ≈ 0.83 ms/machine from ~0,
+  lsp ≈ 154 ms + 0.25 ms/machine, scala ≈ 0.26 ms/machine. With the step count
+  set by the longest loaded sequence, a sweep's cost is quadratic in the
+  corpus size.
+
+  `--quarantine-failures` turns a sweep into a defect walk: each machine that
+  fails, errors, trips the cycle guardrail or exceeds capacity is appended,
+  with its record, its corpus document and what was loaded before it, to
+  `defects-queue.jsonl`; a fail or error is also unloaded from every runtime so
+  the walk continues without it. The walk halts only when an RE or PE half
+  stops answering `/api/health`. An unloaded machine's record carries
+  `quarantined: true`, and `corpus-parity-checkpoint.py` leaves it out of the
+  resident set, along with the `non-binary`, `guardrail` and `skipped`
+  iterations, none of which load their machine. Only a machine about to be
+  loaded is registered for the cycle guardrail, so later machines are never
+  refused over a cycle with one the engines do not hold. Every iteration prints
+  `Machine #<n>: <name>` (1-based corpus position) before it runs, so a tailed
+  log names the machine in flight.
+
 - `regression-reset-contract.py`: the acceptance stage for
   `RealityEngine_CI#163` and `#166`. Registers the corpus-test integration
   (`POST /api/sources/bootstrap-from-machines`), then reads `GET /api/sources`
