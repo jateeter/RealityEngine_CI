@@ -179,7 +179,10 @@ def main() -> int:
     # ---- cross-repo: only when the agent corpus is present ----------------
     agents_dir = args.openclaw / "machine-behaviors" / "agents" if args.openclaw else None
     if not agents_dir or not agents_dir.is_dir():
-        print("  skip  §3.3/§3.7 agent corpus — localOpenClawStack not checked out")
+        if args.require_current_digest:
+            check(False, '§3.7(4) current dependent provenance required', 'localOpenClawStack agent corpus is absent')
+        else:
+            print("  skip  §3.3/§3.7 agent corpus — localOpenClawStack not checked out")
     else:
         specs = sorted(agents_dir.glob("*/*.oc-agent.json"))
         agent_axes: dict[str, list] = {}
