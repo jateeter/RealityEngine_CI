@@ -38,8 +38,10 @@ npm run test:deployment
   lane pins it through `OLLAMA_MODEL`, and `localAIStack`, the native OpenClaw
   gateway and the release bundle default to it. It calls tools and has a 256K
   context that holds an OpenClaw agent prompt. The PEs omit `format` (JSON or
-  schema) for the `nemotron-3-nano` family, which Ollama refused before 0.40.11
-  (see `docs/OLLAMA_INTEGRATION.md`). It replaced `tinyllama-mlx` (2048-token
+  schema), and the OpenAI route's `text.format`, for the `nemotron-3-nano`
+  family. Ollama 0.40.13's MLX runner refuses structured output (it was
+  accepted on 0.40.11), and the completion-contract prompt carries the keys
+  instead (see `docs/OLLAMA_INTEGRATION.md`). It replaced `tinyllama-mlx` (2048-token
   context) and the interim `gemma3:4b`, which had no tools. The engines' own
   built-in default is still `llama3.1:8b`.
 - **The instance registry is on :5999 only with fixed ports.** Under
