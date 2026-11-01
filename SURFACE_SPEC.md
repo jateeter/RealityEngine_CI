@@ -3269,10 +3269,18 @@ so no gate compares health bodies byte for byte.
 
 ### Streaming events (SSE and WebSocket)
 
-Both SSE (`/api/engine/stream`, `/api/events`) and WebSocket (`/ws`) deliver newline-delimited JSON event objects. Each event has a `type` field:
+Both SSE (`/api/engine/stream`, `/api/events`) and WebSocket (`/ws`) deliver newline-delimited JSON event objects.
 
-**RE stream** (`/api/engine/stream`):
-- `{ "type": "step-result", "step": { ... } }` — emitted after every `POST /api/perceive`
+**RE stream** (`/api/engine/stream`): after every `POST /api/perceive`, the
+step itself, exactly as that call returned it, with no wrapper:
+- `{ "stepNumber": ..., "perceptualSpace": ..., ... }`
+
+**The C++ signature is authoritative** (owner ruling, 2026-11-01). C++, Scala
+and RealityEngine_Rust send the bare step. LSP wraps it as
+`{ "type": "step-result", "step": { ... } }`, as this specification used to
+say, and is brought to the bare form.
+
+**PE stream** events each have a `type` field:
 
 **PE stream** (`/api/events` and `/ws`):
 - `{ "type": "state-update", ... }`
@@ -3323,6 +3331,10 @@ symbol when every element accepts its cell; the elements are ANDed.
   `matchAlgorithm` onto every Reality Event; none reads a `matchAlgorithm` on
   the event itself, and no corpus event declares one. A route that takes an
   explicit comparator override applies it above all three.
+- **An unknown comparator name answers `500`** with
+  `{"error": "Unknown comparator type: <name>"}`, as C++ answers it (owner
+  ruling, 2026-11-01). That covers a `comparatorType` posted to `/api/sequences`
+  and a `matchAlgorithmOverride` on `POST /api/perceive`.
 - **`gte` is not numeric `≥`.** Under `gte` a `0` means "this cell must be off",
   not "any input". The corpus is written that way: replayed under numeric `≥`,
   2,081 of 5,846 input sequences emit differently and 2,012 contradict their
