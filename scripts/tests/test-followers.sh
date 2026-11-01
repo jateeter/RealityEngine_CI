@@ -219,6 +219,17 @@ grep -q 'current.setdefault(label, {}).update(bodies)' "$CI_DIR/scripts/regressi
   && ok "regression-arbitration-retention.py records per runtime" \
   || bad "regression-arbitration-retention.py replaces each label's whole map when recording"
 
+# ── the lane runs rust-1 as an RE+PE pair ────────────────────────────────────
+grep -q '"re_url": url, "pe_url": pe_url,' "$CI_DIR/scripts/rust-conformance.sh" \
+  && ! grep -q '"pe_participation": "unsupported"' "$CI_DIR/scripts/rust-conformance.sh" \
+  && ok "the lane registers rust-1 with its PE" \
+  || bad "the lane registers rust-1 without its PE"
+for stage in trajectory pe-step-contract reset-contract; do
+  grep -qE "^STAGES=.*|^ +.*\b$stage\b" "$CI_DIR/scripts/rust-conformance.sh" \
+    && grep -q "^    $stage) python3" "$CI_DIR/scripts/rust-conformance.sh" \
+    && ok "the lane runs $stage" || bad "the lane does not run $stage"
+done
+
 # ── the lane: unavailable is exit 3, never a pass ────────────────────────────
 lane() { "$CI_DIR/scripts/rust-conformance.sh" --out "$TMP/lane" --no-build "$@" >"$TMP/lane.out" 2>&1; echo $?; }
 expect "the lane with no universe is unavailable" 3 \

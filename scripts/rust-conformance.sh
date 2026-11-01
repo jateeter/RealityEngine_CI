@@ -2,10 +2,11 @@
 # rust-conformance.sh: the follower lane (RealityEngine_CI#607, tier R2 of
 # docs/RUST_VALIDATION_WORKFLOW.md).
 #
-# Builds RealityEngine_Rust, starts it beside a running universe on the same
-# corpus and width, and holds it against the three voters on the RE-only parity
-# stages: machine-set, engine-process, export, engine-config (--no-step) and
-# arbitration-retention.
+# Builds RealityEngine_Rust, starts it as an RE+PE pair beside a running
+# universe on the same corpus and width, and holds it against the three voters:
+# the RE parity stages (machine-set, engine-process, export, engine-config
+# --no-step, arbitration-retention) and the stages that push through each
+# instance's PE (trajectory, pe-step-contract, reset-contract).
 # Rust is a conformance follower (docs/QUORUM_CONTRACT.md section 1): it never
 # votes, and it is never written into the universe's instance registry. The lane
 # writes its own copies under --out.
@@ -29,12 +30,14 @@
 #
 # Usage:
 #   scripts/rust-conformance.sh [--rust-repo DIR] [--registry URL|FILE]
-#       [--corpus DIR] [--port 5801] [--out DIR] [--no-build]
+#       [--corpus DIR] [--port 5801] [--pe-port 5800] [--out DIR] [--no-build]
 #
 #   --corpus   the machine directory the universe booted. Default: read from
 #              the .universe-engine-selection stamp startUniverse.sh writes.
 #              A universe started any other way (a release install) has no
 #              stamp, so name it.
+#   --pe-port  rust-1's Perception Engine. It drives rust-1's RE and interns
+#              that RE's machines at boot unless PE_SOURCE_BOOTSTRAP says not to.
 set -euo pipefail
 if [ "${BASH_VERSINFO[0]}" -lt 4 ]; then
   echo "rust-conformance.sh needs bash 4+ (Homebrew's /opt/homebrew/bin/bash on a Mac)" >&2
@@ -46,6 +49,7 @@ RUST_REPO="$CI_DIR/../RealityEngine_Rust"
 REGISTRY=""
 CORPUS=""
 PORT=5801
+PE_PORT=5800
 OUT=""
 BUILD=true
 
@@ -55,9 +59,10 @@ while [ $# -gt 0 ]; do
     --registry) REGISTRY="$2"; shift 2 ;;
     --corpus) CORPUS="$2"; shift 2 ;;
     --port) PORT="$2"; shift 2 ;;
+    --pe-port) PE_PORT="$2"; shift 2 ;;
     --out) OUT="$2"; shift 2 ;;
     --no-build) BUILD=false; shift ;;
-    -h|--help) sed -n '2,37p' "${BASH_SOURCE[0]}"; exit 0 ;;
+    -h|--help) sed -n '2,40p' "${BASH_SOURCE[0]}"; exit 0 ;;
     *) echo "rust-conformance.sh: unknown argument $1" >&2; exit 2 ;;
   esac
 done
@@ -125,9 +130,12 @@ else
 fi
 
 # --- start Rust as rust-1 ----------------------------------------------------
-say "start rust-1 on :$PORT, corpus $CORPUS, eventDimension $WIDTH"
+say "start rust-1 on :$PORT (RE) and :$PE_PORT (PE), corpus $CORPUS, eventDimension $WIDTH"
 if curl -s --max-time 2 -o /dev/null "http://127.0.0.1:$PORT/"; then
   unavailable "port $PORT is already serving; stop it or pass --port"
+fi
+if curl -s --max-time 2 -o /dev/null "http://127.0.0.1:$PE_PORT/"; then
+  unavailable "port $PE_PORT is already serving; stop it or pass --pe-port"
 fi
 UUID="$(python3 "$LIB/instance_uuids.py" allocate native rust-1 $$)"
 CLOCK_DIR="$(python3 "$LIB/instance_uuids.py" clock-dir)"
@@ -135,7 +143,8 @@ INSTANCE_UUID="$UUID" INSTANCE_CLOCK_DIR="$CLOCK_DIR" MACHINES_DIR="$CORPUS" \
   VECTOR_DIMENSION="$WIDTH" REALITY_ENGINE_PORT="$PORT" \
   "$RUST_REPO/target/release/reality-engine" > "$OUT/rust-1.log" 2>&1 &
 RUST_PID=$!
-trap 'kill "$RUST_PID" 2>/dev/null || true; wait "$RUST_PID" 2>/dev/null || true' EXIT
+PE_PID=""
+trap 'kill "$RUST_PID" ${PE_PID:+"$PE_PID"} 2>/dev/null || true; wait "$RUST_PID" ${PE_PID:+"$PE_PID"} 2>/dev/null || true' EXIT
 RUST_URL="http://127.0.0.1:$PORT"
 started=false
 for _ in $(seq 1 600); do
@@ -150,14 +159,34 @@ if ! $started; then
 fi
 grep -m2 'reality-engine:' "$OUT/rust-1.log" || true
 
+# Its PE, driving its RE. It interns the RE's machines as it boots, so it is
+# started once the RE is answering.
+PERCEPTION_ENGINE_PORT="$PE_PORT" RE_URL="$RUST_URL" MACHINES_DIR="$CORPUS" \
+  VECTOR_DIMENSION="$WIDTH" \
+  "$RUST_REPO/target/release/perception-engine" > "$OUT/rust-1-pe.log" 2>&1 &
+PE_PID=$!
+RUST_PE_URL="http://127.0.0.1:$PE_PORT"
+started=false
+for _ in $(seq 1 600); do
+  kill -0 "$PE_PID" 2>/dev/null || break
+  if curl -sf --max-time 2 -o /dev/null "$RUST_PE_URL/api/health"; then started=true; break; fi
+  sleep 0.5
+done
+if ! $started; then
+  echo "rust-conformance: rust-1's PE did not start; see $OUT/rust-1-pe.log" >&2
+  tail -5 "$OUT/rust-1-pe.log" >&2 || true
+  exit 1
+fi
+grep -m2 'perception-engine:' "$OUT/rust-1-pe.log" || true
+
 # The lane's own instance data: the universe's, plus rust-1 as a follower.
-python3 - "$OUT/universe-registry.json" "$OUT/follower-registry.json" "$RUST_URL" "$UUID" <<'PY'
+python3 - "$OUT/universe-registry.json" "$OUT/follower-registry.json" "$RUST_URL" "$RUST_PE_URL" "$UUID" <<'PY'
 import json, sys
-src, dst, url, uuid = sys.argv[1:]
+src, dst, url, pe_url, uuid = sys.argv[1:]
 doc = json.load(open(src))
 doc.setdefault("instances", []).append({
     "id": "rust-1", "runtime": "rust", "role": "follower",
-    "re_url": url, "pe_url": "", "pe_participation": "unsupported",
+    "re_url": url, "pe_url": pe_url,
     "instance_uuid": uuid, "status": "running"})
 json.dump(doc, open(dst, "w"), indent=2)
 PY
@@ -168,15 +197,19 @@ python3 "$LIB/followers.py" split "$OUT/follower-registry.json" \
 # stage name | essential routes (METHOD path, `probe` for a parameter) | command
 # The routes are the ones without which the stage measures nothing; a route the
 # stage only reads on the side (engine-process's /api/runtime/vector-space) is
-# not one, and the width is passed in instead.
+# not one, and the width is passed in instead. `pe:` marks a PE route.
 declare -A ROUTES=(
   [machine-set]="GET /api/machines"
   [engine-process]="POST /api/engine/process|GET /api/engine/config/transitionsInhibited"
   [export]="GET /api/machines/probe/export"
   [engine-config]="GET /api/engine/config"
   [arbitration-retention]="GET /api/arbitration"
+  [trajectory]="pe:POST /api/push|pe:GET /api/sources|GET /api/engine/isre-history|GET /api/engine/osre-history"
+  [pe-step-contract]="pe:POST /api/push"
+  [reset-contract]="pe:POST /api/reset|pe:GET /api/sources|pe:POST /api/sources/bootstrap-from-machines"
 )
-STAGES=(machine-set engine-process export engine-config arbitration-retention)
+STAGES=(machine-set engine-process export engine-config arbitration-retention
+        trajectory pe-step-contract reset-contract)
 
 run_stage() {  # run_stage <stage> <registry> <report>
   local stage="$1" registry="$2" report="$3"
@@ -191,6 +224,14 @@ run_stage() {  # run_stage <stage> <registry> <report>
       --registry "$registry" --json "$report" --no-step ;;
     arbitration-retention) python3 "$CI_DIR/scripts/regression-arbitration-retention.py" \
       --registry "$registry" --out "$report" ;;
+    # The three below run as regression-test.sh runs them: the corpus's own
+    # interned stimulus, and reset-contract leaving the trajectory to its stage.
+    trajectory) python3 "$CI_DIR/scripts/regression-trajectory-parity.py" \
+      --registry "$registry" --out "$report" ;;
+    pe-step-contract) python3 "$CI_DIR/scripts/regression-pe-step-contract.py" \
+      --registry "$registry" --machines "$CORPUS" --out "$report" ;;
+    reset-contract) python3 "$CI_DIR/scripts/regression-reset-contract.py" \
+      --registry "$registry" --skip-trajectory --out "$report" ;;
   esac
 }
 
@@ -200,8 +241,10 @@ for stage in "${STAGES[@]}"; do
   unsupported=()
   IFS='|' read -r -a routes <<< "${ROUTES[$stage]}"
   for route in "${routes[@]}"; do
+    base="$RUST_URL"
+    case "$route" in pe:*) base="$RUST_PE_URL"; route="${route#pe:}" ;; esac
     read -r method path <<< "$route"
-    if [ "$(python3 "$LIB/followers.py" probe "$RUST_URL" "$method" "$path")" = unsupported ]; then
+    if [ "$(python3 "$LIB/followers.py" probe "$base" "$method" "$path")" = unsupported ]; then
       unsupported+=("$method $path")
     fi
   done
@@ -231,7 +274,7 @@ json.dump({"follower": "rust-1", "instanceUuid": uuid, "corpus": corpus,
            "eventDimension": int(width), "stages": stages}, open(out, "w"), indent=2)
 PY
 say "rust-1 against the voters"
-for stage in "${STAGES[@]}"; do printf '  %-15s %s\n' "$stage" "${VERDICT[$stage]}"; done
+for stage in "${STAGES[@]}"; do printf '  %-21s %s\n' "$stage" "${VERDICT[$stage]}"; done
 echo "reports: $OUT"
 
 verdicts=" ${VERDICT[*]} "
