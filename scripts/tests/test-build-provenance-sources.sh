@@ -107,5 +107,35 @@ assert_eq "$(python3 "$TMP/globs.py" "$TOOL")" "no" \
   "no cpp glob uses include/** — it would match the generated tree again"
 
 echo
+python3 - "$TOOL" "$REPO" > "$TMP/git-scope.out" <<'PYEOF'
+import importlib.util, os, subprocess, sys
+from pathlib import Path
+spec=importlib.util.spec_from_file_location('scope',sys.argv[1]); m=importlib.util.module_from_spec(spec);spec.loader.exec_module(m)
+repo=Path(sys.argv[2])
+def git(*args, date=None):
+    env=dict(os.environ)
+    if date: env.update(GIT_AUTHOR_DATE=date,GIT_COMMITTER_DATE=date)
+    return subprocess.check_output(['git',*args],cwd=repo,env=env,text=True).strip()
+git('init','-q');git('config','user.name','Synthetic provenance fixture');git('config','user.email','fixture@example.invalid')
+def commit(date):
+    git('add','.');git('commit','-qm','synthetic fixture',date=date)
+    return float(git('log','-1','--format=%ct'))
+initial=commit('2026-01-01T00:00:00Z')
+(repo/'include/reality/generated/M1.hpp').write_text('// regenerated fixture\n')
+commit('2026-01-03T00:00:00Z')
+for artifact in ['bin/reality_engine_server','bin/perception_engine_server']:
+    globs=m.TARGETS['cpp']['artifact_sources'][artifact]
+    assert m.source_commit_time(repo,globs)==initial, 'generated header commit aged server'
+(repo/'include/reality/reality.hpp').write_text('// changed real header\n')
+real=commit('2026-01-04T00:00:00Z')
+assert m.source_commit_time(repo,m.TARGETS['cpp']['artifact_sources']['bin/reality_engine_server'])==real
+(repo/'src/nested').mkdir();(repo/'src/nested/real.cpp').write_text('// recursive fixture\n')
+nested=commit('2026-01-05T00:00:00Z')
+assert m.source_commit_time(repo,['src/**/*.cpp'])==nested
+print('PASS')
+PYEOF
+assert_eq "$(cat "$TMP/git-scope.out")" "PASS" \
+  "Git commit deadlines exclude generated headers, include real headers and preserve recursive source matching"
+
 echo "Totals: $PASS passed, $FAIL failed"
 [ "$FAIL" -eq 0 ]

@@ -209,7 +209,11 @@ def source_commit_time(repo: Path, globs: list[str]) -> float:
     """
     if not globs:
         return head_commit_time(repo)
-    code, out = git(repo, "log", "-1", "--format=%ct", "--", *globs)
+    # Git's default pathspec lets '*' cross directory boundaries, unlike
+    # pathlib.glob above. Explicit glob magic keeps generated C++ headers out
+    # of the server source deadline while '**' still covers recursive sources.
+    paths = [':(glob)' + pattern for pattern in globs]
+    code, out = git(repo, "log", "-1", "--format=%ct", "--", *paths)
     if code != 0:
         return head_commit_time(repo)
     try:
