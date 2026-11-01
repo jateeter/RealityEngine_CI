@@ -162,7 +162,12 @@ notes are in `docs/CES_CONTRACT_RETIRED_RECORDER.md`.
   with its record, its corpus document and what was loaded before it, to
   `defects-queue.jsonl`; a fail or error is also unloaded from every runtime so
   the walk continues without it. The walk halts only when an RE or PE half
-  stops answering `/api/health`. Every iteration prints
+  stops answering `/api/health`. An unloaded machine's record carries
+  `quarantined: true`, and `corpus-parity-checkpoint.py` leaves it out of the
+  resident set, along with the `non-binary`, `guardrail` and `skipped`
+  iterations, none of which load their machine. Only a machine about to be
+  loaded is registered for the cycle guardrail, so later machines are never
+  refused over a cycle with one the engines do not hold. Every iteration prints
   `Machine #<n>: <name>` (1-based corpus position) before it runs, so a tailed
   log names the machine in flight.
 

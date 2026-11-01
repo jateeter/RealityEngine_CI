@@ -666,8 +666,6 @@ def run_iteration(instances: list[dict[str, Any]], machines_root: Path, rel: str
     if loaded_regions is not None:
         record["guardrail"]["failures"] = guardrail_violations(machine, loaded_regions)
         record["guardrail"]["ok"] = not record["guardrail"]["failures"]
-        loaded_regions[machine.get("name") or rel] = (
-            region_span(machine, "input"), region_span(machine, "output"))
         if not record["guardrail"]["ok"]:
             record["status"] = "guardrail"
             return record
@@ -678,6 +676,14 @@ def run_iteration(instances: list[dict[str, Any]], machines_root: Path, rel: str
         record["skipReason"] = "machine declares no perceptualMapping.input region"
         return record
     record["seedRegion"] = region
+
+    # Registered only once the machine is going to be loaded. A machine the
+    # guardrail refused, or one skipped above, never reaches the engines, and
+    # checking later machines for cycles against it reports cycles with
+    # something no runtime holds.
+    if loaded_regions is not None:
+        loaded_regions[machine.get("name") or rel] = (
+            region_span(machine, "input"), region_span(machine, "output"))
 
     if args.mode == "isolated":
         record["health"]["failures"].extend(clear_machines(instances))
@@ -998,8 +1004,17 @@ def main() -> int:
             label = (parsed[1].get("name") if parsed else None) or rel
             print(f"Machine #{index + 1}: {label}  [{position}/{len(selected)}] {rel}",
                   flush=True)
+            loaded_before = len(loaded_regions)
             record = run_iteration(instances, args.machines_root, rel, index, args,
                                    loaded_regions)
+            # Marked before the record is written, so the results file says
+            # which machines left the corpus: corpus-parity-checkpoint.py
+            # rebuilds the resident set from it, and a quarantined machine is
+            # not resident after its own iteration.
+            unload = (args.quarantine_failures and record["status"] in ("fail", "error")
+                      and bool(record.get("machineName")))
+            if unload:
+                record["quarantined"] = True
             # Written and flushed per iteration: a 1328-machine run is long
             # enough that partial results must be readable while it is running.
             sink.write(json.dumps(record, sort_keys=True) + "\n")
@@ -1079,12 +1094,12 @@ def main() -> int:
                     "machineFile": rel,
                     "machineName": record.get("machineName"),
                     "status": record["status"],
-                    "corpusLoadedBefore": len(loaded_regions) - 1,
+                    "corpusLoadedBefore": loaded_before,
                     "quarantinedBefore": [q["machineName"] for q in quarantined],
                     "record": record,
                     "machine": parsed[0] if parsed else None,
                 }
-                if record["status"] in ("fail", "error") and record.get("machineName"):
+                if unload:
                     defect["quarantineFailures"] = quarantine_machine(
                         instances, record["machineName"])
                     loaded_regions.pop(record["machineName"], None)
