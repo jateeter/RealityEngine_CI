@@ -2,7 +2,7 @@
 # Dockerfile referenced from: ../RealityEngine_CI/docker/scala/Dockerfile
 #
 # ── Stage 1: Build ─────────────────────────────────────────────────────────
-FROM sbtscala/scala-sbt:eclipse-temurin-17.0.15_6_1.12.8_2.13.18 AS build
+FROM sbtscala/scala-sbt:eclipse-temurin-25.0.4.1_1_2.x AS build
 
 WORKDIR /build
 
