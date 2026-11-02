@@ -6,7 +6,9 @@
 # universe on the same corpus and width, and holds it against the three voters:
 # the RE parity stages (machine-set, engine-process, export, engine-config
 # --no-step, arbitration-retention) and the stages that push through each
-# instance's PE (trajectory, pe-step-contract, reset-contract).
+# instance's PE (trajectory, pe-step-contract, reset-contract,
+# escalation-dispatch, arbiter, metrics-parity), and mqtt-yuma, which tests each
+# PE's bridge against a live broker.
 # Rust is a conformance follower (docs/QUORUM_CONTRACT.md section 1): it never
 # votes, and it is never written into the universe's instance registry. The lane
 # writes its own copies under --out.
@@ -31,6 +33,7 @@
 # Usage:
 #   scripts/rust-conformance.sh [--rust-repo DIR] [--registry URL|FILE]
 #       [--corpus DIR] [--port 5801] [--pe-port 5800] [--out DIR] [--no-build]
+#       [--mqtt-broker-url URL|none]
 #
 #   --corpus   the machine directory the universe booted. Default: read from
 #              the .universe-engine-selection stamp startUniverse.sh writes.
@@ -38,6 +41,10 @@
 #              stamp, so name it.
 #   --pe-port  rust-1's Perception Engine. It drives rust-1's RE and interns
 #              that RE's machines at boot unless PE_SOURCE_BOOTSTRAP says not to.
+#   --mqtt-broker-url  the broker mqtt-yuma tests every PE against. Default:
+#              the live Yuma broker, as regression-test.sh uses; `none` skips
+#              the stage. A broker that does not answer a TCP connect within
+#              10s is a skip with its reason, never a failure.
 set -euo pipefail
 if [ "${BASH_VERSINFO[0]}" -lt 4 ]; then
   echo "rust-conformance.sh needs bash 4+ (Homebrew's /opt/homebrew/bin/bash on a Mac)" >&2
@@ -52,6 +59,7 @@ PORT=5801
 PE_PORT=5800
 OUT=""
 BUILD=true
+MQTT_BROKER_URL="${MQTT_BROKER_URL:-mqtt://yuma.lateraledge.cloud:1883}"
 
 while [ $# -gt 0 ]; do
   case "$1" in
@@ -62,6 +70,7 @@ while [ $# -gt 0 ]; do
     --pe-port) PE_PORT="$2"; shift 2 ;;
     --out) OUT="$2"; shift 2 ;;
     --no-build) BUILD=false; shift ;;
+    --mqtt-broker-url) MQTT_BROKER_URL="$2"; shift 2 ;;
     -h|--help) sed -n '2,40p' "${BASH_SOURCE[0]}"; exit 0 ;;
     *) echo "rust-conformance.sh: unknown argument $1" >&2; exit 2 ;;
   esac
@@ -163,8 +172,8 @@ grep -m2 'reality-engine:' "$OUT/rust-1.log" || true
 # started once the RE is answering. It gets the environment startUniverse.sh
 # gives the voters' PEs (scripts/lib/pe-env.sh): trigger dispatch, the
 # integrations configuration, ACP/OpenClaw, the HealthKit token when the
-# universe has one, localAI, and an MQTT client id of its own. The eight stages
-# read none of it, but escalation dispatch, metrics and HealthKit do.
+# universe has one, localAI, and an MQTT client id of its own. escalation-dispatch,
+# metrics-parity and mqtt-yuma read it.
 # shellcheck source=scripts/lib/pe-env.sh
 source "$LIB/pe-env.sh"
 # shellcheck source=scripts/lib/healthkit-token.sh
@@ -229,12 +238,24 @@ print(json.dumps(steps))
 ' > "$OUT/localai-slice.json" 2> "$OUT/localai-slice.log"; then
     echo "rust-conformance: the localAI registration failed; see $OUT/localai-slice.log" >&2
   fi
-  # The machines arrived after rust-1's PE interned at boot. Intern them now,
-  # as startUniverse.sh's --pe-source-bootstrap=auto does for the voters, so
-  # each localai/* machine has its test source.
-  curl -sf --max-time 120 -X POST "$RUST_PE_URL/api/sources/bootstrap-from-machines" \
-    -H 'Content-Type: application/json' -d '{}' > "$OUT/localai-bootstrap.json" ||
-    echo "rust-conformance: rust-1's PE bootstrap failed" >&2
+  # The machines arrived after rust-1's PE interned at boot. Whether the voters
+  # interned them depends on the universe's history, not on a rule: a fresh
+  # universe's PE bootstrap runs before localAI registers them, while a later
+  # bootstrap (the visualizer's Load Machines does one) interns them too. So
+  # rust-1 follows what the voters hold: it interns them only when a voter holds
+  # localai/* test sources.
+  if python3 - "$OUT/universe-registry.json" <<'PY'
+import json, sys, urllib.request
+voter = next(i for i in json.load(open(sys.argv[1]))["instances"] if i.get("role") != "follower")
+sources = json.load(urllib.request.urlopen(voter["pe_url"] + "/api/sources", timeout=30))["sources"]
+sys.exit(0 if any(s.get("type") == "test" and str(s.get("name", "")).startswith("localai/")
+                  for s in sources) else 1)
+PY
+  then
+    curl -sf --max-time 120 -X POST "$RUST_PE_URL/api/sources/bootstrap-from-machines" \
+      -H 'Content-Type: application/json' -d '{}' > "$OUT/localai-bootstrap.json" ||
+      echo "rust-conformance: rust-1's PE bootstrap failed" >&2
+  fi
   python3 - "$OUT/universe-registry.json" "$RUST_URL" "$RUST_PE_URL" "$OUT/localai-slice.json" <<'PY'
 import json, sys, urllib.request
 registry, re_url, pe_url, steps = sys.argv[1:]
@@ -287,9 +308,63 @@ declare -A ROUTES=(
   [trajectory]="pe:POST /api/push|pe:GET /api/sources|GET /api/engine/isre-history|GET /api/engine/osre-history"
   [pe-step-contract]="pe:POST /api/push"
   [reset-contract]="pe:POST /api/reset|pe:GET /api/sources|pe:POST /api/sources/bootstrap-from-machines"
+  [escalation-dispatch]="pe:POST /api/push|pe:GET /api/metrics|pe:GET /api/dispatch/ledger"
+  [arbiter]="GET /api/arbitration|pe:GET /api/sources/contention|pe:POST /api/sensors/probe"
+  [metrics-parity]="pe:GET /api/metrics"
+  [mqtt-yuma]="pe:POST /api/mqtt/enable|pe:GET /api/mqtt/status|pe:POST /api/mqtt/disable"
 )
+# mqtt-yuma runs last: it leaves each PE holding the broker's sensors, which
+# every instance then holds alike.
 STAGES=(machine-set engine-process export engine-config arbitration-retention
-        trajectory pe-step-contract reset-contract)
+        trajectory pe-step-contract reset-contract
+        escalation-dispatch arbiter metrics-parity mqtt-yuma)
+
+# escalation-dispatch requires a RED escalation on the corpora that carry the
+# escalation trio, as regression-test.sh does.
+EXPECT_ESCALATION=()
+if [ -f "$CI_DIR/.universe-engine-selection" ]; then
+  case "$(sed -n 's/^MACHINE_CORPUS=//p' "$CI_DIR/.universe-engine-selection" | tail -1)" in
+    regression|full) EXPECT_ESCALATION=(--expect-escalation) ;;
+  esac
+fi
+
+# The broker is tested if it is there and skipped, with the reason, if it does
+# not answer a TCP connect within 10s (regression-test.sh's rule).
+MQTT_SKIP=""
+case "$MQTT_BROKER_URL" in
+  ""|none|off|skip) MQTT_SKIP="no broker (--mqtt-broker-url none)" ;;
+  *) if ! why="$(python3 - "$MQTT_BROKER_URL" <<'PY'
+import socket, sys, urllib.parse
+url = sys.argv[1]
+u = urllib.parse.urlparse(url if "://" in url else f"mqtt://{url}")
+try:
+    socket.create_connection((u.hostname, u.port or 1883), timeout=10).close()
+except Exception as exc:
+    print(f"{u.hostname}:{u.port or 1883}: {exc.__class__.__name__}: {exc}")
+    sys.exit(1)
+PY
+)"; then MQTT_SKIP="broker $MQTT_BROKER_URL not responding within 10s ($why)"; fi ;;
+esac
+
+# mqtt_yuma <registry> <report>: test-mqtt-yuma.sh on every PE the instance data
+# names, then disable every bridge it enabled and delete the mqtt: sensors it
+# registered, so no bridge pushes into a later run and a later lane run starts
+# its follower from the voters' state as it was (regression-test.sh mutes the
+# bridges the same way). Fails if any PE fails.
+mqtt_yuma() {
+  local registry="$1" report="$2" failed=0 id url
+  python3 "$LIB/mqtt_sensors.py" snapshot "$registry" "${report%.json}.before.json"
+  while IFS='|' read -r id url; do
+    if ! bash "$CI_DIR/scripts/test-mqtt-yuma.sh" --pe-url "$url" \
+        --broker-url "$MQTT_BROKER_URL" --report-json "${report%.json}.$id.json"; then
+      echo "FAIL mqtt-yuma: $id"; failed=1
+    fi
+  done < <(python3 -c 'import json,sys
+for i in json.load(open(sys.argv[1]))["instances"]:
+    if i.get("pe_url"): print(i["id"] + "|" + i["pe_url"])' "$registry")
+  python3 "$LIB/mqtt_sensors.py" restore "$registry" "${report%.json}.before.json"
+  return "$failed"
+}
 
 run_stage() {  # run_stage <stage> <registry> <report>
   local stage="$1" registry="$2" report="$3"
@@ -312,12 +387,27 @@ run_stage() {  # run_stage <stage> <registry> <report>
       --registry "$registry" --machines "$CORPUS" --out "$report" ;;
     reset-contract) python3 "$CI_DIR/scripts/regression-reset-contract.py" \
       --registry "$registry" --skip-trajectory --out "$report" ;;
+    # The four below were run by hand beside the lane until 2026-11-01; each is
+    # invoked as regression-test.sh invokes it.
+    escalation-dispatch) python3 "$CI_DIR/scripts/regression-escalation-dispatch.py" \
+      --registry "$registry" --out "$report" "${EXPECT_ESCALATION[@]}" ;;
+    arbiter) python3 "$CI_DIR/scripts/regression-arbiter.py" \
+      --registry "$registry" --contributions "$CI_DIR/config/arbiter-contributions.json" \
+      --machines "$CI_DIR/../RealityEngine_Machines" --lane local --out "$report" ;;
+    metrics-parity) RE_REGISTRY_URL="file://$registry" \
+      bash "$CI_DIR/scripts/verify-metrics-parity.sh" ;;
+    mqtt-yuma) mqtt_yuma "$registry" "$report" ;;
   esac
 }
 
 declare -A VERDICT
 for stage in "${STAGES[@]}"; do
   say "$stage"
+  if [ "$stage" = mqtt-yuma ] && [ -n "$MQTT_SKIP" ]; then
+    VERDICT[$stage]=not-compared
+    echo "skipped: $MQTT_SKIP"
+    continue
+  fi
   unsupported=()
   IFS='|' read -r -a routes <<< "${ROUTES[$stage]}"
   for route in "${routes[@]}"; do
