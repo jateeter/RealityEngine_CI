@@ -5,9 +5,12 @@ process.env.NODE_TLS_REJECT_UNAUTHORIZED = process.env.NODE_TLS_REJECT_UNAUTHORI
 import {
   absoluteCompletionEndpoint,
   buildChatBody,
+  actorRoute,
   executeOpenClawAdapter,
   httpGatewayUrl,
-  parseValues
+  loadAgentSpec,
+  parseValues,
+  resolveSynthetic
 } from './lib/openclaw-adapter.mjs';
 
 const args = process.argv.slice(2);
@@ -41,6 +44,20 @@ Options:
   --timeout-ms MS            Per-request timeout. Defaults to 30000.
   --dry-run                  Print planned gateway/completion calls only.
   --skip-dispatch-patch      Do not PATCH /api/dispatch/records/:id.
+  --agents-dir DIR           Generated agent specs (one directory per domain).
+                             Defaults to OPENCLAW_AGENTS_DIR, then the sibling
+                             localOpenClawStack/machine-behaviors/agents.
+  --synthetic-mode MODE      off | fallback | always. Overrides the agent's
+                             syntheticBody (OC_SYNTHETIC_MODE overrides both).
+  --synthetic-strategy NAME  seeded-random | round-robin | sequence-walk.
+  --step N                   Turn counter for the algorithmic strategies.
+
+When the handoff's target agent has a generated spec, the adapter acts as that
+agent's output-actor: the completion carries the agent's own write-back (sensorId,
+region, TTL) instead of a registered source mapping, and the agent's synthetic
+body answers when its model does not (mode fallback) or instead of it (always).
+Synthetic completions carry metadata.synthetic=true. Without a spec, the fixed
+--values fallback and the registered mapping apply as before.
 
 The adapter consumes the PE ACP handoff receipt returned by
 POST /api/integrations/acp/dispatch, calls the local OpenClaw OpenAI-compatible
@@ -98,6 +115,24 @@ const sourceMappingId = handoff.completionSourceMappingId
 const normalizedHandoff = { ...handoff, targetAgent, completionSourceMappingId: sourceMappingId };
 const metricsLedger = process.env.BRIDGE_METRICS_LEDGER || '/tmp/realityengine-openclaw-adapter-metrics.jsonl';
 
+const path = await import('node:path');
+const { fileURLToPath } = await import('node:url');
+const siblingAgents = path.resolve(path.dirname(fileURLToPath(import.meta.url)),
+  '..', '..', 'localOpenClawStack', 'machine-behaviors', 'agents');
+const agentsDir = arg('--agents-dir', process.env.OPENCLAW_AGENTS_DIR || siblingAgents);
+const agentSpec = await loadAgentSpec(agentsDir, targetAgent);
+const stepArg = arg('--step');
+const step = stepArg === undefined ? undefined : Number(stepArg);
+if (step !== undefined && !Number.isInteger(step)) throw new Error('--step must be an integer');
+const synthetic = agentSpec
+  ? resolveSynthetic(agentSpec, {
+      syntheticBody: {
+        ...(arg('--synthetic-mode') ? { mode: arg('--synthetic-mode') } : {}),
+        ...(arg('--synthetic-strategy') ? { strategy: arg('--synthetic-strategy') } : {})
+      }
+    })
+  : undefined;
+
 async function appendMetricsEvent(event) {
   try {
     const fs = await import('node:fs/promises');
@@ -123,7 +158,11 @@ if (flag('--dry-run')) {
     completionEndpoint: absoluteCompletionEndpoint(peUrl, handoff.completionEndpoint),
     dispatchId: handoff.dispatchId || handoff.id,
     chatRequest: buildChatBody(normalizedHandoff, targetAgent, model),
-    fallbackCompletion: {
+    actor: agentSpec
+      ? { agentId: agentSpec.agentId, route: actorRoute(agentSpec), synthetic,
+          ordinality: agentSpec.syntheticBody?.ordinality ?? 0 }
+      : null,
+    fallbackCompletion: agentSpec ? null : {
       provider: 'openclaw',
       agent: targetAgent,
       sourceMappingId,
@@ -145,14 +184,18 @@ try {
     requireResponseValues: flag('--strict-values'),
     requireDispatchPatch: flag('--require-dispatch-patch'),
     skipDispatchPatch: flag('--skip-dispatch-patch'),
-    timeoutMs
+    timeoutMs,
+    agentSpec,
+    synthetic,
+    ...(step !== undefined ? { step } : {})
   });
 
   await appendMetricsEvent({
     status: 'ok',
     durationMs: Date.now() - startedAt,
     completionStatus: result.completion?.status || null,
-    gatewayStatus: result.gateway?.status || null
+    gatewayStatus: result.gateway?.status || null,
+    synthetic: Boolean(result.synthetic)
   });
   console.log(JSON.stringify(result, null, 2));
   process.exit(0);
