@@ -289,13 +289,32 @@ Still to build:
    the other pass. Until the owner rules, R1 keeps the sequence as a known
    failure or not-compared, naming the pending ruling.
 
-## R3 in detail — to be built
+## R3 in detail
 
-`regression-test.sh` gains an opt-in follower runtime (for example
-`--follower rust`) that builds `RealityEngine_Rust` with the others, starts it
-beside the voters and runs each stage with Rust as a follower. The report keeps
-Rust in its own section and never folds it into the certifying verdict. R3 is
-what a release candidate that ships `re-rust` must pass.
+Built 2026-11-02: `scripts/regression-test.sh --execute --follower rust`
+(local profile only; hosted and local-containerized refuse it).
+
+- **Built with the run.** `RealityEngine_Rust` joins the run's repos, so it gets
+  a run worktree on `origin/main`, a release build (`build-rust`), a pin in the
+  release manifest, and a place in the pre-start provenance check
+  (`--repos cpp,scala,lsp,rust`).
+- **Measured after the voters.** Once every certifying stage has measured the
+  universe, and before `mqtt-yuma` (whose session residue differs by runtime),
+  the harness runs the follower lane, `rust-conformance.sh`, on the run's own
+  universe, corpus, broker and worktree build. Its twelve stages and verdicts
+  are R2's. The lane resets every voter, which is why it comes after the stages
+  that certify.
+- **Never a vote.** Its result goes to `reports/follower-rust/` and
+  `reports/follower-results.tsv`, not to the stage results, so it is not in
+  `STAGE_FAILURES`, the run's exit status, `failingSections`, the comparison or
+  `## Results`. The issue filer cannot see it. `summary.md` gives it its own
+  `## Followers (non-voting)` section, and `regression-status.json` a
+  `followers` block with no top-level `status`.
+  `scripts/tests/test-regression-stage-results.sh` holds all of this: a
+  follower that differs leaves `failingSections` empty and the issue filer's
+  signature unchanged.
+
+R3 is what a release candidate that ships `re-rust` must pass.
 
 ## Noticed, not chased
 
