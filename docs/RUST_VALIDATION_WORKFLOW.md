@@ -27,7 +27,7 @@ as the e2e rules require. A tier that could not run reports **unavailable**
 | tier | when | rough cost |
 |---|---|---|
 | R0 + R1 | every push and pull request on `RealityEngine_Rust` | ~2 min hosted; R1 itself is under a second |
-| R2 | each phase exit of the repair plan (Rust#2), any Rust change to engine-visible behaviour before it is relied on, and weekly while Rust is under active development | a universe boot plus the follower lane's eight stages |
+| R2 | each phase exit of the repair plan (Rust#2), any Rust change to engine-visible behaviour before it is relied on, and weekly while Rust is under active development | a universe boot plus the follower lane's twelve stages |
 | R3 | each release candidate that carries Rust (release-v0.0.2 and later), and monthly otherwise | a full regression run |
 
 R3 is deliberately **not** on the 09:17 daily regression cron, and nothing about
@@ -182,7 +182,13 @@ path) and the PE. The follower lane below covers both.
   `export`, `engine-config --no-step` and `arbitration-retention`, and the three
   stages that push through each instance's PE: `trajectory`
   (`regression-trajectory-parity.py`), `pe-step-contract` and `reset-contract`
-  (`--skip-trajectory`), each invoked as `regression-test.sh` invokes it. An
+  (`--skip-trajectory`), each invoked as `regression-test.sh` invokes it. Since
+  2026-11-01 it also runs `escalation-dispatch` (`--expect-escalation` on the
+  regression and full corpora), `arbiter`, `metrics-parity`
+  (`verify-metrics-parity.sh`) and, last, `mqtt-yuma`. The last tests each PE's
+  bridge against the live broker (`--mqtt-broker-url`, default Yuma, `none` to
+  skip), is `not-compared` with its reason when the broker doesn't answer a TCP
+  connect within 10s, and disables every bridge it enabled. An
   essential route marked `pe:` is probed on `rust-1`'s PE. It runs each
   stage twice: the voters
   alone, then the voters with Rust as one more instance. The stage's own
@@ -237,8 +243,9 @@ Found on the way:
 - **The localAI slice** was missing from `rust-1` (#694, now in the runner).
 - **The runner starts `rust-1`'s PE without the voters' PE environment:**
   `TRIGGERS_ENABLED`, `INTEGRATIONS_CONFIG`, the `ACP_*` settings, and the
-  HealthKit token. None of the eight stages reads them, but escalation dispatch
-  and metrics do.
+  HealthKit token. None of the first eight stages reads them, but escalation
+  dispatch, metrics and MQTT do; since #697 the runner gives `rust-1`'s PE the
+  voters' environment (`scripts/lib/pe-env.sh`).
 - **Every PE connects to the MQTT broker as `reality-engine-pe`.** On a real
   broker each new connection evicts the last, so two enabled bridges flap: 81
   reconnects on cpp-1 during the run.
