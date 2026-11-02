@@ -118,6 +118,24 @@ report "$TMP/r6"
 check "$(grep -c '^- Arbiter conformance: `skipped`$' "$TMP/r6/summary.md")" 1 "a lane without contended cells reads skipped"
 check "$(grep -c '^- local-ai: `failed`$' "$TMP/r6/summary.md")" 1 "a non-zero exit stays failed whatever report it left"
 
+echo "a follower that differs never touches the verdict (R3)"
+make_run "$TMP/rf"
+printf '%s\t%s\t%s\n' service-inventory passed 0 trajectory-parity passed 0 > "$TMP/rf/reports/stage-results.tsv"
+mkdir -p "$TMP/rf/reports/follower-rust"
+echo '{"follower":"rust-1","stages":{"trajectory":"differs","arbiter":"agrees","export":"not-compared"}}' \
+  > "$TMP/rf/reports/follower-rust/summary.json"
+printf 'rust-1\t1\n' > "$TMP/rf/reports/follower-results.tsv"
+report "$TMP/rf"
+check "$(python3 -c 'import json,sys; print(json.load(open(sys.argv[1]))["failingSections"])' "$TMP/rf/reports/regression-status.json")" \
+  "[]" "a differing follower is not a failing section"
+check "$(python3 -c 'import json,sys; d=json.load(open(sys.argv[1]))["followers"]["rust-1"]; print(d["laneExit"], d["stages"]["trajectory"])' "$TMP/rf/reports/regression-status.json")" \
+  "1 differs" "the follower is recorded, apart"
+check "$(sed -n '/^## Results/,/^## /p' "$TMP/rf/summary.md" | grep -c -i 'rust' || true)" "0" "## Results never names the follower"
+check "$(grep -c '^## Followers (non-voting)' "$TMP/rf/summary.md")" "1" "summary.md has its own follower section"
+check "$(grep -c '  - trajectory differs' "$TMP/rf/summary.md")" "1" "each follower stage is listed"
+check "$(signature "$TMP/rf/summary.md")" "$(signature "$TMP/r1/summary.md" >/dev/null; make_run "$TMP/rf0"; printf '%s\t%s\t%s\n' service-inventory passed 0 trajectory-parity passed 0 > "$TMP/rf0/reports/stage-results.tsv"; report "$TMP/rf0"; signature "$TMP/rf0/summary.md")" \
+  "the issue filer's signature is the same with or without the follower"
+
 echo ""
 echo "native build-only leaves runtime ports and services untouched"
 eval "$(sed -n '/^prepare_docker() {/,/^}/p' "$CI_DIR/scripts/regression-test.sh")"

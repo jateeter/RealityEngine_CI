@@ -387,6 +387,50 @@ def compare_runs(current: dict[str, Any], previous: dict[str, Any] | None, previ
     }
 
 
+# Followers (R3, docs/RUST_VALIDATION_WORKFLOW.md): an engine held against the
+# voters that never votes (docs/QUORUM_CONTRACT.md section 1). Collected apart
+# from every status block, with no top-level `status`, so nothing that decides
+# this run (failingSections, the comparison, the issue filer's ## Results) can
+# see one.
+def collect_followers(run_dir: Path) -> dict[str, Any]:
+    reports = run_dir / "reports"
+    exits: dict[str, int] = {}
+    tsv = reports / "follower-results.tsv"
+    if tsv.exists():
+        for line in tsv.read_text(encoding="utf-8").splitlines():
+            parts = line.split("\t")
+            if len(parts) == 2 and parts[1].lstrip("-").isdigit():
+                exits[parts[0]] = int(parts[1])
+    followers: dict[str, Any] = {}
+    for summary in sorted(reports.glob("follower-*/summary.json")):
+        doc = load_json(summary, {}) or {}
+        name = str(doc.get("follower") or summary.parent.name)
+        followers[name] = {
+            "stages": doc.get("stages", {}),
+            "laneExit": exits.get(name),
+            "report": rel(run_dir, summary),
+        }
+    for name, code in exits.items():
+        followers.setdefault(name, {"stages": {}, "laneExit": code, "report": ""})
+    return followers
+
+
+def follower_markdown(followers: dict[str, Any]) -> list[str]:
+    if not followers:
+        return []
+    lines = ["", "## Followers (non-voting)", "",
+             "Held against the voters; never part of this run's verdict (docs/QUORUM_CONTRACT.md section 1).", ""]
+    for name, block in followers.items():
+        stages = block.get("stages") or {}
+        counts: dict[str, int] = {}
+        for verdict in stages.values():
+            counts[verdict] = counts.get(verdict, 0) + 1
+        tally = ", ".join(f"{n} {v}" for v, n in sorted(counts.items())) or "no stage reported"
+        lines.append(f"- {name} (lane exit {block.get('laneExit')}): {tally}")
+        lines.extend(f"  - {stage} {verdict}" for stage, verdict in stages.items())
+    return lines
+
+
 def summary_markdown(run_dir: Path, status: dict[str, Any], comparison: dict[str, Any]) -> str:
     manifest = status.get("manifest", {})
     lines = [
@@ -433,6 +477,7 @@ def summary_markdown(run_dir: Path, status: dict[str, Any], comparison: dict[str
         f"- Changed measures: `{len(comparison.get('measureChanges', []))}`",
     ])
     lines.extend(f"  - {describe_change(change)}" for change in comparison.get("measureChanges", []))
+    lines.extend(follower_markdown(collect_followers(run_dir)))
     lines.extend([
         "",
         "## Artifacts",
@@ -487,6 +532,7 @@ def main() -> int:
          if name != "manifest" and isinstance(block, dict) and block.get("status") == "failed"]
         + [name for name, st in unsectioned_stages(current.get("stages") or {}) if st == "failed"]
     )
+    status_doc["followers"] = collect_followers(args.run_dir)
     write_json(args.run_dir / "reports" / "regression-status.json", status_doc)
 
     write_json(args.run_dir / "reports" / "regression-comparison.json", comparison)

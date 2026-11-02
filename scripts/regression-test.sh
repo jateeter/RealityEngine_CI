@@ -107,6 +107,7 @@ ENGINES_SPEC="cpp:1,lsp:1,scala:1"
 # The instance registry file the stages read. startUniverse.sh writes it here;
 # the local-containerized lane points it at its install (scripts/lib/containerized-lane.sh).
 REGISTRY_FILE="/tmp/re-registry/re-registry.json"
+FOLLOWER=""
 # What startUniverse.sh / stopUniverse.sh may replace although it runs from
 # another checkout: the stacks earlier runs started from their worktrees (#637).
 # Set after argument parsing, once HISTORY_DIR is final.
@@ -190,6 +191,14 @@ Options:
                             Default: regression
                             on both profiles. full is an explicit opt-in and is
                             refused under --profile hosted.
+  --follower rust           Also build RealityEngine_Rust and hold it against the
+                            voters as a non-voting follower (tier R3 of
+                            docs/RUST_VALIDATION_WORKFLOW.md), through the
+                            follower lane, scripts/rust-conformance.sh, once
+                            every certifying stage has measured. Reported in its
+                            own section and reports/follower-rust/; never part
+                            of this run's verdict or exit status. Local profile
+                            only.
   --retain N                Keep latest N local run histories. Default: 20
   --compare RUN_ID          Compare against a previous run id. Default: latest completed run.
   --baseline-status PATH    regression-status.json from the previous run, used as the
@@ -220,6 +229,8 @@ while [ $# -gt 0 ]; do
     --build-only) START=false; LIVE_TESTS=false; RUN_SHAPING+=("$1"); shift ;;
     --engines=*) ENGINES_SPEC="${1#*=}"; shift ;;
     --engines) ENGINES_SPEC="$2"; shift 2 ;;
+    --follower) FOLLOWER="$2"; shift 2 ;;
+    --follower=*) FOLLOWER="${1#*=}"; shift ;;
     --images=*) RELEASE_IMAGES_FILE="${1#*=}"; shift ;;
     --images) RELEASE_IMAGES_FILE="$2"; shift 2 ;;
     --mqtt-broker-url=*) MQTT_BROKER_URL="${1#*=}"; shift ;;
@@ -298,6 +309,7 @@ case "$PROFILE" in
     [ "$MACHINE_CORPUS_SET" = true ] || MACHINE_CORPUS="regression"
     [ "$OPENCLAW_FLAG" = "--no-openclaw" ] || profile_refuse "run OpenClaw (--openclaw)"
     [ "$LOCAL_AI" = false ] || profile_refuse "run localAI/Ollama (--local-ai)"
+    [ -z "$FOLLOWER" ] || profile_refuse "run a follower (--follower)"
     # What the hosted lane refuses is the *full* corpus, because full-corpus
     # load behaviour belongs to dedicated scaling tests rather than to a lane
     # default. A manifest-backed corpus is a named, bounded subset — the arbiter
@@ -351,6 +363,20 @@ esac
 # LOCAL_LANE: operator hardware (Docker, Xcode, a phone), true on both local
 # profiles. CONTAINERIZED: the engines, Manager, localAI and OpenClaw come from
 # the release images, not from native builds.
+# A follower is built and measured with the run but never votes (R3,
+# docs/RUST_VALIDATION_WORKFLOW.md). Rust is the only follower, and the lane
+# that holds it against the voters runs beside native engines only.
+case "$FOLLOWER" in
+  "") ;;
+  rust)
+    if [ "$PROFILE" != local ]; then
+      echo "error: --follower runs only under --profile local (this is $PROFILE)" >&2
+      exit 2
+    fi
+    REPOS+=(RealityEngine_Rust) ;;
+  *) echo "error: --follower takes rust (got '$FOLLOWER')" >&2; exit 2 ;;
+esac
+
 LOCAL_LANE=false
 CONTAINERIZED=false
 case "$PROFILE" in
@@ -1150,6 +1176,10 @@ build_repos() {
     containerized_build_images || { log "Release images failed; nothing to install."; exit 1; }
   else
   run_repo_cmd "RealityEngine_CPP" "build" "build-cpp" bash -lc "cd '$(repo_root RealityEngine_CPP)' && make all"
+  if [ "$FOLLOWER" = rust ]; then
+    run_repo_cmd "RealityEngine_Rust" "build" "build-rust" bash -lc \
+      "cd '$(repo_root RealityEngine_Rust)' && cargo build --release --quiet"
+  fi
   # RealityEngine_LSP/quicklisp/ is untracked, so a cold-start worktree never
   # has it and `make build` dies with "Missing Quicklisp". The hosted lane only
   # worked because the *workflow* bootstrapped Quicklisp into $HOME before
@@ -1403,7 +1433,7 @@ start_universe() {
     log "RE_SKIP_PROVENANCE=1 — skipping (results will not distinguish build skew from engine defects)"
   else
     run_cmd "verify-build-provenance" bash -lc \
-      "cd '$(repo_root RealityEngine_CI)' && python3 scripts/verify-build-provenance.py --repos cpp,scala,lsp --lane $PROFILE" || {
+      "cd '$(repo_root RealityEngine_CI)' && python3 scripts/verify-build-provenance.py --repos cpp,scala,lsp${FOLLOWER:+,$FOLLOWER} --lane $PROFILE" || {
       log "Engine build provenance failed. A parity result from this state attributes"
       log "build skew to the engines. Rebuild the flagged repos, or set RE_SKIP_PROVENANCE=1."
       exit 1
@@ -2368,6 +2398,28 @@ retain_history() {
 # section passed, and the issue filer could only call it "unspecified" — #350
 # was red every night for three weeks with nothing in it naming why.
 STAGE_FAILURES=()
+# The follower (R3): rust-1 held against the voters through the follower lane,
+# on this run's universe, corpus, broker and worktree build. Not a run_stage:
+# its result goes to reports/follower-rust/ and reports/follower-results.tsv,
+# never to STAGE_FAILURES, so a follower can neither fail nor pass this run
+# (docs/QUORUM_CONTRACT.md section 1). The lane resets every voter, so it runs
+# after every certifying stage that measures the universe, and before
+# mqtt-yuma, whose session residue differs by runtime.
+run_follower() {
+  [ -n "$FOLLOWER" ] || return 0
+  step "Follower: rust-1 against the voters (non-voting; not part of this run's verdict)"
+  local ci out status=0
+  ci="$(repo_root RealityEngine_CI)"
+  out="$REPORT_DIR/follower-rust"
+  bash "$ci/scripts/rust-conformance.sh" --rust-repo "$(repo_root RealityEngine_Rust)" \
+    --registry "$REGISTRY_FILE" --no-build --out "$out" \
+    --mqtt-broker-url "${MQTT_BROKER_URL:-none}" > "$LOG_DIR/follower-rust.log" 2>&1 || status=$?
+  printf 'rust-1\t%s\n' "$status" >> "$REPORT_DIR/follower-results.tsv"
+  sed -n '/== rust-1 against the voters/,$p' "$LOG_DIR/follower-rust.log" || true
+  log "follower rust-1: lane exit $status (0 agrees, 1 differs, 3 unavailable); report $out/summary.json"
+  return 0
+}
+
 run_stage() {
   local name="$1"; shift
   local status=0
@@ -2481,6 +2533,9 @@ if [ "$LIVE_TESTS" = true ]; then
   run_stage "localai-machines"  run_localai_machines
   run_stage "local-ai"          run_local_ai
   run_stage "openclaw"          run_openclaw
+  # The follower, after every certifying stage that measures the universe (the
+  # lane resets every voter) and before mqtt-yuma (see run_follower).
+  run_follower
   # After every stage that measures the universe. A live MQTT session leaves
   # sources behind that muting does not remove, and the runtimes do not leave
   # the same ones: Scala declares a source per mapping when the bridge is
