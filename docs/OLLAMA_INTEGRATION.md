@@ -60,10 +60,14 @@ Two defaults exist, and they answer different questions.
   not MLX. Measured on an M1 Pro with Ollama 0.40.11 on 2026-10-25: the MLX build
   generated 36.4 tokens/s against 25.3, and held 3.8 GB of GPU memory against
   2.8 GB.
-- **The engine built-in default: `llama3.1:8b`.** What each runtime — C++, LSP,
-  Scala and the TypeScript PE — resolves when nothing pins a model. It lives in
-  the engine repos, is unchanged, and is rank 3 below. This document is its
-  source of truth; each engine's code comment points here rather than restating it.
+- **The engine built-in default is the universe model too** (owner direction,
+  2026-11-01). It is what each runtime (C++, LSP, Scala, Rust and the TypeScript
+  PE) resolves when nothing pins a model, rank 3 below. It was `llama3.1:8b`, a
+  model the universe does not install, so an engine started with nothing pinned
+  asked Ollama for a model that was not there. No runtime, configuration or
+  launcher may default to or request `llama3.1:8b`. This document is the source
+  of truth for the default; each engine's code comment points here rather than
+  restating it.
 
 Resolution order, identical on every runtime:
 
@@ -71,11 +75,11 @@ Resolution order, identical on every runtime:
 |---|---|
 | 1 | `OLLAMA_MODEL` in the engine's environment — the per-engine override |
 | 2 | `model` on the `kind: "ollama"` entry in the integration registry |
-| 3 | the engine built-in default (`llama3.1:8b`) |
+| 3 | the engine built-in default (`nemotron-3-nano:4b-mlx`) |
 
 The local lane supplies rank 1, so the universe model reaches every engine it
-starts; an engine started outside the lane, with nothing pinned, still resolves
-`llama3.1:8b`.
+starts, and an engine started outside the lane with nothing pinned resolves
+the same model.
 
 The same order applies to `OLLAMA_BASE_URL` and the registry's `baseUrl`.
 

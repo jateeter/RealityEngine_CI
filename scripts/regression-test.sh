@@ -326,14 +326,14 @@ case "$PROFILE" in
     #
     # The universe model is nemotron-3-nano:4b-mlx (docs/OLLAMA_INTEGRATION.md),
     # the MLX build of Nemotron 3 Nano 4B: all RealityEngine testing and
-    # development runs against it. The engines' own built-in default is still
-    # llama3.1:8b, so this pin is what moves them off it — it is rank 1 in the
-    # resolution order, and the local-ai stage fails if the engines disagree or
-    # the resolved model is not installed.
+    # development runs against it. It is the engines' built-in default too
+    # (owner direction, 2026-11-01); the pin is rank 1 in the resolution order,
+    # so it holds whatever an engine's build says, and the local-ai stage fails
+    # if the engines disagree or the resolved model is not installed.
     # Pull it with `ollama pull nemotron-3-nano:4b-mlx` (Ollama 0.40.5+).
     #
     # It calls tools. The PEs omit format=json and schema formats for the
-    # nemotron-3-nano family, which Ollama refused before 0.40.11 ("structured
+    # nemotron-3-nano family, which Ollama's MLX runner refuses ("structured
     # output is unavailable"), so a stage that needs structured output must name
     # another model with OLLAMA_MODEL=.
     #

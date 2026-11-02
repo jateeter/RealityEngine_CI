@@ -348,19 +348,10 @@ export INSTANCE_CLOCK_DIR
 # shellcheck source=scripts/allocate-ports.sh
 source "$CI_DIR/scripts/allocate-ports.sh"
 
+# shellcheck source=scripts/lib/pe-env.sh
+source "$CI_DIR/scripts/lib/pe-env.sh"
 configure_openclaw_acp_defaults() {
-    export ACP_ENABLED="${ACP_ENABLED:-true}"
-    export ACP_PLATFORM="${ACP_PLATFORM:-OpenClaw}"
-    export ACP_SURFACE="${ACP_SURFACE:-xACP}"
-    export ACP_GATEWAY_URL="${ACP_GATEWAY_URL:-${OPENCLAW_GATEWAY_URL:-ws://127.0.0.1:18789}}"
-    export OPENCLAW_GATEWAY_URL="${OPENCLAW_GATEWAY_URL:-$ACP_GATEWAY_URL}"
-    export ACP_SESSION_KEY="${ACP_SESSION_KEY:-${OPENCLAW_ACP_SESSION:-agent:main:main}}"
-    export OPENCLAW_ACP_SESSION="${OPENCLAW_ACP_SESSION:-$ACP_SESSION_KEY}"
-    export ACP_TARGET_AGENT="${ACP_TARGET_AGENT:-openclaw}"
-    export ACP_COMPLETION_SOURCE_MAPPING_ID="${ACP_COMPLETION_SOURCE_MAPPING_ID:-acp-openclaw-completion}"
-    export TRIGGERS_ENABLED="${TRIGGERS_ENABLED:-true}"
-    export TRIGGER_DISPATCH_MODE="${TRIGGER_DISPATCH_MODE:-dry-run}"
-    export INTEGRATIONS_CONFIG="$CI_INTEGRATIONS_CONFIG"
+    pe_env_defaults "$CI_INTEGRATIONS_CONFIG"
 }
 
 # HealthKit ingest auth is enabled by default so the on-device iOS bridge (and
@@ -1257,6 +1248,7 @@ spawn_scala_instance() {
 
     INSTANCE_ID="$id" \
     INSTANCE_UUID="$instance_uuid" \
+    MQTT_CLIENT_ID="$(mqtt_client_id "$id" "$instance_uuid")" \
     INSTANCE_CLOCK_DIR="$INSTANCE_CLOCK_DIR" \
     RE_LOAD_MACHINES="$_RE_LOAD_MACHINES" \
     FRESH_START="$FRESH_START" \
@@ -1302,6 +1294,7 @@ spawn_cpp_instance() {
 
     INSTANCE_ID="$id" \
     INSTANCE_UUID="$instance_uuid" \
+    MQTT_CLIENT_ID="$(mqtt_client_id "$id" "$instance_uuid")" \
     INSTANCE_CLOCK_DIR="$INSTANCE_CLOCK_DIR" \
     RE_LOAD_MACHINES="$_RE_LOAD_MACHINES" \
     FRESH_START="$FRESH_START" \
@@ -1346,6 +1339,7 @@ spawn_lsp_instance() {
 
     INSTANCE_ID="$id" \
     INSTANCE_UUID="$instance_uuid" \
+    MQTT_CLIENT_ID="$(mqtt_client_id "$id" "$instance_uuid")" \
     INSTANCE_CLOCK_DIR="$INSTANCE_CLOCK_DIR" \
     RE_LOAD_MACHINES="$_RE_LOAD_MACHINES" \
     FRESH_START="$FRESH_START" \

@@ -563,7 +563,8 @@ three things that fail for different reasons:
 OpenClaw was already covered: `run_openclaw` runs whenever `--openclaw` is
 set, which is the local default.
 
-The lane pins `OLLAMA_MODEL=llama3.1:8b` for all three engines. Without a pin
+The lane pins `OLLAMA_MODEL` to the universe model (`nemotron-3-nano:4b-mlx`)
+for all three engines; it pinned `llama3.1:8b` when this was written. Without a pin
 the runtimes answer from different models, which makes comparing their
 provider output meaningless before it starts.
 

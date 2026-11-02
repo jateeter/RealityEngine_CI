@@ -42,8 +42,9 @@ npm run test:deployment
   family. Ollama 0.40.13's MLX runner refuses structured output (it was
   accepted on 0.40.11), and the completion-contract prompt carries the keys
   instead (see `docs/OLLAMA_INTEGRATION.md`). It replaced `tinyllama-mlx` (2048-token
-  context) and the interim `gemma3:4b`, which had no tools. The engines' own
-  built-in default is still `llama3.1:8b`.
+  context) and the interim `gemma3:4b`, which had no tools. The engines'
+  own built-in default is the universe model too; nothing defaults to or
+  requests `llama3.1:8b` (owner direction, 2026-11-01).
 - **The instance registry is on :5999 only with fixed ports.** Under
   `--free-ports` it is OS-assigned; `startUniverse.sh` records the address in
   `.universe-registry-url` and `stopUniverse.sh` removes it. A consumer
