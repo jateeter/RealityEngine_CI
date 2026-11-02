@@ -238,12 +238,24 @@ print(json.dumps(steps))
 ' > "$OUT/localai-slice.json" 2> "$OUT/localai-slice.log"; then
     echo "rust-conformance: the localAI registration failed; see $OUT/localai-slice.log" >&2
   fi
-  # The machines arrived after rust-1's PE interned at boot. Intern them now,
-  # as startUniverse.sh's --pe-source-bootstrap=auto does for the voters, so
-  # each localai/* machine has its test source.
-  curl -sf --max-time 120 -X POST "$RUST_PE_URL/api/sources/bootstrap-from-machines" \
-    -H 'Content-Type: application/json' -d '{}' > "$OUT/localai-bootstrap.json" ||
-    echo "rust-conformance: rust-1's PE bootstrap failed" >&2
+  # The machines arrived after rust-1's PE interned at boot. Whether the voters
+  # interned them depends on the universe's history, not on a rule: a fresh
+  # universe's PE bootstrap runs before localAI registers them, while a later
+  # bootstrap (the visualizer's Load Machines does one) interns them too. So
+  # rust-1 follows what the voters hold: it interns them only when a voter holds
+  # localai/* test sources.
+  if python3 - "$OUT/universe-registry.json" <<'PY'
+import json, sys, urllib.request
+voter = next(i for i in json.load(open(sys.argv[1]))["instances"] if i.get("role") != "follower")
+sources = json.load(urllib.request.urlopen(voter["pe_url"] + "/api/sources", timeout=30))["sources"]
+sys.exit(0 if any(s.get("type") == "test" and str(s.get("name", "")).startswith("localai/")
+                  for s in sources) else 1)
+PY
+  then
+    curl -sf --max-time 120 -X POST "$RUST_PE_URL/api/sources/bootstrap-from-machines" \
+      -H 'Content-Type: application/json' -d '{}' > "$OUT/localai-bootstrap.json" ||
+      echo "rust-conformance: rust-1's PE bootstrap failed" >&2
+  fi
   python3 - "$OUT/universe-registry.json" "$RUST_URL" "$RUST_PE_URL" "$OUT/localai-slice.json" <<'PY'
 import json, sys, urllib.request
 registry, re_url, pe_url, steps = sys.argv[1:]
@@ -335,10 +347,13 @@ PY
 esac
 
 # mqtt_yuma <registry> <report>: test-mqtt-yuma.sh on every PE the instance data
-# names, then disable every bridge it enabled, so no bridge pushes into a later
-# run (regression-test.sh mutes them the same way). Fails if any PE fails.
+# names, then disable every bridge it enabled and delete the mqtt: sensors it
+# registered, so no bridge pushes into a later run and a later lane run starts
+# its follower from the voters' state as it was (regression-test.sh mutes the
+# bridges the same way). Fails if any PE fails.
 mqtt_yuma() {
   local registry="$1" report="$2" failed=0 id url
+  python3 "$LIB/mqtt_sensors.py" snapshot "$registry" "${report%.json}.before.json"
   while IFS='|' read -r id url; do
     if ! bash "$CI_DIR/scripts/test-mqtt-yuma.sh" --pe-url "$url" \
         --broker-url "$MQTT_BROKER_URL" --report-json "${report%.json}.$id.json"; then
@@ -347,11 +362,7 @@ mqtt_yuma() {
   done < <(python3 -c 'import json,sys
 for i in json.load(open(sys.argv[1]))["instances"]:
     if i.get("pe_url"): print(i["id"] + "|" + i["pe_url"])' "$registry")
-  while IFS= read -r url; do
-    curl -s --max-time 10 -X POST "$url/api/mqtt/disable" > /dev/null || true
-  done < <(python3 -c 'import json,sys
-for i in json.load(open(sys.argv[1]))["instances"]:
-    if i.get("pe_url"): print(i["pe_url"])' "$registry")
+  python3 "$LIB/mqtt_sensors.py" restore "$registry" "${report%.json}.before.json"
   return "$failed"
 }
 
