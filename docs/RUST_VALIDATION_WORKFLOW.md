@@ -298,12 +298,15 @@ Built 2026-11-02: `scripts/regression-test.sh --execute --follower rust`
   a run worktree on `origin/main`, a release build (`build-rust`), a pin in the
   release manifest, and a place in the pre-start provenance check
   (`--repos cpp,scala,lsp,rust`).
-- **Measured after the voters.** Once every certifying stage has measured the
-  universe, and before `mqtt-yuma` (whose session residue differs by runtime),
-  the harness runs the follower lane, `rust-conformance.sh`, on the run's own
-  universe, corpus, broker and worktree build. Its twelve stages and verdicts
-  are R2's. The lane resets every voter, which is why it comes after the stages
-  that certify.
+- **Measured before `mcp`.** After `universal-vectors` and before the `mcp`
+  stage, the harness runs the follower lane, `rust-conformance.sh`, on the
+  run's own universe, corpus, broker and worktree build. Its twelve stages and
+  verdicts are R2's. It first ran after `openclaw`, and on 2026-11-04
+  (`20261104T195423Z`) trajectory and reset-contract differed on residue alone:
+  the MCP smoke registers a source at cell 4200 on the voters that no reset
+  removes, and rust-1, started after it, never had it. The lane resets every
+  voter it reads and restores the MQTT sensors its own `mqtt-yuma` leaves, and
+  every voting stage after it resets or registers for itself.
 - **Never a vote.** Its result goes to `reports/follower-rust/` and
   `reports/follower-results.tsv`, not to the stage results, so it is not in
   `STAGE_FAILURES`, the run's exit status, `failingSections`, the comparison or
