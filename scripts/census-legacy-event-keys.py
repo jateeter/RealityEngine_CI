@@ -26,6 +26,7 @@ REPOS = [
     "RealityEngine_CI", "RealityEngine_Manager", "RealityEngine_Machines",
     "RealityEngine_CPP", "RealityEngine_LSP", "RealityEngine_Scala",
     "localAIStack", "localOpenClawStack", "localHealthkitBridge",
+    "localAssetStorageStack",
 ]
 
 # The four keys layer 1 renames, as they appear in source.

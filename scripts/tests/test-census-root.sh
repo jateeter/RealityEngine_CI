@@ -15,7 +15,8 @@ PASS=0; FAIL=0
 check() { if [ "$1" = "$2" ]; then echo "  PASS: $3"; PASS=$((PASS+1)); else echo "  FAIL: $3 (expected $2, got $1)"; FAIL=$((FAIL+1)); fi; }
 
 REPOS=(RealityEngine_CI RealityEngine_Manager RealityEngine_Machines RealityEngine_CPP
-       RealityEngine_LSP RealityEngine_Scala localAIStack localOpenClawStack localHealthkitBridge)
+       RealityEngine_LSP RealityEngine_Scala localAIStack localOpenClawStack localHealthkitBridge \
+       localAssetStorageStack)
 
 echo "census-legacy-event-keys.py: root and missing repositories"
 
@@ -29,7 +30,7 @@ check "$(grep -c 'not scanned' "$TMP/out")" 1 "the failure names the repositorie
 for r in "${REPOS[@]}"; do mkdir -p "$TMP/full/$r"; done
 echo '{"events": []}' > "$TMP/full/RealityEngine_CPP/fixture.json"
 set +e; python3 "$CENSUS" --root "$TMP/full" >"$TMP/out" 2>&1; rc=$?; set -e
-check "$rc" 0 "all nine present with no legacy key passes"
+check "$rc" 0 "all ten present with no legacy key passes"
 
 # One repository missing.
 rm -rf "$TMP/full/localHealthkitBridge"

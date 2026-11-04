@@ -946,6 +946,32 @@ The published list is the one in
 - CI#668: all data in motion encrypted, TLS 1.3 only, loopback included,
   outside parties held strictly.
 
+**In scope for `release-v0.0.2`** (owner, 2026-11-04):
+
+- `localAssetStorageStack` joins the release: dokieli asset storage (Solid
+  Community Server, the dokieli UI, the document lifecycle API). Done: it is in
+  the focus set and the engineering contract, `regression-test.sh` clones and
+  pins it on every lane, runs the lifecycle tests, and builds the lifecycle
+  image on the local lane. Still open:
+  - the dokieli image does not build: `dokieli/Dockerfile` clones dokieli's
+    unpinned `main`, and its `npm install` fails (`Cannot read properties of
+    null (reading 'edgesOut')`, 2026-11-04). Pin a dokieli ref that builds,
+    then add the image to the local-lane build;
+  - its Solid Community Server is `solidproject/community-server:7`, a floating
+    major, where PIM's is `7.1.8`; neither is in
+    `config/shared-service-versions.json`;
+  - the stack's own repo: Node to the lockstep `.nvmrc` minor (it builds on
+    `node:22`), runners pinned to `ubuntu-24.04`, CI kept minimal;
+  - its images in `release/images.json` and the release compose, or a decision
+    that it ships as source;
+  - `startUniverse.sh` / `stopUniverse.sh` starting it (`node scripts/up.js`
+    picks its own ports and writes its own `runtime/registry.json`);
+  - its CSS beside PIM's: one Solid Community Server or two, and which holds
+    which PODs;
+  - the ISRE/OSRE, PE and OpenClaw runtime integration its README lists as
+    pending;
+  - CI#668 covers it: its services are plain HTTP today.
+
 **Backlog, not scheduled:**
 
 - CI#526: unnamed-provider review and trust ranking.

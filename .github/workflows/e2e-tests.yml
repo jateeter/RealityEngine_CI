@@ -449,6 +449,14 @@ jobs:
           repository: jateeter/OpenCommons-Health---Personal-Information-Management
           path: OpenCommons-Health---Personal-Information-Management
 
+      # In the release from v0.0.2: its compose file declares the Solid
+      # Community Server image the shared-service version check compares.
+      - name: Checkout localAssetStorageStack
+        uses: actions/checkout@v7
+        with:
+          repository: jateeter/localAssetStorageStack
+          path: localAssetStorageStack
+
       # The parity-surface test imports the TypeScript module the e2e spec uses,
       # which needs the type stripping Node enables by default from 23. Pinned to
       # CI's .nvmrc, like every other job, rather than trusting the runner default.

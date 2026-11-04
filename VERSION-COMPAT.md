@@ -25,10 +25,10 @@ runtimes — the two that cross-runtime parity is measured against. A gate that
 silently covers less than it appears to is the failure mode this whole
 verification posture exists to avoid.
 
-Of the ten repos the release manifest pins, three are not listed:
-`RealityEngine_CI` itself, which is the repo running the check;
-`OpenCommons-Health---Personal-Information-Management`; and
-`localHealthkitBridge`. `scripts/release-manifest.py verify` checks all ten
+Of the eleven repos the release manifest pins (from `release-v0.0.2`), four
+are not listed: `RealityEngine_CI` itself, which is the repo running the check;
+`OpenCommons-Health---Personal-Information-Management`; `localHealthkitBridge`;
+and `localAssetStorageStack`. `scripts/release-manifest.py verify` checks all eleven
 against a release's pins.
 
 ## Usage
