@@ -99,6 +99,43 @@ CPP and LSP require ACP dispatch to reference an existing dispatch ledger record
 
 7. Observability. Emit ACP handoff metrics and correlate OpenClaw session keys, ACP run IDs, dispatch IDs, envelope IDs, and PE completion IDs. Without that correlation an ACP failure — a handoff receipt whose completion never arrives — cannot be attributed to a session without reading logs on both sides.
 
+## The output-actor and its synthetic body
+
+`scripts/openclaw-acp-adapter.mjs` is the output-actor: the part of the agentic
+loop that carries an agent's answer back into the perceptual space, where it
+lands as a source and composes into the ISRE. When the handoff's target agent
+has a generated spec (`localOpenClawStack/machine-behaviors/agents/<domain>/`,
+or `--agents-dir` / `OPENCLAW_AGENTS_DIR`), the adapter acts for that agent:
+
+- **The completion carries its own route.** It is posted with the agent's
+  write-back (`sensorId`, `region`, `ttlMs`) and no `sourceMappingId`, so no
+  per-agent mapping has to be registered first. C++, LSP, Scala and Rust all
+  resolve an empty mapping to `{}` and take the envelope's own sensor and region.
+- **The answer is the model's or the synthetic body's.** A real answer must fill
+  the write-back exactly: a `values` array of the region's length, or an object
+  keyed by the agent's response fields. The agent's `syntheticBody` (generated
+  by `localOpenClawStack/machine-behaviors/synthetic_body.py` from the machine's
+  corpus `inputSequences`) answers when the model does not:
+  `--synthetic-mode off|fallback|always`. With more than one admissible answer,
+  `--synthetic-strategy seeded-random|round-robin|sequence-walk` chooses, with
+  `--step` as the turn counter. `OC_SYNTHETIC_MODE` / `OC_SYNTHETIC_STRATEGY`
+  override both.
+- **Synthetic answers say so.** Their completion carries `metadata.synthetic:
+  true` and the selection (strategy, response ID, ordinality, seed key, and what
+  it replaced); the dispatch record's `completed` patch carries `synthetic` too.
+- **With the body off, nothing is substituted.** An answer that does not fill
+  the write-back fails the dispatch. The fixed `--values` vector is not used for
+  an agent with a spec: it is the wrong length for most agents and means nothing
+  for any of them.
+
+Seeded selection is SHA-256(`agentId|seedKey`) mod ordinality, with the
+handoff's correlation ID as the seed key, so the same dispatch picks the same
+answer on every host. `scripts/tests/openclaw-actor-synthetic.test.mjs` pins the
+selection to vectors computed by the Python body.
+
+A handoff whose agent has no generated spec behaves as before: the registered
+`sourceMappingId` (default `acp-openclaw-completion`) and the `--values` fallback.
+
 ## Hello World Agent
 
 The deterministic fixture is:
