@@ -2611,9 +2611,12 @@ STAGE_FAILURES=()
 # on this run's universe, corpus, broker and worktree build. Not a run_stage:
 # its result goes to reports/follower-rust/ and reports/follower-results.tsv,
 # never to STAGE_FAILURES, so a follower can neither fail nor pass this run
-# (docs/QUORUM_CONTRACT.md section 1). The lane resets every voter, so it runs
-# after every certifying stage that measures the universe, and before
-# mqtt-yuma, whose session residue differs by runtime.
+# (docs/QUORUM_CONTRACT.md section 1). It runs before mcp: the MCP smoke
+# registers sources (cell 4200) on the voters that no reset removes and rust-1,
+# started later, never receives, so after it trajectory and reset-contract
+# differ on that residue alone (run 20261104T195423Z). The lane resets every
+# voter it reads, and restores the MQTT sensors its own mqtt-yuma leaves; every
+# voting stage after it resets or registers for itself.
 run_follower() {
   [ -n "$FOLLOWER" ] || return 0
   step "Follower: rust-1 against the voters (non-voting; not part of this run's verdict)"
@@ -2715,6 +2718,8 @@ if [ "$LIVE_TESTS" = true ]; then
   run_stage "escalation-dispatch" run_escalation_dispatch
   run_stage "arbiter-sweep"     run_arbiter_rule_sweep
   run_stage "universal-vectors" run_universal_vectors
+  # The follower, before mcp (see run_follower).
+  run_follower
   run_stage "mcp"               run_mcp
   run_stage "arbiter"           run_arbiter
   # Beside the arbiter, on the same fixture: retention keyed by step, the legacy
@@ -2743,12 +2748,9 @@ if [ "$LIVE_TESTS" = true ]; then
   run_stage "localai-machines"  run_localai_machines
   run_stage "local-ai"          run_local_ai
   run_stage "openclaw"          run_openclaw
-  # The follower, after every certifying stage that measures the universe (the
-  # lane resets every voter) and before mqtt-yuma (see run_follower).
-  run_follower
-  # After the certifying stages and the follower: it makes clones, which the
-  # parity stages would see in GET /api/machines while they live, and recycles
-  # them all before it ends.
+  # After the certifying stages and the follower (before mcp): it makes clones,
+  # which the parity stages would see in GET /api/machines while they live, and
+  # recycles them all before it ends.
   run_stage "asset-workflow"    run_asset_workflow
   # With every lane service up, and before mqtt-yuma: it reads, writes nothing.
   run_stage "transport-probe"   run_transport_probe
