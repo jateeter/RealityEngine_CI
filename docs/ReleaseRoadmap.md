@@ -953,21 +953,24 @@ The published list is the one in
   the focus set and the engineering contract, `regression-test.sh` clones and
   pins it on every lane, runs the lifecycle tests, and builds the lifecycle
   image on the local lane. Still open:
-  - the dokieli image does not build: `dokieli/Dockerfile` clones dokieli's
-    unpinned `main`, and its `npm install` fails (`Cannot read properties of
-    null (reading 'edgesOut')`, 2026-11-04). Pin a dokieli ref that builds,
-    then add the image to the local-lane build;
-  - its Solid Community Server is `solidproject/community-server:7`, a floating
-    major, where PIM's is `7.1.8`; neither is in
-    `config/shared-service-versions.json`;
-  - the stack's own repo: Node to the lockstep `.nvmrc` minor (it builds on
-    `node:22`), runners pinned to `ubuntu-24.04`, CI kept minimal;
+  - localAssetStorageStack#5: the dokieli image does not build.
+    `dokieli/Dockerfile` clones dokieli's unpinned `main`, and its `npm install`
+    fails (`Cannot read properties of null (reading 'edgesOut')`, 2026-11-04).
+    Pin a dokieli ref that builds, then add the image to the local-lane build;
+  - CI#707: one version for each common service image. Its Solid Community
+    Server is `solidproject/community-server:7`, a floating major, where PIM's
+    is `7.1.8`, and neither is in `config/shared-service-versions.json`. The
+    version is unified; the instances are not. The suite runs several Solid
+    Community Servers, each at its own address (owner, 2026-11-04);
+  - localAssetStorageStack#6: the stack's own CI in step with the suite: Node
+    to the lockstep `.nvmrc` minor (it builds on `node:22`), runners pinned to
+    `ubuntu-24.04`, CI kept minimal;
   - its images in `release/images.json` and the release compose, or a decision
     that it ships as source;
   - `startUniverse.sh` / `stopUniverse.sh` starting it (`node scripts/up.js`
     picks its own ports and writes its own `runtime/registry.json`);
-  - its CSS beside PIM's: one Solid Community Server or two, and which holds
-    which PODs;
+  - its Solid Community Server stays a separate instance from PIM's, at its
+    own address, discoverable from the stack's `runtime/registry.json`;
   - the ISRE/OSRE, PE and OpenClaw runtime integration its README lists as
     pending;
   - CI#668 covers it: its services are plain HTTP today.
