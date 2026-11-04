@@ -256,6 +256,39 @@ PY
       -H 'Content-Type: application/json' -d '{}' > "$OUT/localai-bootstrap.json" ||
       echo "rust-conformance: rust-1's PE bootstrap failed" >&2
   fi
+  # The bootstrap interns every localAI machine; the voters hold only what their
+  # history interned (27 of rust-1's 43 localai/* sources on 20261104T232450Z,
+  # where trajectory then differed at cell 7452, agent_activity_classifier's
+  # input, on that stimulus alone). So rust-1 drops each localai/* source the
+  # voters do not hold. One the voters hold and rust-1 lacks cannot be copied
+  # (no route creates a test source with its interned sequence) and is named.
+  python3 - "$OUT/universe-registry.json" "$RUST_PE_URL" "$OUT/localai-reconcile.json" <<'PY' ||
+import json, sys, urllib.request
+registry, pe_url, report = sys.argv[1:]
+def localai(pe):
+    sources = json.load(urllib.request.urlopen(pe + "/api/sources", timeout=30))["sources"]
+    return {(s.get("type"), s.get("name", "")): s for s in sources
+            if str(s.get("name", "")).startswith("localai/")}
+voters = [i for i in json.load(open(registry))["instances"] if i.get("role") != "follower"]
+held = {v["id"]: set(localai(v["pe_url"])) for v in voters}
+theirs = set.intersection(*held.values())
+split = sorted({k for keys in held.values() for k in keys} - theirs)
+ours = localai(pe_url)
+dropped = []
+for key in sorted(set(ours) - theirs):
+    req = urllib.request.Request(f"{pe_url}/api/sources/{ours[key]['id']}", method="DELETE")
+    urllib.request.urlopen(req, timeout=30).read()
+    dropped.append(list(key))
+missing = sorted(theirs - set(ours))
+json.dump({"dropped": dropped, "missing": [list(k) for k in missing],
+           "votersSplit": [list(k) for k in split]}, open(report, "w"), indent=2)
+print(f"  rust-1: dropped {len(dropped)} localai/* source(s) the voters do not hold")
+for key in missing:
+    print(f"  rust-1 lacks {key[0]} {key[1]}, which every voter holds")
+for key in split:
+    print(f"  the voters do not agree on {key[0]} {key[1]}; rust-1 keeps it only if all hold it")
+PY
+    echo "rust-conformance: aligning rust-1's localai/* sources with the voters failed" >&2
   python3 - "$OUT/universe-registry.json" "$RUST_URL" "$RUST_PE_URL" "$OUT/localai-slice.json" <<'PY'
 import json, sys, urllib.request
 registry, re_url, pe_url, steps = sys.argv[1:]
