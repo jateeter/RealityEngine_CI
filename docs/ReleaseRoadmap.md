@@ -973,6 +973,13 @@ The published list is the one in
     own address, discoverable from the stack's `runtime/registry.json`;
   - the ISRE/OSRE, PE and OpenClaw runtime integration its README lists as
     pending;
+  - the sixteen findings of the gaps review (identity, pod read-back, the
+    review gate, receipts, append-only storage, the IFRS model and more). The
+    solutions and milestones A0–A9 are in localAssetStorageStack `ROADMAP.md`
+    (localAssetStorageStack#7). Three of its decisions need owner
+    confirmation: the IFRS `document_workflow` as the one lifecycle, the
+    review rules as corpus machines, and pod writes only through the
+    lifecycle service;
   - CI#668 covers it: its services are plain HTTP today.
 
 **Backlog, not scheduled:**
