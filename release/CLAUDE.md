@@ -79,18 +79,15 @@ with no checkout (`docs/ReleaseRoadmap.md`, decisions A1–A11; `RELEASE.md`;
   suite, so it needs the owner's go-ahead; it collides with the development
   stacks' ports (4000, 8080, 18789) and memory.
 
-## Standing rules — authoritative in `../docs/ENGINEERING_CONTRACT.md`
+## Local exception: the installer runs on bash 3.2
 
-These apply here and are **not** restated in this file. The table is an index
-to the contract, not a copy of it: it names every rule so you know what to look
-up, and the contract's wording governs wherever the two differ.
+The contract's bash rule does not apply to the installer CLI
+(`realityengine`, `install.sh`, `uninstall.sh`): they ship to clean Macs
+and must run on macOS `/bin/bash` 3.2.
 
-| Rule | In short |
-| --- | --- |
-| Qualify every "registry" | Never the bare word — instance / machine / cesgen / arbitration / domain / semantic-bus / tag. |
-| Regenerate a stale `<name>` registry, don't fail it | Each `<name>` registry is a view of the running system. A gate regenerates it and fails only on a disagreement that survives regeneration. |
-| Verify a merge beyond the hosted checks | A green PR is not a verified PR; the hosted path cannot reach the integration points. Name what you could not exercise, and record what you noticed but did not chase. |
-| _CI is the authority | Peripheral repos keep minimal CI that forces local validation; RealityEngine_CI verifies fixes against a live universe. Check its `docs/` before adding CI anywhere else. |
-| Name it `CLAUDE.md` | Uppercase, always. On a case-insensitive filesystem `claude.md` is the same inode; dedupe on `st_ino`, never on a resolved path. |
-| Never commit to main | Branch from `origin/main`, PR, verify, squash-merge, clean up. |
-| Use bash, not zsh | Shell work runs in `/opt/homebrew/bin/bash` (5.x), not zsh or macOS `/bin/bash` 3.2: any loop, unquoted variable, glob or `set --` goes through it with `set -euo pipefail`, and you check the command's exit status, not the pipeline tail. The installer CLI is the one deliberate exception: it is shipped to clean Macs and must run on 3.2. |
+## Standing rules
+
+The standing rules are in
+`../docs/ENGINEERING_CONTRACT.md`, which is
+authoritative. They are not listed or summarised here, so this file never
+falls behind the contract. Read it before changing anything here.
