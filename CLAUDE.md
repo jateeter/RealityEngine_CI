@@ -1,6 +1,6 @@
 # RealityEngine_CI Guidance
 
-Last reviewed: 2026-10-27
+Last reviewed: 2026-11-04
 
 See `/Users/johnt/workspace/GitHub/CLAUDE.md` for the integrated application map. Update both this file and the root map when orchestration, instance registry, environment, or e2e responsibilities change.
 
@@ -158,6 +158,7 @@ up, and the contract's wording governs wherever the two differ.
 | _CI is the authority | Peripheral repos keep minimal CI that forces local validation; RealityEngine_CI verifies fixes against a live universe. Check its `docs/` before adding CI anywhere else. |
 | Name it `CLAUDE.md` | Uppercase, always. On a case-insensitive filesystem `claude.md` is the same inode; dedupe on `st_ino`, never on a resolved path. |
 | Never commit to main | Branch from `origin/main`, PR, verify, squash-merge, clean up. |
+| Parity is regression, not deployment | Regression proves engine parity on identical corpora. In deployment, engine instances commonly carry different corpora; runtime code never fans out for agreement or rolls back because another engine differs. It may observe divergence, never require agreement. |
 | Use bash, not zsh | Shell work runs in `/opt/homebrew/bin/bash` (5.x), not zsh or macOS `/bin/bash` 3.2: any loop, unquoted variable, glob or `set --` goes through it with `set -euo pipefail`, and you check the command's exit status, not the pipeline tail. |
 
 Read the contract for the full text, the qualifier table, and the cleanup steps.
