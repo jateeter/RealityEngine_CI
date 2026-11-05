@@ -31,7 +31,7 @@ set -euo pipefail
 
 CI_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 WORKSPACE="$(cd "$CI_DIR/.." && pwd)"
-read -r -a REPOS <<< "${RE_NODE_REPOS:-RealityEngine_CI RealityEngine_Manager RealityEngine_Machines localAIStack localOpenClawStack OpenCommons-Health---Personal-Information-Management}"
+read -r -a REPOS <<< "${RE_NODE_REPOS:-RealityEngine_CI RealityEngine_Manager RealityEngine_Machines localAIStack localOpenClawStack OpenCommons-Health---Personal-Information-Management localAssetStorageStack}"
 EXECUTE=false; TO=""; FROM=""; REWRITE_DIR=""
 
 usage() { sed -n '2,/^set -euo/p' "${BASH_SOURCE[0]}" | sed -e '$d' -e 's/^# \{0,1\}//'; }
