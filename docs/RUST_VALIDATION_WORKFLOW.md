@@ -178,6 +178,13 @@ path) and the PE. The follower lane below covers both.
   (machines, and `localai/*` sources of every kind). Without this, the first
   live run (2026-11-01) reported 18 machines and four stages as Rust
   differences that were stimulus.
+  The bootstrap interns every localAI machine, while the voters hold only what
+  their history interned, so the runner then deletes each `localai/*` source on
+  `rust-1` that not every voter holds (`reports/.../localai-reconcile.json`).
+  One every voter holds and `rust-1` lacks cannot be copied and is named. On
+  2026-11-04 (`20261104T232450Z`) the voters held 27 of `rust-1`'s 43, and
+  trajectory differed at cell 7452, `agent_activity_classifier`'s input, on
+  that stimulus alone.
 - **One verdict per stage.** The runner covers `machine-set`, `engine-process`,
   `export`, `engine-config --no-step` and `arbitration-retention`, and the three
   stages that push through each instance's PE: `trajectory`
