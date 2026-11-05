@@ -951,20 +951,16 @@ The published list is the one in
 - `localAssetStorageStack` joins the release: dokieli asset storage (Solid
   Community Server, the dokieli UI, the document lifecycle API). Done: it is in
   the focus set and the engineering contract, `regression-test.sh` clones and
-  pins it on every lane, runs the lifecycle tests, and builds the lifecycle
-  image on the local lane. Still open:
-  - localAssetStorageStack#5: the dokieli image does not build.
-    `dokieli/Dockerfile` clones dokieli's unpinned `main`, and its `npm install`
-    fails (`Cannot read properties of null (reading 'edgesOut')`, 2026-11-04).
-    Pin a dokieli ref that builds, then add the image to the local-lane build;
+  pins it on every lane, runs the lifecycle tests, and builds both its images
+  (lifecycle and dokieli) on the local lane. dokieli builds from a pinned commit
+  with Yarn 4 (localAssetStorageStack#5, closed 2026-11-04). Its Node moves
+  with the suite's through `advance-node.sh` (localAssetStorageStack#6).
+  Still open:
   - CI#707: one version for each common service image. Its Solid Community
     Server is `solidproject/community-server:7`, a floating major, where PIM's
     is `7.1.8`, and neither is in `config/shared-service-versions.json`. The
     version is unified; the instances are not. The suite runs several Solid
     Community Servers, each at its own address (owner, 2026-11-04);
-  - localAssetStorageStack#6: the stack's own CI in step with the suite: Node
-    to the lockstep `.nvmrc` minor (it builds on `node:22`), runners pinned to
-    `ubuntu-24.04`, CI kept minimal;
   - its images in `release/images.json` and the release compose, or a decision
     that it ships as source;
   - `startUniverse.sh` / `stopUniverse.sh` starting it (`node scripts/up.js`

@@ -29,7 +29,8 @@ check "$(git -C "$CI_DIR" grep -hoE '^FROM node:[^ ]+' -- '*Dockerfile*' | sort 
 check "$(grep -oE '"node:[^"]+"' "$CI_DIR/release/images.json" | sort -u | grep -v "^\"node:$V-bookworm-slim\"\$" || true)" "" \
   "release/images.json names no Node base other than node:$V-bookworm-slim"
 # The sibling repos pin the same minor, where they are checked out next to CI.
-for repo in RealityEngine_Manager RealityEngine_Machines localAIStack localOpenClawStack OpenCommons-Health---Personal-Information-Management; do
+for repo in RealityEngine_Manager RealityEngine_Machines localAIStack localOpenClawStack OpenCommons-Health---Personal-Information-Management \
+            localAssetStorageStack; do
   dir="$CI_DIR/../$repo"; [ -e "$dir/.git" ] || continue
   check "$(git -C "$dir" ls-files '.nvmrc' '*/.nvmrc' | while read -r f; do tr -d '[:space:]' < "$dir/$f"; echo; done | grep -v "^$V\$" | sort -u)" "" \
     "$repo: every .nvmrc pins $V"
