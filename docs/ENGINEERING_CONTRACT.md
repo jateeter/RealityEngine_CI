@@ -1,6 +1,6 @@
 # Engineering Contract
 
-Last reviewed: 2026-09-25
+Last reviewed: 2026-11-04
 
 **This file is authoritative for the standing rules below.** Every repository's
 `CLAUDE.md` points here rather than restating them, the same way each engine
@@ -175,6 +175,50 @@ Example, RealityEngine_CI#377: while verifying a `--check` fix,
 suggesting a re-import adds a second entry under a new id rather than replacing
 it. Unrelated to that PR, de-duplicated by name so the result was unaffected,
 recorded rather than investigated.
+
+---
+
+## MUST: engine parity is proven in regression, never required in deployment
+
+**Regression is the parity proving ground. Deployment is not.**
+
+- **In regression,** every voting engine (C++, LSP, Scala) runs the same
+  corpus, and their answers must agree. This is the RealityEngine_CI harness and
+  its lanes. Contract parity and byte equivalence are regression results.
+- **In deployment,** parity is not a goal. Individual engine instances
+  commonly present different machine corpora: one instance carries a domain
+  another does not. A difference between engine instances in a deployment is
+  expected, not a defect.
+
+### What this requires
+
+- **A runtime component never requires the engines to agree.** It never fans
+  an operation out to "every engine" so they stay identical, and it never
+  rolls back on one engine because another lacks a machine. It acts on the
+  engine instance(s) whose corpus carries what it needs. An engine that
+  doesn't carry it is not a failure.
+- **Parity checks live in the regression harness**, not in runtime code. A
+  comparison across engines belongs in a regression stage, against engines
+  started with identical corpora.
+- **A runtime may observe divergence; it may not demand agreement.** Reporting
+  engine differences as an observation is fine, for example localAIStack's
+  `engine_parity` on `/health` and the LLM drift record. Gating behaviour on
+  agreement is not.
+- **Something that must behave identically on every engine is proven in
+  regression,** before it ships in the corpus. A corpus machine, including a
+  workflow template, earns its place there.
+
+### Why
+
+Owner decision, 2026-11-04, made while designing dynamic workflow
+instantiation (localAssetStorageStack#8). A deployed system specializes its
+engine instances. A runtime built to keep them identical would treat that
+specialization as an error, and would fail, or roll back healthy work, by
+design. Separating the two keeps parity as strict as ever where it is proven,
+and keeps it out of the way where it does not apply.
+
+This doesn't change the voting set: RealityEngine_Rust stays a non-voting
+follower in regression (below). It also doesn't loosen any regression gate.
 
 ---
 
