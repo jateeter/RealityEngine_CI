@@ -140,6 +140,10 @@ REPOS=(
   # run on the local lane and record a skip reason on the hosted one.
   OpenCommons-Health---Personal-Information-Management
   localHealthkitBridge
+  # The dokieli asset storage stack (CSS, dokieli, lifecycle API) joins with
+  # release-v0.0.2 (docs/ReleaseRoadmap.md). Pinned on every lane like the two
+  # above; its lifecycle tests need only Node, its images need Docker.
+  localAssetStorageStack
 )
 
 usage() {
@@ -1291,6 +1295,33 @@ build_repos() {
     write_skip_report "build-healthkit-bridge-skipped.json" \
       "Swift/Xcode toolchain is macOS-only; hosted lane cannot build the bridge"
     log "SKIP HealthKit bridge build — hosted profile"
+  fi
+  # localAssetStorageStack (release-v0.0.2). The lifecycle API's tests need only
+  # Node, so they run wherever the repo is checked out. Its lifecycle image is
+  # built directly, not through `docker compose build`: the compose file
+  # requires every token in .env (`${VAR:?}`), and a build should neither need
+  # credentials nor copy the operator's. The dokieli image is not built yet: its
+  # Dockerfile clones dokieli's unpinned `main`, whose `npm install` failed on
+  # 2026-11-04 (docs/ReleaseRoadmap.md, release-v0.0.2 scope).
+  if repo_present "localAssetStorageStack"; then
+    run_repo_cmd "localAssetStorageStack" "build" "test-asset-lifecycle" bash -lc \
+      "cd '$(repo_root localAssetStorageStack)/lifecycle' && npm test"
+  else
+    write_skip_report "test-asset-lifecycle-skipped.json" \
+      "localAssetStorageStack is not checked out on this lane; nothing to test"
+    log "SKIP asset lifecycle tests — localAssetStorageStack not checked out"
+  fi
+  if [ "$LOCAL_LANE" = true ] && repo_present "localAssetStorageStack"; then
+    run_repo_cmd "localAssetStorageStack" "build" "build-asset-lifecycle-image" bash -lc \
+      "cd '$(repo_root localAssetStorageStack)' && docker build -q -t re-regression/asset-lifecycle ./lifecycle"
+  elif [ "$LOCAL_LANE" = true ]; then
+    write_skip_report "build-asset-lifecycle-image-skipped.json" \
+      "localAssetStorageStack is not checked out on this lane; nothing to build"
+    log "SKIP asset lifecycle image — localAssetStorageStack not checked out"
+  else
+    write_skip_report "build-asset-lifecycle-image-skipped.json" \
+      "asset lifecycle image build needs Docker; hosted lane runs the lifecycle tests only"
+    log "SKIP asset lifecycle image — hosted profile"
   fi
   # Build only what this lane can actually start. The hosted profile *refuses*
   # --local-ai and --openclaw (see the profile block above), so building their

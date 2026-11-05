@@ -299,6 +299,7 @@ BLOCKER_TARGETS=(
   "$WS/localHealthkitBridge/README.md"
   "$WS/localOpenClawStack/README.md"
   "$WS/localAIStack/README.md"
+  "$WS/localAssetStorageStack/README.md"
 )
 
 BLOCKER_EXCL=(

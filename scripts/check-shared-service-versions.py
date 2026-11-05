@@ -42,6 +42,7 @@ REPOS = [
     "RealityEngine_CPP", "RealityEngine_LSP", "RealityEngine_Scala",
     "localAIStack", "localOpenClawStack", "localHealthkitBridge",
     "OpenCommons-Health---Personal-Information-Management",
+    "localAssetStorageStack",
 ]
 
 # Where a declaration can hide. Compose files and Dockerfiles are the obvious

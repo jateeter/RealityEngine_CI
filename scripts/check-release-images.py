@@ -3,7 +3,7 @@
 
 Checks, for every image:
   - the name is `re-<component>` and unique;
-  - its repo is one of the ten release repos;
+  - its repo is one of the release repos;
   - its build context and Dockerfile exist, when that repo is checked out beside
     this one. A `status: planned` image may have no Dockerfile yet; nothing else
     may be missing;
@@ -39,6 +39,7 @@ RELEASE_REPOS = {
     "RealityEngine_Scala", "RealityEngine_Machines", "RealityEngine_Manager",
     "localAIStack", "localOpenClawStack",
     "OpenCommons-Health---Personal-Information-Management", "localHealthkitBridge",
+    "localAssetStorageStack",
 }
 REGISTRY = "ghcr.io/jateeter"
 PLATFORM = "linux/arm64"

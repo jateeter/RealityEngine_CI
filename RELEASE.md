@@ -52,6 +52,7 @@ images, and both are the same release.
 | `localOpenClawStack` | ACP/OpenClaw gateway | no image: its scripts and agents ship in `re-init`, and the gateway is the Mac's own `openclaw` (#592) |
 | `OpenCommons-Health---Personal-Information-Management` | PIM and the Solid Community Server that holds the authoritative POD | images `re-pim`, `re-css` |
 | `localHealthkitBridge` | iOS HealthKit → PE bridge | **source**, a development deployment built with Xcode (A10) |
+| `localAssetStorageStack` | dokieli asset storage: Solid Community Server, dokieli UI, document lifecycle API | from `release-v0.0.2`; pinned by the manifest, images not yet in the catalog |
 
 The image catalog (repo, Dockerfile, image name) is
 `release/images.json`: twelve images. Third-party images (Loki, Prometheus,

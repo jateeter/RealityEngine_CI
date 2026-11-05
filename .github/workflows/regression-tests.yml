@@ -229,6 +229,16 @@ jobs:
           fetch-depth: 0
           token: ${{ secrets.REPO_ACCESS_TOKEN || github.token }}
 
+      # In the release from v0.0.2. Its lifecycle tests need only Node, so the
+      # hosted lane runs them; its image build is local-lane only.
+      - name: Checkout localAssetStorageStack
+        uses: actions/checkout@v7
+        with:
+          repository: ${{ github.repository_owner }}/localAssetStorageStack
+          path: localAssetStorageStack
+          fetch-depth: 0
+          token: ${{ secrets.REPO_ACCESS_TOKEN || github.token }}
+
       # ── Native toolchains ──────────────────────────────────────────────────
       # This workflow had no provisioning at all: it was written for a
       # self-hosted runner where these were already present. The first hosted

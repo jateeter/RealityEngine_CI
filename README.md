@@ -44,7 +44,7 @@ The corpus at `release-v0.0.1` (`RealityEngine_Machines` `7d9bf07`,
 
 ## Running from source
 
-Clone these ten repositories side by side in one workspace directory:
+Clone these eleven repositories side by side in one workspace directory:
 
 - RealityEngine_CI
 - RealityEngine_Machines
@@ -56,6 +56,7 @@ Clone these ten repositories side by side in one workspace directory:
 - localOpenClawStack
 - localHealthkitBridge
 - OpenCommons-Health---Personal-Information-Management
+- localAssetStorageStack (from release-v0.0.2)
 
 Then, from `RealityEngine_CI`:
 

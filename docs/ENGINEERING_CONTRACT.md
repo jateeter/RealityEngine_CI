@@ -186,7 +186,7 @@ authoritative. Look here first, before deciding how anything is verified.**
 Every other repository in the focus set — `RealityEngine_Machines`,
 `RealityEngine_Manager`, `RealityEngine_CPP`, `RealityEngine_LSP`,
 `RealityEngine_Scala`, `localAIStack`, `localOpenClawStack`,
-`localHealthkitBridge` — keeps its repo-specific CI **deliberately minimal**:
+`localHealthkitBridge`, `localAssetStorageStack` — keeps its repo-specific CI **deliberately minimal**:
 enough to force the local validation, never enough to stand in for it. A fix is
 fully verified by this repo, against a live universe.
 
