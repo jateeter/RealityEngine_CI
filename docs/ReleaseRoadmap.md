@@ -976,10 +976,13 @@ The published list is the one in
   - the sixteen findings of the gaps review (identity, pod read-back, the
     review gate, receipts, append-only storage, the IFRS model and more). The
     solutions and milestones A0–A9 are in localAssetStorageStack `ROADMAP.md`
-    (localAssetStorageStack#7). Three of its decisions need owner
-    confirmation: the IFRS `document_workflow` as the one lifecycle, the
-    review rules as corpus machines, and pod writes only through the
-    lifecycle service;
+    (localAssetStorageStack#7). Owner decisions (2026-11-04):
+    - the IFRS `document_workflow` is IFRS's lifecycle; other domains bring
+      their own workflows;
+    - pod writes go only through the lifecycle service, for now;
+    - where the review rules live (corpus machines or the service) is a
+      separate discussion, localAssetStorageStack#8, held during this cycle,
+      not after it;
   - CI#668 covers it: its services are plain HTTP today.
 
 **Backlog, not scheduled:**
