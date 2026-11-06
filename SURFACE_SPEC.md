@@ -1564,9 +1564,9 @@ rule it fails:
 | 4 | It is not `metadata.severity: "life-safety"`. | `life-safety` |
 | 5 | No entry of `metadata.tags` contains `fixture`. | `fixture` |
 | 6 | It does not declare `metadata.cloneable: false`, the only way a machine opts out. There is no opt-in. | `opted-out` |
-| 7 | `perceptualMapping.input.length` ≤ 16 (the ISRE half of a block). | `input-too-long` |
-| 8 | `perceptualMapping.output.length` ≤ 16 (the OSRE half). | `output-too-long` |
-| 9 | n ≤ 16, where n = the number of `targetInputElements` summed over its `published-domain-bus-producer` edges (the cells its fanout folds into), plus **4 ISRE bus cells** for inter- and intra-machine interconnection. Document handoffs fold no cells. | `fanout-too-wide` |
+| 7 | `perceptualMapping.input.length` ≤ 16 (the input quarter of a block). | `input-too-long` |
+| 8 | `perceptualMapping.output.length` ≤ 16 (the output quarter). | `output-too-long` |
+| 9 | The cells its fanout folds into ≤ 16 (the fanout quarter): the number of `targetInputElements` summed over its `published-domain-bus-producer` edges. Document handoffs fold no cells. Its **4 ISRE bus cells**, for inter- and intra-machine interconnection, always fit the bus quarter. | `fanout-too-wide` |
 
 `GET /api/machines/cloneable` lists every registered machine with its verdict,
 sorted by machine id:
@@ -1574,9 +1574,13 @@ sorted by machine id:
 ```json
 {"machines": [
   {"id": "machine-AGX001_aquaculture-water-quality-stability", "cloneable": true, "reason": null, "n": 7},
-  {"id": "machine-HomeTransportationBarrierMonitor", "cloneable": false, "reason": "fanout-too-wide", "n": 20}
+  {"id": "machine-AgricultureAgx031040Interconnect", "cloneable": false, "reason": "no-agentic-action", "n": null},
+  {"id": "machine-HomeTransportationBarrierMonitor", "cloneable": true, "reason": null, "n": 20}
 ]}
 ```
+
+`n` is the folded fanout cells plus the 4 bus cells. It is reported, not
+limited: rule 9 limits the folded cells alone.
 
 `n` is present whenever rule 9 was evaluated, and `null` otherwise. Clones are
 not listed: a clone is never itself cloneable. This listing is a compared
@@ -1591,9 +1595,9 @@ to either is a change to this section.
 
 | Constant | Value |
 |----------|-------|
-| Block | 32 cells: the ISRE half is the first 16, the OSRE half the last 16 |
-| Band | `{offset: 20480, length: 32768}`, written `[20480:53247]`: 1,024 blocks per engine instance |
-| Bus cells | 4 (counted in n, rule 9) |
+| Block | 64 cells in the **nest layout**: four uniform 16-cell quarters, input, output, fanout, bus (below) |
+| Band | `{offset: 20480, length: 65536}`, written `[20480:86015]`: 1,024 blocks per engine instance |
+| Bus cells | 4, in the bus quarter (counted in n) |
 | Bound on active clones | `clone.maxActive` in `/api/engine/config`, default 8, per template per engine instance |
 
 `clone.maxActive` is a universal control, so it is managed at run time like any
@@ -1601,7 +1605,7 @@ other. Lowering it below the live count refuses new clones of that template
 until the count falls below the bound; it never recycles a live clone.
 
 **Blocks are allocated lowest-free-first.** Block k occupies
-`{offset: 20480 + 32k, length: 32}`. A clone made on an engine with no live
+`{offset: 20480 + 64k, length: 64}`. A clone made on an engine with no live
 clones gets block 0, and a recycled block is reused before a higher one. So
 engines with identical corpora, driven identically, place identical clones in
 identical blocks, which is what makes a clone's cells comparable in regression.
@@ -1614,15 +1618,28 @@ workflow, through every step of the agentic action, until the clone is
 recycled. Nothing re-allocates, moves or resizes a live clone's block, and
 `GET /api/engine/clones` reports the same allocation the `201` did.
 
-**Where a clone's regions go.** The clone's input region is the first
-`input.length` cells of its ISRE half, and its output region is the first
-`output.length` cells of its OSRE half. Where the folded fanout cells and the 4
-bus cells sit within the block, and how the PE composes a clone's output into
-its fanout, are **held for final analysis** (RealityEngine_CI#717). The owner's
-leaning is a uniform layout, likely a 16-cell fanout half and a 16-cell bus
-half, to suit dynamic scaling per engine instance. Until it is settled, an
-engine places only the input and output regions, and the PE composes nothing
-from the clone band.
+**The nest layout** (owner, 2026-11-06, RealityEngine_CI#717). Every block has
+the same four 16-cell quarters, so any block can hold any cloneable machine:
+
+| Quarter | Block cells | Holds |
+|---------|-------------|-------|
+| input | 0–15 | the clone's own input region (ISRE): its first `input.length` cells |
+| output | 16–31 | the clone's own output region (OSRE): its first `output.length` cells |
+| fanout | 32–47 | the cells the clone's output folds into: its first f cells, f = the folded count (rule 9) |
+| bus | 48–63 | the clone's 4 bus cells: its first 4 cells; the other 12 are reserved |
+
+Each role keeps cells of its own; nothing overlays another. Unused cells in a
+quarter belong to the block and are never allocated to anything else.
+
+**Fanout order** is the template's: its `published-domain-bus-producer` edges in
+declared order, and within each edge its `targetInputElements` in declared
+order. Cell i of the fanout quarter is the clone's private copy of the i-th
+target input element its template's output would fold into, so a clone never
+writes a shared bus. It is filled by the template's normal fold of the clone's
+output. **Still open** (RealityEngine_CI#717): what each of the 4 bus cells
+carries, and how the PE composes the fanout and bus quarters with the rest of
+the universe. Until those are settled, the PE composes nothing from the clone
+band.
 
 #### `POST /api/engine/clone/machine/:machineId`
 
@@ -1658,9 +1675,11 @@ release's `re-init`, for example `cpp-1`).
   "engineInstance": "cpp-1",
   "envelopeId": "env-7f3a",
   "assetId": "asset-42",
-  "block": {"index": 0, "offset": 20480, "length": 32},
+  "block": {"index": 0, "offset": 20480, "length": 64},
   "input": {"offset": 20480, "length": 4},
-  "output": {"offset": 20496, "length": 4}
+  "output": {"offset": 20496, "length": 4},
+  "fanout": {"offset": 20512, "length": 3},
+  "bus": {"offset": 20528, "length": 4}
 }
 ```
 
