@@ -1,7 +1,7 @@
 # RealityEngine Canonical Surface Specification
 
 **Version:** 1.2.0  
-**Date:** 2026-08-27  
+**Date:** 2026-11-06  
 **Scope:** All production runtimes — CPP, LSP, Scala, and the TypeScript PE
 
 **This file is the single master.** It lives here, in `RealityEngine_CI`, and
@@ -1510,6 +1510,173 @@ step this way. `regression-arbitration-retention.py` is the acceptance stage.
 | GET | `/api/buses/semantic` | ✓ | ✓ | ✓ |
 | GET | `/api/buses/semantic/:id` | ✓ | ✓ | ✓ |
 
+### Cloneable machines
+
+Owner design, 2026-11-06 (localAssetStorageStack#8, RealityEngine_CI#713). A
+cloneable machine is an ordinary corpus machine that an engine can clone, one
+clone per agentic action, and recycle when the action completes. Templates
+are therefore in the active corpus, and a clone is made from memory, with no
+access to persistent storage.
+
+| Method | Path | CPP | LSP | Scala |
+|--------|------|-----|-----|-------|
+| GET | `/api/machines/cloneable` | ✓ | ✓ | ✓ |
+| POST | `/api/engine/clone/machine/:machineId?asset=:assetId&envelope=:envelopeId` | ✓ | ✓ | ✓ |
+| POST | `/api/engine/recycle/machine/:cloneId` | ✓ | ✓ | ✓ |
+| GET | `/api/engine/clones` | ✓ | ✓ | ✓ |
+
+The ✓ marks are the target; no runtime implements these routes yet
+(RealityEngine_CPP#191, RealityEngine_LSP#184, RealityEngine_Scala#209). The
+two follower engines adopt them on their own cadence and are measured against
+what the voting engines agree on, never as a vote: the TypeScript engine in
+`RealityEngine_Manager` and `RealityEngine_Rust`.
+
+#### Recognition happens at load
+
+**Nothing in a machine file marks it cloneable.** The engine decides, when it
+loads the corpus, by the rule below, so a corpus change that adds or alters a
+machine is assessed without editing anything, and no content fingerprint moves
+(corpus contract, cesgen shards, OpenClaw `INDEX.json`).
+
+The loader makes a second pass once every corpus machine is registered,
+because rule 3 depends on other machines' edges. A machine registered later
+(`POST /api/machines`, `PUT`, `DELETE`) causes the engine to reassess every
+registered machine against the set as it then stands. Reassessment affects
+only clones made afterwards; a live clone keeps running.
+
+A machine is **cloneable** when all of these hold. The reason code is the first
+rule it fails:
+
+| # | Rule | Reason code when it fails |
+|---|------|---------------------------|
+| 1 | It dispatches an agentic action: `metadata.agentBinding` is present, or some `metadata.interconnections[]` entry of type `document-workflow-handoff` has `sourceMachine` equal to this machine's file stem. A document handoff carries the assetID. | `no-agentic-action` |
+| 2 | It has fanout: at least one `published-domain-bus-producer` edge, or one outgoing document handoff as in rule 1. | `no-fanout` |
+| 3 | It is not a bus target: no registered machine has a `published-domain-bus-producer` edge whose `targetMachineFile` is this machine's file name. A clone of a shared aggregator would split the bus. | `bus-target` |
+| 4 | It is not `metadata.severity: "life-safety"`. | `life-safety` |
+| 5 | No entry of `metadata.tags` contains `fixture`. | `fixture` |
+| 6 | It does not declare `metadata.cloneable: false`, the only way a machine opts out. There is no opt-in. | `opted-out` |
+| 7 | `perceptualMapping.input.length` ≤ 16 (the ISRE half of a block). | `input-too-long` |
+| 8 | `perceptualMapping.output.length` ≤ 16 (the OSRE half). | `output-too-long` |
+| 9 | n ≤ 16, where n = the number of `targetInputElements` summed over its `published-domain-bus-producer` edges (the cells its fanout folds into), plus **4 ISRE bus cells** for inter- and intra-machine interconnection. Document handoffs fold no cells. | `fanout-too-wide` |
+
+`GET /api/machines/cloneable` lists every registered machine with its verdict,
+sorted by machine id:
+
+```json
+{"machines": [
+  {"id": "machine-AGX001_aquaculture-water-quality-stability", "cloneable": true, "reason": null, "n": 7},
+  {"id": "machine-HomeTransportationBarrierMonitor", "cloneable": false, "reason": "fanout-too-wide", "n": 20}
+]}
+```
+
+`n` is present whenever rule 9 was evaluated, and `null` otherwise. Clones are
+not listed: a clone is never itself cloneable. This listing is a compared
+surface: in regression the voting engines must return it byte-identical.
+
+#### The clone space
+
+These constants are fixed by this specification. The corpus records the same
+values in `RealityEngine_Machines/domains/clone-space.json`, and its reserved
+range `engine-clone-space` keeps every corpus machine out of the band. A change
+to either is a change to this section.
+
+| Constant | Value |
+|----------|-------|
+| Block | 32 cells: the ISRE half is the first 16, the OSRE half the last 16 |
+| Band | `{offset: 20480, length: 32768}`, written `[20480:53247]`: 1,024 blocks per engine instance |
+| Bus cells | 4 (counted in n, rule 9) |
+| Bound on active clones | `clone.maxActive` in `/api/engine/config`, default 8, per template per engine instance |
+
+`clone.maxActive` is a universal control, so it is managed at run time like any
+other. Lowering it below the live count refuses new clones of that template
+until the count falls below the bound; it never recycles a live clone.
+
+**Blocks are allocated lowest-free-first.** Block k occupies
+`{offset: 20480 + 32k, length: 32}`. A clone made on an engine with no live
+clones gets block 0, and a recycled block is reused before a higher one. So
+engines with identical corpora, driven identically, place identical clones in
+identical blocks, which is what makes a clone's cells comparable in regression.
+
+**Where a clone's regions go.** The clone's input region is the first
+`input.length` cells of its ISRE half, and its output region is the first
+`output.length` cells of its OSRE half. Where the folded fanout cells and the 4
+bus cells sit within the block, and how the PE composes a clone's OSRE half into
+its fanout, are **still open** (owner, lass#8). Until they are settled, an
+engine places only the input and output regions, and the PE composes nothing
+from the clone band.
+
+#### `POST /api/engine/clone/machine/:machineId`
+
+Clones a cloneable machine for one agentic action.
+
+- `asset` (required) is the assetID: the stack frame, held by the lifecycle
+  service, that the dispatched agent acts on and returns through.
+- `envelope` (required) is the `envelopeId` of the `ces.terminal.event` dispatch
+  envelope that called for the action. **The dispatch envelope is the clone's
+  slot**: one envelope, at most one clone.
+
+The clone:
+- is a new registered machine whose definition is the template's, with its
+  `perceptualMapping` regions moved into its block;
+- starts in the template's **initial state**: every Reality Event's `isActive`
+  is taken from `isInitial` and `wasJustMatched` is clear, exactly as
+  `POST /api/engine/reset` leaves a machine. Nothing of the template's current
+  activation, history or checkpoints is copied;
+- is processed on every step like any other machine, and appears in
+  `GET /api/machines` with `cloneOf` (the template's id), `assetId` and
+  `envelopeId`.
+
+Its id is `<machineId>.<engineInstance>.<envelopeId>`. `engineInstance` is the
+id the engine was launched as (`INSTANCE_ID`, set by `startUniverse.sh` and the
+release's `re-init`, for example `cpp-1`).
+
+`201`:
+
+```json
+{
+  "cloneId": "machine-AGX001_aquaculture-water-quality-stability.cpp-1.env-7f3a",
+  "machineId": "machine-AGX001_aquaculture-water-quality-stability",
+  "engineInstance": "cpp-1",
+  "envelopeId": "env-7f3a",
+  "assetId": "asset-42",
+  "block": {"index": 0, "offset": 20480, "length": 32},
+  "input": {"offset": 20480, "length": 4},
+  "output": {"offset": 20496, "length": 4}
+}
+```
+
+| Status | When |
+|--------|------|
+| `200` | The same envelope already holds a clone of the same machine; the existing clone is returned, so a retried dispatch is idempotent. |
+| `400 {"error": ..., "reason": <code>}` | The machine is not cloneable; `reason` is the rule-table code. |
+| `400` | `asset` or `envelope` is missing. |
+| `404` | No such machine. |
+| `409` | The envelope holds a clone of a different machine; the template is at `clone.maxActive`; the band has no free block; or the engine was launched without an `INSTANCE_ID`. |
+
+#### `POST /api/engine/recycle/machine/:cloneId`
+
+Recycles a clone when its agentic action completes. The clone is unregistered,
+its block is freed for reuse, and its envelope and asset are released. `200`
+returns `{"cloneId", "block": {"index", "offset", "length"}}`. `404` when no live
+clone has that id. A template is never recycled; only clones are.
+
+#### `GET /api/engine/clones`
+
+Every live clone, sorted by block index, each with the same fields as the
+`201` above.
+
+#### What regression compares
+
+In regression, the parity proving ground, the voting engines run identical
+corpora (`docs/ENGINEERING_CONTRACT.md`) and must agree on:
+- `GET /api/machines/cloneable`, byte-identical;
+- each clone response, except `engineInstance` and the instance segment of
+  `cloneId`;
+- the steps of a clone, compared like any other machine's.
+
+In deployment, engine instances commonly carry different corpora, so two
+engines may disagree about what is cloneable, and that is not a fault.
+
 ### Machine Graph
 
 | Method | Path | CPP | LSP | Scala |
@@ -1761,6 +1928,14 @@ Plural names the set; singular names one engine's resources.
 | GET | `/api/engine/:id/health` | ✓ |
 | GET | `/api/engine/:id/vectors/:vectorId` | ✓ |
 | GET | `/api/engine/:id/sequences/:sequenceId` | ✓ |
+| POST | `/api/engine/:id/clone/machine/:machineId?asset=:assetId&envelope=:envelopeId` | target |
+| POST | `/api/engine/:id/recycle/machine/:cloneId` | target |
+| GET | `/api/engine/:id/clones` | target |
+
+The clone routes forward to engine instance `:id`, resolved from the instance
+registry, and return its answer unchanged; they are specified under the RE
+surface's "Cloneable machines". Manager's instantiation component calls them
+(RealityEngine_Manager#323). `target` means specified, not yet served.
 
 ### Configuration
 
