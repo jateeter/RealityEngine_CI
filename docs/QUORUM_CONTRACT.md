@@ -21,15 +21,21 @@ agreed contract; it is not a fourth vote that can outnumber a disagreement.
 ### Conformance followers
 
 Owner decision, 2026-10-30; promotion rule ruled 2026-10-31 (RealityEngine_CI#607).
-A runtime outside C++, LSP and Scala, today `RealityEngine_Rust`, is a
-**conformance follower**:
+A runtime outside C++, LSP and Scala is a **conformance follower**. There are
+two today (owner, 2026-11-06):
+
+- `RealityEngine_Rust`, the RE and PE (its lane: `docs/RUST_VALIDATION_WORKFLOW.md`);
+- the TypeScript PE in `RealityEngine_Manager` (`perception-engine/backend/`),
+  PE only. Its lane is Manager's own tests and the PE contract specs in
+  `RealityEngine_Machines`, which hold it to the contract the voters agree on.
+
+A follower:
 
 - It is measured against what the three voters agree on. It never votes, so it
   can neither form nor break a quorum. A 2-1 split among the voters stays a
   disagreement whatever the follower says.
 - It is kept out of `quorum_composition()`, and it is not listed in the main
-  instance registry. It runs in its own lane
-  (`docs/RUST_VALIDATION_WORKFLOW.md`).
+  instance registry. It runs in its own lane (above).
 - A surface it does not implement is reported as its declared participation
   state (`unsupported`), never as "QUORUM NOT FORMED".
 

@@ -1,6 +1,6 @@
 # Engineering Contract
 
-Last reviewed: 2026-11-04
+Last reviewed: 2026-11-06
 
 **This file is authoritative for the standing rules below.** Every repository's
 `CLAUDE.md` points here rather than restating them, the same way each engine
@@ -217,8 +217,9 @@ specialization as an error, and would fail, or roll back healthy work, by
 design. Separating the two keeps parity as strict as ever where it is proven,
 and keeps it out of the way where it does not apply.
 
-This doesn't change the voting set: RealityEngine_Rust stays a non-voting
-follower in regression (below). It also doesn't loosen any regression gate.
+This doesn't change the voting set: the two conformance followers,
+RealityEngine_Rust and Manager's TypeScript PE ([`QUORUM_CONTRACT.md`](QUORUM_CONTRACT.md)),
+stay non-voting in regression. It also doesn't loosen any regression gate.
 
 ---
 

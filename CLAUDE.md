@@ -1,6 +1,6 @@
 # RealityEngine_CI Guidance
 
-Last reviewed: 2026-11-04
+Last reviewed: 2026-11-06
 
 See `/Users/johnt/workspace/GitHub/CLAUDE.md` for the integrated application map. Update both this file and the root map when orchestration, instance registry, environment, or e2e responsibilities change.
 
@@ -96,6 +96,9 @@ npm run test:deployment
 - `startUniverse.sh --openclaw` delegates to `localOpenClawStack/scripts/start.sh`; keep hardening, immutable image pins, WebUI bootstrap, and live verification authoritative in that native stack entrypoint.
   - **The gateway runs natively by default (#592):** `--openclaw-runtime=native` passes `--native`, so the host's `openclaw` runs as the LaunchAgent `org.realityengine.openclaw-gateway` on 127.0.0.1:18789 with its home in `~/.realityengine/openclaw`; Open WebUI and the browser sidecar stay in Docker. `--openclaw-runtime=container` is the `openclaw-gateway` compose service. Startup cleanup unloads the LaunchAgent, and `stopUniverse.sh` stops it.
 - Keep e2e results separated by availability, instance registry alignment, contract parity, byte equivalence, and integration success.
+- **Two conformance followers, never votes** (`docs/QUORUM_CONTRACT.md`): RealityEngine_Rust
+  (RE and PE) and, since 2026-11-06, the TypeScript PE in RealityEngine_Manager
+  (PE only). Quorum stays 3-of-3 among C++, LSP and Scala.
 - **RealityEngine_Rust validates itself (owner decision, 2026-10-30).** It is a
   non-voting follower with its own self-contained lane (R0 static, R1 corpus
   replay) and runs the live tiers on a slower cadence: R2 beside a universe, R3

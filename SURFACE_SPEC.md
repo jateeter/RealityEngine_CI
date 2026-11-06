@@ -21,6 +21,12 @@ engines and omitted it, which let it drift unnoticed — it carried the same
 contract was written down (RealityEngine_CI#163, #166). Where this document
 says "every runtime", the TypeScript PE is included for PE routes.
 
+The TypeScript PE is a **conformance follower** (owner, 2026-11-06;
+`docs/QUORUM_CONTRACT.md`), like `RealityEngine_Rust`: it implements this
+surface and is measured against what C++, LSP and Scala agree on, but it never
+votes. Being included in "every runtime" means it must implement the route, not
+that it counts toward a quorum.
+
 Consumers/tooling: `Manager` = RealityEngine_Manager · `CI` = RealityEngine_CI
 
 ---
@@ -1526,10 +1532,13 @@ access to persistent storage.
 | GET | `/api/engine/clones` | ✓ | ✓ | ✓ |
 
 The ✓ marks are the target; no runtime implements these routes yet
-(RealityEngine_CPP#191, RealityEngine_LSP#184, RealityEngine_Scala#209). The
-two follower engines adopt them on their own cadence and are measured against
-what the voting engines agree on, never as a vote: the TypeScript engine in
-`RealityEngine_Manager` and `RealityEngine_Rust`.
+(RealityEngine_CPP#191, RealityEngine_LSP#184, RealityEngine_Scala#209).
+`RealityEngine_Rust`, a conformance follower, adopts them on its own cadence
+(RealityEngine_Rust#71) and is measured against what the voting engines agree
+on, never as a vote. The other follower, the TypeScript PE in
+`RealityEngine_Manager`, has no RE, so these routes do not apply to it; its part
+is the PE side, composing clone blocks once their layout is settled
+(RealityEngine_Manager#324, RealityEngine_CI#717).
 
 #### Recognition happens at load
 
@@ -1597,11 +1606,21 @@ clones gets block 0, and a recycled block is reused before a higher one. So
 engines with identical corpora, driven identically, place identical clones in
 identical blocks, which is what makes a clone's cells comparable in regression.
 
+**The block is allocated at instantiation and held for the workflow** (owner,
+2026-11-06). Every allocation into a clone's block is made when the clone is
+made, by `POST /api/engine/clone/machine/:machineId`, and returned in its
+`201`. The block and its allocation then stay unchanged for that dynamic
+workflow, through every step of the agentic action, until the clone is
+recycled. Nothing re-allocates, moves or resizes a live clone's block, and
+`GET /api/engine/clones` reports the same allocation the `201` did.
+
 **Where a clone's regions go.** The clone's input region is the first
 `input.length` cells of its ISRE half, and its output region is the first
 `output.length` cells of its OSRE half. Where the folded fanout cells and the 4
-bus cells sit within the block, and how the PE composes a clone's OSRE half into
-its fanout, are **still open** (owner, lass#8). Until they are settled, an
+bus cells sit within the block, and how the PE composes a clone's output into
+its fanout, are **held for final analysis** (RealityEngine_CI#717). The owner's
+leaning is a uniform layout, likely a 16-cell fanout half and a 16-cell bus
+half, to suit dynamic scaling per engine instance. Until it is settled, an
 engine places only the input and output regions, and the PE composes nothing
 from the clone band.
 
