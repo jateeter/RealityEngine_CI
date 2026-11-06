@@ -1527,9 +1527,12 @@ access to persistent storage.
 | Method | Path | CPP | LSP | Scala |
 |--------|------|-----|-----|-------|
 | GET | `/api/machines/cloneable` | ✓ | ✓ | ✓ |
-| POST | `/api/engine/clone/machine/:machineId?asset=:assetId&envelope=:envelopeId` | ✓ | ✓ | ✓ |
+| POST | `/api/engine/clone/machine/:machineId` | ✓ | ✓ | ✓ |
 | POST | `/api/engine/recycle/machine/:cloneId` | ✓ | ✓ | ✓ |
 | GET | `/api/engine/clones` | ✓ | ✓ | ✓ |
+
+Clone takes the query parameters `asset` and `envelope`, and recycle takes
+`generation`, as each route's section below specifies.
 
 The ✓ marks are the target; no runtime implements these routes yet
 (RealityEngine_CPP#191, RealityEngine_LSP#184, RealityEngine_Scala#209).
@@ -1610,6 +1613,18 @@ clones gets block 0, and a recycled block is reused before a higher one. So
 engines with identical corpora, driven identically, place identical clones in
 identical blocks, which is what makes a clone's cells comparable in regression.
 
+**Every block has a generation** (owner, 2026-11-06; the one-shot check in
+[`docs/CONTINUATIONS_APPROVAL_CHAIN.md`](docs/CONTINUATIONS_APPROVAL_CHAIN.md)).
+- It is an integer, 0 for every block when the engine starts.
+- It increments each time a clone in that block is recycled.
+- A clone carries the generation its block had when the clone was made, so the
+  pair (block index, generation) names one tenancy of one block, never two.
+- The recycle route must present that generation. A recycle presenting any
+  other one is refused, so a delayed or replayed recycle can never free a block
+  that a later clone now holds.
+- A restart loses every clone. A recycle sent from before it finds no clone
+  (`404`), however its generation compares.
+
 **The block is allocated at instantiation and held for the workflow** (owner,
 2026-11-06). Every allocation into a clone's block is made when the clone is
 made, by `POST /api/engine/clone/machine/:machineId`, and returned in its
@@ -1679,7 +1694,8 @@ release's `re-init`, for example `cpp-1`).
   "input": {"offset": 20480, "length": 4},
   "output": {"offset": 20496, "length": 4},
   "fanout": {"offset": 20512, "length": 3},
-  "bus": {"offset": 20528, "length": 4}
+  "bus": {"offset": 20528, "length": 4},
+  "generation": 0
 }
 ```
 
@@ -1691,12 +1707,18 @@ release's `re-init`, for example `cpp-1`).
 | `404` | No such machine. |
 | `409` | The envelope holds a clone of a different machine; the template is at `clone.maxActive`; the band has no free block; or the engine was launched without an `INSTANCE_ID`. |
 
-#### `POST /api/engine/recycle/machine/:cloneId`
+#### `POST /api/engine/recycle/machine/:cloneId?generation=:generation`
 
 Recycles a clone when its agentic action completes. The clone is unregistered,
-its block is freed for reuse, and its envelope and asset are released. `200`
-returns `{"cloneId", "block": {"index", "offset", "length"}}`. `404` when no live
-clone has that id. A template is never recycled; only clones are.
+its block is freed for reuse, its envelope and asset are released, and the
+block's generation increments. A template is never recycled; only clones are.
+
+| Status | When |
+|--------|------|
+| `200` | Recycled. Returns `{"cloneId", "block": {"index", "offset", "length"}, "generation": <the block's new generation>}`. |
+| `400` | `generation` is missing or not an integer. |
+| `404` | No live clone has that id. |
+| `409 {"error": ..., "generation": <current>}` | `generation` is not the clone's. The clone is left running. |
 
 #### `GET /api/engine/clones`
 
@@ -1966,7 +1988,7 @@ Plural names the set; singular names one engine's resources.
 | GET | `/api/engine/:id/health` | ✓ |
 | GET | `/api/engine/:id/vectors/:vectorId` | ✓ |
 | GET | `/api/engine/:id/sequences/:sequenceId` | ✓ |
-| POST | `/api/engine/:id/clone/machine/:machineId?asset=:assetId&envelope=:envelopeId` | target |
+| POST | `/api/engine/:id/clone/machine/:machineId` | target |
 | POST | `/api/engine/:id/recycle/machine/:cloneId` | target |
 | GET | `/api/engine/:id/clones` | target |
 

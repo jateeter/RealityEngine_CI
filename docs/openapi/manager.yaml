@@ -98,6 +98,107 @@ paths:
         '404':
           $ref: '#/components/responses/NotFound'
       operationId: get_api_engine_id_sequences_sequenceId
+  /api/engine/{id}/clone/machine/{machineId}:
+    post:
+      tags:
+      - Engines
+      summary: Clone on the named engine instance (forwarded)
+      parameters:
+      - *id001
+      - name: machineId
+        in: path
+        required: true
+        schema:
+          type: string
+      - name: asset
+        in: query
+        required: true
+        schema:
+          type: string
+        description: 'The assetID: the stack frame the dispatched agent acts on and returns through.'
+      - name: envelope
+        in: query
+        required: true
+        schema:
+          type: string
+        description: The envelopeId of the dispatch envelope; the envelope is the clone's slot.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: true
+      responses:
+        '200':
+          description: Success
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Success'
+        '500':
+          $ref: '#/components/responses/InternalError'
+        '404':
+          $ref: '#/components/responses/NotFound'
+      operationId: post_api_engine_id_clone_machine_machineId
+  /api/engine/{id}/recycle/machine/{cloneId}:
+    post:
+      tags:
+      - Engines
+      summary: Recycle a clone on the named engine instance (forwarded)
+      parameters:
+      - *id001
+      - name: cloneId
+        in: path
+        required: true
+        schema:
+          type: string
+        description: <machineId>.<engineInstance>.<envelopeId>
+      - name: generation
+        in: query
+        required: true
+        schema:
+          type: integer
+          minimum: 0
+        description: The block generation the clone was made with; any other is refused (409).
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: true
+      responses:
+        '200':
+          description: Success
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Success'
+        '500':
+          $ref: '#/components/responses/InternalError'
+        '404':
+          $ref: '#/components/responses/NotFound'
+      operationId: post_api_engine_id_recycle_machine_cloneId
+  /api/engine/{id}/clones:
+    get:
+      tags:
+      - Engines
+      summary: Live clones on the named engine instance (forwarded)
+      parameters:
+      - *id001
+      responses:
+        '200':
+          description: Success
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Object'
+        '500':
+          $ref: '#/components/responses/InternalError'
+        '404':
+          $ref: '#/components/responses/NotFound'
+      operationId: get_api_engine_id_clones
   /api/engine/{id}/config:
     get:
       tags:

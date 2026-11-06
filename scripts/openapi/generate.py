@@ -95,6 +95,14 @@ SUMMARIES: dict[str, str] = {
     "GET:/api/arbitration":                                    "Arbitration records: the legacy latest-step object, or retained steps keyed by step (?step=N)",
     "POST:/api/engine/process":                                "Process input vector across all machines",
     "POST:/api/engine/reset":                                  "Reset machine, engine, and perception state",
+    # RE — Cloneable machines (localAssetStorageStack#8)
+    "GET:/api/machines/cloneable":                             "Every machine's cloneable verdict, reason code and n, recognised at load",
+    "POST:/api/engine/clone/machine/{machineId}":              "Clone a cloneable machine at its initial state for one dispatch envelope",
+    "POST:/api/engine/recycle/machine/{cloneId}":              "Recycle a clone, presenting its block generation; frees the block",
+    "GET:/api/engine/clones":                                  "Live clones with their block allocations and generations",
+    "POST:/api/engine/{id}/clone/machine/{machineId}":         "Clone on the named engine instance (forwarded)",
+    "POST:/api/engine/{id}/recycle/machine/{cloneId}":         "Recycle a clone on the named engine instance (forwarded)",
+    "GET:/api/engine/{id}/clones":                             "Live clones on the named engine instance (forwarded)",
     # RE — Machines
     "GET:/api/machines":                                       "List loaded machines",
     "POST:/api/machines":                                      "Import a machine",
@@ -218,6 +226,10 @@ PATH_PARAMS: dict[str, list[dict]] = {
     "{control}": [{"name": "control", "in": "path", "required": True,
                     "schema": {"type": "string"},
                     "description": "Control name, as declared in SURFACE_SPEC"}],
+    # Cloneable machines (SURFACE_SPEC.md; localAssetStorageStack#8).
+    "{cloneId}": [{"name": "cloneId", "in": "path", "required": True,
+                    "schema": {"type": "string"},
+                    "description": "<machineId>.<engineInstance>.<envelopeId>"}],
     # GET /api/engine/steps/{n}/pair — the step completion point (#375).
     "{n}": [{"name": "n", "in": "path", "required": True,
               "schema": {"type": "integer", "minimum": 0},
@@ -736,6 +748,24 @@ def build_paths(routes: list[tuple[str, str, str]],
                  "schema": {"type": "integer", "minimum": 0},
                  "description": "Read one retained step. 404 not resolved, 410 no "
                                 "longer retained, 409 while arbitrationRetention is off."},
+            ]
+
+        # Clone and recycle take query parameters (SURFACE_SPEC.md, "Cloneable
+        # machines"; localAssetStorageStack#8).
+        if method == "POST" and re.fullmatch(r"/api/engine/(\{id\}/)?clone/machine/\{machineId\}", path):
+            op["parameters"] = params + [
+                {"name": "asset", "in": "query", "required": True,
+                 "schema": {"type": "string"},
+                 "description": "The assetID: the stack frame the dispatched agent acts on and returns through."},
+                {"name": "envelope", "in": "query", "required": True,
+                 "schema": {"type": "string"},
+                 "description": "The envelopeId of the dispatch envelope; the envelope is the clone's slot."},
+            ]
+        if method == "POST" and re.fullmatch(r"/api/engine/(\{id\}/)?recycle/machine/\{cloneId\}", path):
+            op["parameters"] = params + [
+                {"name": "generation", "in": "query", "required": True,
+                 "schema": {"type": "integer", "minimum": 0},
+                 "description": "The block generation the clone was made with; any other is refused (409)."},
             ]
 
         # Request body
