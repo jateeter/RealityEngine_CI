@@ -1541,7 +1541,7 @@ The ✓ marks are the target; no runtime implements these routes yet
 on, never as a vote. The other follower, the TypeScript PE in
 `RealityEngine_Manager`, has no RE, so these routes do not apply to it; its part
 is the PE side, composing clone blocks once their layout is settled
-(RealityEngine_Manager#324, RealityEngine_CI#717).
+(RealityEngine_Manager#324, RealityEngine_CI#721).
 
 #### Recognition happens at load
 
@@ -1651,7 +1651,7 @@ declared order, and within each edge its `targetInputElements` in declared
 order. Cell i of the fanout quarter is the clone's private copy of the i-th
 target input element its template's output would fold into, so a clone never
 writes a shared bus. It is filled by the template's normal fold of the clone's
-output. **Still open** (RealityEngine_CI#717): what each of the 4 bus cells
+output. **Still open** (RealityEngine_CI#721): what each of the 4 bus cells
 carries, and how the PE composes the fanout and bus quarters with the rest of
 the universe. Until those are settled, the PE composes nothing from the clone
 band.
