@@ -1,6 +1,6 @@
 # Continuations Through the Approval Chain
 
-Version 1.0.0, 2026-11-06.
+Version 1.1.0, 2026-11-06.
 Status: **authoritative** for how a multi-step agentic process, the IFRS
 approval chain first, runs as continuations carried in the assetID frame
 (owner decision, 2026-11-06; localAssetStorageStack#8, plan revision 3).
@@ -173,24 +173,27 @@ or `closed`. The schema is defined with the frame (localAssetStorageStack#13).
   compared like any machine's. The continuation log is part of the run's
   evidence (RealityEngine_CI#715).
 
-## Open decisions
+## Decisions
 
-Each has a recommendation, recorded on localAssetStorageStack#8. None is
-decided until the owner rules.
+Owner, 2026-11-06 (localAssetStorageStack `ROADMAP.md`, D9–D11).
 
-1. **Where parked continuations live:** in the assetID's pod document, or in the
-   lifecycle service's append-only log with the pod holding a pointer?
-   *Recommended:* the log, with a pointer. That keeps continuations under the
-   store-and-gatekeeper role and the single pod-write path, and in the
-   evidence log.
-2. **Fixed chain or chosen successor:** is the chain fixed by the template at the
-   start, or can a step choose its successor, for example escalating to a
-   second approver above a materiality threshold?
-   *Recommended:* the template chooses. The successor rule lives in the
-   template in the corpus, where rules live, and the continuation records the
-   choice that was made.
-3. **Abandonment:** who may abandon a parked continuation, and what does
-   abandoning it write to the frame?
-   *Recommended:* only a principal holding the case's abandon capability, never
-   an agent. Abandoning writes a receipt naming who, why and the generation,
-   and closes the frame.
+1. **Parked continuations live in the lifecycle service,** in its append-only
+   event log, and the assetID's pod document holds a pointer. That keeps them
+   under the store-and-gatekeeper role, behind the single pod-write path, and
+   in the evidence log.
+2. **No step chooses its successor beyond the PE's ISRE folding.** The chain is
+   the template's. What varies it is what the fold presents to the ISRE, as a
+   recognition the template's machine makes. A step never names its successor
+   itself; the continuation records the outcome.
+3. **Abandonment needs the case's abandon capability,** which no agent ever
+   holds. Abandoning writes a receipt to the frame's log naming who, why and
+   the continuation's generation, and closes the frame.
+4. **Termination closes the head of the workflow.** For a document-workflow
+   template, the completion its clone terminates through is the close of the
+   canonical workflow head (entity, period and asset type). The frame closes
+   with it.
+5. **Reviewer decisions go through the authenticated lifecycle API.** dokieli is
+   for authoring and annotation; an inbox notification is never an approval.
+6. **The process is tracked in Grafana.** A provisioned dashboard follows each
+   asset from frame to continuation to clone, through review, to head close
+   (`config/dashboards/asset-workflow.json`, RealityEngine_CI#723).
