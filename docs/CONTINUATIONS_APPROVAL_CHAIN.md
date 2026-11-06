@@ -100,6 +100,13 @@ IN_REVIEW → APPROVED, with STALE when an upstream changes (`draft`,
 The engines carry no continuation state. They run the clones. Continuations
 are frame data, held by the lifecycle service.
 
+**A clone's only ways out are a continuation or termination** (owner,
+2026-11-06). Nothing a clone writes is composed into a shared region. It
+reaches the rest of the universe only by advancing the frame's continuation in
+its epilogue, or by terminating through the completion its template declares:
+the agent's `agentBinding.writeBack`, or the close of a document workflow
+(`SURFACE_SPEC.md`, "Cloneable machines"). Its 4 bus cells are intra-machine.
+
 ## Rules that make it safe
 
 1. **Only templates in a continuation.** It names a template and an engine
