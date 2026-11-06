@@ -1540,8 +1540,8 @@ The ✓ marks are the target; no runtime implements these routes yet
 (RealityEngine_Rust#71) and is measured against what the voting engines agree
 on, never as a vote. The other follower, the TypeScript PE in
 `RealityEngine_Manager`, has no RE, so these routes do not apply to it; its part
-is the PE side, composing clone blocks once their layout is settled
-(RealityEngine_Manager#324, RealityEngine_CI#721).
+is the PE side: folding a clone's output into its fanout quarter, and writing a
+terminating completion into its input quarter (RealityEngine_Manager#324).
 
 #### Recognition happens at load
 
@@ -1651,10 +1651,37 @@ declared order, and within each edge its `targetInputElements` in declared
 order. Cell i of the fanout quarter is the clone's private copy of the i-th
 target input element its template's output would fold into, so a clone never
 writes a shared bus. It is filled by the template's normal fold of the clone's
-output. **Still open** (RealityEngine_CI#721): what each of the 4 bus cells
-carries, and how the PE composes the fanout and bus quarters with the rest of
-the universe. Until those are settled, the PE composes nothing from the clone
-band.
+output.
+
+**The bus cells are intra-machine** (owner, 2026-11-06, RealityEngine_CI#721).
+The 4 bus cells carry interconnection within the clone, never between machines.
+No other machine, clone or template reads or writes them.
+
+**A clone's outbound interconnections are restricted to two** (owner,
+2026-11-06, RealityEngine_CI#721). The PE composes nothing from the clone band
+into any shared region: no fold of a clone's output or fanout quarter ever
+reaches another machine's input or a published bus. A clone reaches the rest
+of the universe only by:
+
+1. **A continuation.** The epilogue writes the step's results into the assetID
+   frame, advances the frame's continuation, and recycles the clone. The next
+   step is a fresh clone against the same assetID
+   ([`docs/CONTINUATIONS_APPROVAL_CHAIN.md`](docs/CONTINUATIONS_APPROVAL_CHAIN.md)).
+2. **Termination, through the completion declared by the template** it was
+   cloned from:
+   - For a template with an `agentBinding`, the completion is its
+     `agentBinding.writeBack`: the agent's completion, ingested by the PE
+     (`/api/integrations/completions`) and written into the clone's own input
+     quarter. The corpus already requires a write-back region to equal the
+     machine's input region, so the clone's input region is that region moved
+     into its block.
+   - For a document-workflow template (`metadata.documentAssetWorkflow`), the
+     completion is the end of its document workflow: the frame's approval case
+     closes.
+
+The fanout quarter is the clone's outbound result. The epilogue reads it to
+capture the continuation, or to recognise termination. It is never composed
+onward.
 
 #### `POST /api/engine/clone/machine/:machineId`
 
