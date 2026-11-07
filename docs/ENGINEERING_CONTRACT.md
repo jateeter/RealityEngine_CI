@@ -351,7 +351,11 @@ information.
   `rejectUnauthorized: false`, `verify=False` or unverified SSL context, outside
   a named test fixture. Trust the install CA instead.
 - **External parties are held strictly.** A link to an outside party that does
-  not meet the profile is refused, not recorded as an exception.
+  not meet the profile is refused.
+- **Deficiencies are the owner's alone.** A link a component can't bring to the
+  profile is accepted only by an owner decision, recorded on the link in the
+  inventory with what compensates and the remedy, and listed by the release
+  gate. Nothing else is exempt.
 - **Every link is in [`config/transport-inventory.json`](../config/transport-inventory.json)**
   with its status, its owning repository and the issue that brings it to the
   profile. A new link is added there in the change that creates it.
