@@ -1,0 +1,33 @@
+{
+  "schemaVersion": "1.0.0",
+  "profileId": "re-transport-2026.11",
+  "purpose": "The transport security profile every link between RealityEngine entities must meet (RealityEngine_CI#668; ENGINEERING_CONTRACT.md, 'every link is TLS 1.3'). Tightening the profile is a change to this file alone; each release records the profileId it was certified under.",
+  "decidedBy": "owner, 2026-10-30 (RealityEngine_CI#668)",
+  "tls": {
+    "versions": ["TLSv1.3"],
+    "cipherSuites": ["TLS_AES_256_GCM_SHA384", "TLS_CHACHA20_POLY1305_SHA256"],
+    "keyExchangeGroups": {
+      "preferred": ["X25519MLKEM768"],
+      "fallback": ["X25519", "secp384r1"],
+      "note": "Post-quantum hybrid key exchange wherever both ends support it. A peer without it may use a fallback group; nothing else is accepted."
+    }
+  },
+  "certificates": {
+    "issuer": "the install's own CA, issued by scripts/lib/re_pki.py (RealityEngine_CI#726)",
+    "ca": {"key": "ECDSA P-384", "signature": "ecdsa-with-SHA384", "validityDays": 1825},
+    "leaf": {"key": "ECDSA P-384", "signature": "ecdsa-with-SHA384", "validityDays": 90, "renewWithinDays": 30},
+    "instanceIdentity": "An engine instance's certificate carries the URI SAN urn:uuid:<instance_uuid> (RealityEngine_CI#296), so the handshake proves which instance is speaking.",
+    "verification": "Hostname and identity checks are always on. Disabling verification is forbidden outside a named test fixture."
+  },
+  "authentication": {
+    "serviceToService": "mTLS: both ends present a certificate from the install CA",
+    "usersAndDevices": "TLS server authentication, with user or device authentication on top"
+  },
+  "refused": [
+    "plaintext on any link, loopback included",
+    "SSL, TLS 1.0, 1.1 and 1.2",
+    "non-AEAD cipher suites",
+    "certificate verification disabled outside a named test fixture"
+  ],
+  "externalParties": "Held strictly: a link to an outside party that does not meet this profile is refused, not recorded as an exception."
+}

@@ -472,6 +472,27 @@ the comparison baseline in `regression-report.py`:
   `release-manifest.json` into `releases/`). A newer certifying run will
   supersede it here.
 
+## Transport security: TLS 1.3 on every link (#668)
+
+The rule is in `docs/ENGINEERING_CONTRACT.md`; the design in
+`docs/TRANSPORT_SECURITY.md`.
+
+- `lib/re_pki.py`: the system PKI. A CA per lane under
+  `~/.reality-engine/pki/<lane>`; ECDSA P-384 service and instance
+  certificates (`urn:uuid:<instance_uuid>` for an engine instance); renew,
+  revoke, CRL, verify; `paths NAME` for a service's files. It never edits a
+  trust store; `trust-command` prints the owner's step.
+- `check-transport-inventory.py`: checks `config/transport-profile.json` and
+  `config/transport-inventory.json`. With `--require-compliant` it is the
+  release gate.
+- `check-insecure-transport.py`: fails a new `http://`, `ws://`, `curl -k`,
+  `rejectUnauthorized: false`, `verify=False` or similar, across the focus
+  set. The baseline only shrinks; `--write --ref origin/main` records it from
+  every sibling's `main`, with this repository as checked out.
+- Tests: `tests/test-re-pki.sh`, which runs a real TLS 1.3 + mTLS handshake on
+  loopback (`X25519MLKEM768` where OpenSSL supports it), and
+  `tests/test-transport-inventory.sh`.
+
 ## Standing rules
 
 The standing rules are in

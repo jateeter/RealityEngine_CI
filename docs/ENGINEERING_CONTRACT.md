@@ -330,6 +330,55 @@ In practice:
 
 ---
 
+## MUST: every link is TLS 1.3 — no plaintext, no disabled verification
+
+**All data in motion between RealityEngine entities is encrypted under
+[`config/transport-profile.json`](../config/transport-profile.json)**
+(owner, 2026-10-30; RealityEngine_CI#668). An entity is any process, container,
+service, device or external system that sends or receives RealityEngine
+information.
+
+### What this requires
+
+- **TLS 1.3 only,** with the profile's AEAD suites, and post-quantum hybrid key
+  exchange (`X25519MLKEM768`) wherever both ends support it. Loopback, the
+  compose network and the native lane get no exemption.
+- **mTLS between services.** Both ends present certificates from the install's
+  CA, issued by `scripts/lib/re_pki.py`. An engine instance's certificate
+  carries `urn:uuid:<instance_uuid>`, so the handshake proves which instance is
+  speaking.
+- **Verification is never switched off.** No `curl -k`, `--insecure`,
+  `rejectUnauthorized: false`, `verify=False` or unverified SSL context, outside
+  a named test fixture. Trust the install CA instead.
+- **External parties are held strictly.** A link to an outside party that does
+  not meet the profile is refused, not recorded as an exception.
+- **Every link is in [`config/transport-inventory.json`](../config/transport-inventory.json)**
+  with its status, its owning repository and the issue that brings it to the
+  profile. A new link is added there in the change that creates it.
+
+### How it is enforced
+
+- `scripts/check-insecure-transport.py` fails a new plaintext URL or disabled
+  check anywhere in the focus set. What existed before this rule is a frozen
+  baseline (`config/insecure-transport-baseline.json`) that only shrinks.
+- `scripts/check-transport-inventory.py` checks the profile and the inventory.
+  With `--require-compliant` it is the release gate: every link must be
+  verified compliant with mTLS (RealityEngine_CI#729).
+- A live probe stage measures each link's protocol, cipher, group and mTLS in
+  the regression lanes (RealityEngine_CI#728).
+- Design and operation: [`TRANSPORT_SECURITY.md`](TRANSPORT_SECURITY.md).
+
+### Why
+
+Owner decision, 2026-10-30. "It is only local" is how plaintext survives: the
+native lane, the compose network and the host's Ollama are all same-host, and
+each is a link an attacker on the machine, or a misdirected client, can read or
+answer. Holding every link to one profile, in one versioned file, makes
+tightening it a single change and lets each release state what it was
+certified under.
+
+---
+
 ## MUST: never commit to main — branch, PR, verify, merge, clean up
 
 **No change reaches `main` in any repo except through a branch and a pull

@@ -13,6 +13,7 @@ reports and obsolete fixed-vector notes have been removed.
 | [../PERCEPTUAL_SPACE_ARCHITECTURE.md](../PERCEPTUAL_SPACE_ARCHITECTURE.md) | Dynamic perceptual-vector model. |
 | [ACRONYMS.md](ACRONYMS.md) | Acronym definitions. |
 | [INTEGRATION_ARCHITECTURE.md](INTEGRATION_ARCHITECTURE.md) | Provider-neutral PE integration, trigger dispatch, source mapping, and MCP architecture. |
+| [TRANSPORT_SECURITY.md](TRANSPORT_SECURITY.md) | Authoritative: TLS 1.3 on every link, the system PKI, the link inventory and how each is enforced. |
 | [CONTINUATIONS_APPROVAL_CHAIN.md](CONTINUATIONS_APPROVAL_CHAIN.md) | Authoritative: multi-step agentic processes (the IFRS approval chain) as continuations carried in the assetID frame. |
 | [MVP_ROADMAP.md](MVP_ROADMAP.md) | Route from the baseline tag to a tagged MVP release, and current gate status. |
 | [ReleaseRoadmap.md](ReleaseRoadmap.md) | Release 0.01 / MVP task tracker: downloadable Docker images for a full deployment on macOS 26+, and every task to the tagged release. |

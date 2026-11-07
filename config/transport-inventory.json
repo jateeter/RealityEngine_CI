@@ -1,0 +1,587 @@
+{
+  "schemaVersion": "1.0.0",
+  "profile": "config/transport-profile.json",
+  "purpose": "Every link between RealityEngine entities, its protocol, its transport status today and the issue that brings it to the profile (RealityEngine_CI#668, #725). status: plaintext | tls (encrypted, profile compliance not yet verified) | compliant (verified against the profile by the probe stage, #728) | unverified (not yet checked). mtls is true only when the probe has verified both ends present install-CA certificates.",
+  "links": [
+    {
+      "id": "cpp-pe-to-re",
+      "from": "cpp PE",
+      "to": "cpp RE",
+      "protocol": "HTTP",
+      "lanes": [
+        "native",
+        "docker",
+        "release"
+      ],
+      "owner": "RealityEngine_CPP",
+      "issue": "RealityEngine_CPP#193",
+      "status": "plaintext",
+      "mtls": false,
+      "note": "Within one instance. Native spawns use http://$HOST_IP:<port> (startUniverse.sh)."
+    },
+    {
+      "id": "clients-to-cpp-re",
+      "from": "clients (Manager, localAI, harness, Machines tests)",
+      "to": "cpp RE",
+      "protocol": "HTTP",
+      "lanes": [
+        "native",
+        "docker",
+        "release"
+      ],
+      "owner": "RealityEngine_CPP",
+      "issue": "RealityEngine_CPP#193",
+      "status": "plaintext",
+      "mtls": false,
+      "note": "Instance registry URLs are http on the native lane."
+    },
+    {
+      "id": "clients-to-cpp-pe",
+      "from": "clients (Manager, sources, harness)",
+      "to": "cpp PE",
+      "protocol": "HTTP",
+      "lanes": [
+        "native",
+        "docker",
+        "release"
+      ],
+      "owner": "RealityEngine_CPP",
+      "issue": "RealityEngine_CPP#193",
+      "status": "plaintext",
+      "mtls": false
+    },
+    {
+      "id": "lsp-pe-to-re",
+      "from": "lsp PE",
+      "to": "lsp RE",
+      "protocol": "HTTP",
+      "lanes": [
+        "native",
+        "docker",
+        "release"
+      ],
+      "owner": "RealityEngine_LSP",
+      "issue": "RealityEngine_LSP#186",
+      "status": "plaintext",
+      "mtls": false,
+      "note": "Within one instance. Native spawns use http://$HOST_IP:<port> (startUniverse.sh)."
+    },
+    {
+      "id": "clients-to-lsp-re",
+      "from": "clients (Manager, localAI, harness, Machines tests)",
+      "to": "lsp RE",
+      "protocol": "HTTP",
+      "lanes": [
+        "native",
+        "docker",
+        "release"
+      ],
+      "owner": "RealityEngine_LSP",
+      "issue": "RealityEngine_LSP#186",
+      "status": "plaintext",
+      "mtls": false,
+      "note": "Instance registry URLs are http on the native lane."
+    },
+    {
+      "id": "clients-to-lsp-pe",
+      "from": "clients (Manager, sources, harness)",
+      "to": "lsp PE",
+      "protocol": "HTTP",
+      "lanes": [
+        "native",
+        "docker",
+        "release"
+      ],
+      "owner": "RealityEngine_LSP",
+      "issue": "RealityEngine_LSP#186",
+      "status": "plaintext",
+      "mtls": false
+    },
+    {
+      "id": "scala-pe-to-re",
+      "from": "scala PE",
+      "to": "scala RE",
+      "protocol": "HTTP",
+      "lanes": [
+        "native",
+        "docker",
+        "release"
+      ],
+      "owner": "RealityEngine_Scala",
+      "issue": "RealityEngine_Scala#210",
+      "status": "plaintext",
+      "mtls": false,
+      "note": "Within one instance. Native spawns use http://$HOST_IP:<port> (startUniverse.sh)."
+    },
+    {
+      "id": "clients-to-scala-re",
+      "from": "clients (Manager, localAI, harness, Machines tests)",
+      "to": "scala RE",
+      "protocol": "HTTP",
+      "lanes": [
+        "native",
+        "docker",
+        "release"
+      ],
+      "owner": "RealityEngine_Scala",
+      "issue": "RealityEngine_Scala#210",
+      "status": "plaintext",
+      "mtls": false,
+      "note": "Instance registry URLs are http on the native lane."
+    },
+    {
+      "id": "clients-to-scala-pe",
+      "from": "clients (Manager, sources, harness)",
+      "to": "scala PE",
+      "protocol": "HTTP",
+      "lanes": [
+        "native",
+        "docker",
+        "release"
+      ],
+      "owner": "RealityEngine_Scala",
+      "issue": "RealityEngine_Scala#210",
+      "status": "plaintext",
+      "mtls": false
+    },
+    {
+      "id": "rust-re-pe",
+      "from": "clients and the Rust PE",
+      "to": "Rust RE and PE (follower lane)",
+      "protocol": "HTTP",
+      "lanes": [
+        "native"
+      ],
+      "owner": "RealityEngine_Rust",
+      "issue": "RealityEngine_Rust#72",
+      "status": "unverified",
+      "mtls": false,
+      "note": "Follower, on its own cadence."
+    },
+    {
+      "id": "manager-ts-pe",
+      "from": "clients",
+      "to": "TypeScript PE (Manager)",
+      "protocol": "HTTPS behind tls-proxy",
+      "lanes": [
+        "docker",
+        "release"
+      ],
+      "owner": "RealityEngine_Manager",
+      "issue": "RealityEngine_Manager#327",
+      "status": "tls",
+      "mtls": false,
+      "note": "tls-proxy listens with TLS on 3004 and proxies over https; profile compliance unverified."
+    },
+    {
+      "id": "browser-to-manager-frontend",
+      "from": "browser",
+      "to": "Manager frontend (:5173)",
+      "protocol": "HTTPS",
+      "lanes": [
+        "native",
+        "docker",
+        "release"
+      ],
+      "owner": "RealityEngine_Manager",
+      "issue": "RealityEngine_Manager#327",
+      "status": "tls",
+      "mtls": false,
+      "note": "Profile compliance (TLS 1.3 only, groups) unverified."
+    },
+    {
+      "id": "manager-frontend-to-backend",
+      "from": "Manager frontend",
+      "to": "Manager backend (:3001)",
+      "protocol": "HTTPS",
+      "lanes": [
+        "native",
+        "docker",
+        "release"
+      ],
+      "owner": "RealityEngine_Manager",
+      "issue": "RealityEngine_Manager#327",
+      "status": "tls",
+      "mtls": false
+    },
+    {
+      "id": "manager-backend-to-engines",
+      "from": "Manager backend",
+      "to": "every RE and PE it proxies, clone routes included",
+      "protocol": "HTTP",
+      "lanes": [
+        "native",
+        "docker",
+        "release"
+      ],
+      "owner": "RealityEngine_Manager",
+      "issue": "RealityEngine_Manager#327",
+      "status": "plaintext",
+      "mtls": false,
+      "note": "Follows the engines' instance registry URLs."
+    },
+    {
+      "id": "tls-proxy-to-grafana",
+      "from": "tls-proxy",
+      "to": "Grafana",
+      "protocol": "HTTP",
+      "lanes": [
+        "docker",
+        "release"
+      ],
+      "owner": "RealityEngine_CI",
+      "issue": "RealityEngine_CI#730",
+      "status": "plaintext",
+      "mtls": false,
+      "note": "nginx/tls-proxy.conf: proxy_pass http://grafana:3000."
+    },
+    {
+      "id": "instance-registry",
+      "from": "clients",
+      "to": "instance registry (re-registry.json)",
+      "protocol": "HTTP",
+      "lanes": [
+        "native",
+        "docker",
+        "release"
+      ],
+      "owner": "RealityEngine_CI",
+      "issue": "RealityEngine_CI#730",
+      "status": "plaintext",
+      "mtls": false,
+      "note": "RE_REGISTRY_URL is http://$HOST_IP:<port>."
+    },
+    {
+      "id": "mcp",
+      "from": "MCP clients and re-mcp",
+      "to": "engines",
+      "protocol": "HTTP",
+      "lanes": [
+        "native",
+        "docker",
+        "release"
+      ],
+      "owner": "RealityEngine_CI",
+      "issue": "RealityEngine_CI#730",
+      "status": "unverified",
+      "mtls": false
+    },
+    {
+      "id": "localai-to-engines",
+      "from": "localai-api (engine fan-out)",
+      "to": "every engine RE and PE",
+      "protocol": "HTTP",
+      "lanes": [
+        "native",
+        "docker",
+        "release"
+      ],
+      "owner": "localAIStack",
+      "issue": "localAIStack#172",
+      "status": "unverified",
+      "mtls": false
+    },
+    {
+      "id": "engines-to-localai",
+      "from": "engines and PEs",
+      "to": "localai-api",
+      "protocol": "HTTP",
+      "lanes": [
+        "native",
+        "docker",
+        "release"
+      ],
+      "owner": "localAIStack",
+      "issue": "localAIStack#172",
+      "status": "unverified",
+      "mtls": false
+    },
+    {
+      "id": "localai-to-qdrant",
+      "from": "localai-api",
+      "to": "Qdrant",
+      "protocol": "HTTP",
+      "lanes": [
+        "native",
+        "docker",
+        "release"
+      ],
+      "owner": "localAIStack",
+      "issue": "localAIStack#172",
+      "status": "unverified",
+      "mtls": false
+    },
+    {
+      "id": "localai-to-redis",
+      "from": "localai-api",
+      "to": "Redis",
+      "protocol": "RESP",
+      "lanes": [
+        "native",
+        "docker",
+        "release"
+      ],
+      "owner": "localAIStack",
+      "issue": "localAIStack#172",
+      "status": "unverified",
+      "mtls": false
+    },
+    {
+      "id": "to-ollama",
+      "from": "engines, localAI and the OpenClaw gateway",
+      "to": "Ollama (host)",
+      "protocol": "HTTP",
+      "lanes": [
+        "native",
+        "docker",
+        "release"
+      ],
+      "owner": "localAIStack",
+      "issue": "localAIStack#172",
+      "status": "unverified",
+      "mtls": false,
+      "note": "Native on the host."
+    },
+    {
+      "id": "pe-to-openclaw",
+      "from": "PEs (ACP/xACP)",
+      "to": "OpenClaw gateway (127.0.0.1:18789)",
+      "protocol": "HTTP/WebSocket",
+      "lanes": [
+        "native",
+        "docker",
+        "release"
+      ],
+      "owner": "localOpenClawStack",
+      "issue": "localOpenClawStack#92",
+      "status": "unverified",
+      "mtls": false
+    },
+    {
+      "id": "openclaw-webui",
+      "from": "Open WebUI and the browser sidecar",
+      "to": "OpenClaw gateway",
+      "protocol": "HTTP/WebSocket",
+      "lanes": [
+        "native",
+        "docker",
+        "release"
+      ],
+      "owner": "localOpenClawStack",
+      "issue": "localOpenClawStack#92",
+      "status": "unverified",
+      "mtls": false
+    },
+    {
+      "id": "browser-to-openwebui",
+      "from": "browser",
+      "to": "Open WebUI (:8080)",
+      "protocol": "HTTP",
+      "lanes": [
+        "native",
+        "docker",
+        "release"
+      ],
+      "owner": "localOpenClawStack",
+      "issue": "localOpenClawStack#92",
+      "status": "unverified",
+      "mtls": false
+    },
+    {
+      "id": "openclaw-agents-to-lifecycle",
+      "from": "per-clone OpenClaw agents",
+      "to": "lifecycle API (frame, /pod proxy)",
+      "protocol": "HTTPS",
+      "lanes": [
+        "native",
+        "docker",
+        "release"
+      ],
+      "owner": "localOpenClawStack",
+      "issue": "localOpenClawStack#92",
+      "status": "unverified",
+      "mtls": false,
+      "note": "New with localAssetStorageStack#8."
+    },
+    {
+      "id": "pim-to-css",
+      "from": "PIM",
+      "to": "PIM's Solid Community Server (css.localhost:13000)",
+      "protocol": "HTTP",
+      "lanes": [
+        "native",
+        "docker"
+      ],
+      "owner": "RealityEngine_CI",
+      "issue": "RealityEngine_CI#730",
+      "status": "unverified",
+      "mtls": false,
+      "note": "PIM is outside the focus set; its CSS is not this stack's (D1)."
+    },
+    {
+      "id": "browser-to-assets-dokieli",
+      "from": "browser",
+      "to": "assets-dokieli (https://assets-dokieli.localhost:13444/)",
+      "protocol": "HTTPS",
+      "lanes": [
+        "native",
+        "docker",
+        "release"
+      ],
+      "owner": "localAssetStorageStack",
+      "issue": "localAssetStorageStack#15",
+      "status": "plaintext",
+      "mtls": false,
+      "note": "Today: plain http on a random host port."
+    },
+    {
+      "id": "browser-to-assets-css",
+      "from": "browser and dokieli (Solid-OIDC, pod reads and writes)",
+      "to": "assets-css (https://assets-css.localhost:13443/)",
+      "protocol": "HTTPS",
+      "lanes": [
+        "native",
+        "docker",
+        "release"
+      ],
+      "owner": "localAssetStorageStack",
+      "issue": "localAssetStorageStack#15",
+      "status": "plaintext",
+      "mtls": false,
+      "note": "Today: plain http on a random host port."
+    },
+    {
+      "id": "lifecycle-to-assets-css",
+      "from": "lifecycle API",
+      "to": "assets-css (pod reads/writes, Solid Notifications WebSocket)",
+      "protocol": "HTTPS/WebSocket",
+      "lanes": [
+        "native",
+        "docker",
+        "release"
+      ],
+      "owner": "localAssetStorageStack",
+      "issue": "localAssetStorageStack#15",
+      "status": "plaintext",
+      "mtls": false,
+      "note": "Today: http://css:3000."
+    },
+    {
+      "id": "clients-to-lifecycle",
+      "from": "Manager, PEs, reviewers",
+      "to": "lifecycle API (frames, continuations, reviews)",
+      "protocol": "HTTPS",
+      "lanes": [
+        "native",
+        "docker",
+        "release"
+      ],
+      "owner": "localAssetStorageStack",
+      "issue": "localAssetStorageStack#15",
+      "status": "plaintext",
+      "mtls": false
+    },
+    {
+      "id": "lifecycle-to-pe",
+      "from": "lifecycle API (PE Source)",
+      "to": "PE source ingest and /api/integrations/completions",
+      "protocol": "HTTPS",
+      "lanes": [
+        "native",
+        "docker",
+        "release"
+      ],
+      "owner": "localAssetStorageStack",
+      "issue": "localAssetStorageStack#15",
+      "status": "unverified",
+      "mtls": false,
+      "note": "New with ROADMAP phase 6."
+    },
+    {
+      "id": "iphone-to-pe",
+      "from": "iPhone (HealthKit bridge)",
+      "to": "PE ingest (/api/integrations/healthkit/ingest)",
+      "protocol": "HTTP",
+      "lanes": [
+        "native"
+      ],
+      "owner": "localHealthkitBridge",
+      "issue": "localHealthkitBridge#52",
+      "status": "unverified",
+      "mtls": false,
+      "note": "External device on the LAN."
+    },
+    {
+      "id": "mqtt-yuma",
+      "from": "engines and PEs",
+      "to": "Yuma MQTT broker (external)",
+      "protocol": "MQTT",
+      "lanes": [
+        "native",
+        "docker",
+        "release"
+      ],
+      "owner": "RealityEngine_CI",
+      "issue": "RealityEngine_CI#730",
+      "status": "unverified",
+      "mtls": false,
+      "note": "External party: held strictly; refused if it does not meet the profile."
+    },
+    {
+      "id": "promtail-to-loki",
+      "from": "Promtail",
+      "to": "Loki",
+      "protocol": "HTTP",
+      "lanes": [
+        "docker",
+        "release"
+      ],
+      "owner": "RealityEngine_CI",
+      "issue": "RealityEngine_CI#730",
+      "status": "unverified",
+      "mtls": false
+    },
+    {
+      "id": "prometheus-scrape",
+      "from": "Prometheus",
+      "to": "scrape targets (bridge metrics, lifecycle and Manager metrics)",
+      "protocol": "HTTP",
+      "lanes": [
+        "docker",
+        "release"
+      ],
+      "owner": "RealityEngine_CI",
+      "issue": "RealityEngine_CI#730",
+      "status": "unverified",
+      "mtls": false
+    },
+    {
+      "id": "grafana-to-sources",
+      "from": "Grafana",
+      "to": "Loki and Prometheus",
+      "protocol": "HTTP",
+      "lanes": [
+        "docker",
+        "release"
+      ],
+      "owner": "RealityEngine_CI",
+      "issue": "RealityEngine_CI#730",
+      "status": "unverified",
+      "mtls": false
+    },
+    {
+      "id": "release-downloads",
+      "from": "installer and hosts",
+      "to": "image registry, release assets, model pulls (external)",
+      "protocol": "HTTPS",
+      "lanes": [
+        "release"
+      ],
+      "owner": "RealityEngine_CI",
+      "issue": "RealityEngine_CI#729",
+      "status": "tls",
+      "mtls": false,
+      "note": "Already HTTPS (#668); profile compliance unverified."
+    }
+  ]
+}

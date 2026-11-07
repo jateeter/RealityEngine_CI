@@ -456,6 +456,12 @@ jobs:
         with:
           repository: jateeter/localAssetStorageStack
           path: localAssetStorageStack
+      # Scanned by check-insecure-transport.py with every other sibling (#727).
+      - name: Checkout RealityEngine_Rust
+        uses: actions/checkout@v7
+        with:
+          repository: jateeter/RealityEngine_Rust
+          path: RealityEngine_Rust
 
       # The parity-surface test imports the TypeScript module the e2e spec uses,
       # which needs the type stripping Node enables by default from 23. Pinned to
@@ -522,6 +528,21 @@ jobs:
       - name: Check shared service versions
         working-directory: RealityEngine_CI
         run: python3 scripts/check-shared-service-versions.py
+      - name: Transport profile and link inventory (#668)
+        working-directory: RealityEngine_CI
+        run: python3 scripts/check-transport-inventory.py
+      - name: Transport inventory checker tests
+        working-directory: RealityEngine_CI
+        run: bash scripts/tests/test-transport-inventory.sh
+      - name: System PKI tests (re_pki)
+        working-directory: RealityEngine_CI
+        run: bash scripts/tests/test-re-pki.sh
+      - name: No new insecure transport (#727)
+        working-directory: RealityEngine_CI
+        run: python3 scripts/check-insecure-transport.py
+      - name: Insecure-transport checker tests
+        working-directory: RealityEngine_CI
+        run: bash scripts/tests/test-insecure-transport.sh
 
       - name: Run local-AI probe unit tests
         working-directory: RealityEngine_CI
