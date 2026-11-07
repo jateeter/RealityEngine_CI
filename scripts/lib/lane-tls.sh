@@ -105,6 +105,51 @@ lane_tls_issue_instance() {
     fi
 }
 
+# _lane_tls_link TARGET LINK: point LINK at TARGET. Docker creates a missing bind
+# source as an empty directory; such a directory is replaced, anything else that
+# is not a link is refused.
+_lane_tls_link() {
+    local target="$1" link="$2"
+    if [ -d "$link" ] && [ ! -L "$link" ]; then
+        rmdir "$link" 2>/dev/null || { _lane_tls_say warn "$link is a non-empty directory, not a link; not replacing it"; return 1; }
+    elif [ -e "$link" ] && [ ! -L "$link" ]; then
+        _lane_tls_say warn "$link is a file, not a link; not replacing it"; return 1
+    fi
+    ln -sfn "$target" "$link"
+}
+
+# lane_tls_docker_instance ID RUNTIME UUID HOST_IP: the docker lane's certificate
+# for instance ID, whose RE and PE are the compose services engine-RUNTIME-re
+# and engine-RUNTIME-pe. Links what docker-compose.yml mounts:
+#   <state>/docker/tls/ID      -> the PKI's issued/ID (chain.pem, key.pem)
+#   <state>/docker/tls/ca.crt  -> the lane CA     <state>/docker/tls/ca.crl -> its CRL
+# Links, not copies, so keys stay in the PKI's 0600 files; the CA directory is
+# never mounted, because it holds the CA key. Writes <state>/docker/ID.tls.env,
+# which carries RE_TLS_* (container paths) only when the lane is on.
+# <state> is RE_INSTANCE_STATE_DIR, default ~/.reality-engine, as for the
+# instance's <id>.env.
+lane_tls_docker_instance() {
+    local id="$1" rt="$2" uuid="$3" host_ip="${4:-127.0.0.1}"
+    local state="${RE_INSTANCE_STATE_DIR:-$HOME/.reality-engine}"
+    local env_file="$state/docker/$id.tls.env" links="$state/docker/tls"
+    mkdir -p "$links"
+    printf '# Lane TLS for %s (RealityEngine_CI#732), written by startUniverse.sh. Empty while RE_TLS is off.\n' "$id" > "$env_file"
+    [ "$LANE_TLS_READY" = 1 ] || { lane_tls_enabled && return 1; return 0; }
+    local args="--kind both --dns localhost --dns $id.localhost --dns engine-$rt-re --dns engine-$rt-pe"
+    args="$args --dns host.docker.internal --ip 127.0.0.1"
+    [ "$host_ip" != "127.0.0.1" ] && args="$args --ip $host_ip"
+    [ -n "$uuid" ] && args="$args --instance-uuid $uuid"
+    # shellcheck disable=SC2086  # args is a word list built above
+    python3 "$LANE_TLS_PKI" issue "$id" $args >/dev/null || { lane_tls_enabled && return 1; return 0; }
+    local issued; issued=$(dirname "$(_lane_tls_path "$id" chain)")
+    _lane_tls_link "$issued" "$links/$id" &&
+        _lane_tls_link "$LANE_TLS_CA" "$links/ca.crt" &&
+        _lane_tls_link "$LANE_TLS_CRL" "$links/ca.crl" || { lane_tls_enabled && return 1; return 0; }
+    if lane_tls_enabled; then
+        printf 'RE_TLS_CERT=/run/re-tls/instance/chain.pem\nRE_TLS_KEY=/run/re-tls/instance/key.pem\nRE_TLS_CA=/run/re-tls/ca.crt\nRE_TLS_CRL=/run/re-tls/ca.crl\n' >> "$env_file"
+    fi
+}
+
 # lane_curl: a curl that speaks TLS 1.3. macOS's /usr/bin/curl is built on
 # SecureTransport and cannot; it is refused when the lane is on.
 lane_curl() {
