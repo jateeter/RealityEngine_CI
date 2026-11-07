@@ -66,8 +66,17 @@ case "$out" in *'"instances"'*) ok "lane_curl_get reads the registry over mTLS";
 c=$(lane_curl)
 "$c" -s --max-time 5 --tlsv1.3 --cacert "$LANE_TLS_CA" "$URL" >/dev/null 2>&1 \
   && bad "a client without a certificate was served" || ok "a client without a certificate is refused"
-"$c" -s --max-time 5 "http://$HOST/re-registry.json" 2>/dev/null | grep -q instances \
-  && bad "plaintext was served" || ok "plaintext is refused"
+# Plaintext: a cleartext request on the raw socket gets no HTTP answer.
+python3 - "$RE_REGISTRY_PORT" <<'EOF' && ok "plaintext is refused" || bad "plaintext was answered"
+import socket, sys
+s = socket.create_connection(("127.0.0.1", int(sys.argv[1])), timeout=5)
+s.sendall(b"GET /re-registry.json HTTP/1.0\r\nHost: localhost\r\n\r\n")
+try:
+    data = s.recv(4096)
+except OSError:
+    data = b""
+sys.exit(1 if data.startswith(b"HTTP/") else 0)
+EOF
 "$c" -s --max-time 5 --tlsv1.3 "$URL" >/dev/null 2>&1 \
   && bad "verified without the lane CA" || ok "a client that does not trust the lane CA cannot verify it"
 

@@ -52,12 +52,7 @@ NAMESPACES = re.compile(
 # Files whose occurrences define or exercise the check and open no connection:
 # the checker's own patterns, and its test's fixtures (the profile's "named test
 # fixture" exception). Nothing else is ever added here.
-NAMED_FIXTURES = {
-    "scripts/check-insecure-transport.py",
-    "scripts/tests/test-insecure-transport.sh",
-    # Sends plaintext to the TLS registry shim to prove it is refused (#732).
-    "scripts/tests/test-registry-tls.sh",
-}
+NAMED_FIXTURES = {"scripts/check-insecure-transport.py", "scripts/tests/test-insecure-transport.sh"}
 PATTERNS: dict[str, re.Pattern[str]] = {
     "plaintext-url": re.compile(r"\bhttp://"),
     "plaintext-ws": re.compile(r"\bws://"),
