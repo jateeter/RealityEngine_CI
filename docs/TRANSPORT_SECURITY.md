@@ -116,6 +116,22 @@ repository's TLS issue implements the same thing.
 `scripts/lib/lane-tls.sh`. The native lane issues every instance's certificate
 either way, but hands over `RE_TLS_*` and registers `https` URLs only when it is
 on.
+With the lane on:
+- **The instance registry** serves over TLS 1.3 with mTLS, under its own server
+  certificate (`registry`, issued by `lane_tls_issue_service`), and
+  `.universe-registry-url` and `RE_REGISTRY_URL` are `https`. The shim is
+  `scripts/lib/re_tls_server.py`, which holds CI's own listeners to the profile:
+  TLS 1.3 only, a lane-CA client certificate required, the lane CRL checked,
+  and the profile's suites and groups set through an OpenSSL config it writes
+  beside the certificate (Python's `ssl` exposes neither for TLS 1.3). The PQ
+  hybrid group is offered when the linked OpenSSL is 3.5 or newer.
+- **The harness** trusts the lane CA through `RE_HARNESS_TLS_CA`,
+  `RE_HARNESS_TLS_CERT` and `RE_HARNESS_TLS_KEY`, which `lane_tls_init` exports.
+  They are not named `RE_TLS_*` because every child of the harness would
+  inherit those and serve with its identity. `scripts/lib/re_tls.py` uses them
+  with no fallback: a missing file is an error.
+- **The docker lane** refuses to start under `RE_TLS=on` until its certificate
+  mounts land (#732).
 
 **Transition.** Each service first serves TLS whenever `RE_TLS_CERT` is set, and
 keeps its plaintext path only while it is unset. A lane turns TLS on once
@@ -188,6 +204,7 @@ Two older CAs are retired by this PKI:
   certificate for every service name;
 - `release/init/reinit.py`'s own RSA CA (#729).
 
-`scripts/lib/re_tls.py`, which the verification stages use to trust the dev CA,
-moves to the lane's `re_pki` CA as each stage's link is converted. Its
-unverified fallback goes when the probe stage lands.
+`scripts/lib/re_tls.py`, which the verification stages use, trusts the lane's
+`re_pki` CA whenever the lane is on, with no fallback. With the lane off it
+still trusts the dev CA, and its unverified fallback stays until the docker
+lane has moved off `certs/ca.crt` (#732).

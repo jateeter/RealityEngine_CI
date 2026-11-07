@@ -57,6 +57,31 @@ lane_tls_init() {
     LANE_TLS_HARNESS_CERT=$(_lane_tls_path harness chain)
     LANE_TLS_HARNESS_KEY=$(_lane_tls_path harness key)
     LANE_TLS_READY=1
+    # The harness's own trust, for re_tls.py and anything else CI runs. Not the
+    # services' RE_TLS_* names: a child would inherit those and serve with the
+    # harness's identity.
+    if lane_tls_enabled; then
+        export RE_HARNESS_TLS_CA="$LANE_TLS_CA" RE_HARNESS_TLS_CERT="$LANE_TLS_HARNESS_CERT" RE_HARNESS_TLS_KEY="$LANE_TLS_HARNESS_KEY"
+    else
+        unset RE_HARNESS_TLS_CA RE_HARNESS_TLS_CERT RE_HARNESS_TLS_KEY
+    fi
+}
+
+# lane_tls_issue_service NAME HOST_IP: a server certificate for a listener CI
+# runs itself (the instance registry shim), covering localhost, NAME.localhost,
+# 127.0.0.1 and HOST_IP. Sets SVC_TLS_CERT/KEY, empty unless the lane is on.
+# shellcheck disable=SC2034  # SVC_TLS_* are read by the caller (registry.sh)
+lane_tls_issue_service() {
+    local name="$1" host_ip="${2:-127.0.0.1}"
+    SVC_TLS_CERT=""; SVC_TLS_KEY=""
+    lane_tls_enabled || return 0
+    [ "$LANE_TLS_READY" = 1 ] || return 1
+    local args="--kind server --dns localhost --dns $name.localhost --ip 127.0.0.1"
+    [ "$host_ip" != "127.0.0.1" ] && args="$args --ip $host_ip"
+    # shellcheck disable=SC2086  # args is a word list built above
+    python3 "$LANE_TLS_PKI" issue "$name" $args >/dev/null || return 1
+    SVC_TLS_CERT=$(_lane_tls_path "$name" chain)
+    SVC_TLS_KEY=$(_lane_tls_path "$name" key)
 }
 
 # lane_tls_issue_instance ID UUID HOST_IP: issue the instance's certificate
