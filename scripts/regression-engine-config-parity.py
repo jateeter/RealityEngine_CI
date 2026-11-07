@@ -49,6 +49,8 @@ from pathlib import Path
 from urllib import error, request
 
 sys.path.insert(0, str(Path(__file__).resolve().parent / "lib"))
+import re_tls  # noqa: E402
+re_tls.install_lane_opener()  # the lane CA and harness certificate when RE_TLS=on (#732)
 from followers import voters  # noqa: E402
 from registry_url import registry_url  # noqa: E402
 

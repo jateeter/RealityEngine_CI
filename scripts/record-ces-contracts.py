@@ -59,6 +59,8 @@ from urllib import error, request
 
 SCRIPT_DIR = Path(__file__).resolve().parent
 sys.path.insert(0, str(SCRIPT_DIR / "lib"))
+import re_tls  # noqa: E402
+re_tls.install_lane_opener()  # the lane CA and harness certificate when RE_TLS=on (#732)
 from registry_url import registry_url  # noqa: E402
 
 import ces_seed_drive as seed  # noqa: E402

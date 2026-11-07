@@ -98,6 +98,10 @@ from pathlib import Path
 from typing import Callable
 from urllib import error, request
 
+sys.path.insert(0, str(Path(__file__).resolve().parent / "lib"))
+import re_tls  # noqa: E402
+re_tls.install_lane_opener()  # the lane CA and harness certificate when RE_TLS=on (#732)
+
 # How many pushes each arm of the inertness comparison drives. Small on purpose:
 # the aggregator's contribution reaches the next input vector on the step after
 # it is merged, so one push cannot show the difference and two can. Three leaves

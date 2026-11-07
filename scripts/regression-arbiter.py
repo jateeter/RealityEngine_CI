@@ -61,6 +61,8 @@ from typing import Any
 from urllib import error, request
 
 sys.path.insert(0, str(Path(__file__).resolve().parent / "lib"))
+import re_tls  # noqa: E402
+re_tls.install_lane_opener()  # the lane CA and harness certificate when RE_TLS=on (#732)
 from reset_contract import reset_pair  # noqa: E402
 from step_observer import DEFAULT_WINDOW_MS, StepObserver, StepNotResolved, StepNotRetained  # noqa: E402
 

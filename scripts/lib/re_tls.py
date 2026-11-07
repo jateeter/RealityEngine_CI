@@ -116,6 +116,21 @@ def lane_context(material: dict[str, str]) -> ssl.SSLContext:
     return ctx
 
 
+def install_lane_opener() -> bool:
+    """With the lane on, make every plain `urllib.request.urlopen` in this process
+    verify against the lane CA and present the harness certificate; with it off,
+    change nothing. Returns whether it installed. For stages that call urlopen
+    without a context at many sites (#732). It uses urllib's public
+    install_opener, so a call that passes its own context is unaffected."""
+    material = lane_material()
+    if not material:
+        return False
+    import urllib.request
+    urllib.request.install_opener(
+        urllib.request.build_opener(urllib.request.HTTPSHandler(context=lane_context(material))))
+    return True
+
+
 def tls_context() -> ssl.SSLContext:
     global _WARNED
     material = lane_material()

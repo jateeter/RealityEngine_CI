@@ -89,6 +89,8 @@ from typing import Any
 from urllib import error, request
 
 sys.path.insert(0, str(Path(__file__).resolve().parent / "lib"))
+import re_tls  # noqa: E402
+re_tls.install_lane_opener()  # the lane CA and harness certificate when RE_TLS=on (#732)
 from parity_identity import strip_engine_identity  # noqa: E402
 from followers import voters  # noqa: E402
 from reset_contract import reset_instances  # noqa: E402

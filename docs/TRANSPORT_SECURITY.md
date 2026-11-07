@@ -130,6 +130,13 @@ With the lane on:
   They are not named `RE_TLS_*` because every child of the harness would
   inherit those and serve with its identity. `scripts/lib/re_tls.py` uses them
   with no fallback: a missing file is an error.
+- **The regression harness** (`regression-test.sh`) runs `lane_tls_init native`
+  itself before the start phase (`prepare_lane_tls`), from the run worktree's
+  library, because its stages run after `startUniverse.sh` has returned. It
+  reuses the same lane CA. Every Python stage that calls `urlopen` without a
+  context calls `re_tls.install_lane_opener()` at import, which installs the
+  lane context through urllib's `install_opener` when the lane is on and does
+  nothing when it is off.
 - **The docker lane** issues each instance (`scala-1`, `cpp-1`, `lsp-1`) a
   certificate from its own `docker` CA, covering the compose service names
   (`engine-<rt>-re`, `engine-<rt>-pe`), `host.docker.internal`, `localhost` and

@@ -30,6 +30,8 @@ from pathlib import Path
 from typing import Any
 
 sys.path.insert(0, str(Path(__file__).resolve().parent / "lib"))
+import re_tls  # noqa: E402
+re_tls.install_lane_opener()  # the lane CA and harness certificate when RE_TLS=on (#732)
 from reset_contract import reset_pair  # noqa: E402
 
 # SURFACE_SPEC.md, "POST /api/push response shape".
