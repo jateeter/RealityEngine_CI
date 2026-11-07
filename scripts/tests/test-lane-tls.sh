@@ -62,6 +62,37 @@ noclient=$("$c" -s --max-time 5 --tlsv1.3 --cacert "$LANE_TLS_CA" --resolve "cpp
 case "$noclient" in *"TLSv1.3"*) bad "a client without the harness certificate got through";; *) ok "without the harness certificate the server refuses";; esac
 kill "$SERVER_PID" 2>/dev/null; SERVER_PID=""
 
+# --- the docker lane ------------------------------------------------------------
+# Its own PKI and instance state, both temporary. Docker itself is not used here:
+# the links are what docker-compose.yml mounts.
+export RE_INSTANCE_STATE_DIR="$TMP/state"
+SAVED_PKI_DIR="$RE_PKI_DIR"; export RE_PKI_DIR="$TMP/pki-docker"
+T="$RE_INSTANCE_STATE_DIR/docker/tls"
+RE_TLS=off
+mkdir -p "$T/cpp-1"   # what Docker leaves when it bind-mounts a missing source
+lane_tls_init docker 2>/dev/null && lane_tls_docker_instance cpp-1 cpp "$UUID" 192.0.2.10 \
+  && ok "docker off: issued" || bad "docker off: issue"
+[ -L "$T/cpp-1" ] && [ -f "$T/cpp-1/key.pem" ] && [ -f "$T/cpp-1/chain.pem" ] && ok "docker: tls/<id> links to the instance's issued directory (an empty Docker-made directory is replaced)" || bad "docker: tls/cpp-1 link"
+[ -L "$T/ca.crt" ] && [ "$(readlink "$T/ca.crt")" = "$LANE_TLS_CA" ] && [ -L "$T/ca.crl" ] && ok "docker: tls/ca.crt and ca.crl link to the lane CA and CRL" || bad "docker: CA links"
+[ ! -e "$T/ca.key" ] && [ ! -e "$T/cpp-1/ca.key" ] && ok "docker: the CA key is not linked" || bad "docker: CA key exposed"
+grep -q '^RE_TLS_' "$RE_INSTANCE_STATE_DIR/docker/cpp-1.tls.env" && bad "docker off: RE_TLS_* in the env file" || ok "docker off: the env file carries no RE_TLS_*"
+text=$(openssl x509 -in "$T/cpp-1/cert.pem" -noout -text)
+for want in "DNS:engine-cpp-re" "DNS:engine-cpp-pe" "DNS:host.docker.internal" "IP Address:192.0.2.10" "URI:urn:uuid:$UUID"; do
+  case "$text" in *"$want"*) ok "docker: the certificate covers $want";; *) bad "docker: SAN $want";; esac
+done
+[ "$(openssl verify -CAfile "$T/ca.crt" "$T/cpp-1/cert.pem" 2>&1)" = "$T/cpp-1/cert.pem: OK" ] \
+  && ok "docker: issued by the docker lane CA" || bad "docker: not verified by its lane CA"
+[ "$(openssl x509 -in "$T/ca.crt" -noout -fingerprint)" != "$(openssl x509 -in "$SAVED_PKI_DIR/ca/ca.crt" -noout -fingerprint)" ] \
+  && ok "docker: its CA is not the native lane's" || bad "docker: shares the native CA"
+RE_TLS=on
+lane_tls_init docker 2>/dev/null && lane_tls_docker_instance cpp-1 cpp "$UUID" 192.0.2.10 && ok "docker on: issued" || bad "docker on: issue"
+env_text=$(cat "$RE_INSTANCE_STATE_DIR/docker/cpp-1.tls.env")
+case "$env_text" in *"RE_TLS_CERT=/run/re-tls/instance/chain.pem"*"RE_TLS_KEY=/run/re-tls/instance/key.pem"*"RE_TLS_CA=/run/re-tls/ca.crt"*"RE_TLS_CRL=/run/re-tls/ca.crl"*)
+  ok "docker on: the env file carries RE_TLS_* as container paths";; *) bad "docker on: env file: $env_text";; esac
+rm -f "$T/ca.crl"; echo not-a-link > "$T/ca.crl"
+lane_tls_docker_instance cpp-1 cpp "$UUID" 192.0.2.10 2>/dev/null && bad "docker on: a file in a link's place was overwritten" || ok "docker on: a file in a link's place is refused, not overwritten"
+export RE_PKI_DIR="$SAVED_PKI_DIR"; unset RE_INSTANCE_STATE_DIR
+
 # --- a broken PKI -------------------------------------------------------------
 # shellcheck disable=SC2034  # read by the sourced library
 RE_TLS=off LANE_TLS_PKI=/nonexistent/re_pki.py

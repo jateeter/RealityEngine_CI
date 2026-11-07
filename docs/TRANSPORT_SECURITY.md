@@ -130,8 +130,21 @@ With the lane on:
   They are not named `RE_TLS_*` because every child of the harness would
   inherit those and serve with its identity. `scripts/lib/re_tls.py` uses them
   with no fallback: a missing file is an error.
-- **The docker lane** refuses to start under `RE_TLS=on` until its certificate
-  mounts land (#732).
+- **The docker lane** issues each instance (`scala-1`, `cpp-1`, `lsp-1`) a
+  certificate from its own `docker` CA, covering the compose service names
+  (`engine-<rt>-re`, `engine-<rt>-pe`), `host.docker.internal`, `localhost` and
+  `HOST_IP`, with the instance's `urn:uuid:`. Both of the instance's services
+  mount it read-only at `/run/re-tls/instance/`, with the lane CA and CRL at
+  `/run/re-tls/ca.crt` and `/run/re-tls/ca.crl`, through links under
+  `<state>/docker/tls/` (`lane_tls_docker_instance`). The links are not copies,
+  so keys stay in the PKI's 0600 files, and the CA directory is never mounted
+  because it holds the CA key. `<state>/docker/<id>.tls.env` carries `RE_TLS_*`
+  as container paths only when the lane is on. The lane still refuses
+  `RE_TLS=on`: its health checks, instance registry URLs and Manager pair are
+  plaintext until the engines serve TLS (wave 2). Docker Desktop lets a non-root
+  container user read the 0600 key. On Linux the container user must own it,
+  which the release lane settles (#729). A CRL replaced on the host reaches a
+  running container when the container is recreated.
 
 **Transition.** Each service first serves TLS whenever `RE_TLS_CERT` is set, and
 keeps its plaintext path only while it is unset. A lane turns TLS on once

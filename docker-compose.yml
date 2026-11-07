@@ -41,22 +41,22 @@ x-engine-corpus: &engine-corpus
 # below, so any tool that recreates a container presents the same UUID; absent
 # the file, the engine mints its own. Each RE keeps its Lamport clock on the
 # <state>/clock-docker bind mount, so the clock survives the container.
-x-engine-re-volumes: &engine-re-volumes
-  - ${MACHINE_CORPUS_DIR:-${MACHINES_DIR:?MACHINES_DIR must be set — run via startUniverse.sh}}/machines:/app/machines:ro
-  - ${MACHINE_CORPUS_DIR:-${MACHINES_DIR:?MACHINES_DIR must be set — run via startUniverse.sh}}/semantics:/app/semantics:ro
-  - ${RE_INSTANCE_STATE_DIR:-${HOME}/.reality-engine}/clock-docker:/var/lib/reality-engine/clock
+# Lane TLS (RealityEngine_CI#668, #732). Each instance's RE and PE mount its
+# own certificate from the docker lane's PKI, never the CA directory (it holds
+# the CA key): <state>/docker/tls/<id> links to the PKI's issued/<id>, and
+# tls/ca.crt and tls/ca.crl to the lane CA and CRL, written by
+# lane_tls_docker_instance (scripts/lib/lane-tls.sh). <state>/docker/<id>.tls.env
+# carries RE_TLS_CERT/KEY/CA/CRL only when the lane is on (RE_TLS=on), so with it
+# off the engines see nothing new. A CRL replaced on the host reaches a running
+# container when the container is recreated.
+# The volume lists are written out per service, because each instance mounts
+# its own certificate and YAML cannot merge sequences.
 
 x-engine-re-env: &engine-re-env
   MACHINES_DIR: /app/machines
   VECTOR_DIMENSION: ${VECTOR_DIMENSION:-7680}
   QDRANT_URL: http://host.docker.internal:4333
   SEMANTICS_MANIFEST: /app/semantics/abox-manifest.json
-
-x-engine-pe-volumes: &engine-pe-volumes
-  - ${MACHINE_CORPUS_DIR:-${MACHINES_DIR:?MACHINES_DIR must be set — run via startUniverse.sh}}/machines:/app/machines:ro
-  - ${MACHINE_CORPUS_DIR:-${MACHINES_DIR:?MACHINES_DIR must be set — run via startUniverse.sh}}/semantics:/app/semantics:ro
-  - ./config:/app/config:ro
-  - ../localAIStack/data/machines:/app/localai-machines:ro
 
 services:
   # Loki - Log Aggregation (TLS enabled)
@@ -224,7 +224,15 @@ services:
     env_file:
       - path: ${RE_INSTANCE_STATE_DIR:-${HOME}/.reality-engine}/docker/scala-1.env
         required: false
-    volumes: *engine-re-volumes
+      - path: ${RE_INSTANCE_STATE_DIR:-${HOME}/.reality-engine}/docker/scala-1.tls.env
+        required: false
+    volumes:
+      - ${MACHINE_CORPUS_DIR:-${MACHINES_DIR:?MACHINES_DIR must be set — run via startUniverse.sh}}/machines:/app/machines:ro
+      - ${MACHINE_CORPUS_DIR:-${MACHINES_DIR:?MACHINES_DIR must be set — run via startUniverse.sh}}/semantics:/app/semantics:ro
+      - ${RE_INSTANCE_STATE_DIR:-${HOME}/.reality-engine}/clock-docker:/var/lib/reality-engine/clock
+      - ${RE_INSTANCE_STATE_DIR:-${HOME}/.reality-engine}/docker/tls/scala-1:/run/re-tls/instance:ro
+      - ${RE_INSTANCE_STATE_DIR:-${HOME}/.reality-engine}/docker/tls/ca.crt:/run/re-tls/ca.crt:ro
+      - ${RE_INSTANCE_STATE_DIR:-${HOME}/.reality-engine}/docker/tls/ca.crl:/run/re-tls/ca.crl:ro
     ports:
       - "6101:3000"
     healthcheck:
@@ -273,7 +281,17 @@ services:
       - TRIGGERS_ENABLED
       - TRIGGER_DISPATCH_MODE
       - TRIGGER_GRAPHQL_URL
-    volumes: *engine-pe-volumes
+    env_file:
+      - path: ${RE_INSTANCE_STATE_DIR:-${HOME}/.reality-engine}/docker/scala-1.tls.env
+        required: false
+    volumes:
+      - ${MACHINE_CORPUS_DIR:-${MACHINES_DIR:?MACHINES_DIR must be set — run via startUniverse.sh}}/machines:/app/machines:ro
+      - ${MACHINE_CORPUS_DIR:-${MACHINES_DIR:?MACHINES_DIR must be set — run via startUniverse.sh}}/semantics:/app/semantics:ro
+      - ./config:/app/config:ro
+      - ../localAIStack/data/machines:/app/localai-machines:ro
+      - ${RE_INSTANCE_STATE_DIR:-${HOME}/.reality-engine}/docker/tls/scala-1:/run/re-tls/instance:ro
+      - ${RE_INSTANCE_STATE_DIR:-${HOME}/.reality-engine}/docker/tls/ca.crt:/run/re-tls/ca.crt:ro
+      - ${RE_INSTANCE_STATE_DIR:-${HOME}/.reality-engine}/docker/tls/ca.crl:/run/re-tls/ca.crl:ro
     ports:
       - "6100:3004"
     depends_on:
@@ -298,7 +316,15 @@ services:
     env_file:
       - path: ${RE_INSTANCE_STATE_DIR:-${HOME}/.reality-engine}/docker/cpp-1.env
         required: false
-    volumes: *engine-re-volumes
+      - path: ${RE_INSTANCE_STATE_DIR:-${HOME}/.reality-engine}/docker/cpp-1.tls.env
+        required: false
+    volumes:
+      - ${MACHINE_CORPUS_DIR:-${MACHINES_DIR:?MACHINES_DIR must be set — run via startUniverse.sh}}/machines:/app/machines:ro
+      - ${MACHINE_CORPUS_DIR:-${MACHINES_DIR:?MACHINES_DIR must be set — run via startUniverse.sh}}/semantics:/app/semantics:ro
+      - ${RE_INSTANCE_STATE_DIR:-${HOME}/.reality-engine}/clock-docker:/var/lib/reality-engine/clock
+      - ${RE_INSTANCE_STATE_DIR:-${HOME}/.reality-engine}/docker/tls/cpp-1:/run/re-tls/instance:ro
+      - ${RE_INSTANCE_STATE_DIR:-${HOME}/.reality-engine}/docker/tls/ca.crt:/run/re-tls/ca.crt:ro
+      - ${RE_INSTANCE_STATE_DIR:-${HOME}/.reality-engine}/docker/tls/ca.crl:/run/re-tls/ca.crl:ro
     ports:
       - "6301:3000"
     healthcheck:
@@ -346,7 +372,17 @@ services:
       - TRIGGER_GRAPHQL_URL
     command: ["/app/bin/perception_engine_server", "3004", "http://engine-cpp-re:3000",
               "http://host.docker.internal:4000", "/app/localai-machines", "${VECTOR_DIMENSION:-7680}"]
-    volumes: *engine-pe-volumes
+    env_file:
+      - path: ${RE_INSTANCE_STATE_DIR:-${HOME}/.reality-engine}/docker/cpp-1.tls.env
+        required: false
+    volumes:
+      - ${MACHINE_CORPUS_DIR:-${MACHINES_DIR:?MACHINES_DIR must be set — run via startUniverse.sh}}/machines:/app/machines:ro
+      - ${MACHINE_CORPUS_DIR:-${MACHINES_DIR:?MACHINES_DIR must be set — run via startUniverse.sh}}/semantics:/app/semantics:ro
+      - ./config:/app/config:ro
+      - ../localAIStack/data/machines:/app/localai-machines:ro
+      - ${RE_INSTANCE_STATE_DIR:-${HOME}/.reality-engine}/docker/tls/cpp-1:/run/re-tls/instance:ro
+      - ${RE_INSTANCE_STATE_DIR:-${HOME}/.reality-engine}/docker/tls/ca.crt:/run/re-tls/ca.crt:ro
+      - ${RE_INSTANCE_STATE_DIR:-${HOME}/.reality-engine}/docker/tls/ca.crl:/run/re-tls/ca.crl:ro
     ports:
       - "6300:3004"
     depends_on:
@@ -372,7 +408,15 @@ services:
     env_file:
       - path: ${RE_INSTANCE_STATE_DIR:-${HOME}/.reality-engine}/docker/lsp-1.env
         required: false
-    volumes: *engine-re-volumes
+      - path: ${RE_INSTANCE_STATE_DIR:-${HOME}/.reality-engine}/docker/lsp-1.tls.env
+        required: false
+    volumes:
+      - ${MACHINE_CORPUS_DIR:-${MACHINES_DIR:?MACHINES_DIR must be set — run via startUniverse.sh}}/machines:/app/machines:ro
+      - ${MACHINE_CORPUS_DIR:-${MACHINES_DIR:?MACHINES_DIR must be set — run via startUniverse.sh}}/semantics:/app/semantics:ro
+      - ${RE_INSTANCE_STATE_DIR:-${HOME}/.reality-engine}/clock-docker:/var/lib/reality-engine/clock
+      - ${RE_INSTANCE_STATE_DIR:-${HOME}/.reality-engine}/docker/tls/lsp-1:/run/re-tls/instance:ro
+      - ${RE_INSTANCE_STATE_DIR:-${HOME}/.reality-engine}/docker/tls/ca.crt:/run/re-tls/ca.crt:ro
+      - ${RE_INSTANCE_STATE_DIR:-${HOME}/.reality-engine}/docker/tls/ca.crl:/run/re-tls/ca.crl:ro
     ports:
       - "6601:3000"
     healthcheck:
@@ -421,7 +465,17 @@ services:
       - TRIGGER_DISPATCH_MODE
       - TRIGGER_GRAPHQL_URL
     command: ["perception"]
-    volumes: *engine-pe-volumes
+    env_file:
+      - path: ${RE_INSTANCE_STATE_DIR:-${HOME}/.reality-engine}/docker/lsp-1.tls.env
+        required: false
+    volumes:
+      - ${MACHINE_CORPUS_DIR:-${MACHINES_DIR:?MACHINES_DIR must be set — run via startUniverse.sh}}/machines:/app/machines:ro
+      - ${MACHINE_CORPUS_DIR:-${MACHINES_DIR:?MACHINES_DIR must be set — run via startUniverse.sh}}/semantics:/app/semantics:ro
+      - ./config:/app/config:ro
+      - ../localAIStack/data/machines:/app/localai-machines:ro
+      - ${RE_INSTANCE_STATE_DIR:-${HOME}/.reality-engine}/docker/tls/lsp-1:/run/re-tls/instance:ro
+      - ${RE_INSTANCE_STATE_DIR:-${HOME}/.reality-engine}/docker/tls/ca.crt:/run/re-tls/ca.crt:ro
+      - ${RE_INSTANCE_STATE_DIR:-${HOME}/.reality-engine}/docker/tls/ca.crl:/run/re-tls/ca.crl:ro
     ports:
       - "6600:3004"
     depends_on:

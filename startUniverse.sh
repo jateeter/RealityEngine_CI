@@ -296,10 +296,11 @@ _FULL_MACHINE_CORPUS_COUNT="$(find "$FULL_MACHINES_DIR/machines" -name '*.json' 
 # When --engines= is specified it supersedes --re-engine / --pe-engine
 MULTI_ENGINE_MODE=false
 [ -n "$ENGINES" ] && MULTI_ENGINE_MODE=true
-# Only the native lane issues certificates so far; the docker lane's mounts are
-# still to come (#732). Refuse rather than start it plaintext under RE_TLS=on.
+# The docker lane issues and mounts each instance's certificate (#732), but its
+# health checks, instance registry URLs and Manager pair are still plaintext.
+# Refuse rather than start it half-TLS under RE_TLS=on.
 if [ "${RE_TLS:-off}" = on ] && [ "$MULTI_ENGINE_MODE" != true ]; then
-    echo "RE_TLS=on is supported on the native lane (--engines) only; the docker lane is not TLS yet (RealityEngine_CI#732)" >&2
+    echo "RE_TLS=on is supported on the native lane (--engines) only; the docker lane mounts certificates but does not serve TLS yet (RealityEngine_CI#732)" >&2
     exit 2
 fi
 
@@ -2472,6 +2473,14 @@ if [ "$DRY_RUN" = false ]; then
     DOCKER_UUID_SCALA_1=$(instance_uuid_docker_env scala-1) || die "scala-1: instance UUID allocation failed"
     DOCKER_UUID_CPP_1=$(instance_uuid_docker_env cpp-1)     || die "cpp-1: instance UUID allocation failed"
     DOCKER_UUID_LSP_1=$(instance_uuid_docker_env lsp-1)     || die "lsp-1: instance UUID allocation failed"
+    # Lane TLS (#732): each instance's certificate from the docker lane's own CA,
+    # linked where its compose services mount it, before they are created. The
+    # RE_TLS_* reach a container only with the lane on (refused above until the
+    # engines serve TLS), so this is inert today.
+    lane_tls_init docker || die "RE_TLS=on but the docker lane PKI is unusable (scripts/lib/re_pki.py)"
+    lane_tls_docker_instance scala-1 scala "$DOCKER_UUID_SCALA_1" "$HOST_IP" || die "scala-1: certificate issue failed (RE_TLS=on)"
+    lane_tls_docker_instance cpp-1   cpp   "$DOCKER_UUID_CPP_1"   "$HOST_IP" || die "cpp-1: certificate issue failed (RE_TLS=on)"
+    lane_tls_docker_instance lsp-1   lsp   "$DOCKER_UUID_LSP_1"   "$HOST_IP" || die "lsp-1: certificate issue failed (RE_TLS=on)"
 fi
 
 info "Starting RE services (waiting for all healthchecks, timeout 360s)..."
