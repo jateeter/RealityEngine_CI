@@ -296,6 +296,12 @@ _FULL_MACHINE_CORPUS_COUNT="$(find "$FULL_MACHINES_DIR/machines" -name '*.json' 
 # When --engines= is specified it supersedes --re-engine / --pe-engine
 MULTI_ENGINE_MODE=false
 [ -n "$ENGINES" ] && MULTI_ENGINE_MODE=true
+# Only the native lane issues certificates so far; the docker lane's mounts are
+# still to come (#732). Refuse rather than start it plaintext under RE_TLS=on.
+if [ "${RE_TLS:-off}" = on ] && [ "$MULTI_ENGINE_MODE" != true ]; then
+    echo "RE_TLS=on is supported on the native lane (--engines) only; the docker lane is not TLS yet (RealityEngine_CI#732)" >&2
+    exit 2
+fi
 
 # In dry-run mode skip the stamp write — nothing will actually start
 if [ "$DRY_RUN" = false ]; then
@@ -853,7 +859,7 @@ port_listener_pid() {
 
 configure_mcp_targets() {
     if [ "$MULTI_ENGINE_MODE" = true ]; then
-        export RE_REGISTRY_URL="${RE_REGISTRY_URL:-http://$HOST_IP:${REGISTRY_PORT}/re-registry.json}"
+        export RE_REGISTRY_URL="${RE_REGISTRY_URL:-$(lane_tls_scheme)://$HOST_IP:${REGISTRY_PORT}/re-registry.json}"
         unset RE_URL PE_URL REALITY_ENGINE_URL PERCEPTION_ENGINE_URL
     else
         export RE_URL="${RE_URL:-https://localhost:5001}"
@@ -1860,7 +1866,7 @@ if [ "$DRY_RUN" = true ]; then
                     "$_dr_dir/start.sh"
             done
         done
-        printf "  %-28s %s\n" "Registry" "http://$HOST_IP:${REGISTRY_PORT}/re-registry.json"
+        printf "  %-28s %s\n" "Registry" "$(lane_tls_scheme)://$HOST_IP:${REGISTRY_PORT}/re-registry.json"
     else
         echo ""
         echo "  Docker services that would start:"
@@ -1990,18 +1996,27 @@ instance_registry_start() {
     fi
     refuse_live_instance_registry
     rm -f "$REGISTRY_FILE"
+    # Lane TLS on (#732): the shim serves TLS 1.3 with mTLS, under a server
+    # certificate of its own from the lane CA.
+    unset REGISTRY_TLS_CERT REGISTRY_TLS_KEY REGISTRY_TLS_CA REGISTRY_TLS_CRL
+    if lane_tls_enabled; then
+        lane_tls_issue_service registry "$HOST_IP" \
+            || die "RE_TLS=on but the instance registry's certificate could not be issued"
+        REGISTRY_TLS_CERT="$SVC_TLS_CERT" REGISTRY_TLS_KEY="$SVC_TLS_KEY"
+        REGISTRY_TLS_CA="$LANE_TLS_CA" REGISTRY_TLS_CRL="$LANE_TLS_CRL"
+    fi
     registry_start_server
     # Poll until the REST shim accepts connections (python3 server takes 1-2 s to bind)
     _reg_n=0
     while [ "$_reg_n" -lt 10 ]; do
-        curl -sf "http://127.0.0.1:${REGISTRY_PORT}/re-registry.json" > /dev/null 2>&1 && break
+        lane_curl_get "$(lane_tls_scheme)://127.0.0.1:${REGISTRY_PORT}/re-registry.json" -sf -o /dev/null > /dev/null 2>&1 && break
         _reg_n=$((_reg_n+1)); sleep 1
     done
     if [ "$_reg_n" -ge 10 ]; then
         die "Instance-registry REST shim on :${REGISTRY_PORT} did not become ready"
     fi
-    ok "Instance-registry REST shim ready  http://$HOST_IP:${REGISTRY_PORT}/re-registry.json"
-    printf 'http://%s:%s/re-registry.json\n' "$HOST_IP" "$REGISTRY_PORT" \
+    ok "Instance-registry REST shim ready  $(lane_tls_scheme)://$HOST_IP:${REGISTRY_PORT}/re-registry.json"
+    printf '%s://%s:%s/re-registry.json\n' "$(lane_tls_scheme)" "$HOST_IP" "$REGISTRY_PORT" \
         > "$CI_DIR/.universe-registry-url"
     # Every consumer started after this point must read the instance registry
     # this universe actually serves. This path wrote the URL to a file and never
@@ -2012,7 +2027,7 @@ instance_registry_start() {
     # single RE_URL/PE_URL and served cpp-1 alone (opt3-1456, 2026-10-05). Set
     # unconditionally: an inherited value from another shell or an earlier
     # universe is precisely the stale address this guards against.
-    _universe_registry_url="http://$HOST_IP:${REGISTRY_PORT}/re-registry.json"
+    _universe_registry_url="$(lane_tls_scheme)://$HOST_IP:${REGISTRY_PORT}/re-registry.json"
     if [ -n "${RE_REGISTRY_URL:-}" ] && [ "$RE_REGISTRY_URL" != "$_universe_registry_url" ]; then
         warn "RE_REGISTRY_URL was $RE_REGISTRY_URL; this universe's instance registry is $_universe_registry_url, using it"
     fi
@@ -2034,9 +2049,13 @@ instance_registry_start() {
 _publish_service() {
     local name="$1" port="$2" path="${3:-/}" scheme="${4:-http}"
     local lan="$scheme://$HOST_IP:$port" loop="$scheme://localhost:$port"
-    if curl -skf --max-time 3 "$lan$path" >/dev/null 2>&1; then
+    # A service on the lane's TLS is probed with the lane CA and the harness
+    # certificate (#732); the others keep their old probe until they move.
+    local probe="curl -skf"
+    [ "$name" = registry ] && lane_tls_enabled && probe="lane_curl_get"
+    if $probe "$lan$path" -sf --max-time 3 -o /dev/null >/dev/null 2>&1; then
         registry_set_service "$name" "$lan"
-    elif curl -skf --max-time 3 "$loop$path" >/dev/null 2>&1; then
+    elif $probe "$loop$path" -sf --max-time 3 -o /dev/null >/dev/null 2>&1; then
         registry_set_service "$name" "$loop"
         info "  $name published on localhost (binds loopback only)"
     else
@@ -2072,6 +2091,13 @@ if [ "$MULTI_ENGINE_MODE" = true ]; then
             || die "engine build provenance failed — rebuild the engines, or set RE_SKIP_PROVENANCE=1 to override deliberately"
     fi
 
+    # Lane TLS (#732): prepare the native lane's CA and the harness certificate,
+    # before the instance registry, which serves over TLS when the lane is on.
+    # With RE_TLS off (the default) nothing changes for the engines; with it on
+    # an unusable PKI stops the universe rather than starting it plaintext.
+    lane_tls_init native || die "RE_TLS=on but the native lane PKI is unusable (scripts/lib/re_pki.py)"
+    lane_tls_enabled && info "Lane TLS on: instances get RE_TLS_* and register https URLs (#668)"
+
     instance_registry_start
 
     # Publish the non-instance endpoints (RealityEngine_CI#278 step 1).
@@ -2085,7 +2111,7 @@ if [ "$MULTI_ENGINE_MODE" = true ]; then
     # can be reviewed while provably inert, and each consumer's conversion then
     # changes no behaviour. The values become interesting only when
     # --free-ports lands and they stop being predictable.
-    _publish_service "registry"         "${REGISTRY_PORT}" "/re-registry.json"
+    _publish_service "registry"         "${REGISTRY_PORT}" "/re-registry.json" "$(lane_tls_scheme)"
     _publish_service "manager_backend"  3001 "/health"
     _publish_service "manager_frontend" 5173 "/"
     [ -n "${MQTT_BROKER_URL:-}" ] && registry_set_service "mqtt" "$MQTT_BROKER_URL"
@@ -2118,12 +2144,6 @@ if [ "$MULTI_ENGINE_MODE" = true ]; then
     else
         info "Perceptual space seeded at ${VECTOR_DIMENSION} (corpus requires ${CORPUS_REQUIRED_DIM})"
     fi
-
-    # Lane TLS (#732): prepare the native lane's CA and the harness certificate.
-    # With RE_TLS off (the default) nothing changes for the engines; with it on
-    # an unusable PKI stops the universe rather than starting it plaintext.
-    lane_tls_init native || die "RE_TLS=on but the native lane PKI is unusable (scripts/lib/re_pki.py)"
-    lane_tls_enabled && info "Lane TLS on: instances get RE_TLS_* and register https URLs (#668)"
 
     # Parse --engines=scala:2,cpp:1 and spawn each set of instances
     INSTANCE_IDX_SCALA=0; INSTANCE_IDX_CPP=0; INSTANCE_IDX_LSP=0
@@ -2289,12 +2309,12 @@ except Exception:
         # with no nvm tree needs no shim here.
         _manager_nvm_dir="${NVM_DIR:-$HOME/.nvm}"
 
-        info "Starting Manager (Visualizer) natively — RE: $_re_arg  registry: http://$HOST_IP:${REGISTRY_PORT}/re-registry.json"
+        info "Starting Manager (Visualizer) natively — RE: $_re_arg  registry: $(lane_tls_scheme)://$HOST_IP:${REGISTRY_PORT}/re-registry.json"
         # The Load Machines catalog is the full corpus plus localAIStack's own
         # machines, not the bounded working copy MACHINES_DIR names in
         # standard-deployment and regression modes (Manager#256).
         NVM_DIR="$_manager_nvm_dir" \
-            RE_REGISTRY_URL="http://$HOST_IP:${REGISTRY_PORT}/re-registry.json" \
+            RE_REGISTRY_URL="$(lane_tls_scheme)://$HOST_IP:${REGISTRY_PORT}/re-registry.json" \
             MACHINES_CATALOG_DIR="$FULL_MACHINES_DIR" \
             MACHINES_CATALOG_EXTRA_DIRS="$LAS_DIR/data/machines" \
             VIZ_RATE_LIMIT_MAX="${VIZ_RATE_LIMIT_MAX:-5000}" \
@@ -2525,7 +2545,7 @@ if [ "$MULTI_ENGINE_MODE" != true ] && [ "$DRY_RUN" = false ]; then
     [ -n "${MQTT_BROKER_URL:-}" ] && registry_set_service "mqtt" "$MQTT_BROKER_URL"
     [ -n "${MCP_URL:-}" ]         && registry_set_service "mcp" "$MCP_URL"
     [ -n "${SWAGGER_URL:-}" ]     && registry_set_service "swagger" "$SWAGGER_URL"
-    export RE_REGISTRY_URL="${RE_REGISTRY_URL:-http://$HOST_IP:${REGISTRY_PORT}/re-registry.json}"
+    export RE_REGISTRY_URL="${RE_REGISTRY_URL:-$(lane_tls_scheme)://$HOST_IP:${REGISTRY_PORT}/re-registry.json}"
     ok "Instance registry: scala-1 :6101/:6100, cpp-1 :6301/:6300, lsp-1 :6601/:6600 (RE/PE) on $HOST_IP"
 fi
 
@@ -3088,7 +3108,7 @@ if [ "$MULTI_ENGINE_MODE" = true ]; then
 echo "  RealityEngine  — Multi-Engine Native Mode"
 printf "    %-30s %s\n" "Visualizer UI"             "http://localhost:5173"
 printf "    %-30s %s\n" "Visualizer Backend"        "http://localhost:3001"
-printf "    %-30s %s\n" "Instance Registry"         "http://$HOST_IP:${REGISTRY_PORT}/re-registry.json"
+printf "    %-30s %s\n" "Instance Registry"         "$(lane_tls_scheme)://$HOST_IP:${REGISTRY_PORT}/re-registry.json"
 echo ""
 if [ -f "$REGISTRY_FILE" ]; then
     python3 - "$REGISTRY_FILE" <<'PYEOF'
@@ -3171,7 +3191,7 @@ manifest = {
     "full_machine_corpus_count": "$_FULL_MACHINE_CORPUS_COUNT",
     "post_start_full_corpus":  "$POST_START_FULL_CORPUS",
     "host_ip":                 "$HOST_IP",
-    "registry_url":            "http://$HOST_IP:${REGISTRY_PORT}/re-registry.json" if "$MULTI_ENGINE_MODE" == "true" else "",
+    "registry_url":            "$(lane_tls_scheme)://$HOST_IP:${REGISTRY_PORT}/re-registry.json" if "$MULTI_ENGINE_MODE" == "true" else "",
     "docker_services":         [s for s in "$_docker_svcs".split(",") if s],
     "ollama_started_by_universe": "$_ollama_started" == "true",
     "openclaw_started":        "$OCS_STARTED" == "true",

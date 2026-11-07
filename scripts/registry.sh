@@ -13,12 +13,14 @@
 #   registry_set_service <name> <url>  — upsert a non-instance endpoint
 #   registry_services      — prints the services object
 #   registry_set_allocation <mode> <stride>  — record the active port template
-#   registry_start_server  — serves /tmp/re-registry.json on PORT 5999
+#   registry_start_server  — serves /tmp/re-registry.json on PORT 5999; over TLS 1.3
+#                            with mTLS when REGISTRY_TLS_CERT/KEY/CA are set (#732)
 #   registry_stop_server   — kills the server started above
 
 REGISTRY_FILE="${RE_REGISTRY_FILE:-/tmp/re-registry/re-registry.json}"
 REGISTRY_PID_FILE="${RE_REGISTRY_PID_FILE:-/tmp/re-registry-server.pid}"
 REGISTRY_PORT="${RE_REGISTRY_PORT:-5999}"
+REGISTRY_LOG="${RE_REGISTRY_LOG:-/tmp/re-registry-server.log}"
 
 _registry_init() {
     if [ ! -f "$REGISTRY_FILE" ]; then
@@ -329,13 +331,26 @@ registry_start_server() {
     mkdir -p "$serve_dir"
     _registry_init
     _registry_free_port
+    # Over TLS when the caller set REGISTRY_TLS_CERT/KEY/CA (lane TLS on, #732):
+    # TLS 1.3 only, a client certificate from the lane CA required, the
+    # profile's suites and groups (scripts/lib/re_tls_server.py).
+    if [ -n "${REGISTRY_TLS_CERT:-}" ]; then
+        local _crl_arg=""
+        [ -n "${REGISTRY_TLS_CRL:-}" ] && _crl_arg="--crl $REGISTRY_TLS_CRL"
+        # shellcheck disable=SC2086  # _crl_arg is empty or two words
+        python3 "$(dirname "${BASH_SOURCE[0]}")/lib/re_tls_server.py" serve-static "$serve_dir" "$REGISTRY_PORT" \
+            --cert "$REGISTRY_TLS_CERT" --key "$REGISTRY_TLS_KEY" --ca "$REGISTRY_TLS_CA" $_crl_arg \
+            > "$REGISTRY_LOG" 2>&1 &
+        echo $! > "$REGISTRY_PID_FILE"
+        return 0
+    fi
     python3 -c "
 import http.server, os, sys
 os.chdir(sys.argv[1])
 class H(http.server.SimpleHTTPRequestHandler):
     def log_message(self, *a): pass
 http.server.HTTPServer(('0.0.0.0', int(sys.argv[2])), H).serve_forever()
-" "$serve_dir" "$REGISTRY_PORT" > /tmp/re-registry-server.log 2>&1 &
+" "$serve_dir" "$REGISTRY_PORT" > "$REGISTRY_LOG" 2>&1 &
     echo $! > "$REGISTRY_PID_FILE"
 }
 

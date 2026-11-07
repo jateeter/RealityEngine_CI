@@ -26,6 +26,20 @@ a missing file into a parity failure — the same conflation one layer down.
 
 The fallback announces itself on stderr. A stage running unverified should say
 so rather than look identical to one that verified.
+
+THE LANE CA (#668, #732)
+------------------------
+When the lane is on (RE_TLS=on), `scripts/lib/lane-tls.sh` exports the lane CA
+and the harness's client certificate as RE_HARNESS_TLS_CA, RE_HARNESS_TLS_CERT
+and RE_HARNESS_TLS_KEY. Then this context trusts the lane CA alone, speaks TLS
+1.3 only, presents the harness certificate for mTLS and has **no** fallback: a
+missing or unreadable file raises, because the profile forbids disabling
+verification outside a named test fixture. The names are deliberately not the
+services' RE_TLS_* runtime contract, which a child service would inherit and
+start serving with the harness's identity.
+
+The dev-CA path and its fallback stay for a lane that is off, until the docker
+lane has moved off `certs/ca.crt` (#732).
 """
 
 from __future__ import annotations
@@ -75,8 +89,38 @@ def _ca_is_usable(ca: str) -> bool:
         return False
 
 
+class LaneTlsError(RuntimeError):
+    """The lane is on and its CA or harness certificate cannot be used."""
+
+
+def lane_material() -> dict[str, str] | None:
+    """The lane CA and harness certificate when the lane is on, else None."""
+    if os.environ.get("RE_TLS", "off") != "on":
+        return None
+    names = ("RE_HARNESS_TLS_CA", "RE_HARNESS_TLS_CERT", "RE_HARNESS_TLS_KEY")
+    found = {n: os.environ.get(n, "") for n in names}
+    missing = [n for n, v in found.items() if not v or not os.path.isfile(v)]
+    if missing:
+        raise LaneTlsError(
+            "RE_TLS=on but " + ", ".join(missing) + " is unset or not a file; "
+            "source scripts/lib/lane-tls.sh and run lane_tls_init (no unverified fallback when the lane is on)"
+        )
+    return {"ca": found["RE_HARNESS_TLS_CA"], "cert": found["RE_HARNESS_TLS_CERT"], "key": found["RE_HARNESS_TLS_KEY"]}
+
+
+def lane_context(material: dict[str, str]) -> ssl.SSLContext:
+    ctx = ssl.create_default_context(cafile=material["ca"])
+    ctx.minimum_version = ssl.TLSVersion.TLSv1_3
+    ctx.maximum_version = ssl.TLSVersion.TLSv1_3
+    ctx.load_cert_chain(material["cert"], material["key"])
+    return ctx
+
+
 def tls_context() -> ssl.SSLContext:
     global _WARNED
+    material = lane_material()
+    if material:
+        return lane_context(material)
     ctx = ssl.create_default_context()
     ca = ca_path()
     if ca and _ca_is_usable(ca):

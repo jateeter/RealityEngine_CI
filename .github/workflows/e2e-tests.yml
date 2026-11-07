@@ -540,6 +540,9 @@ jobs:
       - name: Lane TLS tests (lane-tls.sh, #732)
         working-directory: RealityEngine_CI
         run: bash scripts/tests/test-lane-tls.sh
+      - name: Instance registry over TLS and re_tls.py's lane path (#732)
+        working-directory: RealityEngine_CI
+        run: bash scripts/tests/test-registry-tls.sh
       - name: No new insecure transport (#727)
         working-directory: RealityEngine_CI
         run: python3 scripts/check-insecure-transport.py
