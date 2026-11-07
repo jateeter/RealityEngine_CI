@@ -73,6 +73,50 @@ them:
 - the JVM keystore built from them for Scala;
 - the release `re-init`.
 
+## The runtime contract
+
+Every service that serves or calls a link follows this contract, so each
+repository's TLS issue implements the same thing.
+
+**Inputs.** The lane passes four paths, issued by `re_pki.py` (RealityEngine_CI#732):
+
+| Variable | Holds |
+|---|---|
+| `RE_TLS_CERT` | the service's chain (its certificate, then the CA) |
+| `RE_TLS_KEY` | its private key |
+| `RE_TLS_CA` | the install CA, the only trust anchor for internal links |
+| `RE_TLS_CRL` | the CA's revocation list |
+
+**Serving.**
+- **TLS 1.3 only,** with the profile's suites and groups (`X25519MLKEM768`
+  first). A stack whose TLS library lacks the hybrid group uses a fallback group
+  from the profile and reports it.
+- **The same ports, `https`/`wss` instead of `http`/`ws`.** There is no plaintext
+  listener and no redirect from one.
+- **Service ports require a client certificate** from the install CA (mTLS):
+  the engines' RE and PE, the lifecycle service API, `re-mcp`, the instance
+  registry, the observability ingest ports.
+- **User-facing ports require server TLS only.** Users and devices authenticate
+  on top of it. These are the Manager frontend, `assets-dokieli`, `assets-css`,
+  Open WebUI, Grafana, and the PE's device ingest.
+- **Health endpoints are served over TLS too,** and healthchecks verify against
+  `RE_TLS_CA`.
+
+**Calling.**
+- Verify the peer against `RE_TLS_CA`, with the hostname or IP check on, and
+  check `RE_TLS_CRL`.
+- Present the service's own certificate wherever the peer requires one.
+- A peer that is an engine instance may also check its `urn:uuid:` SAN against
+  the instance registry's `instance_uuid`.
+- An external party is verified against the system store, for that link only.
+
+**Transition.** Each service first serves TLS whenever `RE_TLS_CERT` is set, and
+keeps its plaintext path only while it is unset. A lane turns TLS on once
+every voter and every client on that lane is ready (RealityEngine_CI#732). The
+plaintext paths are then deleted, and each deletion retires its occurrences
+from the insecure-transport baseline. A release requires every link
+`compliant` (RealityEngine_CI#729).
+
 ## Trust
 
 - **Services** trust exactly the install CA, given to them as a file, and keep
