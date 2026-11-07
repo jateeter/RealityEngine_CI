@@ -103,6 +103,19 @@ repository's TLS issue implements the same thing.
   Open WebUI, Grafana, and the PE's device ingest.
 - **Health endpoints are served over TLS too,** and healthchecks verify against
   `RE_TLS_CA`.
+- **Where the certificate is required.** A port with no user-facing routes
+  requires the client certificate at the handshake. A port that has some, which
+  today is only the engines' PE, requests one at the handshake and verifies any
+  certificate presented, so an untrusted one is still refused. It serves those
+  routes without one and answers every other route `403`
+  `{"error":"client certificate required"}`. The PE's device routes are the
+  HealthKit bridge's `POST /api/integrations/healthkit/ingest`,
+  `GET …/healthkit/status` and `POST …/healthkit/scope`
+  (localHealthkitBridge `docs/INGEST_CONTRACT.md`), which carry its bearer
+  token. `…/healthkit/resync` is called by a service and is not one of them.
+- **A configuration that cannot be loaded stops the service.** With
+  `RE_TLS_CERT` set, a missing or unreadable key, CA or CRL is a startup
+  failure, never a plaintext start.
 
 **Calling.**
 - Verify the peer against `RE_TLS_CA`, with the hostname or IP check on, and
@@ -110,7 +123,19 @@ repository's TLS issue implements the same thing.
 - Present the service's own certificate wherever the peer requires one.
 - A peer that is an engine instance may also check its `urn:uuid:` SAN against
   the instance registry's `instance_uuid`.
-- An external party is verified against the system store, for that link only.
+- **Internal or external** is decided from the URL's host. A peer is internal
+  when the host is loopback, a private (RFC 1918), link-local or unique-local
+  address, a single-label name (a compose service), or a name under
+  `.localhost`, `.internal` or `.local`. An internal peer is verified against
+  `RE_TLS_CA` alone and gets the service's certificate.
+- An external party is verified against the system store, for that link only,
+  and held to the profile once the lane is on. With the lane off (`RE_TLS_CA`
+  unset) an `https` call keeps the behaviour it had before.
+- **Keep connections.** A client pools TLS connections the way it pools
+  plaintext ones. A handshake per call puts one on every PE → RE step.
+- The engines implement these choices identically (C++ `src/http.cpp`, LSP and
+  Scala alike, RealityEngine_CPP#193, LSP#186, Scala#210). A difference shows up
+  as an engine divergence, so a change lands in all three together.
 
 **The lane switch.** `RE_TLS=on|off` (default `off`), read by
 `scripts/lib/lane-tls.sh`. The native lane issues every instance's certificate
