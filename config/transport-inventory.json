@@ -329,7 +329,7 @@
     {
       "id": "to-ollama",
       "from": "engines, localAI and the OpenClaw gateway",
-      "to": "Ollama (host)",
+      "to": "Ollama's TLS front on the host (Ollama itself bound to 127.0.0.1)",
       "protocol": "HTTP",
       "lanes": [
         "native",
@@ -340,7 +340,7 @@
       "issue": "localAIStack#172",
       "status": "unverified",
       "mtls": false,
-      "note": "Native on the host. Ollama serves no TLS of its own, so a TLS front would leave a loopback plaintext hop. Owner decision pending."
+      "note": "Ollama serves no TLS (0.40.13; its FAQ offers only a reverse proxy). Clients reach a TLS 1.3 front with mTLS, which must meet the profile in full; the front-to-Ollama hop is the separate link ollama-front-to-ollama."
     },
     {
       "id": "pe-to-openclaw",
@@ -432,9 +432,9 @@
       ],
       "owner": "localAssetStorageStack",
       "issue": "localAssetStorageStack#15",
-      "status": "plaintext",
+      "status": "tls",
       "mtls": false,
-      "note": "Today: plain http on a random host port."
+      "note": "Verified by hand 2026-11-07 against the running stack (localAssetStorageStack#16): TLS 1.3, TLS_AES_256_GCM_SHA384, X25519MLKEM768 negotiated, certificate verifies by name; TLS 1.2 refused; plaintext answered with 0 bytes. Not `compliant` until the probe (#728) records it."
     },
     {
       "id": "browser-to-assets-css",
@@ -448,9 +448,9 @@
       ],
       "owner": "localAssetStorageStack",
       "issue": "localAssetStorageStack#15",
-      "status": "plaintext",
+      "status": "tls",
       "mtls": false,
-      "note": "Today: plain http on a random host port."
+      "note": "Verified by hand 2026-11-07 against the running stack (localAssetStorageStack#16): TLS 1.3, TLS_AES_256_GCM_SHA384, X25519MLKEM768 negotiated, certificate verifies by name; TLS 1.2 refused; plaintext answered with 0 bytes. Not `compliant` until the probe (#728) records it."
     },
     {
       "id": "lifecycle-to-assets-css",
@@ -464,9 +464,9 @@
       ],
       "owner": "localAssetStorageStack",
       "issue": "localAssetStorageStack#15",
-      "status": "plaintext",
+      "status": "tls",
       "mtls": false,
-      "note": "Today: http://css:3000. Target: https://assets-css.localhost:13443/ on TLS 1.3, without mTLS (recorded deficiency).",
+      "note": "Verified by hand 2026-11-07 against the running stack (localAssetStorageStack#16): TLS 1.3, TLS_AES_256_GCM_SHA384, X25519MLKEM768 negotiated, certificate verifies by name; TLS 1.2 refused; plaintext answered with 0 bytes. Not `compliant` until the probe (#728) records it. lifecycle verifies against the install CA, and is refused without it.",
       "deficiency": {
         "accepted": "owner, 2026-11-07 (RealityEngine_CI#668)",
         "what": "The Solid Community Server does not verify client certificates, so this link is TLS 1.3 without mTLS.",
@@ -489,8 +489,9 @@
       ],
       "owner": "localAssetStorageStack",
       "issue": "localAssetStorageStack#15",
-      "status": "plaintext",
-      "mtls": false
+      "status": "tls",
+      "mtls": false,
+      "note": "Verified by hand 2026-11-07 against the running stack (localAssetStorageStack#16): TLS 1.3, TLS_AES_256_GCM_SHA384, X25519MLKEM768 negotiated, certificate verifies by name; TLS 1.2 refused; plaintext answered with 0 bytes. Not `compliant` until the probe (#728) records it. mTLS is pending: the API also serves reviewers from browsers (Solid-OIDC), so client-certificate enforcement on a separate service listener lands with ROADMAP phase 2."
     },
     {
       "id": "lifecycle-to-pe",
@@ -664,6 +665,32 @@
       "status": "tls",
       "mtls": false,
       "note": "External party, held strictly; verified against the system store for this link only."
+    },
+    {
+      "id": "ollama-front-to-ollama",
+      "from": "Ollama's TLS front",
+      "to": "Ollama (127.0.0.1:11434)",
+      "protocol": "HTTP",
+      "lanes": [
+        "native",
+        "docker",
+        "release"
+      ],
+      "owner": "localAIStack",
+      "issue": "localAIStack#172",
+      "status": "plaintext",
+      "mtls": false,
+      "note": "Loopback only, on the host; Ollama never binds anything but 127.0.0.1.",
+      "deficiency": {
+        "accepted": "owner, 2026-11-07 (RealityEngine_CI#668, option a)",
+        "what": "Ollama serves no TLS, so the hop from its TLS front to Ollama is plaintext on the host's loopback.",
+        "compensation": "Ollama binds 127.0.0.1 only; every client reaches it through the front, on TLS 1.3 with mTLS.",
+        "remedy": "Native TLS when Ollama offers it; the front and this link are then removed.",
+        "allows": {
+          "status": "plaintext",
+          "mtls": false
+        }
+      }
     }
   ]
 }

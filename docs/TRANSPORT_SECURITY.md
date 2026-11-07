@@ -94,8 +94,10 @@ repository's TLS issue implements the same thing.
 - **The same ports, `https`/`wss` instead of `http`/`ws`.** There is no plaintext
   listener and no redirect from one.
 - **Service ports require a client certificate** from the install CA (mTLS):
-  the engines' RE and PE, the lifecycle service API, `re-mcp`, the instance
-  registry, the observability ingest ports.
+  the engines' RE and PE, the lifecycle service's service listener (ROADMAP
+  phase 2; until then its one API is server TLS only, because reviewers use it
+  from browsers), `re-mcp`, the instance registry, the observability ingest
+  ports.
 - **User-facing ports require server TLS only.** Users and devices authenticate
   on top of it. These are the Manager frontend, `assets-dokieli`, `assets-css`,
   Open WebUI, Grafana, and the PE's device ingest.
@@ -153,6 +155,7 @@ allows.
 |---|---|---|---|---|
 | lifecycle → `assets-css` | **CSS does not verify client certificates,** so the link is TLS 1.3 without mTLS. | The lifecycle service authenticates with Solid-OIDC and DPoP-bound tokens (localAssetStorageStack ROADMAP phase 2). | mTLS once CSS verifies client certificates. | owner, 2026-11-07 |
 | engines → the Yuma MQTT broker | **The broker is reached as `mqtt://yuma.lateraledge.cloud:1883`:** plaintext to an external party. | None in transport; MQTT carries only regression sensor traffic. | `mqtts` on TLS 1.3 once the broker offers it. | owner, 2026-11-07 |
+| Ollama's TLS front → Ollama | **Ollama serves no TLS** (0.40.13; its FAQ offers only a reverse proxy), so the front's hop to Ollama is plaintext on the host's loopback. | Ollama binds `127.0.0.1` only; every client reaches it through the front on TLS 1.3 with mTLS. | Native TLS when Ollama offers it. | owner, 2026-11-07 |
 
 **A consequence, not a deficiency: OpenAPI "Try it".** Engine RE and PE ports
 require a client certificate (mTLS). A browser, or the OpenAPI pages'
@@ -167,7 +170,11 @@ browser can use (owner, 2026-11-07).
   `gateway.tls.enabled`, `certPath`, `keyPath`, and `caPath` to verify clients).
   It is held to TLS 1.3 and the profile's suites through `NODE_OPTIONS`.
 - **Ollama** has no native TLS: 0.40.13 has no TLS setting, and its FAQ points
-  to a reverse proxy. The owner's decision on it is pending (RealityEngine_CI#668).
+  to a reverse proxy. It runs behind a TLS 1.3 front with mTLS, bound to
+  loopback (owner, 2026-11-07; the deficiency above; localAIStack#172).
+- **macOS's `/usr/bin/curl` cannot speak TLS 1.3** (it is built on
+  SecureTransport, and exits with code 4). Mac-side scripts use Homebrew's curl
+  (`/opt/homebrew/opt/curl/bin/curl`), Python or Node, with the lane CA.
 
 ## Replacing what exists
 

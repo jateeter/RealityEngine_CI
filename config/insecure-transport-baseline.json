@@ -640,23 +640,11 @@
     "localAIStack/services/api/tests/test_source_observations.py": {
       "plaintext-url": 5
     },
-    "localAssetStorageStack/docker-compose.yml": {
-      "plaintext-url": 2
-    },
-    "localAssetStorageStack/dokieli/Dockerfile": {
-      "plaintext-url": 1
-    },
-    "localAssetStorageStack/lifecycle/Dockerfile": {
-      "plaintext-url": 1
-    },
     "localAssetStorageStack/lifecycle/src/app.js": {
       "plaintext-url": 1
     },
     "localAssetStorageStack/lifecycle/test/api.test.js": {
-      "plaintext-url": 13
-    },
-    "localAssetStorageStack/scripts/up.js": {
-      "plaintext-url": 5
+      "plaintext-url": 1
     },
     "localHealthkitBridge/App/Sources/BridgeModel.swift": {
       "plaintext-url": 1
