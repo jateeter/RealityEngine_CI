@@ -1501,6 +1501,37 @@ start_universe() {
   run_cmd "$label" bash -lc "cd '$ci' && ./startUniverse.sh ${args[*]}"
 }
 
+# Lane TLS (#668, #732). The stages run in this process after startUniverse.sh
+# has returned, so they cannot see the harness trust it exported. Prepare the
+# same lane PKI here, from the run worktree's library: lane_tls_init is
+# idempotent and reuses startUniverse.sh's CA, and with RE_TLS=on it exports
+# RE_HARNESS_TLS_CA/CERT/KEY, which re_tls.py hands every Python stage (no
+# unverified fallback). With RE_TLS off it exports nothing and the stages run
+# as before. The release lane brings its own CA (#729).
+prepare_lane_tls() {
+  [ "$START" = true ] || return 0
+  [ "$CONTAINERIZED" = false ] || return 0
+  local ci lib
+  ci="$(repo_root RealityEngine_CI)"
+  lib="$ci/scripts/lib/lane-tls.sh"
+  if [ "$EXECUTE" = false ]; then
+    log "+ lane TLS: lane_tls_init native (RE_TLS=${RE_TLS:-off})"
+    return 0
+  fi
+  if [ ! -f "$lib" ]; then
+    [ "${RE_TLS:-off}" = on ] && { log "RE_TLS=on but $lib is absent at this ref"; exit 1; }
+    return 0
+  fi
+  step "Lane TLS (RE_TLS=${RE_TLS:-off})"
+  LANE_TLS_PKI="$ci/scripts/lib/re_pki.py"
+  # shellcheck source=lib/lane-tls.sh
+  . "$lib"
+  lane_tls_init native || { log "RE_TLS=on but the native lane PKI is unusable ($LANE_TLS_PKI)"; exit 1; }
+  if lane_tls_enabled; then
+    log "stages trust the lane CA $LANE_TLS_CA and present the harness certificate"
+  fi
+}
+
 # Machine-set parity — a PRECONDITION of every parity result, not one of them.
 #
 # If the runtimes hold different machines, a trajectory or byte comparison is
@@ -2507,6 +2538,7 @@ if [ "$LIVE_TESTS" = true ]; then
   probe_mqtt_broker
   resolve_mqtt_mappings
   prepare_runtime_config
+  prepare_lane_tls
   # start_universe stays fatal: with no universe the later stages have nothing
   # to measure, and their failures would say nothing about the runtimes.
   start_universe

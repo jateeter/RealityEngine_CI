@@ -117,6 +117,24 @@ case "$out" in LANE*) ok "re_tls: on with a missing file raises, no unverified f
 out=$(RE_TLS=off RE_CA_CERT="$LANE_TLS_CA" py 2>&1)
 case "$out" in ERR*) ok "re_tls: off presents no client certificate, so mTLS refuses it";; *) bad "re_tls off: $out";; esac
 
+# install_lane_opener: a stage's plain urlopen (no context) gets the lane trust.
+plain() { python3 - "$URL" "$CI_DIR/scripts/lib" <<'EOF'
+import sys, urllib.request
+sys.path.insert(0, sys.argv[2])
+import re_tls
+installed = re_tls.install_lane_opener()
+try:
+    body = urllib.request.urlopen(sys.argv[1], timeout=5).read().decode()
+    print(("OK" if '"instances"' in body else "BODY") + (" installed" if installed else " not-installed"))
+except Exception as e:  # noqa: BLE001
+    print("ERR", "installed" if installed else "not-installed", type(e).__name__)
+EOF
+}
+out=$(plain 2>&1)
+[ "$out" = "OK installed" ] && ok "install_lane_opener: a plain urlopen reads the registry over mTLS" || bad "install_lane_opener on: $out"
+out=$(RE_TLS=off plain 2>&1)
+case "$out" in "ERR not-installed"*) ok "install_lane_opener: off installs nothing (urllib's defaults stand)";; *) bad "install_lane_opener off: $out";; esac
+
 { registry_stop_server; wait; } 2>/dev/null
 echo "registry-tls: $PASS passed, $FAIL failed, $SKIP skipped"
 [ "$FAIL" -eq 0 ]

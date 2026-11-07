@@ -45,6 +45,10 @@ from pathlib import Path
 from typing import Any
 from urllib import error, request
 
+sys.path.insert(0, str(Path(__file__).resolve().parent / "lib"))
+import re_tls  # noqa: E402
+re_tls.install_lane_opener()  # the lane CA and harness certificate when RE_TLS=on (#732)
+
 # Line-buffer stdout. Python block-buffers when stdout is a file rather than a
 # tty, so a redirected sweep writes NOTHING until the buffer fills or the process
 # exits. Measured: 40 minutes into a run, `final-sweep.log` was 0 bytes while two

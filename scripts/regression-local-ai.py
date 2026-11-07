@@ -44,6 +44,10 @@ import urllib.request
 from pathlib import Path
 from typing import Any
 
+sys.path.insert(0, str(Path(__file__).resolve().parent / "lib"))
+import re_tls  # noqa: E402
+re_tls.install_lane_opener()  # the lane CA and harness certificate when RE_TLS=on (#732)
+
 AGENT_SENSOR = "localai_agent_activity"
 # Names the tool, so the turn reaches the tools node: the corpus localAIStack
 # seeds at startup (data/health/documents) answers it.
