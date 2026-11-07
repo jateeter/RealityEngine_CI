@@ -489,6 +489,16 @@ The rule is in `docs/ENGINEERING_CONTRACT.md`; the design in
   `rejectUnauthorized: false`, `verify=False` or similar, across the focus
   set. The baseline only shrinks; `--write --ref origin/main` records it from
   every sibling's `main`, with this repository as checked out.
+- `lib/lane-tls.sh` (#732), sourced by `startUniverse.sh`: prepares the lane's CA
+  and the harness client certificate, and issues each engine instance its
+  certificate (`urn:uuid:<instance_uuid>`, `<id>.localhost`, `$HOST_IP`).
+  **`RE_TLS` (default `off`) is the lane switch.** Off: nothing changes for the
+  engines and no `RE_TLS_*` reaches them. On: each spawn gets
+  `RE_TLS_CERT/KEY/CA/CRL`, URLs are `https`, and health polls go through
+  `lane_curl_get` with the lane CA and the harness certificate. The switch is
+  turned on only when every voter and client on the lane supports TLS (the
+  lockstep in `docs/TRANSPORT_SECURITY.md`). `lane_curl` refuses macOS's
+  SecureTransport curl when the lane is on.
 - Tests: `tests/test-re-pki.sh`, which runs a real TLS 1.3 + mTLS handshake on
   loopback (`X25519MLKEM768` where OpenSSL supports it), and
   `tests/test-transport-inventory.sh`.

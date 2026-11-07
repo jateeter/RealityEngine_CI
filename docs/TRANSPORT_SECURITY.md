@@ -112,6 +112,11 @@ repository's TLS issue implements the same thing.
   the instance registry's `instance_uuid`.
 - An external party is verified against the system store, for that link only.
 
+**The lane switch.** `RE_TLS=on|off` (default `off`), read by
+`scripts/lib/lane-tls.sh`. The native lane issues every instance's certificate
+either way, but hands over `RE_TLS_*` and registers `https` URLs only when it is
+on.
+
 **Transition.** Each service first serves TLS whenever `RE_TLS_CERT` is set, and
 keeps its plaintext path only while it is unset. A lane turns TLS on once
 every voter and every client on that lane is ready (RealityEngine_CI#732). The

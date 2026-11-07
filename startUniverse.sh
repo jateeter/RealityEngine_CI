@@ -757,6 +757,8 @@ source "$CI_DIR/scripts/lib/ollama-models.sh"
 # The Manager, MCP and the bridge exporter run on Node: establish it rather than
 # inherit the terminal's (RealityEngine_Machines#126).
 source "$CI_DIR/scripts/lib/node-env.sh"
+# Lane TLS (#668, #732): certificates per instance, and the RE_TLS switch.
+source "$CI_DIR/scripts/lib/lane-tls.sh"
 establish_node || add_warn "Node ${RE_NODE_VERSION} could not be established via nvm; using $(command -v node || echo none)"
 
 
@@ -1221,7 +1223,7 @@ _poll_native_health() {
     local url="$1" label="$2" max="${3:-$(_native_health_attempts)}"
     local n=0
     while [ "$n" -lt "$max" ]; do
-        if curl -sf --max-time 2 "$url" > /dev/null 2>&1; then
+        if lane_curl_get "$url" -sf --max-time 2 > /dev/null 2>&1; then
             ok "$label"
             return 0
         fi
@@ -1241,6 +1243,9 @@ spawn_scala_instance() {
     # kept across universes so its Lamport clock carries on (#296).
     local instance_uuid
     instance_uuid=$(instance_uuid_allocate native "$id") || die "$id: instance UUID allocation failed"
+    # Its certificate (#732): issued always, handed over only with RE_TLS=on.
+    lane_tls_issue_instance "$id" "$instance_uuid" "$HOST_IP" || die "$id: certificate issue failed (RE_TLS=on)"
+    local scheme; scheme=$(lane_tls_scheme)
 
     info "Spawning $id  (RE=$HOST_IP:$re_port  PE=$HOST_IP:$pe_port)"
 
@@ -1250,21 +1255,25 @@ spawn_scala_instance() {
     INSTANCE_UUID="$instance_uuid" \
     MQTT_CLIENT_ID="$(mqtt_client_id "$id" "$instance_uuid")" \
     INSTANCE_CLOCK_DIR="$INSTANCE_CLOCK_DIR" \
+    RE_TLS_CERT="$INST_TLS_CERT" \
+    RE_TLS_KEY="$INST_TLS_KEY" \
+    RE_TLS_CA="$INST_TLS_CA" \
+    RE_TLS_CRL="$INST_TLS_CRL" \
     RE_LOAD_MACHINES="$_RE_LOAD_MACHINES" \
     FRESH_START="$FRESH_START" \
     HOST="0.0.0.0" \
     REALITY_ENGINE_PORT="$re_port" \
     PERCEPTION_ENGINE_PORT="$pe_port" \
-    REALITY_ENGINE_URL="http://$HOST_IP:$re_port" \
+    REALITY_ENGINE_URL="$scheme://$HOST_IP:$re_port" \
     MACHINES_DIR="$MACHINES_DIR/machines" \
         nohup bash "$SCALA_DIR/start.sh" \
         > "/tmp/re-${id}.log" 2>&1 &
     local pid_re=$!
 
     echo -n "  $id RE "
-    _poll_native_health "http://$HOST_IP:$re_port/api/health" "$id RE ready"
+    _poll_native_health "$scheme://$HOST_IP:$re_port/api/health" "$id RE ready"
     echo -n "  $id PE "
-    _poll_native_health "http://$HOST_IP:$pe_port/api/health" "$id PE ready"
+    _poll_native_health "$scheme://$HOST_IP:$pe_port/api/health" "$id PE ready"
 
     # Scala start.sh backgrounds both JVMs and exits; read actual engine PIDs from disk.
     local pid_re_actual pid_pe_actual
@@ -1272,8 +1281,8 @@ spawn_scala_instance() {
     pid_pe_actual=$(cat "$SCALA_DIR/run/perception-engine-${id}.pid" 2>/dev/null || echo "")
 
     registry_add "$id" "scala" \
-        "http://$HOST_IP:$re_port" \
-        "http://$HOST_IP:$pe_port" \
+        "$scheme://$HOST_IP:$re_port" \
+        "$scheme://$HOST_IP:$pe_port" \
         "${pid_re_actual:-$pid_re}" "${pid_pe_actual:-}" \
         "$instance_uuid" || die "$id: not registered (see above)"
 }
@@ -1288,6 +1297,9 @@ spawn_cpp_instance() {
     # kept across universes so its Lamport clock carries on (#296).
     local instance_uuid
     instance_uuid=$(instance_uuid_allocate native "$id") || die "$id: instance UUID allocation failed"
+    # Its certificate (#732): issued always, handed over only with RE_TLS=on.
+    lane_tls_issue_instance "$id" "$instance_uuid" "$HOST_IP" || die "$id: certificate issue failed (RE_TLS=on)"
+    local scheme; scheme=$(lane_tls_scheme)
 
     info "Spawning $id  (RE=$HOST_IP:$re_port  PE=$HOST_IP:$pe_port)"
     [ -x "$CPP_DIR/start.sh" ] || die "$id: $CPP_DIR/start.sh not found or not executable"
@@ -1296,6 +1308,10 @@ spawn_cpp_instance() {
     INSTANCE_UUID="$instance_uuid" \
     MQTT_CLIENT_ID="$(mqtt_client_id "$id" "$instance_uuid")" \
     INSTANCE_CLOCK_DIR="$INSTANCE_CLOCK_DIR" \
+    RE_TLS_CERT="$INST_TLS_CERT" \
+    RE_TLS_KEY="$INST_TLS_KEY" \
+    RE_TLS_CA="$INST_TLS_CA" \
+    RE_TLS_CRL="$INST_TLS_CRL" \
     RE_LOAD_MACHINES="$_RE_LOAD_MACHINES" \
     FRESH_START="$FRESH_START" \
     REALITY_ENGINE_HOST="$HOST_IP" \
@@ -1307,9 +1323,9 @@ spawn_cpp_instance() {
     local pid_re=$!
 
     echo -n "  $id RE "
-    _poll_native_health "http://$HOST_IP:$re_port/api/health" "$id RE ready"
+    _poll_native_health "$scheme://$HOST_IP:$re_port/api/health" "$id RE ready"
     echo -n "  $id PE "
-    _poll_native_health "http://$HOST_IP:$pe_port/api/health" "$id PE ready"
+    _poll_native_health "$scheme://$HOST_IP:$pe_port/api/health" "$id PE ready"
 
     # CPP start.sh backgrounds the binaries and exits; read the actual engine PIDs from disk
     local pid_re_actual pid_pe_actual
@@ -1317,8 +1333,8 @@ spawn_cpp_instance() {
     pid_pe_actual=$(cat "$CPP_DIR/run/perception_engine-${id}.pid" 2>/dev/null || echo "")
 
     registry_add "$id" "cpp" \
-        "http://$HOST_IP:$re_port" \
-        "http://$HOST_IP:$pe_port" \
+        "$scheme://$HOST_IP:$re_port" \
+        "$scheme://$HOST_IP:$pe_port" \
         "${pid_re_actual:-}" "${pid_pe_actual:-}" \
         "$instance_uuid" || die "$id: not registered (see above)"
 }
@@ -1333,6 +1349,9 @@ spawn_lsp_instance() {
     # kept across universes so its Lamport clock carries on (#296).
     local instance_uuid
     instance_uuid=$(instance_uuid_allocate native "$id") || die "$id: instance UUID allocation failed"
+    # Its certificate (#732): issued always, handed over only with RE_TLS=on.
+    lane_tls_issue_instance "$id" "$instance_uuid" "$HOST_IP" || die "$id: certificate issue failed (RE_TLS=on)"
+    local scheme; scheme=$(lane_tls_scheme)
 
     info "Spawning $id  (RE=$HOST_IP:$re_port  PE=$HOST_IP:$pe_port)"
     [ -x "$LSP_DIR/start.sh" ] || die "$id: $LSP_DIR/start.sh not found or not executable"
@@ -1341,6 +1360,10 @@ spawn_lsp_instance() {
     INSTANCE_UUID="$instance_uuid" \
     MQTT_CLIENT_ID="$(mqtt_client_id "$id" "$instance_uuid")" \
     INSTANCE_CLOCK_DIR="$INSTANCE_CLOCK_DIR" \
+    RE_TLS_CERT="$INST_TLS_CERT" \
+    RE_TLS_KEY="$INST_TLS_KEY" \
+    RE_TLS_CA="$INST_TLS_CA" \
+    RE_TLS_CRL="$INST_TLS_CRL" \
     RE_LOAD_MACHINES="$_RE_LOAD_MACHINES" \
     FRESH_START="$FRESH_START" \
     REALITY_ENGINE_HOST="$HOST_IP" \
@@ -1352,9 +1375,9 @@ spawn_lsp_instance() {
     local pid_re=$!
 
     echo -n "  $id RE "
-    _poll_native_health "http://$HOST_IP:$re_port/api/health" "$id RE ready"
+    _poll_native_health "$scheme://$HOST_IP:$re_port/api/health" "$id RE ready"
     echo -n "  $id PE "
-    _poll_native_health "http://$HOST_IP:$pe_port/api/health" "$id PE ready"
+    _poll_native_health "$scheme://$HOST_IP:$pe_port/api/health" "$id PE ready"
 
     # LSP start.sh backgrounds sbcl and exits; read the actual engine PIDs from disk
     local pid_re_actual pid_pe_actual
@@ -1362,8 +1385,8 @@ spawn_lsp_instance() {
     pid_pe_actual=$(cat "$LSP_DIR/run/perception-engine-${id}.pid" 2>/dev/null || echo "")
 
     registry_add "$id" "lsp" \
-        "http://$HOST_IP:$re_port" \
-        "http://$HOST_IP:$pe_port" \
+        "$scheme://$HOST_IP:$re_port" \
+        "$scheme://$HOST_IP:$pe_port" \
         "${pid_re_actual:-}" "${pid_pe_actual:-}" \
         "$instance_uuid" || die "$id: not registered (see above)"
 }
@@ -2095,6 +2118,12 @@ if [ "$MULTI_ENGINE_MODE" = true ]; then
     else
         info "Perceptual space seeded at ${VECTOR_DIMENSION} (corpus requires ${CORPUS_REQUIRED_DIM})"
     fi
+
+    # Lane TLS (#732): prepare the native lane's CA and the harness certificate.
+    # With RE_TLS off (the default) nothing changes for the engines; with it on
+    # an unusable PKI stops the universe rather than starting it plaintext.
+    lane_tls_init native || die "RE_TLS=on but the native lane PKI is unusable (scripts/lib/re_pki.py)"
+    lane_tls_enabled && info "Lane TLS on: instances get RE_TLS_* and register https URLs (#668)"
 
     # Parse --engines=scala:2,cpp:1 and spawn each set of instances
     INSTANCE_IDX_SCALA=0; INSTANCE_IDX_CPP=0; INSTANCE_IDX_LSP=0
