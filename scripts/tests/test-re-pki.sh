@@ -27,7 +27,9 @@ pki init >/dev/null && ok "init creates the CA" || bad "init"
 first=$(openssl x509 -in "$RE_PKI_DIR/ca/ca.crt" -noout -fingerprint -sha256)
 pki init >/dev/null
 [[ "$(openssl x509 -in "$RE_PKI_DIR/ca/ca.crt" -noout -fingerprint -sha256)" == "$first" ]] && ok "init never replaces an existing CA" || bad "init replaced the CA"
-[[ "$(stat -f %Lp "$RE_PKI_DIR/ca/ca.key" 2>/dev/null || stat -c %a "$RE_PKI_DIR/ca/ca.key")" == 600 ]] && ok "CA key is 0600" || bad "CA key mode"
+# Python, not stat: BSD `stat -f %Lp` is GNU's filesystem-status mode on Linux.
+mode=$(python3 -c 'import os,sys;print(oct(os.stat(sys.argv[1]).st_mode & 0o777)[2:])' "$RE_PKI_DIR/ca/ca.key")
+[[ "$mode" == 600 ]] && ok "CA key is 0600" || bad "CA key mode is $mode"
 openssl x509 -in "$RE_PKI_DIR/ca/ca.crt" -noout -text | grep -q "NIST CURVE: P-384" && ok "CA key is ECDSA P-384" || bad "CA curve"
 
 pki issue cpp-1 --kind both --dns cpp-1.localhost --ip 127.0.0.1 --instance-uuid "$UUID" >/dev/null && ok "issue an instance certificate" || bad "issue"
@@ -80,7 +82,7 @@ for _ in $(seq 1 100); do
   python3 -c 'import socket,sys;s=socket.socket();s.settimeout(0.1);sys.exit(s.connect_ex(("127.0.0.1",int(sys.argv[1]))))' "$port" && break
   sleep 0.1
 done
-hs=$(echo Q | openssl s_client -connect "127.0.0.1:$port" -servername cpp-1.localhost -verify_hostname cpp-1.localhost \
+hs=$( (echo Q 2>/dev/null) | openssl s_client -connect "127.0.0.1:$port" -servername cpp-1.localhost -verify_hostname cpp-1.localhost \
   -tls1_3 -groups $GROUP -CAfile "$RE_PKI_DIR/ca/ca.crt" -verify_return_error \
   -cert "$d/client-b/cert.pem" -key "$d/client-b/key.pem" 2>&1)
 [[ "$hs" == *"TLSv1.3"* ]] && ok "handshake negotiates TLS 1.3" || bad "TLS 1.3: $(echo "$hs" | tail -3)"
@@ -90,7 +92,7 @@ fi
 [[ "$hs" == *"Verify return code: 0 (ok)"* ]] && ok "client verifies the server's chain and hostname" || bad "server verification"
 # In TLS 1.3 the server refuses a missing client certificate after the handshake,
 # so the client must stay to read the alert: wait before sending, then look for it.
-noclient=$( (sleep 1; echo Q) | openssl s_client -connect "127.0.0.1:$port" -tls1_3 -groups $GROUP -CAfile "$RE_PKI_DIR/ca/ca.crt" 2>&1)
+noclient=$( (sleep 1; echo Q 2>/dev/null) | openssl s_client -connect "127.0.0.1:$port" -tls1_3 -groups $GROUP -CAfile "$RE_PKI_DIR/ca/ca.crt" 2>&1)
 if [[ "$noclient" == *"certificate required"* ]]; then ok "server refuses a client without a certificate (mTLS)"; else bad "mTLS not enforced: $(echo "$noclient" | grep -i -E 'alert|error' | head -2)"; fi
 kill "$SERVER_PID" 2>/dev/null; SERVER_PID=""
 

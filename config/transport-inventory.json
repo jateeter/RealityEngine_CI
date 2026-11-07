@@ -21,7 +21,7 @@
     },
     {
       "id": "clients-to-cpp-re",
-      "from": "clients (Manager, localAI, harness, Machines tests)",
+      "from": "clients (Manager, localAI, harness, Machines tests: RealityEngine_Machines#245)",
       "to": "cpp RE",
       "protocol": "HTTP",
       "lanes": [
@@ -68,7 +68,7 @@
     },
     {
       "id": "clients-to-lsp-re",
-      "from": "clients (Manager, localAI, harness, Machines tests)",
+      "from": "clients (Manager, localAI, harness, Machines tests: RealityEngine_Machines#245)",
       "to": "lsp RE",
       "protocol": "HTTP",
       "lanes": [
@@ -115,7 +115,7 @@
     },
     {
       "id": "clients-to-scala-re",
-      "from": "clients (Manager, localAI, harness, Machines tests)",
+      "from": "clients (Manager, localAI, harness, Machines tests: RealityEngine_Machines#245)",
       "to": "scala RE",
       "protocol": "HTTP",
       "lanes": [
@@ -340,7 +340,7 @@
       "issue": "localAIStack#172",
       "status": "unverified",
       "mtls": false,
-      "note": "Native on the host."
+      "note": "Native on the host. Ollama serves no TLS of its own, so a TLS front would leave a loopback plaintext hop. Owner decision pending."
     },
     {
       "id": "pe-to-openclaw",
@@ -464,7 +464,7 @@
       "issue": "localAssetStorageStack#15",
       "status": "plaintext",
       "mtls": false,
-      "note": "Today: http://css:3000."
+      "note": "Today: http://css:3000. CSS does not verify client certificates, so this link cannot be mTLS; the lifecycle service authenticates with Solid-OIDC and DPoP instead (ROADMAP phase 2). Owner decision pending."
     },
     {
       "id": "clients-to-lifecycle",
@@ -582,6 +582,67 @@
       "status": "tls",
       "mtls": false,
       "note": "Already HTTPS (#668); profile compliance unverified."
+    },
+    {
+      "id": "pe-trigger-dispatch",
+      "from": "PEs (trigger dispatch)",
+      "to": "trigger GraphQL endpoint (TRIGGER_GRAPHQL_URL)",
+      "protocol": "HTTP",
+      "lanes": [
+        "native",
+        "docker",
+        "release"
+      ],
+      "owner": "RealityEngine_Manager",
+      "issue": "RealityEngine_Manager#327",
+      "status": "unverified",
+      "mtls": false,
+      "note": "The TypeScript PE's trigger dispatch; the native PEs' equivalents are on their engine issues."
+    },
+    {
+      "id": "healthkit-to-pim",
+      "from": "HealthKit bridge (mirror leg)",
+      "to": "PIM app",
+      "protocol": "HTTP",
+      "lanes": [
+        "native"
+      ],
+      "owner": "localHealthkitBridge",
+      "issue": "localHealthkitBridge#52",
+      "status": "unverified",
+      "mtls": false,
+      "note": "The HealthKit → PIM → POD mirror leg (scripts/pim-mirror-leg.sh)."
+    },
+    {
+      "id": "browser-to-grafana",
+      "from": "browser",
+      "to": "Grafana through tls-proxy (:3000)",
+      "protocol": "HTTPS",
+      "lanes": [
+        "docker",
+        "release"
+      ],
+      "owner": "RealityEngine_CI",
+      "issue": "RealityEngine_CI#730",
+      "status": "tls",
+      "mtls": false,
+      "note": "tls-proxy terminates TLS; the hop behind it is plaintext (tls-proxy-to-grafana)."
+    },
+    {
+      "id": "pe-to-openai",
+      "from": "PEs (OpenAI integration)",
+      "to": "OpenAI API (external)",
+      "protocol": "HTTPS",
+      "lanes": [
+        "native",
+        "docker",
+        "release"
+      ],
+      "owner": "RealityEngine_Manager",
+      "issue": "RealityEngine_Manager#327",
+      "status": "tls",
+      "mtls": false,
+      "note": "External party, held strictly; verified against the system store for this link only."
     }
   ]
 }
