@@ -1,0 +1,770 @@
+{
+  "schemaVersion": "1.0.0",
+  "purpose": "Insecure-transport occurrences recorded before the TLS 1.3 rule (RealityEngine_CI#668, #727). Counts only shrink: scripts/check-insecure-transport.py fails any increase, and --write records a decrease.",
+  "files": {
+    "RealityEngine_CI/.env.example": {
+      "plaintext-url": 1,
+      "plaintext-ws": 2
+    },
+    "RealityEngine_CI/certs/generate-dev-certs.sh": {
+      "curl-insecure": 1
+    },
+    "RealityEngine_CI/config/grafana-datasources.yml": {
+      "plaintext-url": 1
+    },
+    "RealityEngine_CI/config/loki-config.yml": {
+      "plaintext-url": 1
+    },
+    "RealityEngine_CI/docker-compose.yml": {
+      "plaintext-url": 25,
+      "wget-no-check": 4
+    },
+    "RealityEngine_CI/docker/scala/Dockerfile": {
+      "plaintext-url": 1
+    },
+    "RealityEngine_CI/e2e/global-setup.ts": {
+      "plaintext-url": 1
+    },
+    "RealityEngine_CI/e2e/lib/registry.ts": {
+      "plaintext-url": 1
+    },
+    "RealityEngine_CI/install.sh": {
+      "plaintext-url": 9
+    },
+    "RealityEngine_CI/mcp/Dockerfile": {
+      "plaintext-url": 1
+    },
+    "RealityEngine_CI/mcp/bin/realityengine-mcp.js": {
+      "node-reject-unauthorized": 1
+    },
+    "RealityEngine_CI/mcp/scripts/gen-openai-profile.mjs": {
+      "plaintext-url": 1
+    },
+    "RealityEngine_CI/mcp/src/http-server.js": {
+      "node-reject-unauthorized": 1,
+      "plaintext-url": 2
+    },
+    "RealityEngine_CI/mcp/test/mcp-e2e.test.js": {
+      "plaintext-url": 8
+    },
+    "RealityEngine_CI/nginx/tls-proxy.conf": {
+      "plaintext-url": 3
+    },
+    "RealityEngine_CI/release/compose.yml": {
+      "plaintext-url": 23,
+      "wget-no-check": 2
+    },
+    "RealityEngine_CI/release/config/nginx.conf": {
+      "plaintext-url": 1
+    },
+    "RealityEngine_CI/release/init/reinit.py": {
+      "plaintext-url": 29,
+      "plaintext-ws": 3
+    },
+    "RealityEngine_CI/release/soak.py": {
+      "plaintext-url": 1
+    },
+    "RealityEngine_CI/scripts/bridge-metrics-exporter.mjs": {
+      "plaintext-url": 6
+    },
+    "RealityEngine_CI/scripts/check-localai-operations.py": {
+      "plaintext-url": 1
+    },
+    "RealityEngine_CI/scripts/check-registry-url-literals.sh": {
+      "plaintext-url": 1
+    },
+    "RealityEngine_CI/scripts/check-workflow-endpoints.sh": {
+      "plaintext-url": 2
+    },
+    "RealityEngine_CI/scripts/deploy-validate-agent.sh": {
+      "plaintext-url": 19
+    },
+    "RealityEngine_CI/scripts/examples/rs-flipflop.sh": {
+      "plaintext-url": 2
+    },
+    "RealityEngine_CI/scripts/examples/test-rs-flipflop.sh": {
+      "plaintext-url": 2
+    },
+    "RealityEngine_CI/scripts/full-corpus-load-parity.sh": {
+      "plaintext-url": 1
+    },
+    "RealityEngine_CI/scripts/health-check.sh": {
+      "plaintext-url": 5
+    },
+    "RealityEngine_CI/scripts/install-deploy-validate-agent.sh": {
+      "plaintext-url": 1
+    },
+    "RealityEngine_CI/scripts/lib/containerized-lane.sh": {
+      "plaintext-url": 1
+    },
+    "RealityEngine_CI/scripts/lib/openclaw-adapter.mjs": {
+      "plaintext-url": 2,
+      "plaintext-ws": 1
+    },
+    "RealityEngine_CI/scripts/lib/pe-env.sh": {
+      "plaintext-ws": 1
+    },
+    "RealityEngine_CI/scripts/lib/re_tls.py": {
+      "python-verify-off": 4
+    },
+    "RealityEngine_CI/scripts/lib/registry-url.sh": {
+      "plaintext-url": 2
+    },
+    "RealityEngine_CI/scripts/lib/registry_url.py": {
+      "plaintext-url": 2
+    },
+    "RealityEngine_CI/scripts/openclaw-acp-adapter.mjs": {
+      "plaintext-url": 1
+    },
+    "RealityEngine_CI/scripts/pim-mirror-leg.sh": {
+      "plaintext-url": 1
+    },
+    "RealityEngine_CI/scripts/quick-start.sh": {
+      "plaintext-url": 7
+    },
+    "RealityEngine_CI/scripts/regression-engine-config-parity.py": {
+      "plaintext-url": 1
+    },
+    "RealityEngine_CI/scripts/regression-export-parity.py": {
+      "plaintext-url": 1
+    },
+    "RealityEngine_CI/scripts/regression-local-ai.py": {
+      "plaintext-url": 2
+    },
+    "RealityEngine_CI/scripts/regression-machine-set-parity.py": {
+      "plaintext-url": 1
+    },
+    "RealityEngine_CI/scripts/regression-mcp-smoke.mjs": {
+      "plaintext-url": 2
+    },
+    "RealityEngine_CI/scripts/regression-perceive-selector.py": {
+      "plaintext-url": 1
+    },
+    "RealityEngine_CI/scripts/regression-reset-contract.py": {
+      "plaintext-url": 2
+    },
+    "RealityEngine_CI/scripts/regression-service-inventory.py": {
+      "plaintext-url": 8,
+      "python-verify-off": 1
+    },
+    "RealityEngine_CI/scripts/regression-test.sh": {
+      "plaintext-url": 7
+    },
+    "RealityEngine_CI/scripts/restart-local.sh": {
+      "plaintext-url": 1
+    },
+    "RealityEngine_CI/scripts/run-all-tests.sh": {
+      "plaintext-url": 9
+    },
+    "RealityEngine_CI/scripts/rust-conformance.sh": {
+      "plaintext-url": 7
+    },
+    "RealityEngine_CI/scripts/serve-openapi.sh": {
+      "plaintext-url": 6
+    },
+    "RealityEngine_CI/scripts/serve_openapi.py": {
+      "plaintext-url": 4
+    },
+    "RealityEngine_CI/scripts/setup-loki-driver.sh": {
+      "plaintext-url": 1
+    },
+    "RealityEngine_CI/scripts/start-local.sh": {
+      "plaintext-url": 9
+    },
+    "RealityEngine_CI/scripts/start.sh": {
+      "plaintext-url": 7
+    },
+    "RealityEngine_CI/scripts/status.sh": {
+      "plaintext-url": 11
+    },
+    "RealityEngine_CI/scripts/test-docker-e2e.sh": {
+      "curl-insecure": 1,
+      "plaintext-url": 1
+    },
+    "RealityEngine_CI/scripts/test-three-engine-full.sh": {
+      "plaintext-url": 9
+    },
+    "RealityEngine_CI/scripts/tests/bridge-metrics-exporter.test.mjs": {
+      "plaintext-url": 4
+    },
+    "RealityEngine_CI/scripts/tests/openclaw-acp-adapter-e2e.test.mjs": {
+      "plaintext-url": 1,
+      "plaintext-ws": 1
+    },
+    "RealityEngine_CI/scripts/tests/openclaw-acp-adapter.test.mjs": {
+      "plaintext-url": 16,
+      "plaintext-ws": 1
+    },
+    "RealityEngine_CI/scripts/tests/test-compare-lane-runs.sh": {
+      "plaintext-url": 4
+    },
+    "RealityEngine_CI/scripts/tests/test-deploy-validate-agent.sh": {
+      "plaintext-ws": 2
+    },
+    "RealityEngine_CI/scripts/tests/test-e2e-registry.mjs": {
+      "plaintext-url": 5
+    },
+    "RealityEngine_CI/scripts/tests/test-export-parity.sh": {
+      "plaintext-url": 3
+    },
+    "RealityEngine_CI/scripts/tests/test-followers.sh": {
+      "plaintext-url": 10
+    },
+    "RealityEngine_CI/scripts/tests/test-healthkit-stage.sh": {
+      "plaintext-url": 2
+    },
+    "RealityEngine_CI/scripts/tests/test-local-ai-probe.sh": {
+      "plaintext-url": 21
+    },
+    "RealityEngine_CI/scripts/tests/test-machine-set-parity.sh": {
+      "plaintext-url": 3
+    },
+    "RealityEngine_CI/scripts/tests/test-metrics-parity.sh": {
+      "plaintext-url": 1
+    },
+    "RealityEngine_CI/scripts/tests/test-observability-readiness.sh": {
+      "plaintext-url": 4
+    },
+    "RealityEngine_CI/scripts/tests/test-openclaw-e2e-fanout.sh": {
+      "plaintext-url": 6
+    },
+    "RealityEngine_CI/scripts/tests/test-registry-url.sh": {
+      "plaintext-url": 9
+    },
+    "RealityEngine_CI/scripts/tests/test-registry.sh": {
+      "plaintext-url": 16
+    },
+    "RealityEngine_CI/scripts/tests/test-release-init.sh": {
+      "plaintext-url": 7,
+      "plaintext-ws": 1
+    },
+    "RealityEngine_CI/scripts/tests/test-reset-contract.sh": {
+      "plaintext-url": 25
+    },
+    "RealityEngine_CI/scripts/tests/test-resolve-endpoint.sh": {
+      "plaintext-url": 18
+    },
+    "RealityEngine_CI/scripts/tests/test-serve-openapi.sh": {
+      "plaintext-url": 13
+    },
+    "RealityEngine_CI/scripts/tests/test-step-observer.sh": {
+      "plaintext-url": 5
+    },
+    "RealityEngine_CI/scripts/tests/test-stop-universe-registry.sh": {
+      "plaintext-url": 1
+    },
+    "RealityEngine_CI/scripts/validate.sh": {
+      "curl-insecure": 6,
+      "plaintext-url": 4
+    },
+    "RealityEngine_CI/scripts/verify-ifrs-workflows.py": {
+      "plaintext-url": 4
+    },
+    "RealityEngine_CI/scripts/verify-startup.sh": {
+      "plaintext-url": 9
+    },
+    "RealityEngine_CI/scripts/verify-unified-deployment.sh": {
+      "curl-insecure": 1
+    },
+    "RealityEngine_CI/scripts/visualizer/start-all.sh": {
+      "plaintext-url": 3
+    },
+    "RealityEngine_CI/startUniverse.sh": {
+      "plaintext-url": 93,
+      "plaintext-ws": 1
+    },
+    "RealityEngine_CI/statusUniverse.sh": {
+      "plaintext-url": 6
+    },
+    "RealityEngine_CPP/.env.example": {
+      "plaintext-url": 3,
+      "plaintext-ws": 2
+    },
+    "RealityEngine_CPP/scripts/smoke-test.sh": {
+      "plaintext-url": 4
+    },
+    "RealityEngine_CPP/src/http.cpp": {
+      "plaintext-url": 1
+    },
+    "RealityEngine_CPP/src/perception_engine_server.cpp": {
+      "plaintext-url": 3,
+      "plaintext-ws": 1
+    },
+    "RealityEngine_CPP/src/reality_engine_server.cpp": {
+      "plaintext-url": 1
+    },
+    "RealityEngine_CPP/start.sh": {
+      "plaintext-url": 11,
+      "plaintext-ws": 1
+    },
+    "RealityEngine_CPP/tests/e2e_healthkit_spezi.sh": {
+      "plaintext-url": 6
+    },
+    "RealityEngine_CPP/tests/e2e_services.sh": {
+      "plaintext-url": 38
+    },
+    "RealityEngine_CPP/tools/reality_engine_cli.cpp": {
+      "plaintext-url": 1
+    },
+    "RealityEngine_LSP/.env.example": {
+      "plaintext-url": 3,
+      "plaintext-ws": 2
+    },
+    "RealityEngine_LSP/scripts/smoke-test.sh": {
+      "plaintext-url": 4
+    },
+    "RealityEngine_LSP/src/cli.lisp": {
+      "plaintext-url": 1
+    },
+    "RealityEngine_LSP/src/http.lisp": {
+      "plaintext-url": 1
+    },
+    "RealityEngine_LSP/src/perception-service.lisp": {
+      "plaintext-url": 5,
+      "plaintext-ws": 1
+    },
+    "RealityEngine_LSP/src/reality-service.lisp": {
+      "plaintext-url": 1
+    },
+    "RealityEngine_LSP/start.sh": {
+      "plaintext-url": 5,
+      "plaintext-ws": 1
+    },
+    "RealityEngine_LSP/tests/core-tests.lisp": {
+      "plaintext-url": 28
+    },
+    "RealityEngine_LSP/tests/e2e_healthkit_spezi.sh": {
+      "plaintext-url": 6
+    },
+    "RealityEngine_Machines/scripts/audit-corpus.py": {
+      "plaintext-url": 1
+    },
+    "RealityEngine_Machines/scripts/backfill-dispatch-contracts.py": {
+      "plaintext-url": 1
+    },
+    "RealityEngine_Machines/scripts/backfill-lane-contracts.py": {
+      "plaintext-url": 2
+    },
+    "RealityEngine_Machines/scripts/build-dispatch-envelope.py": {
+      "plaintext-url": 1
+    },
+    "RealityEngine_Machines/scripts/domain-approval/rehearsal.py": {
+      "plaintext-url": 1
+    },
+    "RealityEngine_Machines/scripts/engine_tls.py": {
+      "python-verify-off": 2
+    },
+    "RealityEngine_Machines/scripts/extract-qudt-subset.py": {
+      "plaintext-url": 7
+    },
+    "RealityEngine_Machines/scripts/project-lanes.py": {
+      "plaintext-url": 1
+    },
+    "RealityEngine_Machines/scripts/registry_url.py": {
+      "plaintext-url": 2
+    },
+    "RealityEngine_Machines/tests/contracts/domain_approval_test.py": {
+      "plaintext-url": 1
+    },
+    "RealityEngine_Machines/tests/contracts/ucum_test.py": {
+      "plaintext-url": 1
+    },
+    "RealityEngine_Machines/tests/integration/openclaw-health.spec.ts": {
+      "plaintext-url": 2
+    },
+    "RealityEngine_Machines/tests/support/deployed-endpoints.ts": {
+      "plaintext-url": 1
+    },
+    "RealityEngine_Machines/tests/support/registry-url.ts": {
+      "plaintext-url": 2
+    },
+    "RealityEngine_Machines/triggers/graphql_trigger_template.py": {
+      "plaintext-url": 1
+    },
+    "RealityEngine_Manager/perception-engine/backend/src/__tests__/AcpAdapter.test.ts": {
+      "plaintext-url": 3,
+      "plaintext-ws": 3
+    },
+    "RealityEngine_Manager/perception-engine/backend/src/__tests__/AdapterPipeline.test.ts": {
+      "plaintext-url": 6
+    },
+    "RealityEngine_Manager/perception-engine/backend/src/__tests__/CompletionRoundTrip.test.ts": {
+      "plaintext-url": 7
+    },
+    "RealityEngine_Manager/perception-engine/backend/src/__tests__/Dispatcher.test.ts": {
+      "plaintext-url": 3
+    },
+    "RealityEngine_Manager/perception-engine/backend/src/__tests__/Ledger.test.ts": {
+      "plaintext-url": 1
+    },
+    "RealityEngine_Manager/perception-engine/backend/src/__tests__/LocalAiGraphQLAdapter.test.ts": {
+      "plaintext-url": 3
+    },
+    "RealityEngine_Manager/perception-engine/backend/src/__tests__/OllamaAdapter.test.ts": {
+      "plaintext-url": 15
+    },
+    "RealityEngine_Manager/perception-engine/backend/src/__tests__/OpenAIAdapter.test.ts": {
+      "plaintext-url": 14
+    },
+    "RealityEngine_Manager/perception-engine/backend/src/__tests__/envelopeBuilder.test.ts": {
+      "plaintext-url": 4
+    },
+    "RealityEngine_Manager/perception-engine/backend/src/__tests__/mcpCanonicalTools.test.ts": {
+      "plaintext-url": 8
+    },
+    "RealityEngine_Manager/perception-engine/backend/src/integrations/adapters/AcpAdapter.ts": {
+      "plaintext-ws": 1
+    },
+    "RealityEngine_Manager/perception-engine/backend/src/integrations/adapters/OllamaAdapter.ts": {
+      "plaintext-url": 1
+    },
+    "RealityEngine_Manager/perception-engine/backend/src/server.ts": {
+      "plaintext-url": 10
+    },
+    "RealityEngine_Manager/perception-engine/frontend/nginx.conf": {
+      "plaintext-url": 2
+    },
+    "RealityEngine_Manager/perception-engine/frontend/vite.config.ts": {
+      "plaintext-url": 1,
+      "plaintext-ws": 1
+    },
+    "RealityEngine_Manager/scripts/smoke-test.sh": {
+      "curl-insecure": 1
+    },
+    "RealityEngine_Manager/start.sh": {
+      "plaintext-url": 9
+    },
+    "RealityEngine_Manager/visualizer/backend/.env.example": {
+      "plaintext-url": 9
+    },
+    "RealityEngine_Manager/visualizer/backend/src/__tests__/engineBinding.test.ts": {
+      "plaintext-url": 8
+    },
+    "RealityEngine_Manager/visualizer/backend/src/server.ts": {
+      "plaintext-url": 2
+    },
+    "RealityEngine_Manager/visualizer/frontend/e2e/ces-tooltip-arcs.spec.ts": {
+      "plaintext-url": 1
+    },
+    "RealityEngine_Manager/visualizer/frontend/e2e/corpus-load-interns-sequences.spec.ts": {
+      "plaintext-url": 1
+    },
+    "RealityEngine_Manager/visualizer/frontend/e2e/graph-filters.spec.ts": {
+      "plaintext-url": 1
+    },
+    "RealityEngine_Manager/visualizer/frontend/e2e/graph-refresh-after-load.spec.ts": {
+      "plaintext-url": 1
+    },
+    "RealityEngine_Manager/visualizer/frontend/e2e/load-machines-modal.spec.ts": {
+      "plaintext-url": 1
+    },
+    "RealityEngine_Manager/visualizer/frontend/e2e/openclaw-portal.spec.ts": {
+      "plaintext-url": 2
+    },
+    "RealityEngine_Manager/visualizer/frontend/e2e/pe-source-arcs.spec.ts": {
+      "plaintext-url": 1
+    },
+    "RealityEngine_Manager/visualizer/frontend/e2e/registry-url.ts": {
+      "plaintext-url": 2
+    },
+    "RealityEngine_Manager/visualizer/frontend/e2e/theme-settings.spec.ts": {
+      "plaintext-url": 1
+    },
+    "RealityEngine_Manager/visualizer/frontend/nginx.conf": {
+      "plaintext-url": 3
+    },
+    "RealityEngine_Manager/visualizer/frontend/src/utils/perceptualSequenceLogger.ts": {
+      "plaintext-url": 1
+    },
+    "RealityEngine_Manager/visualizer/frontend/vite.config.ts": {
+      "plaintext-url": 1,
+      "plaintext-ws": 1
+    },
+    "RealityEngine_Rust/scripts/differential.py": {
+      "plaintext-url": 2
+    },
+    "RealityEngine_Rust/scripts/validate.sh": {
+      "plaintext-url": 2
+    },
+    "RealityEngine_Rust/src/lib.rs": {
+      "plaintext-url": 6,
+      "plaintext-ws": 1
+    },
+    "RealityEngine_Rust/src/pe/adapters.rs": {
+      "plaintext-url": 3
+    },
+    "RealityEngine_Rust/src/pe/dispatch.rs": {
+      "plaintext-url": 1
+    },
+    "RealityEngine_Rust/src/pe/integrations.rs": {
+      "plaintext-url": 3,
+      "plaintext-ws": 1
+    },
+    "RealityEngine_Rust/src/pe/mod.rs": {
+      "plaintext-url": 3
+    },
+    "RealityEngine_Scala/.env.example": {
+      "plaintext-url": 2,
+      "plaintext-ws": 2
+    },
+    "RealityEngine_Scala/perception-engine/src/main/scala/com/realityengine/perception/PerceptionMain.scala": {
+      "plaintext-url": 2
+    },
+    "RealityEngine_Scala/perception-engine/src/main/scala/com/realityengine/perception/api/PerceptionRoutes.scala": {
+      "plaintext-url": 3,
+      "plaintext-ws": 1
+    },
+    "RealityEngine_Scala/perception-engine/src/test/scala/com/realityengine/perception/TriggerDispatcherSpec.scala": {
+      "plaintext-url": 2
+    },
+    "RealityEngine_Scala/perception-engine/src/test/scala/com/realityengine/perception/api/LocalAiInvokeUriSpec.scala": {
+      "plaintext-url": 4
+    },
+    "RealityEngine_Scala/perception-engine/tests/e2e_healthkit_spezi.sh": {
+      "plaintext-url": 5
+    },
+    "RealityEngine_Scala/scripts/smoke-test.sh": {
+      "plaintext-url": 4
+    },
+    "RealityEngine_Scala/src/main/scala/com/realityengine/Main.scala": {
+      "plaintext-url": 1
+    },
+    "RealityEngine_Scala/src/main/scala/com/realityengine/api/Routes.scala": {
+      "plaintext-url": 1
+    },
+    "RealityEngine_Scala/src/main/scala/com/realityengine/services/VectorStore.scala": {
+      "plaintext-url": 1
+    },
+    "RealityEngine_Scala/start.sh": {
+      "plaintext-url": 7,
+      "plaintext-ws": 1
+    },
+    "localAIStack/.env.example": {
+      "plaintext-url": 2
+    },
+    "localAIStack/.github/workflows/e2e.yml": {
+      "plaintext-url": 2
+    },
+    "localAIStack/Makefile": {
+      "plaintext-url": 5
+    },
+    "localAIStack/config/grafana-datasources.yml": {
+      "plaintext-url": 2
+    },
+    "localAIStack/config/loki-config.yml": {
+      "plaintext-url": 1
+    },
+    "localAIStack/docker-compose.ci.yml": {
+      "plaintext-url": 3
+    },
+    "localAIStack/docker-compose.yml": {
+      "plaintext-url": 14
+    },
+    "localAIStack/scripts/examples/openclaw-hello-agent.mjs": {
+      "node-reject-unauthorized": 1,
+      "plaintext-url": 2
+    },
+    "localAIStack/scripts/ingest.py": {
+      "plaintext-url": 1
+    },
+    "localAIStack/scripts/ingest_health_docs.py": {
+      "plaintext-url": 3
+    },
+    "localAIStack/scripts/openclaw-adapter.mjs": {
+      "node-reject-unauthorized": 2,
+      "plaintext-url": 2,
+      "plaintext-ws": 3
+    },
+    "localAIStack/scripts/pe-completion-conformance.mjs": {
+      "node-reject-unauthorized": 1,
+      "plaintext-url": 2
+    },
+    "localAIStack/scripts/pe-completion-conformance.test.mjs": {
+      "plaintext-url": 1
+    },
+    "localAIStack/scripts/setup.sh": {
+      "plaintext-url": 11
+    },
+    "localAIStack/scripts/simulate_health_push.py": {
+      "plaintext-url": 6
+    },
+    "localAIStack/scripts/start.sh": {
+      "plaintext-url": 16
+    },
+    "localAIStack/services/api/Dockerfile": {
+      "plaintext-url": 1
+    },
+    "localAIStack/services/api/config.py": {
+      "plaintext-url": 5
+    },
+    "localAIStack/services/api/core/registry_resolver.py": {
+      "plaintext-url": 1,
+      "python-verify-off": 2
+    },
+    "localAIStack/services/api/reembed_cli.py": {
+      "plaintext-url": 1
+    },
+    "localAIStack/services/api/tests/e2e/conftest.py": {
+      "plaintext-url": 3
+    },
+    "localAIStack/services/api/tests/e2e/test_health_pipeline.py": {
+      "plaintext-url": 3
+    },
+    "localAIStack/services/api/tests/test_bridge_binding.py": {
+      "plaintext-url": 4
+    },
+    "localAIStack/services/api/tests/test_document_loaders.py": {
+      "plaintext-url": 2
+    },
+    "localAIStack/services/api/tests/test_engine_fanout.py": {
+      "plaintext-url": 3
+    },
+    "localAIStack/services/api/tests/test_health_integration.py": {
+      "plaintext-url": 2
+    },
+    "localAIStack/services/api/tests/test_health_rerank.py": {
+      "plaintext-url": 2
+    },
+    "localAIStack/services/api/tests/test_health_scope.py": {
+      "plaintext-url": 1
+    },
+    "localAIStack/services/api/tests/test_health_t4_t6.py": {
+      "plaintext-url": 2
+    },
+    "localAIStack/services/api/tests/test_import_guard.py": {
+      "plaintext-url": 7
+    },
+    "localAIStack/services/api/tests/test_registry_resolver.py": {
+      "plaintext-url": 15
+    },
+    "localAIStack/services/api/tests/test_source_observations.py": {
+      "plaintext-url": 5
+    },
+    "localAssetStorageStack/docker-compose.yml": {
+      "plaintext-url": 2
+    },
+    "localAssetStorageStack/dokieli/Dockerfile": {
+      "plaintext-url": 1
+    },
+    "localAssetStorageStack/lifecycle/Dockerfile": {
+      "plaintext-url": 1
+    },
+    "localAssetStorageStack/lifecycle/src/app.js": {
+      "plaintext-url": 1
+    },
+    "localAssetStorageStack/lifecycle/test/api.test.js": {
+      "plaintext-url": 13
+    },
+    "localAssetStorageStack/scripts/up.js": {
+      "plaintext-url": 5
+    },
+    "localHealthkitBridge/App/Sources/BridgeModel.swift": {
+      "plaintext-url": 1
+    },
+    "localHealthkitBridge/App/Sources/MobilePodModel.swift": {
+      "plaintext-url": 7
+    },
+    "localHealthkitBridge/App/UITests/SeededFlowUITests.swift": {
+      "plaintext-url": 2
+    },
+    "localHealthkitBridge/App/project.yml": {
+      "plaintext-url": 1
+    },
+    "localHealthkitBridge/Experiments/MobileSolidCompat/Tests/MobileSolidCompatModelTests/MobileSolidCompatModelTests.swift": {
+      "plaintext-url": 4
+    },
+    "localHealthkitBridge/Experiments/Vendor/SolidAuthSwift/Sources/SolidAuthSwiftUI/Authorization Request/AuthorizationRequest.swift": {
+      "plaintext-url": 1
+    },
+    "localHealthkitBridge/Experiments/Vendor/SolidAuthSwift/Sources/SolidAuthSwiftUI/Authorization Request/AuthorizationResponse.swift": {
+      "plaintext-url": 5
+    },
+    "localHealthkitBridge/Experiments/Vendor/SolidAuthSwift/Sources/SolidAuthSwiftUI/Dynamic Registration/RegistrationRequest.swift": {
+      "plaintext-url": 3
+    },
+    "localHealthkitBridge/Experiments/Vendor/serd-parser/Sources/SerdParser/SerdParser.swift": {
+      "plaintext-url": 1
+    },
+    "localHealthkitBridge/Sources/HealthKitBridge/BridgeConfiguration.swift": {
+      "plaintext-url": 2
+    },
+    "localHealthkitBridge/Sources/HealthKitBridge/SampleNormalizer.swift": {
+      "plaintext-url": 1
+    },
+    "localHealthkitBridge/Tests/HealthKitBridgeTests/BridgeConfigurationTests.swift": {
+      "plaintext-url": 11
+    },
+    "localHealthkitBridge/Tests/HealthKitBridgeTests/BridgeCoordinatorTests.swift": {
+      "plaintext-url": 1
+    },
+    "localHealthkitBridge/Tests/HealthKitBridgeTests/IngestClientTests.swift": {
+      "plaintext-url": 1
+    },
+    "localHealthkitBridge/Tests/HealthKitBridgeTests/PIMMirrorTests.swift": {
+      "plaintext-url": 2
+    },
+    "localHealthkitBridge/Tests/HealthKitBridgeTests/ResyncFulfilmentTests.swift": {
+      "plaintext-url": 1
+    },
+    "localHealthkitBridge/scripts/contract_smoke.sh": {
+      "plaintext-url": 2
+    },
+    "localHealthkitBridge/scripts/e2e_device.sh": {
+      "plaintext-url": 4
+    },
+    "localHealthkitBridge/scripts/e2e_seeded.sh": {
+      "plaintext-url": 2
+    },
+    "localHealthkitBridge/scripts/e2e_simulator.sh": {
+      "plaintext-url": 2
+    },
+    "localHealthkitBridge/scripts/validate_mobile_pim_parity.py": {
+      "plaintext-url": 5
+    },
+    "localOpenClawStack/.env.example": {
+      "plaintext-url": 1
+    },
+    "localOpenClawStack/docker-compose.yml": {
+      "plaintext-url": 8
+    },
+    "localOpenClawStack/document-workflows/test_service.py": {
+      "plaintext-url": 2
+    },
+    "localOpenClawStack/document-workflows/test_worker.py": {
+      "plaintext-url": 4
+    },
+    "localOpenClawStack/machine-behaviors/dispatch_side.py": {
+      "plaintext-url": 3
+    },
+    "localOpenClawStack/machine-behaviors/openclaw_side.py": {
+      "plaintext-url": 1
+    },
+    "localOpenClawStack/machine-behaviors/register_input_mappings.py": {
+      "plaintext-url": 1
+    },
+    "localOpenClawStack/plugins/ifrs-documents/test.mjs": {
+      "plaintext-url": 1
+    },
+    "localOpenClawStack/scripts/harden-config.sh": {
+      "plaintext-url": 3
+    },
+    "localOpenClawStack/scripts/native-gateway.sh": {
+      "plaintext-url": 9
+    },
+    "localOpenClawStack/scripts/start.sh": {
+      "plaintext-url": 11
+    },
+    "localOpenClawStack/scripts/test-agents-follow-corpus.sh": {
+      "plaintext-url": 2
+    },
+    "localOpenClawStack/scripts/test-native-schema.sh": {
+      "plaintext-url": 6
+    },
+    "localOpenClawStack/scripts/verify-agents-match-corpus.py": {
+      "python-verify-off": 2
+    },
+    "localOpenClawStack/scripts/verify-deployment.sh": {
+      "plaintext-url": 4
+    }
+  }
+}
