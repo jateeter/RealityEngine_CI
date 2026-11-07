@@ -140,6 +140,35 @@ recorded as an exception. The external parties are:
 A party that meets the profile with a public CA is verified against the system
 store for that link only.
 
+## Known deficiencies
+
+A deficiency is a link that falls short of the profile because a component
+can't meet it. Only the owner accepts one. It is recorded on the link in
+`config/transport-inventory.json`, with what falls short, what compensates,
+the remedy, and `allows`, the exact status or mTLS value it permits. The
+release gate lists accepted deficiencies, and fails anything beyond what each
+allows.
+
+| Link | Deficiency | Compensation | Remedy | Accepted |
+|---|---|---|---|---|
+| lifecycle → `assets-css` | **CSS does not verify client certificates,** so the link is TLS 1.3 without mTLS. | The lifecycle service authenticates with Solid-OIDC and DPoP-bound tokens (localAssetStorageStack ROADMAP phase 2). | mTLS once CSS verifies client certificates. | owner, 2026-11-07 |
+| engines → the Yuma MQTT broker | **The broker is reached as `mqtt://yuma.lateraledge.cloud:1883`:** plaintext to an external party. | None in transport; MQTT carries only regression sensor traffic. | `mqtts` on TLS 1.3 once the broker offers it. | owner, 2026-11-07 |
+
+**A consequence, not a deficiency: OpenAPI "Try it".** Engine RE and PE ports
+require a client certificate (mTLS). A browser, or the OpenAPI pages'
+"Try it" button (`scripts/serve-openapi`), therefore can't call an engine
+directly. Those calls go through Manager, whose backend holds a client
+certificate. The generated OpenAPI documents' `servers` entries still name the
+engines' ports; they describe the internal surface and are not a route a
+browser can use (owner, 2026-11-07).
+
+**Components and their TLS:**
+- **The OpenClaw gateway** serves HTTPS and WSS natively (OpenClaw 2026.10.8:
+  `gateway.tls.enabled`, `certPath`, `keyPath`, and `caPath` to verify clients).
+  It is held to TLS 1.3 and the profile's suites through `NODE_OPTIONS`.
+- **Ollama** has no native TLS: 0.40.13 has no TLS setting, and its FAQ points
+  to a reverse proxy. The owner's decision on it is pending (RealityEngine_CI#668).
+
 ## Replacing what exists
 
 Two older CAs are retired by this PKI:

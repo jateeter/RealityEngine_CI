@@ -79,6 +79,31 @@ expect_fail claim 'without a probe record'
 mutate mtlsclaim inventory 'i["links"][0]["mtls"]=True'
 expect_fail mtlsclaim 'without a probe record'
 
+mutate defnoowner inventory 'next(l for l in i["links"] if l.get("deficiency"))["deficiency"]["accepted"]="a contributor"'
+expect_fail defnoowner 'accepted only by the owner'
+
+mutate defallows inventory 'next(l for l in i["links"] if l.get("deficiency"))["deficiency"]["allows"]={"probe":False}'
+expect_fail defallows 'allows must name only'
+
+mutate defmissing inventory 'del next(l for l in i["links"] if l.get("deficiency"))["deficiency"]["remedy"]'
+expect_fail defmissing 'deficiency.remedy is required'
+
+# The gate honours a deficiency exactly as far as it allows, and no further.
+mutate gatedef inventory '
+for l in i["links"]:
+    allows = (l.get("deficiency") or {}).get("allows", {})
+    l["status"] = allows.get("status", "compliant"); l["mtls"] = allows.get("mtls", True); l["probe"] = {"tls": "TLSv1.3"}'
+out=$(python3 "$CHECK" --profile "$TMP/gatedef/profile.json" --inventory "$TMP/gatedef/inventory.json" --require-compliant 2>&1)
+if [[ $? -eq 0 && "$out" == *"accepted deficiency"* && "$out" == *"release gate passes"* ]]; then ok "gate passes a link within its accepted deficiency, and lists it"; else bad "gatedef: $out"; fi
+
+mutate gatebeyond inventory '
+for l in i["links"]:
+    allows = (l.get("deficiency") or {}).get("allows", {})
+    l["status"] = allows.get("status", "compliant"); l["mtls"] = allows.get("mtls", True); l["probe"] = {"tls": "TLSv1.3"}
+next(l for l in i["links"] if l["id"] == "lifecycle-to-assets-css")["status"] = "plaintext"'
+out=$(python3 "$CHECK" --profile "$TMP/gatebeyond/profile.json" --inventory "$TMP/gatebeyond/inventory.json" --require-compliant 2>&1)
+if [[ $? -ne 0 && "$out" == *"lifecycle-to-assets-css: plaintext"* ]]; then ok "gate fails a deficient link beyond what it allows"; else bad "gatebeyond: $out"; fi
+
 mutate allgood inventory '
 for l in i["links"]:
     l["status"]="compliant"; l["mtls"]=True; l["probe"]={"tls":"TLSv1.3"}'

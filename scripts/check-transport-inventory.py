@@ -11,11 +11,15 @@ Checks, always:
 - every link is well formed: a unique id, a status from the defined set, lanes
   from the defined set, an owner in the focus set, and an implementation
   issue written <repo>#<n>;
-- no link claims `compliant` or `mtls: true` without a probe record (#728).
+- no link claims `compliant` or `mtls: true` without a probe record (#728);
+- a `deficiency` (owner-accepted only) names who accepted it, what falls short,
+  what compensates, the remedy, and `allows`: the status or mtls value it
+  permits, and nothing more.
 
 With --require-compliant (the release gate, #729): every link must be
-`compliant` with `mtls: true`. Until then the check reports progress and
-passes.
+`compliant` with `mtls: true`, except where an accepted deficiency `allows`
+otherwise, and such links are listed. Until then the check reports progress
+and passes.
 
 Usage:
   python3 scripts/check-transport-inventory.py
@@ -87,18 +91,41 @@ def link_problems(inventory: dict[str, Any]) -> list[str]:
             out.append(f"{lid}: issue must be written <repo>#<n>, got {link['issue']!r}")
         if not isinstance(link.get("mtls"), bool):
             out.append(f"{lid}: mtls must be true or false")
+        deficiency = link.get("deficiency")
+        if deficiency is not None:
+            if not isinstance(deficiency, dict):
+                out.append(f"{lid}: deficiency must be an object")
+            else:
+                for key in ("accepted", "what", "compensation", "remedy", "allows"):
+                    if not deficiency.get(key) and key != "allows":
+                        out.append(f"{lid}: deficiency.{key} is required")
+                allows = deficiency.get("allows")
+                if not isinstance(allows, dict) or not allows or set(allows) - {"status", "mtls"}:
+                    out.append(f"{lid}: deficiency.allows must name only status and/or mtls")
+                elif "owner" not in str(deficiency.get("accepted", "")):
+                    out.append(f"{lid}: a deficiency is accepted only by the owner")
+                elif allows.get("status") not in (None, *STATUSES) or allows.get("mtls") not in (None, False):
+                    out.append(f"{lid}: deficiency.allows has an invalid value")
         claims = link.get("status") == "compliant" or link.get("mtls") is True
         if claims and not isinstance(link.get("probe"), dict):
             out.append(f"{lid}: compliant or mtls claimed without a probe record (RealityEngine_CI#728)")
     return out
 
 
-def gate_problems(inventory: dict[str, Any]) -> list[str]:
-    return [
-        f"{link['id']}: {link['status']}{'' if link.get('mtls') else ', no mTLS'} (owner {link['owner']}, {link['issue']})"
-        for link in inventory.get("links", [])
-        if link.get("status") != "compliant" or link.get("mtls") is not True
-    ]
+def gate_problems(inventory: dict[str, Any]) -> tuple[list[str], list[str]]:
+    """(failures, accepted deficiencies) for the release gate."""
+    failures, accepted = [], []
+    for link in inventory.get("links", []):
+        allows = (link.get("deficiency") or {}).get("allows") or {}
+        status_ok = link.get("status") == "compliant" or ("status" in allows and link.get("status") == allows["status"])
+        mtls_ok = link.get("mtls") is True or ("mtls" in allows and link.get("mtls") is allows["mtls"])
+        line = f"{link['id']}: {link['status']}{'' if link.get('mtls') else ', no mTLS'} (owner {link['owner']}, {link['issue']})"
+        if status_ok and mtls_ok:
+            if allows:
+                accepted.append(f"{line}: accepted deficiency, {link['deficiency']['accepted']}")
+        else:
+            failures.append(line)
+    return failures, accepted
 
 
 def main() -> int:
@@ -120,11 +147,15 @@ def main() -> int:
     links = inventory["links"]
     by_status = collections.Counter(link["status"] for link in links)
     mtls = sum(1 for link in links if link["mtls"])
+    deficient = sum(1 for link in links if link.get("deficiency"))
     summary = ", ".join(f"{by_status[s]} {s}" for s in ("compliant", "tls", "plaintext", "unverified") if by_status[s])
-    print(f"transport-inventory: {len(links)} links under {profile['profileId']}: {summary}; {mtls} with mTLS")
+    print(f"transport-inventory: {len(links)} links under {profile['profileId']}: {summary}; {mtls} with mTLS; "
+          f"{deficient} accepted deficienc{'y' if deficient == 1 else 'ies'}")
 
     if args.require_compliant:
-        gaps = gate_problems(inventory)
+        gaps, accepted = gate_problems(inventory)
+        for a in accepted:
+            print(f"  {a}")
         if gaps:
             print(f"transport-inventory: release gate FAILS: {len(gaps)} link(s) not compliant with mTLS", file=sys.stderr)
             for g in gaps:
