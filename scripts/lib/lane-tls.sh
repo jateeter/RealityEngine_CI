@@ -215,6 +215,31 @@ lane_tls_openclaw() {
     LANE_TLS_OPENCLAW_DIR="$dir"
 }
 
+# lane_tls_observability: CI's observability stack on the lane
+# (docker-compose.observability-tls.yml, #730). Issues loki (server),
+# promtail (client), prometheus and grafana (each serves and calls), named for
+# their compose service and localhost, and links them, with the lane CA and
+# CRL, into <state>/observability/tls (loki/ promtail/ prometheus/ grafana/,
+# ca.crt, ca.crl). Sets LANE_TLS_OBS_DIR, empty unless the lane is on.
+# shellcheck disable=SC2034  # LANE_TLS_OBS_DIR is read by the caller (startUniverse.sh)
+lane_tls_observability() {
+    local dir="${RE_INSTANCE_STATE_DIR:-$HOME/.reality-engine}/observability/tls"
+    LANE_TLS_OBS_DIR=""
+    lane_tls_enabled || return 0
+    [ "$LANE_TLS_READY" = 1 ] || return 1
+    mkdir -p "$dir"
+    python3 "$LANE_TLS_PKI" issue obs-loki --kind server --dns loki --dns localhost --ip 127.0.0.1 >/dev/null &&
+    python3 "$LANE_TLS_PKI" issue obs-promtail --kind client >/dev/null &&
+    python3 "$LANE_TLS_PKI" issue obs-prometheus --kind both --dns prometheus --dns localhost --ip 127.0.0.1 >/dev/null &&
+    python3 "$LANE_TLS_PKI" issue obs-grafana --kind both --dns grafana --dns localhost --ip 127.0.0.1 >/dev/null || return 1
+    local svc
+    for svc in loki promtail prometheus grafana; do
+        _lane_tls_link "$(dirname "$(_lane_tls_path "obs-$svc" chain)")" "$dir/$svc" || return 1
+    done
+    _lane_tls_link "$LANE_TLS_CA" "$dir/ca.crt" && _lane_tls_link "$LANE_TLS_CRL" "$dir/ca.crl" || return 1
+    LANE_TLS_OBS_DIR="$dir"
+}
+
 # Ollama's TLS front (localAIStack scripts/ollama_tls_front.py; owner option a,
 # RealityEngine_CI#668): TLS 1.3 with mTLS on 127.0.0.1:LANE_OLLAMA_FRONT_PORT,
 # relaying to Ollama on 127.0.0.1:11434. Every Ollama client on the lane uses it.

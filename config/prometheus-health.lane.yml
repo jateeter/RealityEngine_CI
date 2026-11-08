@@ -1,0 +1,9 @@
+# promtool's client for Prometheus's healthcheck on the lane (RealityEngine_CI#730):
+# its listener requires a lane client certificate, so the check presents
+# Prometheus's own (docker-compose.observability-tls.yml).
+tls_config:
+  ca_file:     /run/re-tls/ca.crt
+  cert_file:   /run/re-tls/service/chain.pem
+  key_file:    /run/re-tls/service/key.pem
+  server_name: localhost
+  min_version: TLS13

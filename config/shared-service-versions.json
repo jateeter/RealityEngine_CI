@@ -20,16 +20,18 @@
   ],
   "services": {
     "grafana/loki": {
-      "version": "3.4.2",
+      "version": "3.5.10",
       "declared_in": [
         "RealityEngine_CI/docker-compose.yml",
         "localAIStack/docker-compose.yml"
       ],
-      "migration_note": "3.x removed compactor.shared_store; config/loki-config.yml must use delete_request_store."
+      "migration_note": "3.x removed compactor.shared_store; config/loki-config.yml must use delete_request_store. Moved for the lane's post-quantum key exchange (RealityEngine_CI#730, owner 2026-11-08): the first release built with Go 1.24+, which offers X25519MLKEM768; 3.6 images ship no shell, so the wget healthchecks would break."
     },
     "grafana/promtail": {
-      "version": "3.4.2",
-      "declared_in": ["RealityEngine_CI/docker-compose.yml"],
+      "version": "3.5.10",
+      "declared_in": [
+        "RealityEngine_CI/docker-compose.yml"
+      ],
       "migration_note": "Kept in lockstep with loki; promtail and loki are released together."
     },
     "grafana/grafana": {
@@ -40,11 +42,12 @@
       ]
     },
     "prom/prometheus": {
-      "version": "v2.53.4",
+      "version": "v3.15.1",
       "declared_in": [
         "RealityEngine_CI/docker-compose.yml",
         "localAIStack/docker-compose.yml"
-      ]
+      ],
+      "migration_note": "v3 (built with Go 1.24+) offers X25519MLKEM768 (RealityEngine_CI#730, owner 2026-11-08); config/prometheus.yml, release/config/prometheus.yml and localAIStack's validate under promtool check config v3.15.1."
     },
     "qdrant/qdrant": {
       "version": "v1.20.0",

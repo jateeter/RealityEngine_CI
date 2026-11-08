@@ -126,6 +126,14 @@ lane_tls_openclaw 192.0.2.10 && [ "$LANE_TLS_OPENCLAW_DIR" = "$O" ] && ok "openc
   && ok "openclaw on: gateway/, browser/, ca.crt and ca.crl linked" || bad "openclaw on: layout"
 openssl x509 -in "$O/gateway/cert.pem" -noout -ext extendedKeyUsage 2>/dev/null | grep -q "TLS Web Client Authentication" \
   && ok "openclaw on: the gateway certificate also calls (the Ollama front, CDP)" || bad "openclaw on: gateway lacks clientAuth"
+B="$RE_INSTANCE_STATE_DIR/observability/tls"
+lane_tls_observability && [ "$LANE_TLS_OBS_DIR" = "$B" ] && ok "observability on: issued" || bad "observability on: issue"
+for svc in loki promtail prometheus grafana; do [ -f "$B/$svc/chain.pem" ] && [ -f "$B/$svc/key.pem" ] || bad "observability on: $svc/ missing"; done
+[ -L "$B/ca.crt" ] && [ -L "$B/ca.crl" ] && ok "observability on: four service directories and the CA linked" || bad "observability on: layout"
+sans=$(openssl x509 -in "$B/loki/cert.pem" -noout -ext subjectAltName 2>/dev/null)
+case "$sans" in *"DNS:loki"*"DNS:localhost"*) ok "observability on: loki is named for its compose service" ;; *) bad "observability on: loki SANs: $sans" ;; esac
+openssl x509 -in "$B/promtail/cert.pem" -noout -ext extendedKeyUsage 2>/dev/null | grep -q "TLS Web Client Authentication" \
+  && ok "observability on: promtail's certificate is a client certificate" || bad "observability on: promtail EKU"
 RE_TLS=off; lane_tls_openclaw 192.0.2.10 && [ -z "$LANE_TLS_OPENCLAW_DIR" ] && ok "openclaw off: nothing handed over" || bad "openclaw off"
 RE_TLS=on
 unset RE_INSTANCE_STATE_DIR

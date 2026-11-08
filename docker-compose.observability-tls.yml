@@ -1,0 +1,78 @@
+# Observability on the lane's TLS (RealityEngine_CI#730, #668). Used on top of
+# docker-compose.yml, never alone, by startUniverse.sh on the native lane with
+# RE_TLS=on (obs_compose):
+#
+#   COMPOSE_FILE=docker-compose.yml:docker-compose.observability-tls.yml \
+#   OBS_TLS_DIR=<dir> docker compose up -d loki prometheus grafana promtail
+#
+# OBS_TLS_DIR holds what the lane CA issued, as links into its PKI
+# (lane_tls_observability): loki/ promtail/ prometheus/ grafana/, each
+# chain.pem + key.pem, and ca.crt + ca.crl. The CA's own directory is never mounted.
+#
+# - Loki: TLS 1.3, a lane client certificate required (Promtail and Grafana
+#   present theirs). Its 3.5 image's busybox wget cannot present a certificate,
+#   so its healthcheck is the port; startUniverse.sh polls /ready over mTLS.
+# - Promtail: verifies Loki against the lane CA and presents its certificate.
+# - Prometheus: its listener requires a lane client certificate
+#   (config/prometheus-web.lane.yml) and every scrape presents its own
+#   (config/prometheus.lane.yml).
+# - Grafana: serves the browser over TLS 1.3 (server TLS: a user-facing port)
+#   and reaches Loki and Prometheus with its certificate.
+#
+# These are Go programs: TLS 1.3 suites cannot be restricted, so AES-128-GCM
+# stays negotiable, an accepted deficiency (owner, 2026-11-08).
+
+services:
+  loki:
+    ports: !override
+      - "127.0.0.1:3100:3100"
+    environment:
+      LOKI_TLS_CERT: /run/re-tls/service/chain.pem
+      LOKI_TLS_KEY: /run/re-tls/service/key.pem
+      LOKI_TLS_CLIENT_AUTH: RequireAndVerifyClientCert
+      LOKI_TLS_CLIENT_CA: /run/re-tls/ca.crt
+      LOKI_TLS_MIN_VERSION: VersionTLS13
+    volumes:
+      - ${OBS_TLS_DIR:?set OBS_TLS_DIR to the lane TLS directory}/loki:/run/re-tls/service:ro
+      - ${OBS_TLS_DIR}/ca.crt:/run/re-tls/ca.crt:ro
+    healthcheck:
+      test: ["CMD-SHELL", "nc -z 127.0.0.1 3100"]
+
+  promtail:
+    environment:
+      PROMTAIL_LOKI_SKIP_VERIFY: "false"
+      PROMTAIL_LOKI_CA: /run/re-tls/ca.crt
+      PROMTAIL_TLS_CERT: /run/re-tls/service/chain.pem
+      PROMTAIL_TLS_KEY: /run/re-tls/service/key.pem
+    volumes:
+      - ${OBS_TLS_DIR}/promtail:/run/re-tls/service:ro
+      - ${OBS_TLS_DIR}/ca.crt:/run/re-tls/ca.crt:ro
+
+  prometheus:
+    command: !override
+      - --config.file=/etc/prometheus/prometheus.yml
+      - --web.config.file=/etc/prometheus/web.yml
+      - --storage.tsdb.retention.time=7d
+      - --web.listen-address=:9090
+    volumes:
+      - ./config/prometheus.lane.yml:/etc/prometheus/prometheus.yml:ro
+      - ./config/prometheus-web.lane.yml:/etc/prometheus/web.yml:ro
+      - ${OBS_TLS_DIR}/prometheus:/run/re-tls/service:ro
+      - ${OBS_TLS_DIR}/ca.crt:/run/re-tls/ca.crt:ro
+      - ./config/prometheus-health.lane.yml:/etc/prometheus/health-client.yml:ro
+    healthcheck:
+      test: ["CMD", "promtool", "check", "healthy", "--url=https://localhost:9090", "--http.config.file=/etc/prometheus/health-client.yml"]
+
+  grafana:
+    environment:
+      GF_SERVER_PROTOCOL: https
+      GF_SERVER_CERT_FILE: /run/re-tls/service/chain.pem
+      GF_SERVER_CERT_KEY: /run/re-tls/service/key.pem
+      GF_SERVER_MIN_TLS_VERSION: TLS1.3
+      GF_SERVER_ROOT_URL: ${GRAFANA_ROOT_URL:-https://localhost:3002}
+    volumes:
+      - ./config/grafana-datasources.lane.yml:/etc/grafana/provisioning/datasources/datasources.yml
+      - ${OBS_TLS_DIR}/grafana:/run/re-tls/service:ro
+      - ${OBS_TLS_DIR}/ca.crt:/run/re-tls/ca.crt:ro
+    healthcheck:
+      test: ["CMD", "curl", "-fsS", "--cacert", "/run/re-tls/ca.crt", "-o", "/dev/null", "https://localhost:3000/api/health"]

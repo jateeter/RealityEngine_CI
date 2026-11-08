@@ -6,11 +6,18 @@ positions:
   filename: /tmp/promtail-positions.yaml
 
 # Push logs to Loki inside the compose network.
-# Loki serves TLS; skip verify because the cert is self-signed.
+# Off the lane Loki serves the self-signed dev certificate and verification is
+# skipped. On the lane (docker-compose.observability-tls.yml sets these, through
+# -config.expand-env; RealityEngine_CI#730) Promtail verifies Loki against the
+# lane CA and presents its own certificate.
 clients:
   - url: https://loki:3100/loki/api/v1/push
     tls_config:
-      insecure_skip_verify: true
+      insecure_skip_verify: ${PROMTAIL_LOKI_SKIP_VERIFY:-true}
+      ca_file: ${PROMTAIL_LOKI_CA:-}
+      cert_file: ${PROMTAIL_TLS_CERT:-}
+      key_file: ${PROMTAIL_TLS_KEY:-}
+      server_name: loki
 
 scrape_configs:
   # ── CPP native runtime logs ─────────────────────────────────────────────

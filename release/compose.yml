@@ -341,8 +341,8 @@ services:
 
   loki:
     <<: *common
-    image: grafana/loki:3.4.2@sha256:58a6c186ce78ba04d58bfe2a927eff296ba733a430df09645d56cdc158f3ba08
-    command: -config.file=/etc/loki/local-config.yaml
+    image: grafana/loki:3.5.10@sha256:38f083d60b5fe84d79af9521ff5ee6ef0ab7bba429faddf6ad13bafd01fb43b8
+    command: ["-config.file=/etc/loki/local-config.yaml", "-config.expand-env=true"]
     volumes:
       - ./config/loki.yml:/etc/loki/local-config.yaml:ro
       - ./certs:/etc/loki/certs:ro
@@ -379,7 +379,7 @@ services:
   # plugin is needed on the Mac.
   promtail:
     <<: *common
-    image: grafana/promtail:3.4.2@sha256:c6e9a987ca086cbfef945b8ebd708eb09f98b5e78bfb659e4e5a8b3bd604d11b
+    image: grafana/promtail:3.5.10@sha256:6c4e4dc1ecf78e1e0099507509dd7b420a06a0e2ca5792dc452d4938a052e8e3
     command: ["-config.file=/etc/promtail/promtail.yml", "-config.expand-env=true"]
     environment:
       COMPOSE_PROJECT_NAME: ${COMPOSE_PROJECT_NAME:-realityengine}
@@ -391,7 +391,7 @@ services:
 
   prometheus:
     <<: *common
-    image: prom/prometheus:v2.53.4@sha256:502ad90314c7485892ce696cb14a99fceab9fc27af29f4b427f41bd39701a199
+    image: prom/prometheus:v3.15.1@sha256:fa3302279710be2f21a8301ec17a8b4f2301fd829bd113839b3b6b02b6f191a2
     command:
       - --config.file=/etc/prometheus/prometheus.yml
       - --storage.tsdb.retention.time=7d
