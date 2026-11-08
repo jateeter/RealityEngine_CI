@@ -14,6 +14,12 @@ pe_env_defaults() {
     [ "${RE_TLS:-off}" = on ] && gw_scheme=wss
     export ACP_GATEWAY_URL="${ACP_GATEWAY_URL:-${OPENCLAW_GATEWAY_URL:-$gw_scheme://127.0.0.1:18789}}"
     export OPENCLAW_GATEWAY_URL="${OPENCLAW_GATEWAY_URL:-$ACP_GATEWAY_URL}"
+    # An explicit ws: value (CI's .env.example sets one) is upgraded too: the
+    # C++ and Scala PEs read these over the integrations config.
+    if [ "$gw_scheme" = wss ]; then
+        case "$ACP_GATEWAY_URL" in ws:*) ACP_GATEWAY_URL="wss:${ACP_GATEWAY_URL#ws:}" ;; esac
+        case "$OPENCLAW_GATEWAY_URL" in ws:*) OPENCLAW_GATEWAY_URL="wss:${OPENCLAW_GATEWAY_URL#ws:}" ;; esac
+    fi
     export ACP_SESSION_KEY="${ACP_SESSION_KEY:-${OPENCLAW_ACP_SESSION:-agent:main:main}}"
     export OPENCLAW_ACP_SESSION="${OPENCLAW_ACP_SESSION:-$ACP_SESSION_KEY}"
     export ACP_TARGET_AGENT="${ACP_TARGET_AGENT:-openclaw}"
