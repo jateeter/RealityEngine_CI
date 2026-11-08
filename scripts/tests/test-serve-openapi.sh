@@ -47,7 +47,10 @@ make_leaf() {  # <ca-dir> <out-dir>
     mkdir -p "$2"
     openssl req -newkey rsa:2048 -nodes -subj "/CN=localhost" \
         -keyout "$2/server.key" -out "$2/server.csr" >/dev/null 2>&1
-    printf 'subjectAltName=DNS:localhost,IP:127.0.0.1\nkeyUsage=digitalSignature,keyEncipherment\nextendedKeyUsage=serverAuth\n' > "$2/ext"
+    # The key identifiers too: Python 3.13+ verifies strictly and refuses a leaf
+    # without an Authority Key Identifier ("Missing Authority Key Identifier"),
+    # so without them every proxied case failed on a current Python.
+    printf 'subjectAltName=DNS:localhost,IP:127.0.0.1\nkeyUsage=digitalSignature,keyEncipherment\nextendedKeyUsage=serverAuth,clientAuth\nsubjectKeyIdentifier=hash\nauthorityKeyIdentifier=keyid,issuer\n' > "$2/ext"
     openssl x509 -req -in "$2/server.csr" -CA "$1/ca.crt" -CAkey "$1/ca.key" -CAcreateserial \
         -days 1 -extfile "$2/ext" -out "$2/server.crt" >/dev/null 2>&1
 }
@@ -194,6 +197,74 @@ esac
 paths="${got##*paths=}"; paths="${paths%% *}"; aliased="${got##*aliased=}"
 [ "$paths" -gt 0 ] && [ "$paths" = "$aliased" ] && ok "every path carries the instance list ($aliased of $paths)" \
     || bad "paths=$paths aliased=$aliased"
+
+echo "serve_openapi.py on the lane's TLS (#730)"
+
+# An engine that requires a client certificate, as the lane's engines do.
+start_mtls_engine() {  # <cert-dir> <ca> <port>
+    python3 - "$1" "$2" "$3" <<'PY' &
+import http.server, ssl, sys
+d, ca, port = sys.argv[1], sys.argv[2], int(sys.argv[3])
+class H(http.server.BaseHTTPRequestHandler):
+    def do_GET(self):
+        cn = dict(x[0] for x in self.connection.getpeercert()["subject"]).get("commonName", "")
+        body = ('{"status":"healthy","client":"%s"}' % cn).encode()
+        self.send_response(200); self.send_header("Content-Type", "application/json")
+        self.send_header("Content-Length", str(len(body))); self.end_headers(); self.wfile.write(body)
+    def log_message(self, *a): pass
+srv = http.server.HTTPServer(("127.0.0.1", port), H)
+ctx = ssl.SSLContext(ssl.PROTOCOL_TLS_SERVER)
+ctx.minimum_version = ssl.TLSVersion.TLSv1_3
+ctx.load_cert_chain(f"{d}/server.crt", f"{d}/server.key")
+ctx.load_verify_locations(ca); ctx.verify_mode = ssl.CERT_REQUIRED
+srv.socket = ctx.wrap_socket(srv.socket, server_side=True)
+srv.serve_forever()
+PY
+    PIDS+=("$!")
+}
+make_leaf "$TMP/ca" "$TMP/portal"
+make_leaf "$TMP/ca" "$TMP/mtls-engine"
+MTLS_PORT="$(free_port)"
+start_mtls_engine "$TMP/mtls-engine" "$TMP/ca/ca.crt" "$MTLS_PORT"
+registry_for "$MTLS_PORT" "$TMP/registry-mtls.json"
+P4="$(free_port)"
+# The lane: re_tls's context is the lane CA and the portal's own certificate.
+RE_TLS=on RE_HARNESS_TLS_CA="$TMP/ca/ca.crt" RE_HARNESS_TLS_CERT="$TMP/portal/server.crt" RE_HARNESS_TLS_KEY="$TMP/portal/server.key" \
+    python3 "$CI_DIR/scripts/serve_openapi.py" --host 127.0.0.1 --port "$P4" --docroot "$CI_DIR/docs/openapi" \
+    --registry "$TMP/registry-mtls.json" --tls-cert "$TMP/portal/server.crt" --tls-key "$TMP/portal/server.key" \
+    >"$TMP/portal-$P4.log" 2>&1 &
+PIDS+=("$!")
+# A curl that speaks TLS 1.3: macOS /usr/bin/curl cannot.
+CURL=curl
+for c in /opt/homebrew/opt/curl/bin/curl /usr/local/opt/curl/bin/curl; do [ -x "$c" ] && CURL="$c" && break; done
+for _ in $(seq 1 50); do "$CURL" -s -o /dev/null --tlsv1.3 --cacert "$TMP/ca/ca.crt" "https://localhost:$P4/" && break; sleep 0.1; done
+code="$("$CURL" -s -o /dev/null -w '%{http_code}' --tlsv1.3 --cacert "$TMP/ca/ca.crt" "https://localhost:$P4/")"
+[ "$code" = 200 ] && ok "the portal serves TLS 1.3 to a browser without a client certificate (200)" || bad "TLS portal answered $code"
+"$CURL" -s -o /dev/null --tls-max 1.2 --cacert "$TMP/ca/ca.crt" "https://localhost:$P4/" 2>/dev/null \
+    && bad "the TLS portal accepted TLS 1.2" || ok "TLS 1.2 is refused"
+# A plaintext request on a raw socket: the TLS listener must not answer HTTP.
+plain="$(python3 - "$P4" <<'PY'
+import socket, sys
+s = socket.create_connection(("127.0.0.1", int(sys.argv[1])), timeout=5)
+s.sendall(b"GET / HTTP/1.1\r\nHost: localhost\r\n\r\n")
+try:
+    print(s.recv(64).decode("latin-1"))
+except OSError:
+    print("")
+PY
+)"
+case "$plain" in HTTP/*) bad "the TLS portal answered plaintext: $plain" ;; *) ok "plaintext is refused" ;; esac
+# Fetch, then match: `curl | grep -q` fails under pipefail when grep exits early.
+spec="$("$CURL" -s --cacert "$TMP/ca/ca.crt" "https://localhost:$P4/scala-re.yaml")"
+case "$spec" in
+    *"url: https://localhost:$P4/proxy/"*) ok "served specs aim Try it at the portal's https proxy" ;;
+    *) bad "served specs do not name the https proxy" ;;
+esac
+body="$("$CURL" -s --cacert "$TMP/ca/ca.crt" "https://localhost:$P4/proxy/scala/re/api/health")"
+case "$body" in
+    *'"client":"localhost"'*) ok "the proxy reaches an mTLS engine with its own certificate: $body" ;;
+    *) bad "proxy to an mTLS engine: $body" ;;
+esac
 
 echo
 echo "Passed: $PASS   Failed: $FAIL"

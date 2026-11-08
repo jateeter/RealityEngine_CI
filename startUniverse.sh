@@ -1080,8 +1080,18 @@ start_openapi_swagger_service() {
     [ "$OPENAPI_SWAGGER_ENABLED" = "true" ] || { info "OpenAPI Swagger: skipped (OPENAPI_SWAGGER_ENABLED=false)"; return 0; }
     [ -f "$CI_DIR/docs/openapi/index.html" ] || { add_warn "Swagger portal missing; run bash scripts/generate-openapi.sh"; return 0; }
 
-    local url="http://${OPENAPI_SWAGGER_HOST}:${OPENAPI_SWAGGER_PORT}"
-    if pid_alive "$OPENAPI_SWAGGER_PID_FILE" && curl -sf --max-time 3 "$url/" >/dev/null 2>&1; then
+    # Lane TLS (#730): the portal serves TLS 1.3 to the browser (server TLS: a
+    # browser-facing page) with its own certificate, and its "Try it" proxy
+    # presents that certificate to the engines (re_tls's lane context).
+    local url
+    url="$(lane_tls_scheme)://${OPENAPI_SWAGGER_HOST}:${OPENAPI_SWAGGER_PORT}"
+    local -a portal_env=()
+    if lane_tls_enabled; then
+        lane_tls_issue_instance openapi-portal "" "$HOST_IP" || die "OpenAPI portal: certificate issue failed (RE_TLS=on)"
+        portal_env=(OPENAPI_TLS_CERT="$INST_TLS_CERT" OPENAPI_TLS_KEY="$INST_TLS_KEY"
+                    RE_HARNESS_TLS_CERT="$INST_TLS_CERT" RE_HARNESS_TLS_KEY="$INST_TLS_KEY")
+    fi
+    if pid_alive "$OPENAPI_SWAGGER_PID_FILE" && obs_get "$url/" -sf --max-time 3 -o /dev/null >/dev/null 2>&1; then
         OPENAPI_SWAGGER_STARTED=true
         ok "OpenAPI Swagger already running: $url/"
         return 0
@@ -1090,7 +1100,7 @@ start_openapi_swagger_service() {
     local blocker
     blocker="$(port_listener_pid "$OPENAPI_SWAGGER_PORT")"
     if [ -n "$blocker" ]; then
-        if curl -sf --max-time 3 "$url/" >/dev/null 2>&1; then
+        if obs_get "$url/" -sf --max-time 3 -o /dev/null >/dev/null 2>&1; then
             OPENAPI_SWAGGER_STARTED=true
             ok "OpenAPI Swagger reachable on existing listener: $url/"
         else
@@ -1104,10 +1114,13 @@ start_openapi_swagger_service() {
       cd "$CI_DIR"
       RE_REGISTRY_PATH="$REGISTRY_FILE" \
       OPENAPI_SWAGGER_HOST="$OPENAPI_SWAGGER_HOST" \
-      nohup bash scripts/serve-openapi.sh "$OPENAPI_SWAGGER_PORT" > "$OPENAPI_SWAGGER_LOG_FILE" 2>&1 &
+      nohup env ${portal_env[@]+"${portal_env[@]}"} bash scripts/serve-openapi.sh "$OPENAPI_SWAGGER_PORT" > "$OPENAPI_SWAGGER_LOG_FILE" 2>&1 &
       echo $! > "$OPENAPI_SWAGGER_PID_FILE"
     )
-    if poll_http "$url/" "OpenAPI Swagger portal ready" 20 "-sf --max-time 3"; then
+    local n=0
+    while [ "$n" -lt 20 ] && ! obs_get "$url/" -sf --max-time 3 -o /dev/null >/dev/null 2>&1; do n=$((n+1)); echo -n "."; sleep 2; done
+    if obs_get "$url/" -sf --max-time 3 -o /dev/null >/dev/null 2>&1; then
+        ok "OpenAPI Swagger portal ready$(lane_tls_enabled && echo ' (TLS 1.3)')"
         OPENAPI_SWAGGER_STARTED=true
     else
         add_warn "OpenAPI Swagger portal did not become healthy — see $OPENAPI_SWAGGER_LOG_FILE"
@@ -1159,7 +1172,8 @@ PYEOF
     fi
 
     if [ "$OPENAPI_SWAGGER_ENABLED" = "true" ]; then
-        local swagger_url="http://${OPENAPI_SWAGGER_HOST}:${OPENAPI_SWAGGER_PORT}"
+        local swagger_url
+        swagger_url="$(lane_tls_scheme)://${OPENAPI_SWAGGER_HOST}:${OPENAPI_SWAGGER_PORT}"
         # Fetch, then match. `curl | grep -q` under pipefail failed whenever grep
         # matched early and exited: curl took SIGPIPE writing the rest of a
         # ~49 KB spec and the pipeline reported failure. `^openapi:` is line 1,
@@ -1167,10 +1181,10 @@ PYEOF
         # roughly one probe in twenty (both specs in run 20261002T203945Z).
         swagger_serves() {  # <path> <extended-regex>
             local body
-            body="$(curl -sf --max-time 5 "$swagger_url/$1")" || return 1
+            body="$(obs_get "$swagger_url/$1" -sf --max-time 5)" || return 1
             grep -qE "$2" <<< "$body"
         }
-        if curl -sf --max-time 5 "$swagger_url/" >/dev/null 2>&1; then
+        if obs_get "$swagger_url/" -sf --max-time 5 -o /dev/null >/dev/null 2>&1; then
             ok "Swagger portal available: $swagger_url/"
         else
             add_warn "Swagger portal unavailable at $swagger_url/"
@@ -1214,7 +1228,7 @@ PYEOF
             else
                 add_warn "Swagger PE spec for ${swagger_runtime} does not expose same-origin proxy server"
             fi
-            if curl -sf --max-time 5 "$swagger_url/proxy/instance/${swagger_instance}/re/api/health" >/dev/null 2>&1; then
+            if obs_get "$swagger_url/proxy/instance/${swagger_instance}/re/api/health" -sf --max-time 5 -o /dev/null >/dev/null 2>&1; then
                 ok "Swagger instance proxy executes against ${swagger_instance}"
             else
                 add_warn "Swagger instance proxy execution failed for ${swagger_instance}"
@@ -3341,7 +3355,7 @@ printf "    %-30s %s\n" "MCP HTTP Gateway"          "$(lane_tls_scheme)://${RE_M
 printf "    %-30s %s\n" "MCP Health"                "$(lane_tls_scheme)://${RE_MCP_HTTP_HOST}:${RE_MCP_HTTP_PORT}/healthz"
 fi
 if [ "$OPENAPI_SWAGGER_ENABLED" = "true" ]; then
-printf "    %-30s %s\n" "OpenAPI Swagger"           "http://${OPENAPI_SWAGGER_HOST}:${OPENAPI_SWAGGER_PORT}/"
+printf "    %-30s %s\n" "OpenAPI Swagger"           "$(lane_tls_scheme)://${OPENAPI_SWAGGER_HOST}:${OPENAPI_SWAGGER_PORT}/"
 printf "    %-30s %s\n" "OpenAPI Specs"             "http://${OPENAPI_SWAGGER_HOST}:${OPENAPI_SWAGGER_PORT}/{cpp,lsp,scala}-{re,pe}.yaml"
 fi
 echo ""
@@ -3474,7 +3488,7 @@ manifest = {
     "openai_mcp_profile":      openai_mcp_profile,
     "openapi_swagger_enabled": "$OPENAPI_SWAGGER_ENABLED" == "true",
     "openapi_swagger_started": "$OPENAPI_SWAGGER_STARTED" == "true",
-    "openapi_swagger_url":     "http://${OPENAPI_SWAGGER_HOST}:${OPENAPI_SWAGGER_PORT}/",
+    "openapi_swagger_url":     "$(lane_tls_scheme)://${OPENAPI_SWAGGER_HOST}:${OPENAPI_SWAGGER_PORT}/",
     "warns":                   ${#WARNS[@]},
 }
 with open("/tmp/universe-manifest.json", "w") as f:

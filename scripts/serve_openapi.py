@@ -16,6 +16,7 @@ import os
 from pathlib import Path
 import posixpath
 import re
+import ssl
 from socketserver import ThreadingMixIn
 import sys
 from typing import Optional
@@ -233,7 +234,8 @@ class Handler(BaseHTTPRequestHandler):
 
     def _request_prefix(self) -> str:
         host = self.headers.get("Host", "127.0.0.1")
-        proto = self.headers.get("X-Forwarded-Proto", "http")
+        # The scheme the browser used: https on the lane's TLS listener (#730).
+        proto = self.headers.get("X-Forwarded-Proto", "https" if isinstance(self.request, ssl.SSLSocket) else "http")
         return f"{proto}://{host}"
 
     def _serve_health(self) -> bool:
@@ -369,19 +371,50 @@ def main() -> None:
     parser.add_argument("--host", default="127.0.0.1")
     parser.add_argument("--docroot", type=Path, required=True)
     parser.add_argument("--registry", type=Path, default=Path("/tmp/re-registry/re-registry.json"))
+    # The lane's TLS (#730): with both, the portal serves TLS 1.3 at the profile,
+    # server authentication only (a browser-facing page). Its proxy's own
+    # identity to the engines is re_tls's lane certificate (RE_HARNESS_TLS_*).
+    parser.add_argument("--tls-cert")
+    parser.add_argument("--tls-key")
     args = parser.parse_args()
+    if bool(args.tls_cert) != bool(args.tls_key):
+        raise SystemExit("--tls-cert and --tls-key go together")
 
     if not (args.docroot / "index.html").is_file():
         raise SystemExit(f"missing portal: {args.docroot / 'index.html'}")
 
-    server = ThreadingHTTPServer((args.host, args.port), Handler)
+    scheme = "http"
+    server_cls, handler_cls = ThreadingHTTPServer, Handler
+    if args.tls_cert:
+        from re_tls_server import ensure_profile, user_facing_context
+        ensure_profile(__file__, args.tls_cert)  # re-execs once, with the profile's OpenSSL config
+        ctx = user_facing_context(args.tls_cert, args.tls_key)
+        scheme = "https"
+
+        class TlsServer(ThreadingHTTPServer):
+            def get_request(self):
+                sock, addr = super().get_request()
+                return ctx.wrap_socket(sock, server_side=True, do_handshake_on_connect=False), addr
+
+            def handle_error(self, request, client_address):
+                pass  # a refused handshake (TLS 1.2, plaintext) is the profile at work
+
+        class TlsHandler(Handler):
+            def setup(self) -> None:
+                self.request.do_handshake()  # in the request's thread, never the accept loop
+                super().setup()
+
+        server_cls, handler_cls = TlsServer, TlsHandler
+
+    server = server_cls((args.host, args.port), handler_cls)
     server.docroot = args.docroot
     server.registry_path = args.registry
-    print(f"Serving {args.docroot} on http://{args.host}:{args.port}/", flush=True)
-    print(f"  Swagger portal : http://{args.host}:{args.port}/", flush=True)
+    base = f"{scheme}://{args.host}:{args.port}"
+    print(f"Serving {args.docroot} on {base}/", flush=True)
+    print(f"  Swagger portal : {base}/", flush=True)
     print(f"  Runtime registry: {args.registry}", flush=True)
-    print(f"  Proxy pattern  : http://{args.host}:{args.port}/proxy/{{cpp,lsp,scala}}/{{re,pe}}/...", flush=True)
-    print(f"  Instance proxy : http://{args.host}:{args.port}/proxy/instance/<id>/{{re,pe}}/...", flush=True)
+    print(f"  Proxy pattern  : {base}/proxy/{{cpp,lsp,scala}}/{{re,pe}}/...", flush=True)
+    print(f"  Instance proxy : {base}/proxy/instance/<id>/{{re,pe}}/...", flush=True)
     server.serve_forever()
 
 
