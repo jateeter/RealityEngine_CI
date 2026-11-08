@@ -35,6 +35,8 @@ OCS_DIR="$CI_DIR/../localOpenClawStack"
 MCP_HTTP_PID_FILE="${MCP_HTTP_PID_FILE:-/tmp/realityengine-mcp-http.pid}"
 OPENAPI_SWAGGER_PID_FILE="${OPENAPI_SWAGGER_PID_FILE:-/tmp/realityengine-openapi-swagger.pid}"
 BRIDGE_METRICS_PID_FILE="${BRIDGE_METRICS_PID_FILE:-/tmp/realityengine-bridge-metrics.pid}"
+# Ollama's TLS front on the lane (localAIStack#172; scripts/lib/lane-tls.sh).
+LANE_OLLAMA_FRONT_PID_FILE="${LANE_OLLAMA_FRONT_PID_FILE:-/tmp/realityengine-ollama-tls-front.pid}"
 MANAGER_UNIVERSE_PID_FILE="${MANAGER_UNIVERSE_PID_FILE:-/tmp/manager_universe.pid}"
 OLLAMA_UNIVERSE_PID_FILE="${OLLAMA_UNIVERSE_PID_FILE:-/tmp/ollama_universe.pid}"
 
@@ -245,6 +247,9 @@ stop_api_surface_services() {
   _stop_pid_file "$MCP_HTTP_PID_FILE" "MCP HTTP gateway"
   _stop_pid_file "$OPENAPI_SWAGGER_PID_FILE" "OpenAPI Swagger portal"
   _stop_pid_file "$BRIDGE_METRICS_PID_FILE" "AI bridge metrics exporter"
+  # The front belongs to the universe whatever --keep-ollama says: it holds the
+  # lane's certificate, and Ollama itself is left as it was.
+  _stop_pid_file "$LANE_OLLAMA_FRONT_PID_FILE" "Ollama TLS front"
 }
 
 # Sweep all native engine ports and kill any survivors.

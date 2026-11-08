@@ -150,6 +150,96 @@ lane_tls_docker_instance() {
     fi
 }
 
+# lane_tls_localai HOST_IP: localAIStack's certificates for its lane overlay
+# (localAIStack docker-compose.tls.yml, localAIStack#172). Issues localai-api,
+# localai-qdrant and localai-redis (each serves and calls, so a container's own
+# healthcheck can present it) and links them, with the lane CA and CRL, into
+# <state>/localai/tls as the overlay expects:
+#   api/ qdrant/ redis/ -> the PKI's issued/<name> (chain.pem, key.pem)
+#   ca.crt ca.crl       -> the lane CA and its CRL
+# Links, not copies, as for the docker lane: keys stay in the PKI's 0600 files
+# and the CA directory is never mounted. Sets LANE_TLS_LOCALAI_DIR, empty unless
+# the lane is on.
+# shellcheck disable=SC2034  # LANE_TLS_LOCALAI_DIR is read by the caller (startUniverse.sh)
+lane_tls_localai() {
+    local host_ip="${1:-127.0.0.1}"
+    local dir="${RE_INSTANCE_STATE_DIR:-$HOME/.reality-engine}/localai/tls"
+    LANE_TLS_LOCALAI_DIR=""
+    lane_tls_enabled || return 0
+    [ "$LANE_TLS_READY" = 1 ] || return 1
+    mkdir -p "$dir"
+    local lan=""
+    [ "$host_ip" != "127.0.0.1" ] && lan="--ip $host_ip"
+    # shellcheck disable=SC2086  # the --dns/--ip lists are word lists
+    python3 "$LANE_TLS_PKI" issue localai-api --kind both --dns localhost --dns localai.localhost \
+        --dns api --dns localai_api --dns host.docker.internal --ip 127.0.0.1 $lan >/dev/null &&
+    python3 "$LANE_TLS_PKI" issue localai-qdrant --kind both --dns localhost --dns qdrant \
+        --dns localai_qdrant --ip 127.0.0.1 >/dev/null &&
+    python3 "$LANE_TLS_PKI" issue localai-redis --kind both --dns localhost --dns redis \
+        --dns localai_redis --ip 127.0.0.1 >/dev/null || return 1
+    local svc
+    for svc in api qdrant redis; do
+        _lane_tls_link "$(dirname "$(_lane_tls_path "localai-$svc" chain)")" "$dir/$svc" || return 1
+    done
+    _lane_tls_link "$LANE_TLS_CA" "$dir/ca.crt" && _lane_tls_link "$LANE_TLS_CRL" "$dir/ca.crl" || return 1
+    LANE_TLS_LOCALAI_DIR="$dir"
+}
+
+# Ollama's TLS front (localAIStack scripts/ollama_tls_front.py; owner option a,
+# RealityEngine_CI#668): TLS 1.3 with mTLS on 127.0.0.1:LANE_OLLAMA_FRONT_PORT,
+# relaying to Ollama on 127.0.0.1:11434. Every Ollama client on the lane uses it.
+LANE_OLLAMA_FRONT_PORT="${LANE_OLLAMA_FRONT_PORT:-11443}"
+LANE_OLLAMA_FRONT_PID_FILE="${LANE_OLLAMA_FRONT_PID_FILE:-/tmp/realityengine-ollama-tls-front.pid}"
+LANE_OLLAMA_FRONT_LOG="${LANE_OLLAMA_FRONT_LOG:-/tmp/realityengine-ollama-tls-front.log}"
+
+lane_tls_ollama_front_stop() {
+    local pid
+    pid=$(cat "$LANE_OLLAMA_FRONT_PID_FILE" 2>/dev/null || true)
+    if [ -n "$pid" ] && ps -p "$pid" -o command= 2>/dev/null | grep -q ollama_tls_front; then
+        kill "$pid" 2>/dev/null || true
+        local n=0
+        while kill -0 "$pid" 2>/dev/null && [ "$n" -lt 20 ]; do sleep 0.25; n=$((n+1)); done
+    fi
+    rm -f "$LANE_OLLAMA_FRONT_PID_FILE"
+}
+
+# lane_tls_ollama_front_start LAS_DIR HOST_IP: (re)start the front with its own
+# certificate and wait until it answers over the lane's mTLS. Returns 1 when the
+# lane is on and it does not come up; does nothing with the lane off.
+lane_tls_ollama_front_start() {
+    local las_dir="$1" host_ip="${2:-127.0.0.1}"
+    lane_tls_enabled || return 0
+    [ "$LANE_TLS_READY" = 1 ] || return 1
+    local front="$las_dir/scripts/ollama_tls_front.py"
+    [ -f "$front" ] || { _lane_tls_say warn "$front is missing; localAIStack predates its lane TLS (localAIStack#172)"; return 1; }
+    local lan=""
+    [ "$host_ip" != "127.0.0.1" ] && lan="--ip $host_ip"
+    # shellcheck disable=SC2086  # the --ip list is a word list
+    python3 "$LANE_TLS_PKI" issue ollama-front --kind server --dns localhost --dns ollama.localhost \
+        --dns host.docker.internal --ip 127.0.0.1 $lan >/dev/null || return 1
+    lane_tls_ollama_front_stop
+    RE_TLS_CERT="$(_lane_tls_path ollama-front chain)" RE_TLS_KEY="$(_lane_tls_path ollama-front key)" \
+    RE_TLS_CA="$LANE_TLS_CA" RE_TLS_CRL="$LANE_TLS_CRL" \
+        nohup python3 "$front" --bind 127.0.0.1 --port "$LANE_OLLAMA_FRONT_PORT" \
+        --pid-file "$LANE_OLLAMA_FRONT_PID_FILE" > "$LANE_OLLAMA_FRONT_LOG" 2>&1 &
+    local n=0
+    while [ "$n" -lt 40 ]; do
+        lane_curl_get "https://localhost:$LANE_OLLAMA_FRONT_PORT/api/version" -sf --max-time 2 -o /dev/null 2>/dev/null && return 0
+        sleep 0.25; n=$((n+1))
+    done
+    _lane_tls_say warn "Ollama's TLS front did not answer on :$LANE_OLLAMA_FRONT_PORT; log: $LANE_OLLAMA_FRONT_LOG"
+    return 1
+}
+
+# lane_ollama_url FROM: Ollama's address for a client on the host (host) or in a
+# container (docker): the front when the lane is on, Ollama itself when off.
+lane_ollama_url() {
+    local h=localhost port=11434
+    [ "${1:-host}" = docker ] && h=host.docker.internal
+    lane_tls_enabled && port="$LANE_OLLAMA_FRONT_PORT"
+    echo "$(lane_tls_scheme)://$h:$port"
+}
+
 # lane_curl: a curl that speaks TLS 1.3. macOS's /usr/bin/curl is built on
 # SecureTransport and cannot; it is refused when the lane is on.
 lane_curl() {

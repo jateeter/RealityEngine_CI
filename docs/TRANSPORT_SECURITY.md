@@ -168,10 +168,21 @@ With the lane on:
   `RE_TLS_*`, so Manager's backend and frontend serve TLS 1.3 and call the
   engines with mTLS. Its readiness polls, `_publish_service` probes and
   post-start checks go through `lane_curl_get`.
+  - **localAIStack** runs on its lane overlay (`docker-compose.tls.yml`,
+    localAIStack#172): every compose call goes through `las_compose`, which
+    adds the overlay when the lane is on. `lane_tls_localai` issues
+    `localai-api`, `localai-qdrant` and `localai-redis` (kind both) and links
+    them into `~/.reality-engine/localai/tls`. Qdrant and Redis start on it
+    whatever `--no-local-ai` says. The engines' `localai` integration
+    `baseUrl` becomes https, and loopback Ollama URLs move to the front.
+    localAIStack's Open WebUI is not started on the lane.
+  - **Ollama's TLS front** (localAIStack `scripts/ollama_tls_front.py`)
+    starts in stage 2 whenever Ollama is up, on `127.0.0.1:11443` with its own
+    `ollama-front` certificate (`lane_tls_ollama_front_start`).
+    `stopUniverse.sh` stops it whatever `--keep-ollama` says.
   - Consumers not yet on the lane's TLS are refused, not started broken:
-    `RE_TLS=on` needs `--no-local-ai` (localAIStack#172), `--no-openclaw`
-    (localOpenClawStack#92) and `--no-mcp-http` (#730). Each lifts when its
-    issue lands.
+    `RE_TLS=on` needs `--no-openclaw` (localOpenClawStack#92) and
+    `--no-mcp-http` (#730). Each lifts when its issue lands.
 - **The docker lane** issues each instance (`scala-1`, `cpp-1`, `lsp-1`) a
   certificate from its own `docker` CA, covering the compose service names
   (`engine-<rt>-re`, `engine-<rt>-pe`), `host.docker.internal`, `localhost` and
@@ -231,6 +242,7 @@ allows.
 |---|---|---|---|---|
 | lifecycle → `assets-css` | **CSS does not verify client certificates,** so the link is TLS 1.3 without mTLS. | The lifecycle service authenticates with Solid-OIDC and DPoP-bound tokens (localAssetStorageStack ROADMAP phase 2). | mTLS once CSS verifies client certificates. | owner, 2026-11-07 |
 | engines → the Yuma MQTT broker | **The broker is reached as `mqtt://yuma.lateraledge.cloud:1883`:** plaintext to an external party. | None in transport; MQTT carries only regression sensor traffic. | `mqtts` on TLS 1.3 once the broker offers it. | owner, 2026-11-07 |
+| localai-api → Qdrant | **Qdrant v1.20 cannot be restricted:** with client-certificate verification on it still accepts TLS 1.2 and `TLS_AES_128_GCM_SHA256`, and offers no PQ group. | Its only client, localai-api, offers TLS 1.3 and the profile's suites alone, so the connection always meets the profile and cannot be downgraded; mTLS is required; host ports bind `127.0.0.1`. | A Qdrant setting that restricts protocols and suites. | owner, 2026-11-08 |
 | Ollama's TLS front → Ollama | **Ollama serves no TLS** (0.40.13; its FAQ offers only a reverse proxy), so the front's hop to Ollama is plaintext on the host's loopback. | Ollama binds `127.0.0.1` only; every client reaches it through the front on TLS 1.3 with mTLS. | Native TLS when Ollama offers it. | owner, 2026-11-07 |
 
 **A consequence, not a deficiency: OpenAPI "Try it".** Engine RE and PE ports

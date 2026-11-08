@@ -304,14 +304,17 @@ if [ "${RE_TLS:-off}" = on ] && [ "$MULTI_ENGINE_MODE" != true ]; then
     exit 2
 fi
 # The engines and Manager serve TLS 1.3 with mTLS under RE_TLS=on (wave 2 of
-# #668). localAIStack, OpenClaw and re-mcp do not yet: each reads the instance
-# registry and calls the engines, and would fail against them, so the lane
-# refuses to start them rather than start a universe that is half broken.
-# Each line lifts when its repository's TLS issue lands (wave 3).
+# #668), and localAIStack does with its lane overlay (localAIStack#172, wave 3).
+# OpenClaw and re-mcp do not yet: each reads the instance registry and calls the
+# engines, and would fail against them, so the lane refuses to start them rather
+# than start a universe that is half broken. Each line lifts when its
+# repository's TLS issue lands (wave 3).
 if [ "${RE_TLS:-off}" = on ]; then
     _tls_blocked=""
-    [ "${LOCAL_AI_ENABLED:-true}" = false ] || _tls_blocked="$_tls_blocked
-  --no-local-ai   localAIStack does not speak the lane's TLS yet (localAIStack#172)"
+    # Qdrant and Redis start on every native universe, so the overlay is needed
+    # even with --no-local-ai.
+    [ -f "$LAS_DIR/docker-compose.tls.yml" ] || _tls_blocked="$_tls_blocked
+  localAIStack at $LAS_DIR has no docker-compose.tls.yml: update it (localAIStack#172)"
     [ "${OPENCLAW:-auto}" = no ] || _tls_blocked="$_tls_blocked
   --no-openclaw   OpenClaw does not speak the lane's TLS yet (localOpenClawStack#92)"
     [ "${MCP_HTTP_ENABLED:-true}" = false ] || _tls_blocked="$_tls_blocked
@@ -410,11 +413,13 @@ ensure_ci_integrations_config() {
         info "Dry-run: would generate integration registry at $CI_INTEGRATIONS_CONFIG"
         return
     fi
+    LANE_OLLAMA_FRONT_PORT="$LANE_OLLAMA_FRONT_PORT" \
     python3 - "$CI_INTEGRATIONS_EXAMPLE" "$CI_INTEGRATIONS_CONFIG" <<'PYEOF'
 import json
 import os
 import pathlib
 import sys
+import urllib.parse
 
 src = pathlib.Path(sys.argv[1])
 dst = pathlib.Path(sys.argv[2])
@@ -428,6 +433,20 @@ for item in data.get("integrations", []):
         item["sessionKey"] = os.environ.get("OPENCLAW_ACP_SESSION") or os.environ.get("ACP_SESSION_KEY", item.get("sessionKey", "agent:main:main"))
         item["targetAgent"] = os.environ.get("ACP_TARGET_AGENT", item.get("targetAgent", "openclaw"))
         item["completionSourceMappingId"] = os.environ.get("ACP_COMPLETION_SOURCE_MAPPING_ID", "acp-openclaw-completion")
+
+# The lane's TLS (#668): the engines reach localAI's API over https, and the
+# host's Ollama through its TLS front (localAIStack#172). Only loopback
+# addresses are rewritten; an external provider keeps the URL it was given.
+if os.environ.get("RE_TLS", "off") == "on":
+    front = os.environ.get("LANE_OLLAMA_FRONT_PORT", "11443")
+    for item in data.get("integrations", []):
+        url = urllib.parse.urlsplit(item.get("baseUrl") or "")
+        if url.scheme != "http" or url.hostname not in ("localhost", "127.0.0.1"):
+            continue
+        if item.get("kind") == "localai":
+            item["baseUrl"] = url._replace(scheme="https").geturl()
+        elif url.port == 11434:
+            item["baseUrl"] = url._replace(scheme="https", netloc=f"{url.hostname}:{front}").geturl()
 dst.write_text(json.dumps(data, indent=2) + "\n")
 PYEOF
     ok "Integration registry ready: $CI_INTEGRATIONS_CONFIG"
@@ -487,7 +506,7 @@ PYEOF
             printf '%s' "$sigs" | sed 's/ | .*//; s/^/    /'
         fi
     fi
-    engines=$(curl -sf --max-time 10 http://localhost:4000/health 2>/dev/null \
+    engines=$(las_get /health -sf --max-time 10 2>/dev/null \
         | python3 -c "import json,sys; print(' '.join(sorted(json.load(sys.stdin).get('bridge_engines') or [])))" 2>/dev/null || true)
     if [ "$engines" = "$(echo "$ids" | sort | tr '\n' ' ' | sed 's/ $//')" ]; then
         ok "localAIStack addresses: $engines"
@@ -784,6 +803,32 @@ source "$CI_DIR/scripts/lib/ollama-models.sh"
 source "$CI_DIR/scripts/lib/node-env.sh"
 # Lane TLS (#668, #732): certificates per instance, and the RE_TLS switch.
 source "$CI_DIR/scripts/lib/lane-tls.sh"
+
+# localAIStack's compose, with its lane TLS overlay when the lane is on
+# (localAIStack docker-compose.tls.yml, #172): Qdrant, Redis and the API on TLS
+# 1.3 with mTLS, certificates from lane_tls_localai, Ollama through its TLS
+# front. COMPOSE_FILE is set for this call only; CI's own compose is unaffected.
+las_compose() {
+    if lane_tls_enabled; then
+        COMPOSE_FILE=docker-compose.yml:docker-compose.tls.yml \
+        LOCALAI_TLS_DIR="${LANE_TLS_LOCALAI_DIR:-${RE_INSTANCE_STATE_DIR:-$HOME/.reality-engine}/localai/tls}" \
+        LOCALAI_OLLAMA_URL="$(lane_ollama_url docker)" \
+            docker compose "$@"
+    else
+        docker compose "$@"
+    fi
+}
+
+# las_get PATH [curl args...]: GET from the localAIStack API, over the lane's
+# mTLS when it is on.
+las_get() {
+    local path="$1"; shift
+    if lane_tls_enabled; then
+        lane_curl_get "https://localhost:4000$path" "$@"
+    else
+        curl "$@" "http://localhost:4000$path"
+    fi
+}
 establish_node || add_warn "Node ${RE_NODE_VERSION} could not be established via nvm; using $(command -v node || echo none)"
 
 
@@ -1938,6 +1983,25 @@ else
         die "Ollama failed to start — log: /tmp/ollama_universe.log"
 fi
 
+# Lane TLS for localAIStack and Ollama (localAIStack#172). The lane's PKI is
+# prepared here, ahead of stage 3, because Qdrant and Redis start there on the
+# lane overlay; the instance registry's lane_tls_init below is idempotent.
+# Ollama serves no TLS, so every client reaches it through its TLS front
+# (owner option a, #668); the front starts whenever Ollama is up.
+lane_tls_ollama_front_stop
+if lane_tls_enabled; then
+    lane_tls_init native || die "RE_TLS=on but the native lane PKI is unusable (scripts/lib/re_pki.py)"
+    lane_tls_localai "$HOST_IP" || die "RE_TLS=on but localAIStack's lane certificates could not be issued"
+    ok "localAIStack lane certificates: $LANE_TLS_LOCALAI_DIR"
+    if curl -sf --max-time 3 http://localhost:11434/api/version > /dev/null 2>&1; then
+        lane_tls_ollama_front_start "$LAS_DIR" "$HOST_IP" || \
+            die "Ollama's TLS front did not start — log: $LANE_OLLAMA_FRONT_LOG"
+        ok "Ollama TLS front: $(lane_ollama_url host) → 127.0.0.1:11434 (TLS 1.3, mTLS)"
+    else
+        info "Ollama not running: its TLS front is not started"
+    fi
+fi
+
 if [ "$LOCAL_AI_ENABLED" = true ]; then
     # Versions of the host services against this release's requirements and the
     # current public releases (RealityEngine_CI#592). Warns, and files or
@@ -1985,7 +2049,7 @@ info "Starting Loki (CI) + Qdrant + Redis..."
 (cd "$CI_DIR" && docker compose up -d --remove-orphans loki \
     2>/tmp/infra_start_err.log) > /dev/null || \
     die "docker compose up failed for Loki\n$(tail -5 /tmp/infra_start_err.log 2>/dev/null)"
-(cd "$LAS_DIR" && docker compose up -d --remove-orphans qdrant redis \
+(cd "$LAS_DIR" && las_compose up -d --remove-orphans qdrant redis \
     2>>/tmp/infra_start_err.log) > /dev/null || \
     die "docker compose up failed for Qdrant/Redis\n$(tail -5 /tmp/infra_start_err.log 2>/dev/null)"
 
@@ -1994,13 +2058,21 @@ poll_http "https://localhost:3100/ready" "Loki ready" 90 "-skf" || \
     die "Loki failed — check:  docker logs reality-engine-loki"
 
 info "Waiting for Qdrant..."
-poll_http "http://localhost:4333/collections" "Qdrant ready" 30 "-sf" || \
-    die "Qdrant failed — check:  docker logs localai_qdrant"
+if lane_tls_enabled; then
+    poll_lane "https://localhost:4333/collections" "Qdrant ready (TLS, mTLS)" 30 || \
+        die "Qdrant failed — check:  docker logs localai_qdrant"
+else
+    poll_http "http://localhost:4333/collections" "Qdrant ready" 30 "-sf" || \
+        die "Qdrant failed — check:  docker logs localai_qdrant"
+fi
 
 info "Waiting for Redis..."
+_redis_cli=(redis-cli)
+lane_tls_enabled && _redis_cli=(redis-cli --tls --cacert /run/re-tls/ca.crt \
+    --cert /run/re-tls/service/chain.pem --key /run/re-tls/service/key.pem -h localhost)
 n=0
 while [ "$n" -lt 20 ]; do
-    docker exec localai_redis redis-cli ping 2>/dev/null | grep -q "PONG" && { ok "Redis ready"; break; }
+    docker exec localai_redis "${_redis_cli[@]}" ping 2>/dev/null | grep -q "PONG" && { ok "Redis ready"; break; }
     n=$((n+1)); echo -n "."; sleep 2
 done
 echo ""
@@ -2671,7 +2743,7 @@ else
     # rather than just the "View build details" link (piping through `tail -5`
     # discards the diagnostic under set -e / pipefail). See issue #45.
     _api_build_log="/tmp/localai-api-build.log"
-    if ! (cd "$LAS_DIR" && docker compose build api) > "$_api_build_log" 2>&1; then
+    if ! (cd "$LAS_DIR" && las_compose build api) > "$_api_build_log" 2>&1; then
         die "localAIStack API image build failed\n$(tail -n 30 "$_api_build_log")"
     fi
     tail -n 5 "$_api_build_log"
@@ -2680,14 +2752,20 @@ else
     # Without this, `up --wait` will implicitly rebuild a missing or stale
     # image *inside* the 120s health window, so a slow build eats the timeout
     # and stage 5 fails spuriously even though the build itself succeeded.
-    (cd "$LAS_DIR" && docker compose up -d --force-recreate --no-build --wait \
+    (cd "$LAS_DIR" && las_compose up -d --force-recreate --no-build --wait \
         --wait-timeout 120 api 2>&1) || \
         die "localAIStack API failed to reach healthy state\n  Check:  docker logs localai_api"
-    (cd "$LAS_DIR" && docker compose up -d open-webui) > /dev/null 2>&1 || true
-    ok "localAIStack API ready"
+    # Open WebUI reaches Ollama in plaintext with no client certificate, so the
+    # lane overlay leaves it out (localOpenClawStack's Open WebUI is the universe's).
+    if lane_tls_enabled; then
+        info "localAIStack Open WebUI: not on the TLS lane"
+    else
+        (cd "$LAS_DIR" && las_compose up -d open-webui) > /dev/null 2>&1 || true
+    fi
+    ok "localAIStack API ready$(lane_tls_enabled && echo ' (TLS 1.3, mTLS)')"
 
     set +e
-    HEALTH_JSON=$(curl -sf http://localhost:4000/health 2>/dev/null || echo '{}')
+    HEALTH_JSON=$(las_get /health -sf 2>/dev/null || echo '{}')
     echo "$HEALTH_JSON" | python3 -c "
 import json, sys
 h = json.load(sys.stdin).get('services', {})
@@ -2784,11 +2862,18 @@ fi
 # no entry, not a guessed address.
 if [ "$DRY_RUN" = false ] && [ -f "$REGISTRY_FILE" ]; then
     _publish_if_up() {  # <name> <url-to-publish> <probe-url>
-        curl -sf --max-time 3 "$3" >/dev/null 2>&1 && registry_set_service "$1" "$2"
+        local probe="curl"
+        case "$3" in https://*) lane_tls_enabled && probe="lane_curl_get" ;; esac
+        if [ "$probe" = curl ]; then
+            curl -sf --max-time 3 "$3" >/dev/null 2>&1 && registry_set_service "$1" "$2"
+        else
+            lane_curl_get "$3" -sf --max-time 3 -o /dev/null >/dev/null 2>&1 && registry_set_service "$1" "$2"
+        fi
         return 0
     }
-    _publish_if_up "localai_api"      "http://localhost:4000"  "http://localhost:4000/health"
-    _publish_if_up "qdrant"           "http://localhost:4333"  "http://localhost:4333/collections"
+    _las_scheme=$(lane_tls_scheme)
+    _publish_if_up "localai_api"      "$_las_scheme://localhost:4000"  "$_las_scheme://localhost:4000/health"
+    _publish_if_up "qdrant"           "$_las_scheme://localhost:4333"  "$_las_scheme://localhost:4333/collections"
     [ "$OPENCLAW" != "no" ] && \
         _publish_if_up "openclaw_gateway" "http://localhost:${_ocs_gw_port:-18789}" "http://localhost:${_ocs_gw_port:-18789}/healthz"
 fi
@@ -2951,7 +3036,7 @@ fi
 
 if [ "$LOCAL_AI_ENABLED" = true ]; then
     info "localAIStack RAG readiness..."
-    LAS_HEALTH=$(curl -sf http://localhost:4000/health --max-time 5 2>/dev/null || echo "")
+    LAS_HEALTH=$(las_get /health -sf --max-time 5 2>/dev/null || echo "")
     if [ -n "$LAS_HEALTH" ]; then
         LAS_STATUS=$(echo "$LAS_HEALTH" | python3 -c \
             "import json,sys; print(json.load(sys.stdin).get('status','unknown'))" 2>/dev/null || echo "unknown")
@@ -3096,7 +3181,7 @@ PY
 
   if [ "$LOCAL_AI_ENABLED" = true ]; then
       info "localAIStack RAG readiness..."
-      LAS_HEALTH=$(curl -sf http://localhost:4000/health --max-time 5 2>/dev/null || echo "")
+      LAS_HEALTH=$(las_get /health -sf --max-time 5 2>/dev/null || echo "")
       if [ -n "$LAS_HEALTH" ]; then
           LAS_STATUS=$(echo "$LAS_HEALTH" | python3 -c \
               "import json,sys; print(json.load(sys.stdin).get('status','unknown'))" 2>/dev/null || echo "unknown")
@@ -3122,11 +3207,13 @@ echo "  Universe Running  [CI orchestration from RealityEngine_CI]"
 echo "════════════════════════════════════════════════════════════════════"
 echo ""
 echo "  localAIStack"
-printf "    %-30s %s\n" "API + RAG Orchestration"   "http://localhost:4000"
-printf "    %-30s %s\n" "API Docs (Swagger UI)"     "http://localhost:4000/docs"
+_las_scheme=$(lane_tls_scheme)
+printf "    %-30s %s\n" "API + RAG Orchestration"   "$_las_scheme://localhost:4000"
+printf "    %-30s %s\n" "API Docs (Swagger UI)"     "$_las_scheme://localhost:4000/docs"
+lane_tls_enabled || \
 printf "    %-30s %s\n" "Open WebUI (Chat)"         "http://localhost:4080"
-printf "    %-30s %s\n" "Qdrant Dashboard"          "http://localhost:4333/dashboard"
-printf "    %-30s %s\n" "Ollama"                    "http://localhost:11434"
+printf "    %-30s %s\n" "Qdrant Dashboard"          "$_las_scheme://localhost:4333/dashboard"
+printf "    %-30s %s\n" "Ollama"                    "$(lane_ollama_url host)"
 echo ""
 echo "  API Integration Surfaces"
 if [ "$MCP_HTTP_ENABLED" = "true" ]; then
