@@ -1021,7 +1021,7 @@ start_mcp_http_service() {
       RE_MCP_INSECURE_TLS="${RE_MCP_INSECURE_TLS:-}" \
       RE_MCP_HTTP_HOST="$RE_MCP_HTTP_HOST" \
       RE_MCP_HTTP_PORT="$RE_MCP_HTTP_PORT" \
-      ${mcp_tls_env[@]+"${mcp_tls_env[@]}"} nohup node mcp/src/http-server.js > "$MCP_HTTP_LOG_FILE" 2>&1 &
+      nohup env ${mcp_tls_env[@]+"${mcp_tls_env[@]}"} node mcp/src/http-server.js > "$MCP_HTTP_LOG_FILE" 2>&1 &
       echo $! > "$MCP_HTTP_PID_FILE"
     )
     local n=0
