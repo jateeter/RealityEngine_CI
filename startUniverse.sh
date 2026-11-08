@@ -632,8 +632,12 @@ start_bridge_metrics_exporter() {
     # Lane TLS (#730): /metrics over TLS 1.3 with a lane client certificate
     # required (Prometheus presents its own), and the exporter's own calls on the
     # lane's mTLS (scripts/bridge-metrics-exporter.mjs, mcp/src/lane-tls.js).
+    # Probed by name, not by its bind address: 0.0.0.0 is no certificate's name
+    # (the lane checks it), and every lane certificate names localhost.
+    local probe_host="$BRIDGE_METRICS_HOST"
+    case "$probe_host" in 0.0.0.0|::|"[::]") probe_host=localhost ;; esac
     local url
-    url="$(lane_tls_scheme)://${BRIDGE_METRICS_HOST}:${BRIDGE_METRICS_PORT}"
+    url="$(lane_tls_scheme)://${probe_host}:${BRIDGE_METRICS_PORT}"
     local -a bridge_env=()
     if lane_tls_enabled; then
         lane_tls_issue_instance bridge-metrics "" "$HOST_IP" || die "bridge metrics: certificate issue failed (RE_TLS=on)"
