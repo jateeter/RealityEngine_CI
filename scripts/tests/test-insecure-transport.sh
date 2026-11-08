@@ -31,7 +31,9 @@ PY
 printf '# docs are not scanned: http://example.invalid\n' > "$WS/localAIStack/README.md"
 commit localAIStack
 BASE="$TMP/baseline.json"
-run() { python3 "$CHECK" --root "$WS" --baseline "$BASE" "$@" 2>&1; }
+INV="$TMP/inventory.json"
+echo '{"links": []}' > "$INV"
+run() { python3 "$CHECK" --root "$WS" --baseline "$BASE" --inventory "$INV" "$@" 2>&1; }
 
 echo "insecure transport"
 out=$(run --write); [[ $? -eq 0 && "$out" == *"1 occurrence(s) in 1 file(s)"* ]] && ok "baseline counts one URL, skips the namespace and the docs" || bad "baseline: $out"
@@ -51,6 +53,35 @@ run --write >/dev/null; out=$(run); [[ $? -eq 0 && "$out" == *"0 recorded occurr
 
 printf 'curl -k https://x\nfetch(u, { rejectUnauthorized: false })\n' > "$WS/RealityEngine_Manager/s.sh"; commit RealityEngine_Manager
 out=$(run); [[ $? -ne 0 && "$out" == *"curl-insecure"* && "$out" == *"node-reject-unauthorized"* ]] && ok "curl -k and rejectUnauthorized: false fail" || bad "curl/node: $out"
+
+git -C "$WS/RealityEngine_Manager" rm -q s.sh; commit RealityEngine_Manager
+
+# An owner-accepted plaintext deficiency may name the exact occurrences it needs.
+printf 'proxy_pass http://127.0.0.1:9222;\n' > "$WS/localOpenClawStack/proxy.conf"; commit localOpenClawStack
+deficiency() { # accepted allows-status count
+  python3 - "$INV" "$@" <<'PY'
+import json, sys
+inv, accepted, status, count = sys.argv[1], sys.argv[2], sys.argv[3], int(sys.argv[4])
+json.dump({"links": [{"id": "proxy-to-chromium", "deficiency": {"accepted": accepted, "allows": {"status": status},
+  "sources": [{"file": "localOpenClawStack/proxy.conf", "pattern": "plaintext-url", "count": count}]}}]}, open(inv, "w"))
+PY
+}
+out=$(run); [[ $? -ne 0 && "$out" == *"proxy.conf: plaintext-url 0 -> 1"* ]] && ok "the hop fails without its deficiency" || bad "no deficiency: $out"
+deficiency "owner, 2026-11-08" plaintext 1
+out=$(run); [[ $? -eq 0 && "$out" == *"1 allowed by accepted deficiencies"* ]] && ok "an accepted deficiency's named occurrence passes, and is reported" || bad "deficiency: $out"
+run --write >/dev/null
+echo '{"links": []}' > "$INV"
+out=$(run); [[ $? -ne 0 && "$out" == *"proxy.conf: plaintext-url 0 -> 1"* ]] && ok "--write never records it: without the deficiency it fails again" || bad "write: $out"
+deficiency "owner, 2026-11-08" plaintext 1
+printf 'proxy_pass http://127.0.0.1:9222;\nB = "http://127.0.0.1:1"\n' > "$WS/localOpenClawStack/proxy.conf"; commit localOpenClawStack
+out=$(run); [[ $? -ne 0 && "$out" == *"plaintext-url 0 -> 2"* ]] && ok "one more than the deficiency names fails" || bad "beyond: $out"
+printf 'proxy_pass http://127.0.0.1:9222;\n' > "$WS/localOpenClawStack/proxy.conf"; commit localOpenClawStack
+deficiency "a developer" plaintext 1
+out=$(run); [[ $? -ne 0 ]] && ok "a deficiency not accepted by the owner allows nothing" || bad "not owner: $out"
+deficiency "owner, 2026-11-08" tls 1
+out=$(run); [[ $? -ne 0 ]] && ok "a deficiency that does not allow plaintext allows nothing" || bad "not plaintext: $out"
+git -C "$WS/localOpenClawStack" rm -q proxy.conf; commit localOpenClawStack
+echo '{"links": []}' > "$INV"
 
 rm -rf "$WS/RealityEngine_Rust"
 out=$(run); [[ $? -ne 0 && "$out" == *"not scanned"*"RealityEngine_Rust"* ]] && ok "a missing sibling fails, named" || bad "missing: $out"

@@ -106,10 +106,29 @@ def link_problems(inventory: dict[str, Any]) -> list[str]:
                     out.append(f"{lid}: a deficiency is accepted only by the owner")
                 elif allows.get("status") not in (None, *STATUSES) or allows.get("mtls") not in (None, False):
                     out.append(f"{lid}: deficiency.allows has an invalid value")
+                sources = deficiency.get("sources")
+                if sources is not None:
+                    # Exact occurrences the insecure-transport gate allows for this
+                    # deficiency (scripts/check-insecure-transport.py).
+                    if (allows or {}).get("status") != "plaintext":
+                        out.append(f"{lid}: deficiency.sources is only for a link allowed to be plaintext")
+                    elif not isinstance(sources, list) or not sources or not all(
+                        isinstance(x, dict) and set(x) == {"file", "pattern", "count"}
+                        and isinstance(x["file"], str) and "/" in x["file"]
+                        and x["pattern"] in SOURCE_PATTERNS
+                        and isinstance(x["count"], int) and x["count"] > 0
+                        for x in sources
+                    ):
+                        out.append(f"{lid}: deficiency.sources must list {{file: <repo>/<path>, pattern, count > 0}}")
         claims = link.get("status") == "compliant" or link.get("mtls") is True
         if claims and not isinstance(link.get("probe"), dict):
             out.append(f"{lid}: compliant or mtls claimed without a probe record (RealityEngine_CI#728)")
     return out
+
+
+# The insecure-transport gate's pattern names (scripts/check-insecure-transport.py).
+SOURCE_PATTERNS = {"plaintext-url", "plaintext-ws", "curl-insecure", "wget-no-check",
+                   "node-reject-unauthorized", "python-verify-off", "go-skip-verify"}
 
 
 def gate_problems(inventory: dict[str, Any]) -> tuple[list[str], list[str]]:

@@ -304,19 +304,24 @@ if [ "${RE_TLS:-off}" = on ] && [ "$MULTI_ENGINE_MODE" != true ]; then
     exit 2
 fi
 # The engines and Manager serve TLS 1.3 with mTLS under RE_TLS=on (wave 2 of
-# #668), and localAIStack does with its lane overlay (localAIStack#172, wave 3).
-# OpenClaw and re-mcp do not yet: each reads the instance registry and calls the
-# engines, and would fail against them, so the lane refuses to start them rather
-# than start a universe that is half broken. Each line lifts when its
-# repository's TLS issue lands (wave 3).
+# #668); localAIStack does with its lane overlay (localAIStack#172) and the
+# native OpenClaw gateway with OPENCLAW_TLS_DIR (localOpenClawStack#92), both
+# wave 3. re-mcp does not yet: it reads the instance registry and calls the
+# engines, and would fail against them, so the lane refuses to start it rather
+# than start a universe that is half broken. Its line lifts when #730 lands.
 if [ "${RE_TLS:-off}" = on ]; then
     _tls_blocked=""
     # Qdrant and Redis start on every native universe, so the overlay is needed
     # even with --no-local-ai.
     [ -f "$LAS_DIR/docker-compose.tls.yml" ] || _tls_blocked="$_tls_blocked
   localAIStack at $LAS_DIR has no docker-compose.tls.yml: update it (localAIStack#172)"
-    [ "${OPENCLAW:-auto}" = no ] || _tls_blocked="$_tls_blocked
-  --no-openclaw   OpenClaw does not speak the lane's TLS yet (localOpenClawStack#92)"
+    if [ "${OPENCLAW:-auto}" != no ]; then
+        # Only the native gateway serves TLS; the container gateway is not on the lane.
+        [ "$OPENCLAW_RUNTIME" = native ] || _tls_blocked="$_tls_blocked
+  --openclaw-runtime=native   only the native OpenClaw gateway is on the lane (localOpenClawStack#92)"
+        [ ! -d "$OCS_DIR" ] || [ -f "$OCS_DIR/docker-compose.tls.yml" ] || _tls_blocked="$_tls_blocked
+  localOpenClawStack at $OCS_DIR has no docker-compose.tls.yml: update it (localOpenClawStack#92), or --no-openclaw"
+    fi
     [ "${MCP_HTTP_ENABLED:-true}" = false ] || _tls_blocked="$_tls_blocked
   --no-mcp-http   re-mcp does not speak the lane's TLS yet (RealityEngine_CI#730)"
     if [ -n "$_tls_blocked" ]; then
@@ -430,6 +435,9 @@ for item in data.get("integrations", []):
         item["platform"] = os.environ.get("ACP_PLATFORM", item.get("platform", "OpenClaw"))
         item["surface"] = os.environ.get("ACP_SURFACE", item.get("surface", "xACP"))
         item["gatewayUrl"] = os.environ.get("OPENCLAW_GATEWAY_URL") or os.environ.get("ACP_GATEWAY_URL", item.get("gatewayUrl", "ws://127.0.0.1:18789"))
+        # The native gateway serves WSS on the lane (localOpenClawStack#92).
+        if os.environ.get("RE_TLS", "off") == "on" and item["gatewayUrl"].startswith("ws:"):
+            item["gatewayUrl"] = "wss:" + item["gatewayUrl"][3:]
         item["sessionKey"] = os.environ.get("OPENCLAW_ACP_SESSION") or os.environ.get("ACP_SESSION_KEY", item.get("sessionKey", "agent:main:main"))
         item["targetAgent"] = os.environ.get("ACP_TARGET_AGENT", item.get("targetAgent", "openclaw"))
         item["completionSourceMappingId"] = os.environ.get("ACP_COMPLETION_SOURCE_MAPPING_ID", "acp-openclaw-completion")
@@ -2837,7 +2845,19 @@ else
     fi
 
     if [ "$_ocs_ok" = true ]; then
-        for _ocs_check_port in "$OCS_GW_PORT" "$OCS_UI_PORT"; do
+        # Lane TLS (localOpenClawStack#92): the gateway's and the browser
+        # sidecar's certificates, handed over as OPENCLAW_TLS_DIR, and Ollama
+        # through its TLS front. Open WebUI is not on the lane (owner, 2026-11-08).
+        _ocs_lane_env=()
+        _ocs_ports="$OCS_GW_PORT $OCS_UI_PORT"
+        if lane_tls_enabled; then
+            lane_tls_openclaw "$HOST_IP" || die "RE_TLS=on but OpenClaw's lane certificates could not be issued"
+            _ocs_lane_env=(OPENCLAW_TLS_DIR="$LANE_TLS_OPENCLAW_DIR"
+                           OPENCLAW_NATIVE_OLLAMA_URL="https://127.0.0.1:$LANE_OLLAMA_FRONT_PORT")
+            _ocs_ports="$OCS_GW_PORT"
+            ok "OpenClaw lane certificates: $LANE_TLS_OPENCLAW_DIR"
+        fi
+        for _ocs_check_port in $_ocs_ports; do
             _ocs_blocker=$(lsof -ti TCP:"$_ocs_check_port" -sTCP:LISTEN 2>/dev/null | head -1 || true)
             [ -n "$_ocs_blocker" ] && \
                 die "OpenClaw port $_ocs_check_port in use by PID $_ocs_blocker — stop it and retry"
@@ -2852,11 +2872,18 @@ else
         # OPENCLAW_CORPUS_MACHINES_ROOT: the corpus a manifest profile resolves
         # against, the one this universe materialised from (a run worktree's).
         (cd "$OCS_DIR" && env -u MACHINES_DIR OPENCLAW_CORPUS_MACHINES_ROOT="$FULL_MACHINES_DIR/machines" \
-            ./scripts/start.sh --agent-profile="$AGENT_PROFILE" \
+            ${_ocs_lane_env[@]+"${_ocs_lane_env[@]}"} ./scripts/start.sh --agent-profile="$AGENT_PROFILE" \
             $([ "$OPENCLAW_RUNTIME" = native ] && echo --native) > /tmp/ocs_start.log 2>&1) || \
             die "OpenClaw startup failed\n$(tail -20 /tmp/ocs_start.log 2>/dev/null)"
 
-        if poll_http "http://localhost:${OCS_GW_PORT}/healthz" "openclaw-gateway ready" 30 "-sf"; then
+        if lane_tls_enabled; then
+            if poll_lane "https://localhost:${OCS_GW_PORT}/healthz" "openclaw-gateway ready (TLS 1.3)" 30; then
+                OCS_STARTED=true
+                info "open-webui: not on the TLS lane"
+            else
+                add_warn "openclaw-gateway (:$OCS_GW_PORT) did not respond over TLS"
+            fi
+        elif poll_http "http://localhost:${OCS_GW_PORT}/healthz" "openclaw-gateway ready" 30 "-sf"; then
             OCS_STARTED=true
             info "Waiting for open-webui..."
             _n=0
@@ -2895,7 +2922,7 @@ if [ "$DRY_RUN" = false ] && [ -f "$REGISTRY_FILE" ]; then
     _publish_if_up "localai_api"      "$_las_scheme://localhost:4000"  "$_las_scheme://localhost:4000/health"
     _publish_if_up "qdrant"           "$_las_scheme://localhost:4333"  "$_las_scheme://localhost:4333/collections"
     [ "$OPENCLAW" != "no" ] && \
-        _publish_if_up "openclaw_gateway" "http://localhost:${_ocs_gw_port:-18789}" "http://localhost:${_ocs_gw_port:-18789}/healthz"
+        _publish_if_up "openclaw_gateway" "$_las_scheme://localhost:${_ocs_gw_port:-18789}" "$_las_scheme://localhost:${_ocs_gw_port:-18789}/healthz"
 fi
 
 # =============================================================================
@@ -3264,7 +3291,8 @@ fi
 echo ""
 if [ "$OCS_STARTED" = true ]; then
 echo "  OpenClaw"
-printf "    %-30s %s\n" "ACP xACP Gateway"          "http://localhost:${OCS_GW_PORT}"
+printf "    %-30s %s\n" "ACP xACP Gateway"          "$(lane_tls_scheme)://localhost:${OCS_GW_PORT}"
+lane_tls_enabled || \
 printf "    %-30s %s\n" "Open WebUI (Chat)"         "http://localhost:${OCS_UI_PORT}"
 echo ""
 fi

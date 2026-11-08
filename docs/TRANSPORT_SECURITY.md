@@ -180,9 +180,16 @@ With the lane on:
     starts in stage 2 whenever Ollama is up, on `127.0.0.1:11443` with its own
     `ollama-front` certificate (`lane_tls_ollama_front_start`).
     `stopUniverse.sh` stops it whatever `--keep-ollama` says.
+  - **OpenClaw** runs on the lane with the native gateway only
+    (`--openclaw-runtime=native`, the default; localOpenClawStack#92).
+    `lane_tls_openclaw` issues `openclaw-gateway` (kind both) and
+    `openclaw-browser` (server), links them into
+    `~/.reality-engine/openclaw/tls`, and hands that directory over as
+    `OPENCLAW_TLS_DIR`, with `OPENCLAW_NATIVE_OLLAMA_URL` on the Ollama front.
+    The PEs record `wss://127.0.0.1:18789`. Open WebUI is not started on the
+    lane.
   - Consumers not yet on the lane's TLS are refused, not started broken:
-    `RE_TLS=on` needs `--no-openclaw` (localOpenClawStack#92) and
-    `--no-mcp-http` (#730). Each lifts when its issue lands.
+    `RE_TLS=on` needs `--no-mcp-http` (#730) until its issue lands.
 - **The docker lane** issues each instance (`scala-1`, `cpp-1`, `lsp-1`) a
   certificate from its own `docker` CA, covering the compose service names
   (`engine-<rt>-re`, `engine-<rt>-pe`), `host.docker.internal`, `localhost` and
@@ -243,6 +250,8 @@ allows.
 | lifecycle → `assets-css` | **CSS does not verify client certificates,** so the link is TLS 1.3 without mTLS. | The lifecycle service authenticates with Solid-OIDC and DPoP-bound tokens (localAssetStorageStack ROADMAP phase 2). | mTLS once CSS verifies client certificates. | owner, 2026-11-07 |
 | engines → the Yuma MQTT broker | **The broker is reached as `mqtt://yuma.lateraledge.cloud:1883`:** plaintext to an external party. | None in transport; MQTT carries only regression sensor traffic. | `mqtts` on TLS 1.3 once the broker offers it. | owner, 2026-11-07 |
 | localai-api → Qdrant | **Qdrant v1.20 cannot be restricted:** with client-certificate verification on it still accepts TLS 1.2 and `TLS_AES_128_GCM_SHA256`, and offers no PQ group. | Its only client, localai-api, offers TLS 1.3 and the profile's suites alone, so the connection always meets the profile and cannot be downgraded; mTLS is required; host ports bind `127.0.0.1`. | A Qdrant setting that restricts protocols and suites. | owner, 2026-11-08 |
+| PEs, the ACP adapter → the OpenClaw gateway | **The gateway cannot require client certificates** (OpenClaw 2026.10.8's TLS server has no `requestCert`; `gateway.tls.caPath` is a trust chain only), so the link is TLS 1.3 without mTLS. | Every call needs the gateway bearer token (`verify-deployment.sh` checks the 401); loopback bind; the listener is held to the full profile by localOpenClawStack's `scripts/lib/lane-tls-preload.cjs`. | mTLS once OpenClaw can require client certificates. | owner, 2026-11-08 |
+| the browser sidecar's CDP proxy → Chromium | **Chromium serves CDP in plaintext only**, so the hop from the TLS proxy (nginx, TLS 1.3 + mTLS) to Chromium is plaintext on the container's loopback. | Only the proxy reaches it; nothing else for CDP is published. | TLS when Chromium serves CDP over it. | owner, 2026-11-08 |
 | Ollama's TLS front → Ollama | **Ollama serves no TLS** (0.40.13; its FAQ offers only a reverse proxy), so the front's hop to Ollama is plaintext on the host's loopback. | Ollama binds `127.0.0.1` only; every client reaches it through the front on TLS 1.3 with mTLS. | Native TLS when Ollama offers it. | owner, 2026-11-07 |
 
 **A consequence, not a deficiency: OpenAPI "Try it".** Engine RE and PE ports
@@ -255,8 +264,19 @@ browser can use (owner, 2026-11-07).
 
 **Components and their TLS:**
 - **The OpenClaw gateway** serves HTTPS and WSS natively (OpenClaw 2026.10.8:
-  `gateway.tls.enabled`, `certPath`, `keyPath`, and `caPath` to verify clients).
-  It is held to TLS 1.3 and the profile's suites through `NODE_OPTIONS`.
+  `gateway.tls.enabled`, `certPath`, `keyPath`; `caPath` is a trust chain, not
+  client verification: the server sets no `requestCert`). It sets no suites or
+  groups, so a Node preload (`NODE_OPTIONS=--require`, localOpenClawStack
+  `scripts/lib/lane-tls-preload.cjs`) holds the process to the profile and
+  presents its lane certificate on outbound TLS to internal peers: OpenClaw has
+  client certificates for MCP servers only (`mcp.servers.<name>.clientCert`),
+  none for model providers or CDP.
+- **The insecure-transport gate and deficiencies.** An owner-accepted
+  deficiency whose link is allowed to be plaintext may name, in
+  `deficiency.sources`, the exact occurrences it needs (file, pattern, count);
+  `check-insecure-transport.py` allows those on top of the baseline and never
+  writes them into it. The CDP proxy's `proxy_pass` to Chromium is the one so
+  far.
 - **Ollama** has no native TLS: 0.40.13 has no TLS setting, and its FAQ points
   to a reverse proxy. It runs behind a TLS 1.3 front with mTLS, bound to
   loopback (owner, 2026-11-07; the deficiency above; localAIStack#172).

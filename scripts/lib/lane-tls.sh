@@ -185,6 +185,36 @@ lane_tls_localai() {
     LANE_TLS_LOCALAI_DIR="$dir"
 }
 
+# lane_tls_openclaw HOST_IP: localOpenClawStack's certificates for the native
+# gateway on the lane (localOpenClawStack#92; its scripts/lib/lane-tls.sh).
+# Issues openclaw-gateway (serves TLS 1.3, and calls the Ollama front, CDP and
+# the engines with mTLS, so kind both) and openclaw-browser (the sidecar's CDP
+# proxy, kind server), and links them, with the lane CA and CRL, into
+# <state>/openclaw/tls:
+#   gateway/ browser/ -> the PKI's issued/<name> (chain.pem, key.pem)
+#   ca.crt ca.crl     -> the lane CA and its CRL
+# Sets LANE_TLS_OPENCLAW_DIR, empty unless the lane is on; startUniverse.sh
+# passes it to localOpenClawStack as OPENCLAW_TLS_DIR.
+# shellcheck disable=SC2034  # LANE_TLS_OPENCLAW_DIR is read by the caller (startUniverse.sh)
+lane_tls_openclaw() {
+    local host_ip="${1:-127.0.0.1}"
+    local dir="${RE_INSTANCE_STATE_DIR:-$HOME/.reality-engine}/openclaw/tls"
+    LANE_TLS_OPENCLAW_DIR=""
+    lane_tls_enabled || return 0
+    [ "$LANE_TLS_READY" = 1 ] || return 1
+    mkdir -p "$dir"
+    local lan=""
+    [ "$host_ip" != "127.0.0.1" ] && lan="--ip $host_ip"
+    # shellcheck disable=SC2086  # the --ip list is a word list
+    python3 "$LANE_TLS_PKI" issue openclaw-gateway --kind both --dns localhost --dns openclaw.localhost \
+        --dns host.docker.internal --ip 127.0.0.1 $lan >/dev/null &&
+    python3 "$LANE_TLS_PKI" issue openclaw-browser --kind server --dns localhost --ip 127.0.0.1 >/dev/null || return 1
+    _lane_tls_link "$(dirname "$(_lane_tls_path openclaw-gateway chain)")" "$dir/gateway" &&
+        _lane_tls_link "$(dirname "$(_lane_tls_path openclaw-browser chain)")" "$dir/browser" &&
+        _lane_tls_link "$LANE_TLS_CA" "$dir/ca.crt" && _lane_tls_link "$LANE_TLS_CRL" "$dir/ca.crl" || return 1
+    LANE_TLS_OPENCLAW_DIR="$dir"
+}
+
 # Ollama's TLS front (localAIStack scripts/ollama_tls_front.py; owner option a,
 # RealityEngine_CI#668): TLS 1.3 with mTLS on 127.0.0.1:LANE_OLLAMA_FRONT_PORT,
 # relaying to Ollama on 127.0.0.1:11434. Every Ollama client on the lane uses it.
