@@ -303,6 +303,24 @@ if [ "${RE_TLS:-off}" = on ] && [ "$MULTI_ENGINE_MODE" != true ]; then
     echo "RE_TLS=on is supported on the native lane (--engines) only; the docker lane mounts certificates but does not serve TLS yet (RealityEngine_CI#732)" >&2
     exit 2
 fi
+# The engines and Manager serve TLS 1.3 with mTLS under RE_TLS=on (wave 2 of
+# #668). localAIStack, OpenClaw and re-mcp do not yet: each reads the instance
+# registry and calls the engines, and would fail against them, so the lane
+# refuses to start them rather than start a universe that is half broken.
+# Each line lifts when its repository's TLS issue lands (wave 3).
+if [ "${RE_TLS:-off}" = on ]; then
+    _tls_blocked=""
+    [ "${LOCAL_AI_ENABLED:-true}" = false ] || _tls_blocked="$_tls_blocked
+  --no-local-ai   localAIStack does not speak the lane's TLS yet (localAIStack#172)"
+    [ "${OPENCLAW:-auto}" = no ] || _tls_blocked="$_tls_blocked
+  --no-openclaw   OpenClaw does not speak the lane's TLS yet (localOpenClawStack#92)"
+    [ "${MCP_HTTP_ENABLED:-true}" = false ] || _tls_blocked="$_tls_blocked
+  --no-mcp-http   re-mcp does not speak the lane's TLS yet (RealityEngine_CI#730)"
+    if [ -n "$_tls_blocked" ]; then
+        echo "RE_TLS=on: these consumers are not on the lane's TLS yet; start without them:$_tls_blocked" >&2
+        exit 2
+    fi
+fi
 
 # In dry-run mode skip the stamp write — nothing will actually start
 if [ "$DRY_RUN" = false ]; then
@@ -774,6 +792,21 @@ poll_http() {
     local n=0
     while [ "$n" -lt "$max" ]; do
         if curl $flags "$url" > /dev/null 2>&1; then
+            ok "$label"
+            return 0
+        fi
+        n=$((n+1)); echo -n "."; sleep 2
+    done
+    echo ""; return 1
+}
+
+# poll_http for a surface on the lane's TLS (#668): verified against the lane CA,
+# with the harness certificate, through a TLS 1.3-capable curl.
+poll_lane() {
+    local url="$1" label="$2" max="${3:-30}"
+    local n=0
+    while [ "$n" -lt "$max" ]; do
+        if lane_curl_get "$url" -sf -o /dev/null > /dev/null 2>&1; then
             ok "$label"
             return 0
         fi
@@ -2053,7 +2086,7 @@ _publish_service() {
     # A service on the lane's TLS is probed with the lane CA and the harness
     # certificate (#732); the others keep their old probe until they move.
     local probe="curl -skf"
-    [ "$name" = registry ] && lane_tls_enabled && probe="lane_curl_get"
+    [ "$scheme" = https ] && lane_tls_enabled && probe="lane_curl_get"
     if $probe "$lan$path" -sf --max-time 3 -o /dev/null >/dev/null 2>&1; then
         registry_set_service "$name" "$lan"
     elif $probe "$loop$path" -sf --max-time 3 -o /dev/null >/dev/null 2>&1; then
@@ -2113,8 +2146,8 @@ if [ "$MULTI_ENGINE_MODE" = true ]; then
     # changes no behaviour. The values become interesting only when
     # --free-ports lands and they stop being predictable.
     _publish_service "registry"         "${REGISTRY_PORT}" "/re-registry.json" "$(lane_tls_scheme)"
-    _publish_service "manager_backend"  3001 "/health"
-    _publish_service "manager_frontend" 5173 "/"
+    _publish_service "manager_backend"  3001 "/health" "$(lane_tls_scheme)"
+    _publish_service "manager_frontend" 5173 "/"       "$(lane_tls_scheme)"
     [ -n "${MQTT_BROKER_URL:-}" ] && registry_set_service "mqtt" "$MQTT_BROKER_URL"
     [ -n "${MCP_URL:-}" ]         && registry_set_service "mcp" "$MCP_URL"
     [ -n "${SWAGGER_URL:-}" ]     && registry_set_service "swagger" "$SWAGGER_URL"
@@ -2311,10 +2344,19 @@ except Exception:
         _manager_nvm_dir="${NVM_DIR:-$HOME/.nvm}"
 
         info "Starting Manager (Visualizer) natively — RE: $_re_arg  registry: $(lane_tls_scheme)://$HOST_IP:${REGISTRY_PORT}/re-registry.json"
+        # Lane TLS (#668): Manager's own certificate (it serves the browser and
+        # calls the engines), handed over only with the lane on. Its backend and
+        # frontend then serve TLS 1.3 and call the engines with mTLS
+        # (RealityEngine_Manager#327).
+        _mgr_tls_env=()
+        lane_tls_issue_instance manager "" "$HOST_IP" || die "manager: certificate issue failed (RE_TLS=on)"
+        if lane_tls_enabled; then
+            _mgr_tls_env=(RE_TLS_CERT="$INST_TLS_CERT" RE_TLS_KEY="$INST_TLS_KEY" RE_TLS_CA="$INST_TLS_CA" RE_TLS_CRL="$INST_TLS_CRL")
+        fi
         # The Load Machines catalog is the full corpus plus localAIStack's own
         # machines, not the bounded working copy MACHINES_DIR names in
         # standard-deployment and regression modes (Manager#256).
-        NVM_DIR="$_manager_nvm_dir" \
+        env ${_mgr_tls_env[@]+"${_mgr_tls_env[@]}"} NVM_DIR="$_manager_nvm_dir" \
             RE_REGISTRY_URL="$(lane_tls_scheme)://$HOST_IP:${REGISTRY_PORT}/re-registry.json" \
             MACHINES_CATALOG_DIR="$FULL_MACHINES_DIR" \
             MACHINES_CATALOG_EXTRA_DIRS="$LAS_DIR/data/machines" \
@@ -2342,7 +2384,8 @@ except Exception:
         # The floor stays 60 so nothing that passes today waits less.
         _mgr_health_attempts="$(_native_health_attempts)"
         [ "$_mgr_health_attempts" -lt 60 ] && _mgr_health_attempts=60
-        if ! poll_http "http://localhost:3001/health" "Manager backend ready (:3001)" "$_mgr_health_attempts" "-sf"; then
+        if { lane_tls_enabled && ! poll_lane "https://localhost:3001/health" "Manager backend ready (:3001, TLS)" "$_mgr_health_attempts"; } ||
+           { ! lane_tls_enabled && ! poll_http "http://localhost:3001/health" "Manager backend ready (:3001)" "$_mgr_health_attempts" "-sf"; }; then
             if [ "${CI:-false}" = "true" ]; then
                 tail -120 /tmp/manager_universe.log 2>/dev/null || true
                 die "Manager backend not reachable on :3001 — check /tmp/manager_universe.log"
@@ -2364,7 +2407,8 @@ except Exception:
         # dependencies..." still on screen. The reorder worked and the budget
         # did not follow it.
         _mgr_fe_attempts="$_mgr_health_attempts"
-        if ! poll_http "http://localhost:5173/" "Manager frontend ready (:5173)" "$_mgr_fe_attempts" "-sf"; then
+        if { lane_tls_enabled && ! poll_lane "https://localhost:5173/" "Manager frontend ready (:5173, TLS)" "$_mgr_fe_attempts"; } ||
+           { ! lane_tls_enabled && ! poll_http "http://localhost:5173/" "Manager frontend ready (:5173)" "$_mgr_fe_attempts" "-sf"; }; then
             if [ "${CI:-false}" = "true" ]; then
                 tail -120 "$MGR_DIR"/.manager-logs/frontend.log 2>/dev/null || \
                     tail -120 /tmp/manager_universe.log 2>/dev/null || true
@@ -2382,8 +2426,8 @@ except Exception:
         # record uses for the same reason: publish early so the key exists,
         # re-publish once the truth is knowable.
         if declare -F _publish_service >/dev/null 2>&1; then
-            _publish_service "manager_backend"  3001 "/health"
-            _publish_service "manager_frontend" 5173 "/"
+            _publish_service "manager_backend"  3001 "/health" "$(lane_tls_scheme)"
+            _publish_service "manager_frontend" 5173 "/"       "$(lane_tls_scheme)"
         fi
     else
         add_warn "RealityEngine_Manager/start.sh not found — port 5173 will not be available"
@@ -2851,12 +2895,13 @@ else
               "import json,sys; print(json.load(sys.stdin).get('re_url',''))" 2>/dev/null || true)
           _vi_pe_url=$(echo "$_vi_entry" | python3 -c \
               "import json,sys; print(json.load(sys.stdin).get('pe_url',''))" 2>/dev/null || true)
-          _vi_re_ok=$(curl -sf --max-time 3 "$_vi_re_url/api/health" > /dev/null 2>&1 && echo true || echo false)
-          _vi_pe_ok=$(curl -sf --max-time 3 "$_vi_pe_url/api/health" > /dev/null 2>&1 && echo true || echo false)
-          _vi_mc=$(curl -sf --max-time 5 "$_vi_re_url/api/machines" 2>/dev/null \
+          # lane_curl_get: the lane CA and the harness certificate when RE_TLS=on.
+          _vi_re_ok=$(lane_curl_get "$_vi_re_url/api/health" -sf --max-time 3 > /dev/null 2>&1 && echo true || echo false)
+          _vi_pe_ok=$(lane_curl_get "$_vi_pe_url/api/health" -sf --max-time 3 > /dev/null 2>&1 && echo true || echo false)
+          _vi_mc=$(lane_curl_get "$_vi_re_url/api/machines" -sf --max-time 5 2>/dev/null \
               | python3 -c "import json,sys; print(len(json.load(sys.stdin).get('machines',[])))" \
               2>/dev/null || echo "?")
-          _vi_sc=$(curl -sf --max-time 5 "$_vi_pe_url/api/sources" 2>/dev/null \
+          _vi_sc=$(lane_curl_get "$_vi_pe_url/api/sources" -sf --max-time 5 2>/dev/null \
               | python3 -c "import json,sys; print(len(json.load(sys.stdin).get('sources',[])))" \
               2>/dev/null || echo "?")
           [ "$_vi_re_ok" = true ] \
@@ -2965,7 +3010,7 @@ else
       info "RE perceive smoke-test against ${_sm_first_id} (${SMOKE_DIM}-element zero vector)..."
       ZERO_VEC=$(python3 -c "import json; print(json.dumps([0.0]*${SMOKE_DIM}))" 2>/dev/null || echo "")
       if [ -n "$ZERO_VEC" ] && [ -n "$_sm_re_url" ]; then
-          PERCEIVE_RESP=$(curl -sf --max-time 15 -X POST "$_sm_re_url/api/perceive" \
+          PERCEIVE_RESP=$(lane_curl_get "$_sm_re_url/api/perceive" -sf --max-time 15 -X POST \
               -H "Content-Type: application/json" \
               -d "{\"vector\": $ZERO_VEC}" 2>/dev/null || echo "")
           if [ -n "$PERCEIVE_RESP" ]; then
@@ -2980,7 +3025,7 @@ nz = sum(1 for v in ps if v != 0.0) if ps else 0
 print(f'machines_evaluated={n}, non-zero_perceptual_elements={nz}')
 " 2>/dev/null || echo "response received")
               ok "RE perceive [${_sm_first_id}]: $PERCEIVE_INFO"
-              if curl -sf --max-time 10 -X POST "$_sm_re_url/api/engine/reset" \
+              if lane_curl_get "$_sm_re_url/api/engine/reset" -sf --max-time 10 -X POST \
                   -H "Content-Type: application/json" \
                   -d '{}' >/dev/null 2>&1; then
                   ok "RE reset after perceive smoke-test (${_sm_first_id})"
@@ -2996,7 +3041,7 @@ print(f'machines_evaluated={n}, non-zero_perceptual_elements={nz}')
 
       if [ -n "$_sm_pe_url" ]; then
           info "Sensor write smoke-test against ${_sm_first_id}..."
-          SENSOR_WRITE=$(curl -sf --max-time 5 -X POST "$_sm_pe_url/api/sensors/localai_rag_retrieval" \
+          SENSOR_WRITE=$(lane_curl_get "$_sm_pe_url/api/sensors/localai_rag_retrieval" -sf --max-time 5 -X POST \
               -H "Content-Type: application/json" -d '{"values": [2.0, 0.85, 0.0, 0.0]}' \
               2>/dev/null || echo "")
           if echo "$SENSOR_WRITE" | python3 -c \

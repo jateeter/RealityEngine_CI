@@ -162,6 +162,16 @@ With the lane on:
   context calls `re_tls.install_lane_opener()` at import, which installs the
   lane context through urllib's `install_opener` when the lane is on and does
   nothing when it is off.
+- **The native lane's universe** (`startUniverse.sh --engines=...`) starts its
+  engines on TLS 1.3 with mTLS (C++, LSP and Scala; Rust as a follower). It
+  issues Manager its own certificate (`manager`, kind both) and passes it as
+  `RE_TLS_*`, so Manager's backend and frontend serve TLS 1.3 and call the
+  engines with mTLS. Its readiness polls, `_publish_service` probes and
+  post-start checks go through `lane_curl_get`.
+  - Consumers not yet on the lane's TLS are refused, not started broken:
+    `RE_TLS=on` needs `--no-local-ai` (localAIStack#172), `--no-openclaw`
+    (localOpenClawStack#92) and `--no-mcp-http` (#730). Each lifts when its
+    issue lands.
 - **The docker lane** issues each instance (`scala-1`, `cpp-1`, `lsp-1`) a
   certificate from its own `docker` CA, covering the compose service names
   (`engine-<rt>-re`, `engine-<rt>-pe`), `host.docker.internal`, `localhost` and
