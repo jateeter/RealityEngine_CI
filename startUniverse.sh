@@ -472,8 +472,11 @@ verify_localai_reach() {
         # sensor sources named localai/* with their regions. Slot sources (a
         # `slot` name segment, e.g. localai/health/slot/pulse) appear on their
         # own schedule and are left out, as in every byte comparison (#518).
-        sig=$(python3 - "$re" "$pe" <<'PYEOF' 2>/dev/null || echo "unreadable"
-import json, re, sys, urllib.request
+        sig=$(CI_LIB="$CI_DIR/scripts/lib" python3 - "$re" "$pe" <<'PYEOF' 2>/dev/null || echo "unreadable"
+import json, os, re, sys, urllib.request
+sys.path.insert(0, os.environ["CI_LIB"])
+import re_tls  # the lane's mTLS when RE_TLS=on (#668); nothing otherwise
+re_tls.install_lane_opener()
 def get(url):
     with urllib.request.urlopen(url, timeout=5) as r:
         return json.loads(r.read().decode())
@@ -524,18 +527,23 @@ configure_localai_bridge_targets() {
     # RE_URL/PE_URL no longer wins over the registry. verify_localai_reach
     # checks the result after localAI starts.
     if [ "$MULTI_ENGINE_MODE" = true ]; then
-        _localai_bridge_urls=$(python3 - "$REGISTRY_FILE" <<'PYEOF'
+        # The fallback follows the lane: with RE_TLS=on the instances serve
+        # https and their certificates name HOST_IP, not host.docker.internal.
+        local _bridge_host=host.docker.internal
+        lane_tls_enabled && _bridge_host="$HOST_IP"
+        _localai_bridge_urls=$(python3 - "$REGISTRY_FILE" "$(lane_tls_scheme)" "$_bridge_host" <<'PYEOF'
 import json
 import sys
 
 try:
     with open(sys.argv[1]) as f:
         instances = json.load(f).get("instances", [])
+    scheme, host = sys.argv[2], sys.argv[3]
     first = instances[0] if instances else {}
     re_port = first.get("re_port")
     pe_port = first.get("pe_port")
     if re_port and pe_port:
-        print(f"http://host.docker.internal:{re_port} http://host.docker.internal:{pe_port}")
+        print(f"{scheme}://{host}:{re_port} {scheme}://{host}:{pe_port}")
 except Exception:
     pass
 PYEOF
@@ -1330,6 +1338,9 @@ spawn_scala_instance() {
     instance_uuid=$(instance_uuid_allocate native "$id") || die "$id: instance UUID allocation failed"
     # Its certificate (#732): issued always, handed over only with RE_TLS=on.
     lane_tls_issue_instance "$id" "$instance_uuid" "$HOST_IP" || die "$id: certificate issue failed (RE_TLS=on)"
+    # localAI, Qdrant and Ollama follow the lane (localAIStack#172): each spawn
+    # below passes them, as the engines' own defaults are http (Ollama: its
+    # TLS front on the lane). Scala reads Ollama's address from the env only.
     local scheme; scheme=$(lane_tls_scheme)
 
     info "Spawning $id  (RE=$HOST_IP:$re_port  PE=$HOST_IP:$pe_port)"
@@ -1344,6 +1355,9 @@ spawn_scala_instance() {
     RE_TLS_KEY="$INST_TLS_KEY" \
     RE_TLS_CA="$INST_TLS_CA" \
     RE_TLS_CRL="$INST_TLS_CRL" \
+    LOCAL_AI_API_URL="${LOCAL_AI_API_URL:-$scheme://localhost:4000}" \
+    QDRANT_URL="${QDRANT_URL:-$scheme://localhost:4333}" \
+    OLLAMA_BASE_URL="${OLLAMA_BASE_URL:-$(lane_ollama_url host)}" \
     RE_LOAD_MACHINES="$_RE_LOAD_MACHINES" \
     FRESH_START="$FRESH_START" \
     HOST="0.0.0.0" \
@@ -1397,6 +1411,9 @@ spawn_cpp_instance() {
     RE_TLS_KEY="$INST_TLS_KEY" \
     RE_TLS_CA="$INST_TLS_CA" \
     RE_TLS_CRL="$INST_TLS_CRL" \
+    LOCAL_AI_API_URL="${LOCAL_AI_API_URL:-$scheme://localhost:4000}" \
+    QDRANT_URL="${QDRANT_URL:-$scheme://localhost:4333}" \
+    OLLAMA_BASE_URL="${OLLAMA_BASE_URL:-$(lane_ollama_url host)}" \
     RE_LOAD_MACHINES="$_RE_LOAD_MACHINES" \
     FRESH_START="$FRESH_START" \
     REALITY_ENGINE_HOST="$HOST_IP" \
@@ -1449,6 +1466,9 @@ spawn_lsp_instance() {
     RE_TLS_KEY="$INST_TLS_KEY" \
     RE_TLS_CA="$INST_TLS_CA" \
     RE_TLS_CRL="$INST_TLS_CRL" \
+    LOCAL_AI_API_URL="${LOCAL_AI_API_URL:-$scheme://localhost:4000}" \
+    QDRANT_URL="${QDRANT_URL:-$scheme://localhost:4333}" \
+    OLLAMA_BASE_URL="${OLLAMA_BASE_URL:-$(lane_ollama_url host)}" \
     RE_LOAD_MACHINES="$_RE_LOAD_MACHINES" \
     FRESH_START="$FRESH_START" \
     REALITY_ENGINE_HOST="$HOST_IP" \
@@ -3143,8 +3163,11 @@ print(f'machines_evaluated={n}, non-zero_perceptual_elements={nz}')
               # source and re-declare it exactly as localAI declared it, with
               # no value: the smoke asks whether a write is accepted and must
               # leave no trace.
-              if _SM_RESTORE_OUT=$(_sm_pe_url="$_sm_pe_url" python3 - <<'PY' 2>&1
-import json, os, urllib.request
+              if _SM_RESTORE_OUT=$(_sm_pe_url="$_sm_pe_url" CI_LIB="$CI_DIR/scripts/lib" python3 - <<'PY' 2>&1
+import json, os, sys, urllib.request
+sys.path.insert(0, os.environ["CI_LIB"])
+import re_tls  # the lane's mTLS when RE_TLS=on (#668); nothing otherwise
+re_tls.install_lane_opener()
 pe = os.environ["_sm_pe_url"]
 def call(method, path, body=None):
     req = urllib.request.Request(pe + path, method=method,
@@ -3247,8 +3270,9 @@ echo ""
 fi
 if [ "$MULTI_ENGINE_MODE" = true ]; then
 echo "  RealityEngine  — Multi-Engine Native Mode"
-printf "    %-30s %s\n" "Visualizer UI"             "http://localhost:5173"
-printf "    %-30s %s\n" "Visualizer Backend"        "http://localhost:3001"
+# Manager serves TLS on the native lane when it is on (#740).
+printf "    %-30s %s\n" "Visualizer UI"             "$(lane_tls_scheme)://localhost:5173"
+printf "    %-30s %s\n" "Visualizer Backend"        "$(lane_tls_scheme)://localhost:3001"
 printf "    %-30s %s\n" "Instance Registry"         "$(lane_tls_scheme)://$HOST_IP:${REGISTRY_PORT}/re-registry.json"
 echo ""
 if [ -f "$REGISTRY_FILE" ]; then
@@ -3292,7 +3316,11 @@ if [ "${#WARNS[@]}" -gt 0 ]; then
     echo ""
     if [ "$LOCAL_AI_ENABLED" = true ]; then
         echo "  Re-trigger localAIStack hooks with the active bridge target:"
-        echo "    (cd $LAS_DIR && RE_URL=$RE_URL PE_URL=$PE_URL RE_SSL_VERIFY=${RE_SSL_VERIFY:-false} docker compose up -d --force-recreate api)"
+        if lane_tls_enabled; then
+            echo "    (cd $LAS_DIR && COMPOSE_FILE=docker-compose.yml:docker-compose.tls.yml LOCALAI_TLS_DIR=$LANE_TLS_LOCALAI_DIR LOCALAI_OLLAMA_URL=$(lane_ollama_url docker) RE_URL=$RE_URL PE_URL=$PE_URL docker compose up -d --force-recreate api)"
+        else
+            echo "    (cd $LAS_DIR && RE_URL=$RE_URL PE_URL=$PE_URL RE_SSL_VERIFY=${RE_SSL_VERIFY:-false} docker compose up -d --force-recreate api)"
+        fi
         echo ""
     fi
 else
