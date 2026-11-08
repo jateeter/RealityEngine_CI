@@ -629,8 +629,21 @@ PYEOF
 
 start_bridge_metrics_exporter() {
     command -v node >/dev/null 2>&1 || { add_warn "Bridge metrics exporter skipped — node is not on PATH"; return 0; }
-    local url="http://${BRIDGE_METRICS_HOST}:${BRIDGE_METRICS_PORT}"
-    if pid_alive "$BRIDGE_METRICS_PID_FILE" && curl -sf --max-time 3 "$url/healthz" >/dev/null 2>&1; then
+    # Lane TLS (#730): /metrics over TLS 1.3 with a lane client certificate
+    # required (Prometheus presents its own), and the exporter's own calls on the
+    # lane's mTLS (scripts/bridge-metrics-exporter.mjs, mcp/src/lane-tls.js).
+    # Probed by name, not by its bind address: 0.0.0.0 is no certificate's name
+    # (the lane checks it), and every lane certificate names localhost.
+    local probe_host="$BRIDGE_METRICS_HOST"
+    case "$probe_host" in 0.0.0.0|::|"[::]") probe_host=localhost ;; esac
+    local url
+    url="$(lane_tls_scheme)://${probe_host}:${BRIDGE_METRICS_PORT}"
+    local -a bridge_env=()
+    if lane_tls_enabled; then
+        lane_tls_issue_instance bridge-metrics "" "$HOST_IP" || die "bridge metrics: certificate issue failed (RE_TLS=on)"
+        bridge_env=(RE_TLS_CERT="$INST_TLS_CERT" RE_TLS_KEY="$INST_TLS_KEY" RE_TLS_CA="$INST_TLS_CA" RE_TLS_CRL="$INST_TLS_CRL")
+    fi
+    if pid_alive "$BRIDGE_METRICS_PID_FILE" && obs_get "$url/healthz" -sf --max-time 3 -o /dev/null >/dev/null 2>&1; then
         BRIDGE_METRICS_STARTED=true
         ok "AI bridge metrics already running: $url/metrics"
         return 0
@@ -639,7 +652,7 @@ start_bridge_metrics_exporter() {
     local blocker
     blocker="$(port_listener_pid "$BRIDGE_METRICS_PORT")"
     if [ -n "$blocker" ]; then
-        if curl -sf --max-time 3 "$url/healthz" >/dev/null 2>&1; then
+        if obs_get "$url/healthz" -sf --max-time 3 -o /dev/null >/dev/null 2>&1; then
             BRIDGE_METRICS_STARTED=true
             ok "AI bridge metrics reachable on existing listener: $url/metrics"
         else
@@ -661,13 +674,16 @@ start_bridge_metrics_exporter() {
       OPENCLAW_GATEWAY_URL="${OPENCLAW_GATEWAY_URL:-http://127.0.0.1:${OCS_GW_PORT:-18789}}" \
       OPENCLAW_GATEWAY_TOKEN="${OPENCLAW_GATEWAY_TOKEN:-}" \
       OPENCLAW_ENV_FILE="$OCS_DIR/.env" \
-      LOCALAI_API_URL="${LOCALAI_API_URL:-http://127.0.0.1:4000}" \
-      QDRANT_URL="${QDRANT_URL:-http://127.0.0.1:4333}" \
-      OLLAMA_BASE_URL="${OLLAMA_BASE_URL:-http://127.0.0.1:11434}" \
-      nohup node scripts/bridge-metrics-exporter.mjs > "$BRIDGE_METRICS_LOG_FILE" 2>&1 &
+      LOCALAI_API_URL="${LOCALAI_API_URL:-$(lane_tls_scheme)://localhost:4000}" \
+      QDRANT_URL="${QDRANT_URL:-$(lane_tls_scheme)://localhost:4333}" \
+      OLLAMA_BASE_URL="${OLLAMA_BASE_URL:-$(lane_ollama_url host)}" \
+      nohup env ${bridge_env[@]+"${bridge_env[@]}"} node scripts/bridge-metrics-exporter.mjs > "$BRIDGE_METRICS_LOG_FILE" 2>&1 &
       echo $! > "$BRIDGE_METRICS_PID_FILE"
     )
-    if poll_http "$url/healthz" "AI bridge metrics health ready" 20 "-sf --max-time 3"; then
+    local n=0
+    while [ "$n" -lt 20 ] && ! obs_get "$url/healthz" -sf --max-time 3 -o /dev/null >/dev/null 2>&1; do n=$((n+1)); echo -n "."; sleep 2; done
+    if obs_get "$url/healthz" -sf --max-time 3 -o /dev/null >/dev/null 2>&1; then
+        ok "AI bridge metrics health ready$(lane_tls_enabled && echo ' (TLS 1.3, mTLS)')"
         BRIDGE_METRICS_STARTED=true
     else
         add_warn "AI bridge metrics exporter did not become healthy — see $BRIDGE_METRICS_LOG_FILE"
@@ -683,28 +699,30 @@ start_observability_stack() {
     start_bridge_metrics_exporter
 
     info "Starting Prometheus + Grafana + Promtail..."
-    (cd "$CI_DIR" && docker compose up -d --remove-orphans --force-recreate prometheus grafana promtail \
+    (cd "$CI_DIR" && obs_compose up -d --remove-orphans --force-recreate prometheus grafana promtail \
         2>/tmp/observability_start_err.log) > /dev/null || {
         add_warn "Prometheus/Grafana/Promtail startup failed — $(tail -5 /tmp/observability_start_err.log 2>/dev/null)"
         return 0
     }
 
+    local obs_scheme
+    obs_scheme="$(lane_tls_scheme)"
     if wait_container_ready "Prometheus" reality-engine-prometheus \
-        "http://localhost:9090/-/ready" "http://localhost:9090" 45; then
+        "$obs_scheme://localhost:9090/-/ready" "$obs_scheme://localhost:9090" 45; then
         PROMETHEUS_STARTED=true
     else
         write_container_health_diagnostics "Prometheus" reality-engine-prometheus \
-            "http://localhost:9090/-/ready" /tmp/realityengine-prometheus-health-diagnostics.log
-        add_warn "Prometheus did not become ready — dockerHealth=$(docker_health_status reality-engine-prometheus) hostHttp=$(curl -sS -o /dev/null -w '%{http_code}' --max-time 3 http://localhost:9090/-/ready 2>/dev/null || true) lastHealth='$(docker_last_health_output reality-engine-prometheus)' diagnostics: /tmp/realityengine-prometheus-health-diagnostics.log"
+            "$obs_scheme://localhost:9090/-/ready" /tmp/realityengine-prometheus-health-diagnostics.log
+        add_warn "Prometheus did not become ready — dockerHealth=$(docker_health_status reality-engine-prometheus) hostHttp=$(obs_get "$obs_scheme://localhost:9090/-/ready" -sS -o /dev/null -w '%{http_code}' --max-time 3 2>/dev/null || true) lastHealth='$(docker_last_health_output reality-engine-prometheus)' diagnostics: /tmp/realityengine-prometheus-health-diagnostics.log"
     fi
 
     if wait_container_ready "Grafana" reality-engine-grafana \
-        "http://localhost:3002/api/health" "http://localhost:3002" 45; then
+        "$obs_scheme://localhost:3002/api/health" "$obs_scheme://localhost:3002" 45; then
         GRAFANA_STARTED=true
     else
         write_container_health_diagnostics "Grafana" reality-engine-grafana \
-            "http://localhost:3002/api/health" /tmp/realityengine-grafana-health-diagnostics.log
-        add_warn "Grafana did not become healthy — dockerHealth=$(docker_health_status reality-engine-grafana) hostHttp=$(curl -sS -o /dev/null -w '%{http_code}' --max-time 3 http://localhost:3002/api/health 2>/dev/null || true) lastHealth='$(docker_last_health_output reality-engine-grafana)' diagnostics: /tmp/realityengine-grafana-health-diagnostics.log"
+            "$obs_scheme://localhost:3002/api/health" /tmp/realityengine-grafana-health-diagnostics.log
+        add_warn "Grafana did not become healthy — dockerHealth=$(docker_health_status reality-engine-grafana) hostHttp=$(obs_get "$obs_scheme://localhost:3002/api/health" -sS -o /dev/null -w '%{http_code}' --max-time 3 2>/dev/null || true) lastHealth='$(docker_last_health_output reality-engine-grafana)' diagnostics: /tmp/realityengine-grafana-health-diagnostics.log"
     fi
 
     local promtail_status
@@ -720,7 +738,16 @@ validate_metrics_surfaces() {
     info "Validating RE metric surfaces..."
     set +e
     if [ "$MULTI_ENGINE_MODE" = true ] && [ -f "$REGISTRY_FILE" ]; then
-        python3 - "$REGISTRY_FILE" <<'PYEOF' | while IFS='|' read -r _id _component _url; do
+        # A process substitution, not a pipe: add_warn in a piped loop ran in a
+        # subshell, so a metrics surface that failed was never reported.
+        while IFS='|' read -r _id _component _url; do
+            _bytes=$(obs_get "$_url" -sf --max-time 4 2>/dev/null | wc -c | tr -d ' ')
+            if [ "${_bytes:-0}" -gt 0 ]; then
+                ok "$_id $_component metrics non-empty ($_bytes bytes)"
+            else
+                add_warn "$_id $_component metrics empty or unavailable at $_url"
+            fi
+        done < <(python3 - "$REGISTRY_FILE" <<'PYEOF'
 import json
 import sys
 with open(sys.argv[1]) as f:
@@ -730,13 +757,7 @@ for inst in instances:
     if inst.get("re_url"):
         print(f"{iid}|RE|{inst['re_url']}/api/metrics")
 PYEOF
-            _bytes=$(curl -sf --max-time 4 "$_url" 2>/dev/null | wc -c | tr -d ' ')
-            if [ "${_bytes:-0}" -gt 0 ]; then
-                ok "$_id $_component metrics non-empty ($_bytes bytes)"
-            else
-                add_warn "$_id $_component metrics empty or unavailable at $_url"
-            fi
-        done
+)
     else
         for _url in "https://localhost:5001/api/metrics"; do
             _bytes=$(curl -skf --max-time 4 "$_url" 2>/dev/null | wc -c | tr -d ' ')
@@ -830,6 +851,27 @@ las_compose() {
     else
         docker compose "$@"
     fi
+}
+
+# obs_compose: CI's own compose for the observability services (loki,
+# prometheus, grafana, promtail), with their lane TLS overlay when the lane is on
+# (docker-compose.observability-tls.yml, #730). Only those services go through it.
+obs_compose() {
+    if lane_tls_enabled; then
+        COMPOSE_FILE=docker-compose.yml:docker-compose.observability-tls.yml \
+        OBS_TLS_DIR="${LANE_TLS_OBS_DIR:-${RE_INSTANCE_STATE_DIR:-$HOME/.reality-engine}/observability/tls}" \
+            docker compose "$@"
+    else
+        docker compose "$@"
+    fi
+}
+
+# obs_get URL [curl args...]: GET a lane surface (an engine's metrics,
+# Prometheus, Grafana, the bridge exporter): over the lane's mTLS when it is on,
+# plain curl otherwise.
+obs_get() {
+    local url="$1"; shift
+    if lane_tls_enabled; then lane_curl_get "$url" "$@"; else curl "$@" "$url"; fi
 }
 
 # las_get PATH [curl args...]: GET from the localAIStack API, over the lane's
@@ -926,7 +968,7 @@ wait_container_ready() {
     local n=0 status
     while [ "$n" -lt "$max" ]; do
         status="$(docker_health_status "$container")"
-        if [ "$status" = "healthy" ] && curl -sf --max-time 3 "$host_url" >/dev/null 2>&1; then
+        if [ "$status" = "healthy" ] && obs_get "$host_url" -sf --max-time 3 -o /dev/null >/dev/null 2>&1; then
             ok "$label ready: $display_url"
             return 0
         fi
@@ -2042,6 +2084,8 @@ if lane_tls_enabled; then
     lane_tls_init native || die "RE_TLS=on but the native lane PKI is unusable (scripts/lib/re_pki.py)"
     lane_tls_localai "$HOST_IP" || die "RE_TLS=on but localAIStack's lane certificates could not be issued"
     ok "localAIStack lane certificates: $LANE_TLS_LOCALAI_DIR"
+    lane_tls_observability || die "RE_TLS=on but the observability stack's lane certificates could not be issued"
+    ok "Observability lane certificates: $LANE_TLS_OBS_DIR"
     if curl -sf --max-time 3 http://localhost:11434/api/version > /dev/null 2>&1; then
         lane_tls_ollama_front_start "$LAS_DIR" "$HOST_IP" || \
             die "Ollama's TLS front did not start — log: $LANE_OLLAMA_FRONT_LOG"
@@ -2095,7 +2139,7 @@ if [ "$FRESH_START" = true ]; then
 fi
 
 info "Starting Loki (CI) + Qdrant + Redis..."
-(cd "$CI_DIR" && docker compose up -d --remove-orphans loki \
+(cd "$CI_DIR" && obs_compose up -d --remove-orphans loki \
     2>/tmp/infra_start_err.log) > /dev/null || \
     die "docker compose up failed for Loki\n$(tail -5 /tmp/infra_start_err.log 2>/dev/null)"
 (cd "$LAS_DIR" && las_compose up -d --remove-orphans qdrant redis \
@@ -2103,8 +2147,13 @@ info "Starting Loki (CI) + Qdrant + Redis..."
     die "docker compose up failed for Qdrant/Redis\n$(tail -5 /tmp/infra_start_err.log 2>/dev/null)"
 
 info "Waiting for Loki..."
-poll_http "https://localhost:3100/ready" "Loki ready" 90 "-skf" || \
-    die "Loki failed — check:  docker logs reality-engine-loki"
+if lane_tls_enabled; then
+    poll_lane "https://localhost:3100/ready" "Loki ready (TLS 1.3, mTLS)" 90 || \
+        die "Loki failed — check:  docker logs reality-engine-loki"
+else
+    poll_http "https://localhost:3100/ready" "Loki ready" 90 "-skf" || \
+        die "Loki failed — check:  docker logs reality-engine-loki"
+fi
 
 info "Waiting for Qdrant..."
 if lane_tls_enabled; then
@@ -3297,8 +3346,8 @@ printf "    %-30s %s\n" "OpenAPI Specs"             "http://${OPENAPI_SWAGGER_HO
 fi
 echo ""
 echo "  Observability"
-printf "    %-30s %s\n" "Grafana"                   "http://localhost:3002"
-printf "    %-30s %s\n" "Prometheus"                "http://localhost:9090"
+printf "    %-30s %s\n" "Grafana"                   "$(lane_tls_scheme)://localhost:3002"
+printf "    %-30s %s\n" "Prometheus"                "$(lane_tls_scheme)://localhost:9090"
 printf "    %-30s %s\n" "AI Bridge Metrics"         "http://localhost:${BRIDGE_METRICS_PORT}/metrics"
 printf "    %-30s %s\n" "Loki"                      "https://localhost:3100"
 echo ""
@@ -3414,14 +3463,14 @@ manifest = {
     "ollama_started_by_universe": "$_ollama_started" == "true",
     "openclaw_started":        "$OCS_STARTED" == "true",
     "prometheus_started":      "$PROMETHEUS_STARTED" == "true",
-    "prometheus_url":          "http://localhost:9090",
+    "prometheus_url":          "$(lane_tls_scheme)://localhost:9090",
     "grafana_started":         "$GRAFANA_STARTED" == "true",
-    "grafana_url":             "http://localhost:3002",
+    "grafana_url":             "$(lane_tls_scheme)://localhost:3002",
     "bridge_metrics_started":  "$BRIDGE_METRICS_STARTED" == "true",
-    "bridge_metrics_url":      "http://localhost:${BRIDGE_METRICS_PORT}/metrics",
+    "bridge_metrics_url":      "$(lane_tls_scheme)://localhost:${BRIDGE_METRICS_PORT}/metrics",
     "mcp_http_enabled":        "$MCP_HTTP_ENABLED" == "true",
     "mcp_http_started":        "$MCP_HTTP_STARTED" == "true",
-    "mcp_http_url":            "http://${RE_MCP_HTTP_HOST}:${RE_MCP_HTTP_PORT}/mcp",
+    "mcp_http_url":            "$(lane_tls_scheme)://${RE_MCP_HTTP_HOST}:${RE_MCP_HTTP_PORT}/mcp",
     "openai_mcp_profile":      openai_mcp_profile,
     "openapi_swagger_enabled": "$OPENAPI_SWAGGER_ENABLED" == "true",
     "openapi_swagger_started": "$OPENAPI_SWAGGER_STARTED" == "true",

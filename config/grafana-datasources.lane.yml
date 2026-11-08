@@ -1,0 +1,45 @@
+# Grafana's data sources on the lane's TLS (RealityEngine_CI#730): mounted in
+# place of config/grafana-datasources.yml by docker-compose.observability-tls.yml.
+# Loki and Prometheus require a client certificate from the lane CA; Grafana
+# presents its own and verifies them by name against the lane CA. The PEM
+# material is read from the mounted files ($__file{...}), never written here.
+apiVersion: 1
+
+datasources:
+  - name: Loki
+    type: loki
+    uid: loki
+    access: proxy
+    url: https://loki:3100
+    isDefault: true
+    editable: true
+    jsonData:
+      maxLines: 1000
+      tlsAuth: true
+      tlsAuthWithCACert: true
+      serverName: loki
+      derivedFields:
+        - datasourceUid: loki
+          matcherRegex: "traceID=(\\w+)"
+          name: TraceID
+          url: "$${__value.raw}"
+    secureJsonData:
+      tlsCACert: $__file{/run/re-tls/ca.crt}
+      tlsClientCert: $__file{/run/re-tls/service/chain.pem}
+      tlsClientKey: $__file{/run/re-tls/service/key.pem}
+
+  - name: Prometheus
+    type: prometheus
+    uid: prometheus
+    access: proxy
+    url: https://prometheus:9090
+    isDefault: false
+    editable: true
+    jsonData:
+      tlsAuth: true
+      tlsAuthWithCACert: true
+      serverName: prometheus
+    secureJsonData:
+      tlsCACert: $__file{/run/re-tls/ca.crt}
+      tlsClientCert: $__file{/run/re-tls/service/chain.pem}
+      tlsClientKey: $__file{/run/re-tls/service/key.pem}

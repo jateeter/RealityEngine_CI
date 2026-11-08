@@ -63,7 +63,7 @@ services:
   # Port 3100 kept bound to host: the Docker logging driver runs on the host
   # daemon and needs localhost:3100 to push logs into the container network.
   loki:
-    image: grafana/loki:3.4.2
+    image: grafana/loki:3.5.10
     container_name: reality-engine-loki
     ports:
       - "3100:3100"
@@ -71,7 +71,9 @@ services:
       - ./config/loki-config.yml:/etc/loki/local-config.yaml
       - ./certs:/etc/loki/certs:ro
       - loki_data:/loki
-    command: -config.file=/etc/loki/local-config.yaml
+    # -config.expand-env: the lane's TLS settings come from the environment
+    # (config/loki-config.yml; docker-compose.observability-tls.yml).
+    command: ["-config.file=/etc/loki/local-config.yaml", "-config.expand-env=true"]
     restart: unless-stopped
     networks:
       - reality-network
@@ -86,7 +88,7 @@ services:
   # the host via host.docker.internal, plus Docker-compose services internally.
   # All runtimes emit identical metric names; a runtime= label distinguishes them.
   prometheus:
-    image: prom/prometheus:v2.53.4
+    image: prom/prometheus:v3.15.1
     container_name: reality-engine-prometheus
     command:
       - --config.file=/etc/prometheus/prometheus.yml
@@ -712,9 +714,9 @@ services:
   # logging driver.  Runs alongside the compose stack; processes that are not
   # running simply produce no log lines.
   promtail:
-    image: grafana/promtail:3.4.2
+    image: grafana/promtail:3.5.10
     container_name: reality-engine-promtail
-    command: -config.file=/etc/promtail/promtail-config.yml
+    command: ["-config.file=/etc/promtail/promtail-config.yml", "-config.expand-env=true"]
     volumes:
       - ./config/promtail-config.yml:/etc/promtail/promtail-config.yml:ro
       - ./certs:/etc/promtail/certs:ro

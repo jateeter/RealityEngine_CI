@@ -1,7 +1,13 @@
 #!/usr/bin/env node
 
-import http from 'node:http';
 import { readFile } from 'node:fs/promises';
+
+// The lane's TLS (RealityEngine_CI#730): with RE_TLS_CERT set the exporter
+// serves /metrics over TLS 1.3 requiring a lane client certificate (Prometheus
+// presents its own), and its calls to the gateway, localAI, Qdrant and the
+// Ollama front present this certificate and trust the lane CA alone. The same
+// module the MCP gateway uses; off the lane both are what they were.
+import { createListener, laneFetch } from '../mcp/src/lane-tls.js';
 
 const port = Number(process.env.BRIDGE_METRICS_PORT || '7342');
 const host = process.env.BRIDGE_METRICS_HOST || '127.0.0.1';
@@ -40,7 +46,7 @@ function labels(items) {
 
 async function fetchJson(url, options = {}) {
   const headers = options.headers || {};
-  const response = await fetch(url, {
+  const response = await laneFetch(url, {
     headers,
     signal: AbortSignal.timeout(timeoutMs)
   });
@@ -216,7 +222,7 @@ async function collectMetrics() {
   return lines.join('\n');
 }
 
-const server = http.createServer(async (request, response) => {
+const { server, scheme, note } = createListener(async (request, response) => {
   if (request.url === '/healthz') {
     response.writeHead(200, { 'content-type': 'application/json' });
     response.end(JSON.stringify({ ok: true, service: 're-ai-bridge-metrics' }));
@@ -237,5 +243,5 @@ const server = http.createServer(async (request, response) => {
 });
 
 server.listen(port, host, () => {
-  console.log(`AI bridge metrics exporter listening on http://${host}:${port}/metrics`);
+  console.log(`AI bridge metrics exporter listening on ${scheme}://${host}:${port}/metrics${note}`);
 });

@@ -193,8 +193,18 @@ With the lane on:
     calls to the engines and the instance registry present it
     (`mcp/src/lane-tls.js`, #730). `RE_MCP_INSECURE_TLS` is ignored on the
     lane. With it, every consumer `startUniverse.sh` starts is on the lane.
-    Observability (Loki, Promtail, Prometheus, Grafana, the bridge metrics
-    exporter) and the OpenAPI portal are still being moved under #730.
+  - **Observability** runs on its overlay (`docker-compose.observability-tls.yml`
+    through `obs_compose`, #730). `lane_tls_observability` issues `obs-loki`,
+    `obs-promtail`, `obs-prometheus` and `obs-grafana` into
+    `~/.reality-engine/observability/tls`. Loki and Prometheus require a lane
+    client certificate; Promtail, Prometheus's scrapes (engines, Qdrant, the
+    bridge exporter) and Grafana's data sources present theirs; Grafana serves
+    the browser over TLS 1.3. Loki's and Promtail's configs take their TLS
+    settings from the environment (`-config.expand-env`); Prometheus uses
+    `config/prometheus.lane.yml` and `prometheus-web.lane.yml`. The bridge
+    metrics exporter serves and calls on the lane through `mcp/src/lane-tls.js`.
+    Loki and Promtail moved to 3.5.10 and Prometheus to v3.15.1, builds that offer
+    X25519MLKEM768. The OpenAPI portal is still plaintext (#730).
 - **The docker lane** issues each instance (`scala-1`, `cpp-1`, `lsp-1`) a
   certificate from its own `docker` CA, covering the compose service names
   (`engine-<rt>-re`, `engine-<rt>-pe`), `host.docker.internal`, `localhost` and
@@ -257,6 +267,7 @@ allows.
 | localai-api → Qdrant | **Qdrant v1.20 cannot be restricted:** with client-certificate verification on it still accepts TLS 1.2 and `TLS_AES_128_GCM_SHA256`, and offers no PQ group. | Its only client, localai-api, offers TLS 1.3 and the profile's suites alone, so the connection always meets the profile and cannot be downgraded; mTLS is required; host ports bind `127.0.0.1`. | A Qdrant setting that restricts protocols and suites. | owner, 2026-11-08 |
 | PEs, the ACP adapter → the OpenClaw gateway | **The gateway cannot require client certificates** (OpenClaw 2026.10.8's TLS server has no `requestCert`; `gateway.tls.caPath` is a trust chain only), so the link is TLS 1.3 without mTLS. | Every call needs the gateway bearer token (`verify-deployment.sh` checks the 401); loopback bind; the listener is held to the full profile by localOpenClawStack's `scripts/lib/lane-tls-preload.cjs`. | mTLS once OpenClaw can require client certificates. | owner, 2026-11-08 |
 | the browser sidecar's CDP proxy → Chromium | **Chromium serves CDP in plaintext only**, so the hop from the TLS proxy (nginx, TLS 1.3 + mTLS) to Chromium is plaintext on the container's loopback. | Only the proxy reaches it; nothing else for CDP is published. | TLS when Chromium serves CDP over it. | owner, 2026-11-08 |
+| Loki, Promtail, Prometheus, Grafana (every observability link) | **They are Go:** TLS 1.3 cipher suites cannot be configured, so `TLS_AES_128_GCM_SHA256` stays negotiable and Go-to-Go links negotiate it; P-256 is accepted, because an explicit curve list would drop X25519MLKEM768. | TLS 1.3 only with mTLS everywhere (Grafana's browser port: server TLS); AES-128-GCM is AEAD; compose network and loopback ports; post-quantum offered after the upgrade. | Go adds TLS 1.3 suite configuration, or an OpenSSL front. | owner, 2026-11-08 |
 | Ollama's TLS front → Ollama | **Ollama serves no TLS** (0.40.13; its FAQ offers only a reverse proxy), so the front's hop to Ollama is plaintext on the host's loopback. | Ollama binds `127.0.0.1` only; every client reaches it through the front on TLS 1.3 with mTLS. | Native TLS when Ollama offers it. | owner, 2026-11-07 |
 
 **A consequence, not a deficiency: OpenAPI "Try it".** Engine RE and PE ports

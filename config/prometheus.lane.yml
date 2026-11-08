@@ -1,0 +1,85 @@
+# Prometheus on the lane's TLS (RealityEngine_CI#730, #668): the native lane with
+# RE_TLS=on mounts this in place of config/prometheus.yml
+# (docker-compose.observability-tls.yml). Every scrape is https, verified
+# against the lane CA, presenting Prometheus's own lane certificate (the
+# engines' and Qdrant's metrics ports require one).
+#
+# The engine targets come from the instance registry as
+# host.docker.internal:<port> (generate_prometheus_file_sd); the instance
+# certificates name localhost, 127.0.0.1 and HOST_IP but not
+# host.docker.internal, so the TLS name checked is localhost, which every lane
+# certificate here carries. The docker lane's static compose jobs are not here:
+# that lane is not on TLS yet (#732).
+#
+# Prometheus is Go: its TLS 1.3 suites cannot be restricted (AES-128-GCM stays
+# negotiable), an accepted deficiency (owner, 2026-11-08; config/transport-inventory.json).
+
+global:
+  scrape_interval:     5s
+  evaluation_interval: 5s
+  external_labels:
+    cluster:     reality-engine
+    environment: dev
+
+scrape_configs:
+  - job_name:     reality-engine-registry
+    metrics_path: /api/metrics
+    scrape_interval: 30s
+    scrape_timeout:  25s
+    honor_labels: true
+    scheme:       https
+    tls_config: &lane
+      ca_file:     /run/re-tls/ca.crt
+      cert_file:   /run/re-tls/service/chain.pem
+      key_file:    /run/re-tls/service/key.pem
+      server_name: localhost
+      min_version: TLS13
+    file_sd_configs:
+      - files:
+          - /etc/prometheus/file_sd/reality-engine-targets.json
+        refresh_interval: 10s
+
+  - job_name:     perception-engine-registry
+    metrics_path: /api/metrics
+    scrape_interval: 30s
+    scrape_timeout:  25s
+    honor_labels: true
+    scheme:       https
+    tls_config: *lane
+    file_sd_configs:
+      - files:
+          - /etc/prometheus/file_sd/perception-engine-targets.json
+        refresh_interval: 10s
+
+  - job_name:     ai-bridge-operations
+    metrics_path: /metrics
+    scrape_interval: 15s
+    scrape_timeout:  12s
+    honor_labels: true
+    scheme:       https
+    tls_config: *lane
+    static_configs:
+      - targets:
+          - host.docker.internal:7342
+        labels:
+          component: ai-bridge-metrics
+          source:    host
+
+  - job_name:     qdrant
+    metrics_path: /metrics
+    honor_labels: true
+    scheme:       https
+    tls_config: *lane
+    static_configs:
+      - targets:
+          - host.docker.internal:4333
+        labels:
+          component: qdrant
+          source:    host
+
+  - job_name: prometheus
+    scheme:   https
+    tls_config: *lane
+    static_configs:
+      - targets:
+          - localhost:9090
