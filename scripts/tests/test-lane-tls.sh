@@ -93,6 +93,34 @@ rm -f "$T/ca.crl"; echo not-a-link > "$T/ca.crl"
 lane_tls_docker_instance cpp-1 cpp "$UUID" 192.0.2.10 2>/dev/null && bad "docker on: a file in a link's place was overwritten" || ok "docker on: a file in a link's place is refused, not overwritten"
 export RE_PKI_DIR="$SAVED_PKI_DIR"; unset RE_INSTANCE_STATE_DIR
 
+# --- localAIStack's overlay and Ollama's front (localAIStack#172) --------------
+export RE_INSTANCE_STATE_DIR="$TMP/state-localai"
+L="$RE_INSTANCE_STATE_DIR/localai/tls"
+RE_TLS=off
+lane_tls_init native 2>/dev/null
+lane_tls_localai 192.0.2.10 && [ -z "$LANE_TLS_LOCALAI_DIR" ] && [ ! -e "$L" ] && ok "localai off: nothing issued or linked" || bad "localai off: dir=$LANE_TLS_LOCALAI_DIR"
+[ "$(lane_ollama_url host)" = "$(lane_tls_scheme)://localhost:11434" ] && [ "$(lane_ollama_url docker)" = "$(lane_tls_scheme)://host.docker.internal:11434" ] \
+  && [ "$(lane_tls_scheme)" = http ] && ok "ollama off: Ollama itself" || bad "ollama off: $(lane_ollama_url host) $(lane_ollama_url docker)"
+RE_TLS=on
+lane_tls_init native 2>/dev/null
+lane_tls_localai 192.0.2.10 && [ "$LANE_TLS_LOCALAI_DIR" = "$L" ] && ok "localai on: issued" || bad "localai on: issue"
+for svc in api qdrant redis; do
+  [ -L "$L/$svc" ] && [ -f "$L/$svc/chain.pem" ] && [ -f "$L/$svc/key.pem" ] && ok "localai on: $svc/ links to its certificate" || bad "localai on: $svc/"
+done
+[ -L "$L/ca.crt" ] && [ -L "$L/ca.crl" ] && ok "localai on: CA and CRL linked" || bad "localai on: CA/CRL"
+[ -e "$L/ca.key" ] || [ -e "$L/ca" ] && bad "localai on: the CA directory is exposed" || ok "localai on: no CA key in the overlay directory"
+sans=$(openssl x509 -in "$L/api/cert.pem" -noout -ext subjectAltName 2>/dev/null)
+case "$sans" in *"DNS:api"*"DNS:localai_api"*"DNS:host.docker.internal"*"IP Address:192.0.2.10"*) ok "localai on: the API certificate names its compose, container and host addresses" ;; *) bad "localai on: API SANs: $sans" ;; esac
+openssl x509 -in "$L/redis/cert.pem" -noout -ext extendedKeyUsage 2>/dev/null | grep -q "TLS Web Client Authentication" \
+  && ok "localai on: service certificates also call (their own healthchecks)" || bad "localai on: redis certificate lacks clientAuth"
+[ "$(lane_ollama_url host)" = https://localhost:11443 ] && [ "$(lane_ollama_url docker)" = https://host.docker.internal:11443 ] \
+  && ok "ollama on: the front" || bad "ollama on: $(lane_ollama_url host) $(lane_ollama_url docker)"
+lane_tls_ollama_front_start "$TMP/no-localaistack" 2>/dev/null && bad "front: started without its script" || ok "front: a missing localAIStack is refused"
+LANE_OLLAMA_FRONT_PID_FILE="$TMP/front.pid"; echo $$ > "$LANE_OLLAMA_FRONT_PID_FILE"
+lane_tls_ollama_front_stop; kill -0 $$ 2>/dev/null && [ ! -e "$LANE_OLLAMA_FRONT_PID_FILE" ] \
+  && ok "front stop: a pid file naming another process kills nothing" || bad "front stop"
+unset RE_INSTANCE_STATE_DIR
+
 # --- a broken PKI -------------------------------------------------------------
 # shellcheck disable=SC2034  # read by the sourced library
 RE_TLS=off LANE_TLS_PKI=/nonexistent/re_pki.py
