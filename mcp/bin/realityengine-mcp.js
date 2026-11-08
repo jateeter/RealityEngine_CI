@@ -13,9 +13,10 @@
 import { StdioServerTransport } from '@modelcontextprotocol/sdk/server/stdio.js';
 import { createServer, describeTools } from '../src/server.js';
 import { settings } from '../src/config.js';
+import { insecureTlsAllowed } from '../src/lane-tls.js';
 
-// Accept self-signed TLS proxy certs when explicitly opted in.
-if (/^(1|true|yes)$/i.test(process.env.RE_MCP_INSECURE_TLS ?? '')) {
+// Accept self-signed TLS proxy certs when explicitly opted in, off the lane only.
+if (insecureTlsAllowed()) {
   process.env.NODE_TLS_REJECT_UNAUTHORIZED = '0';
 }
 

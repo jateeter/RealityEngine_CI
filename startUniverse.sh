@@ -305,10 +305,9 @@ if [ "${RE_TLS:-off}" = on ] && [ "$MULTI_ENGINE_MODE" != true ]; then
 fi
 # The engines and Manager serve TLS 1.3 with mTLS under RE_TLS=on (wave 2 of
 # #668); localAIStack does with its lane overlay (localAIStack#172) and the
-# native OpenClaw gateway with OPENCLAW_TLS_DIR (localOpenClawStack#92), both
-# wave 3. re-mcp does not yet: it reads the instance registry and calls the
-# engines, and would fail against them, so the lane refuses to start it rather
-# than start a universe that is half broken. Its line lifts when #730 lands.
+# native OpenClaw gateway with OPENCLAW_TLS_DIR (localOpenClawStack#92), and
+# re-mcp with its own certificate (#730), all wave 3. What is left here refuses
+# a consumer that would start half on the lane.
 if [ "${RE_TLS:-off}" = on ]; then
     _tls_blocked=""
     # Qdrant and Redis start on every native universe, so the overlay is needed
@@ -322,8 +321,6 @@ if [ "${RE_TLS:-off}" = on ]; then
         [ ! -d "$OCS_DIR" ] || [ -f "$OCS_DIR/docker-compose.tls.yml" ] || _tls_blocked="$_tls_blocked
   localOpenClawStack at $OCS_DIR has no docker-compose.tls.yml: update it (localOpenClawStack#92), or --no-openclaw"
     fi
-    [ "${MCP_HTTP_ENABLED:-true}" = false ] || _tls_blocked="$_tls_blocked
-  --no-mcp-http   re-mcp does not speak the lane's TLS yet (RealityEngine_CI#730)"
     if [ -n "$_tls_blocked" ]; then
         echo "RE_TLS=on: these consumers are not on the lane's TLS yet; start without them:$_tls_blocked" >&2
         exit 2
@@ -974,14 +971,30 @@ ensure_mcp_dependencies() {
     fi
 }
 
+# mcp_probe URL [curl args]: GET the MCP gateway, over the lane's mTLS when on.
+mcp_probe() {
+    local u="$1"; shift
+    if lane_tls_enabled; then lane_curl_get "$u" -sf --max-time 3 -o /dev/null "$@" >/dev/null 2>&1
+    else curl -sf --max-time 3 -o /dev/null "$@" "$u" >/dev/null 2>&1; fi
+}
+
 start_mcp_http_service() {
     [ "$MCP_HTTP_ENABLED" = "true" ] || { info "MCP HTTP: skipped (MCP_HTTP_ENABLED=false)"; return 0; }
     command -v node >/dev/null 2>&1 || { add_warn "MCP HTTP skipped — node is not on PATH"; return 0; }
     ensure_mcp_dependencies || return 0
     configure_mcp_targets
 
-    local url="http://${RE_MCP_HTTP_HOST}:${RE_MCP_HTTP_PORT}"
-    if pid_alive "$MCP_HTTP_PID_FILE" && curl -sf --max-time 3 "$url/healthz" >/dev/null 2>&1; then
+    # Lane TLS (#730): the gateway serves TLS 1.3 with mTLS and calls the
+    # engines with its own certificate (mcp/src/lane-tls.js); it is probed with
+    # the harness certificate.
+    local url
+    url="$(lane_tls_scheme)://${RE_MCP_HTTP_HOST}:${RE_MCP_HTTP_PORT}"
+    local -a mcp_tls_env=()
+    if lane_tls_enabled; then
+        lane_tls_issue_instance re-mcp "" "$HOST_IP" || die "re-mcp: certificate issue failed (RE_TLS=on)"
+        mcp_tls_env=(RE_TLS_CERT="$INST_TLS_CERT" RE_TLS_KEY="$INST_TLS_KEY" RE_TLS_CA="$INST_TLS_CA" RE_TLS_CRL="$INST_TLS_CRL")
+    fi
+    if pid_alive "$MCP_HTTP_PID_FILE" && mcp_probe "$url/healthz"; then
         MCP_HTTP_STARTED=true
         ok "MCP HTTP already running: $url/mcp"
         return 0
@@ -990,7 +1003,7 @@ start_mcp_http_service() {
     local blocker
     blocker="$(port_listener_pid "$RE_MCP_HTTP_PORT")"
     if [ -n "$blocker" ]; then
-        if curl -sf --max-time 3 "$url/healthz" >/dev/null 2>&1; then
+        if mcp_probe "$url/healthz"; then
             MCP_HTTP_STARTED=true
             ok "MCP HTTP reachable on existing listener: $url/mcp"
         else
@@ -1008,10 +1021,13 @@ start_mcp_http_service() {
       RE_MCP_INSECURE_TLS="${RE_MCP_INSECURE_TLS:-}" \
       RE_MCP_HTTP_HOST="$RE_MCP_HTTP_HOST" \
       RE_MCP_HTTP_PORT="$RE_MCP_HTTP_PORT" \
-      nohup node mcp/src/http-server.js > "$MCP_HTTP_LOG_FILE" 2>&1 &
+      ${mcp_tls_env[@]+"${mcp_tls_env[@]}"} nohup node mcp/src/http-server.js > "$MCP_HTTP_LOG_FILE" 2>&1 &
       echo $! > "$MCP_HTTP_PID_FILE"
     )
-    if poll_http "$url/healthz" "MCP HTTP health ready" 20 "-sf --max-time 3"; then
+    local n=0
+    while [ "$n" -lt 20 ] && ! mcp_probe "$url/healthz"; do n=$((n+1)); echo -n "."; sleep 2; done
+    if mcp_probe "$url/healthz"; then
+        ok "MCP HTTP health ready$(lane_tls_enabled && echo ' (TLS 1.3, mTLS)')"
         MCP_HTTP_STARTED=true
     else
         add_warn "MCP HTTP gateway did not become healthy — see $MCP_HTTP_LOG_FILE"
@@ -1059,9 +1075,10 @@ start_openapi_swagger_service() {
 validate_mcp_and_openapi() {
     set +e
     if [ "$MCP_HTTP_ENABLED" = "true" ]; then
-        local mcp_url="http://${RE_MCP_HTTP_HOST}:${RE_MCP_HTTP_PORT}"
+        local mcp_url
+        mcp_url="$(lane_tls_scheme)://${RE_MCP_HTTP_HOST}:${RE_MCP_HTTP_PORT}"
         local openai_profile_status="/tmp/realityengine-openai-mcp-profile-check.json"
-        if curl -sf --max-time 5 "$mcp_url/healthz" >/dev/null 2>&1; then
+        if mcp_probe "$mcp_url/healthz"; then
             ok "MCP HTTP health: $mcp_url/healthz"
         else
             add_warn "MCP HTTP /healthz unavailable at $mcp_url/healthz"
@@ -1073,7 +1090,11 @@ validate_mcp_and_openapi() {
         fi
         local init_body='{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":"2025-03-26","capabilities":{},"clientInfo":{"name":"realityengine-startup","version":"1.0.0"}}}'
         local init_code
-        init_code="$(curl -sS --max-time 5 -o /tmp/realityengine-mcp-init.json -w '%{http_code}' -X POST "$mcp_url/mcp" -H 'content-type: application/json' -H 'accept: application/json, text/event-stream' -d "$init_body" 2>/tmp/realityengine-mcp-init.err || echo 000)"
+        if lane_tls_enabled; then
+            init_code="$(lane_curl_get "$mcp_url/mcp" -sS --max-time 5 -o /tmp/realityengine-mcp-init.json -w '%{http_code}' -X POST -H 'content-type: application/json' -H 'accept: application/json, text/event-stream' -d "$init_body" 2>/tmp/realityengine-mcp-init.err || echo 000)"
+        else
+            init_code="$(curl -sS --max-time 5 -o /tmp/realityengine-mcp-init.json -w '%{http_code}' -X POST "$mcp_url/mcp" -H 'content-type: application/json' -H 'accept: application/json, text/event-stream' -d "$init_body" 2>/tmp/realityengine-mcp-init.err || echo 000)"
+        fi
         case "$init_code" in
             2*) ok "MCP Streamable HTTP initialize accepted" ;;
             *)  add_warn "MCP Streamable HTTP initialize failed (HTTP $init_code) — see /tmp/realityengine-mcp-init.json" ;;
@@ -3267,8 +3288,8 @@ printf "    %-30s %s\n" "Ollama"                    "$(lane_ollama_url host)"
 echo ""
 echo "  API Integration Surfaces"
 if [ "$MCP_HTTP_ENABLED" = "true" ]; then
-printf "    %-30s %s\n" "MCP HTTP Gateway"          "http://${RE_MCP_HTTP_HOST}:${RE_MCP_HTTP_PORT}/mcp"
-printf "    %-30s %s\n" "MCP Health"                "http://${RE_MCP_HTTP_HOST}:${RE_MCP_HTTP_PORT}/healthz"
+printf "    %-30s %s\n" "MCP HTTP Gateway"          "$(lane_tls_scheme)://${RE_MCP_HTTP_HOST}:${RE_MCP_HTTP_PORT}/mcp"
+printf "    %-30s %s\n" "MCP Health"                "$(lane_tls_scheme)://${RE_MCP_HTTP_HOST}:${RE_MCP_HTTP_PORT}/healthz"
 fi
 if [ "$OPENAPI_SWAGGER_ENABLED" = "true" ]; then
 printf "    %-30s %s\n" "OpenAPI Swagger"           "http://${OPENAPI_SWAGGER_HOST}:${OPENAPI_SWAGGER_PORT}/"

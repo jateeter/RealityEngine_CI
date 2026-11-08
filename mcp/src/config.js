@@ -1,5 +1,6 @@
 import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
+import { laneFetch } from './lane-tls.js';
 
 // Configuration + runtime discovery for the RealityEngine MCP gateway.
 //
@@ -51,7 +52,7 @@ async function fetchRegistry() {
   if (_registryCache.data && now - _registryCache.at < REGISTRY_TTL_MS) {
     return _registryCache.data;
   }
-  const res = await fetch(url, { headers: { accept: 'application/json' } });
+  const res = await laneFetch(url, { headers: { accept: 'application/json' } });
   if (!res.ok) throw new Error(`registry ${url} -> HTTP ${res.status}`);
   const reg = await res.json();
   const instances = (reg.instances || []).map((i) => ({
