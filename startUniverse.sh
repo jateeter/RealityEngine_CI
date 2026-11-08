@@ -1233,12 +1233,12 @@ PYEOF
             else
                 add_warn "Swagger instance proxy execution failed for ${swagger_instance}"
             fi
-            if curl -sf --max-time 5 "$swagger_url/proxy/${swagger_runtime}/re/api/health" >/dev/null 2>&1; then
+            if obs_get "$swagger_url/proxy/${swagger_runtime}/re/api/health" -sf --max-time 5 -o /dev/null >/dev/null 2>&1; then
                 ok "Swagger RE proxy executes against active ${swagger_runtime}"
             else
                 add_warn "Swagger RE proxy execution failed for ${swagger_runtime}"
             fi
-            if curl -sf --max-time 5 "$swagger_url/proxy/${swagger_runtime}/pe/api/health" >/dev/null 2>&1; then
+            if obs_get "$swagger_url/proxy/${swagger_runtime}/pe/api/health" -sf --max-time 5 -o /dev/null >/dev/null 2>&1; then
                 ok "Swagger PE proxy executes against active ${swagger_runtime}"
             else
                 add_warn "Swagger PE proxy execution failed for ${swagger_runtime}"
@@ -3356,7 +3356,7 @@ printf "    %-30s %s\n" "MCP Health"                "$(lane_tls_scheme)://${RE_M
 fi
 if [ "$OPENAPI_SWAGGER_ENABLED" = "true" ]; then
 printf "    %-30s %s\n" "OpenAPI Swagger"           "$(lane_tls_scheme)://${OPENAPI_SWAGGER_HOST}:${OPENAPI_SWAGGER_PORT}/"
-printf "    %-30s %s\n" "OpenAPI Specs"             "http://${OPENAPI_SWAGGER_HOST}:${OPENAPI_SWAGGER_PORT}/{cpp,lsp,scala}-{re,pe}.yaml"
+printf "    %-30s %s\n" "OpenAPI Specs"             "$(lane_tls_scheme)://${OPENAPI_SWAGGER_HOST}:${OPENAPI_SWAGGER_PORT}/{cpp,lsp,scala}-{re,pe}.yaml"
 fi
 echo ""
 echo "  Observability"
