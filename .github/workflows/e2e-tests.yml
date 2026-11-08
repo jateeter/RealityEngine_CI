@@ -752,6 +752,14 @@ jobs:
         working-directory: RealityEngine_CI
         run: npm run test:bridge-metrics
 
+      # The MCP gateway: its tool catalogue, the end-to-end Streamable HTTP
+      # suite against stub engines, and the lane's TLS (mTLS listener, the
+      # gateway certificate on engine calls, no insecure override; #730).
+      # Nothing ran these on the hosted path before.
+      - name: Run MCP gateway tests
+        working-directory: RealityEngine_CI/mcp
+        run: npm install --no-audit --no-fund --package-lock=false && npm test
+
       - name: Run endpoint resolver unit tests
         working-directory: RealityEngine_CI
         run: bash scripts/tests/test-resolve-endpoint.sh

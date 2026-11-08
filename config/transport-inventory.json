@@ -263,8 +263,23 @@
       ],
       "owner": "RealityEngine_CI",
       "issue": "RealityEngine_CI#730",
-      "status": "unverified",
-      "mtls": false
+      "status": "tls",
+      "mtls": false,
+      "note": "With RE_TLS_CERT (startUniverse.sh with RE_TLS=on; issued as re-mcp, kind both) the Streamable HTTP gateway serves TLS 1.3 at the profile and requires a lane client certificate, and its calls to the engines and the instance registry present its certificate and trust the lane CA alone; RE_MCP_INSECURE_TLS is ignored and plaintext internal URLs are refused (mcp/src/lane-tls.js). Verified by mcp/test/lane-tls.test.js (throwaway CA, stub engine requiring mTLS). Not `compliant` until the probe (#728) records it. The OpenClaw gateway can reach it with its native mcp.servers.<name>.clientCert."
+    },
+    {
+      "id": "browser-to-openapi-portal",
+      "from": "browser",
+      "to": "OpenAPI Swagger portal (127.0.0.1:8088) and its /proxy to the engines",
+      "protocol": "HTTP",
+      "lanes": [
+        "native"
+      ],
+      "owner": "RealityEngine_CI",
+      "issue": "RealityEngine_CI#730",
+      "status": "plaintext",
+      "mtls": false,
+      "note": "scripts/serve_openapi.py serves the portal over plain HTTP on loopback; with RE_TLS=on its /proxy to the engines has no lane certificate, so 'Try it' fails there (owner, 2026-11-07: Try it goes through Manager). Moving the portal to TLS is open under #730."
     },
     {
       "id": "localai-to-engines",

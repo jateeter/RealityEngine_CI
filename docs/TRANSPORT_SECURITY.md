@@ -188,8 +188,13 @@ With the lane on:
     `OPENCLAW_TLS_DIR`, with `OPENCLAW_NATIVE_OLLAMA_URL` on the Ollama front.
     The PEs record `wss://127.0.0.1:18789`. Open WebUI is not started on the
     lane.
-  - Consumers not yet on the lane's TLS are refused, not started broken:
-    `RE_TLS=on` needs `--no-mcp-http` (#730) until its issue lands.
+  - **re-mcp** gets its own certificate (`re-mcp`, kind both). Its Streamable
+    HTTP endpoint serves TLS 1.3 and requires a lane client certificate, and its
+    calls to the engines and the instance registry present it
+    (`mcp/src/lane-tls.js`, #730). `RE_MCP_INSECURE_TLS` is ignored on the
+    lane. With it, every consumer `startUniverse.sh` starts is on the lane.
+    Observability (Loki, Promtail, Prometheus, Grafana, the bridge metrics
+    exporter) and the OpenAPI portal are still being moved under #730.
 - **The docker lane** issues each instance (`scala-1`, `cpp-1`, `lsp-1`) a
   certificate from its own `docker` CA, covering the compose service names
   (`engine-<rt>-re`, `engine-<rt>-pe`), `host.docker.internal`, `localhost` and

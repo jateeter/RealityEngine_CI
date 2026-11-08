@@ -5,6 +5,7 @@
 // (handled in the entrypoints by toggling NODE_TLS_REJECT_UNAUTHORIZED).
 
 import { settings } from './config.js';
+import { laneFetch } from './lane-tls.js';
 
 export async function httpRequest(baseUrl, method, path, body) {
   const url = `${baseUrl}${path}`;
@@ -12,7 +13,8 @@ export async function httpRequest(baseUrl, method, path, body) {
   const timer = setTimeout(() => controller.abort(), settings.requestTimeoutMs);
   let res;
   try {
-    res = await fetch(url, {
+    // The lane's mTLS to the engines when RE_TLS_CERT is set (src/lane-tls.js).
+    res = await laneFetch(url, {
       method,
       headers: {
         accept: 'application/json',

@@ -70,7 +70,8 @@ node bin/realityengine-mcp.js --list-tools   # npm run mcp:tools
 | `RE_URL` / `PE_URL` | – | Single-instance fallback when no registry. |
 | `RE_MCP_ALLOW_MUTATION` | `false` | Allow all mutating tools. |
 | `RE_MCP_ALLOWED_TOOLS` | – | Comma-list allowlist (overrides the above; read or write). |
-| `RE_MCP_INSECURE_TLS` | – | `1` to accept the self-signed Docker TLS proxy certs. |
+| `RE_MCP_INSECURE_TLS` | – | `1` to accept the self-signed Docker TLS proxy certs. Ignored on the lane (`RE_TLS_CERT` set). |
+| `RE_TLS_CERT` / `RE_TLS_KEY` / `RE_TLS_CA` / `RE_TLS_CRL` | – | The lane's TLS (RealityEngine_CI#730, `docs/TRANSPORT_SECURITY.md`): the HTTP transport serves TLS 1.3 and requires a lane client certificate, and calls to the engines and the instance registry present this certificate and trust the lane CA alone; a plaintext internal URL is refused (`src/lane-tls.js`). |
 | `RE_MCP_HTTP_HOST` / `RE_MCP_HTTP_PORT` | `127.0.0.1` / `7331` | HTTP transport bind. |
 | `RE_MCP_TIMEOUT_MS` | `15000` | Per-request timeout. |
 | `RE_MCP_SERVER_NAME` | `realityengine` | MCP server name. |

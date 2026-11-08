@@ -9,14 +9,15 @@
 //
 // A plain GET /healthz is provided for liveness checks.
 
-import { createServer as createHttpServer } from 'node:http';
 import { randomUUID } from 'node:crypto';
 
 import { StreamableHTTPServerTransport } from '@modelcontextprotocol/sdk/server/streamableHttp.js';
 import { createServer as createMcpServer } from './server.js';
 import { settings } from './config.js';
+import { createListener, insecureTlsAllowed } from './lane-tls.js';
 
-if (/^(1|true|yes)$/i.test(process.env.RE_MCP_INSECURE_TLS ?? '')) {
+// Off the lane only: with RE_TLS_CERT set verification is never turned off.
+if (insecureTlsAllowed()) {
   process.env.NODE_TLS_REJECT_UNAUTHORIZED = '0';
 }
 
@@ -41,8 +42,8 @@ function sendJson(res, status, obj) {
   res.end(body);
 }
 
-const httpServer = createHttpServer(async (req, res) => {
-  const url = new URL(req.url, `http://${req.headers.host}`);
+const { server: httpServer, scheme, note } = createListener(async (req, res) => {
+  const url = new URL(req.url, 'http://mcp.invalid');
 
   if (url.pathname === '/healthz') {
     return sendJson(res, 200, { status: 'ok', server: settings.serverName, version: settings.serverVersion });
@@ -99,7 +100,7 @@ const httpServer = createHttpServer(async (req, res) => {
 
 httpServer.listen(settings.httpPort, settings.httpHost, () => {
   process.stderr.write(
-    `[realityengine-mcp:http] listening on http://${settings.httpHost}:${settings.httpPort}/mcp ` +
-      `(health: /healthz)\n`
+    `[realityengine-mcp:http] listening on ${scheme}://${settings.httpHost}:${settings.httpPort}/mcp ` +
+      `(health: /healthz)${note}\n`
   );
 });
