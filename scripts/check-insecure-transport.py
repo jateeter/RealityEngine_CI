@@ -14,6 +14,13 @@ is progress; the check says so, and `--write` records it, so the baseline only
 shrinks. Documentation (`*.md`) and generated OpenAPI documents are not scanned:
 they describe endpoints rather than open them.
 
+An owner-accepted deficiency in config/transport-inventory.json whose link is
+plaintext by decision (its `allows.status` is "plaintext") may name the exact
+occurrences it needs in `deficiency.sources`: `{"file": "<repo>/<path>",
+"pattern": "<name>", "count": n}`. Those are allowed on top of the baseline,
+by count, and never written into it: the occurrence lives exactly as long as
+the deficiency does. Nothing else is exempted.
+
 Not transport, never counted: XML/RDF/JSON-Schema namespace URIs and license
 URLs (w3.org, json-schema.org, purl.org, xmlns.com, schema.org, apache.org
 licenses), which are identifiers that no client connects to.
@@ -36,6 +43,7 @@ from pathlib import Path
 
 CI_DIR = Path(__file__).resolve().parent.parent
 BASELINE = CI_DIR / "config" / "insecure-transport-baseline.json"
+INVENTORY = CI_DIR / "config" / "transport-inventory.json"
 REPOS = [
     "RealityEngine_CI", "RealityEngine_Manager", "RealityEngine_Machines", "RealityEngine_CPP",
     "RealityEngine_LSP", "RealityEngine_Scala", "RealityEngine_Rust", "localAIStack",
@@ -138,11 +146,29 @@ def scan(root: Path, ref: str | None = None) -> tuple[dict[str, dict[str, int]],
     return dict(sorted(found.items())), missing
 
 
+def deficiency_allowances(inventory: dict) -> dict[str, dict[str, int]]:
+    """Occurrences owner-accepted plaintext deficiencies name, per file and pattern."""
+    allowed: dict[str, dict[str, int]] = {}
+    for link in inventory.get("links", []):
+        deficiency = link.get("deficiency") or {}
+        if "owner" not in str(deficiency.get("accepted", "")):
+            continue
+        if (deficiency.get("allows") or {}).get("status") != "plaintext":
+            continue
+        for src in deficiency.get("sources") or []:
+            f, pat, n = src.get("file"), src.get("pattern"), src.get("count")
+            if isinstance(f, str) and pat in PATTERNS and isinstance(n, int) and n > 0:
+                allowed.setdefault(f, {})
+                allowed[f][pat] = allowed[f].get(pat, 0) + n
+    return allowed
+
+
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     parser.add_argument("--write", action="store_true")
     parser.add_argument("--root", type=Path, default=CI_DIR.parent)
     parser.add_argument("--baseline", type=Path, default=BASELINE)
+    parser.add_argument("--inventory", type=Path, default=INVENTORY)
     parser.add_argument("--ref", help="scan this git ref (e.g. origin/main) in every sibling repository instead of its working tree; RealityEngine_CI is always scanned as checked out")
     args = parser.parse_args()
 
@@ -152,13 +178,16 @@ def main() -> int:
               f"scanned under {args.root}: {', '.join(missing)}. Check them out beside RealityEngine_CI.", file=sys.stderr)
         return 1
     baseline = json.loads(args.baseline.read_text())["files"] if args.baseline.exists() else {}
+    allowed = deficiency_allowances(json.loads(args.inventory.read_text())) if args.inventory.exists() else {}
 
-    grown, shrunk = [], 0
+    grown, shrunk, by_deficiency = [], 0, 0
     for path, counts in found.items():
         before = baseline.get(path, {})
         for name, n in counts.items():
-            if n > before.get(name, 0):
+            limit = before.get(name, 0) + allowed.get(path, {}).get(name, 0)
+            if n > limit:
                 grown.append(f"{path}: {name} {before.get(name, 0)} -> {n}")
+            by_deficiency += max(0, min(n, limit) - before.get(name, 0))
     for path, counts in baseline.items():
         for name, n in counts.items():
             if found.get(path, {}).get(name, 0) < n:
@@ -166,6 +195,18 @@ def main() -> int:
 
     total = sum(sum(c.values()) for c in found.values())
     if args.write:
+        # What a deficiency allows is never recorded: it lives as long as the deficiency.
+        for path, counts in allowed.items():
+            for name, n in counts.items():
+                if path in found and name in found[path]:
+                    left = found[path][name] - n
+                    if left > 0:
+                        found[path][name] = left
+                    else:
+                        del found[path][name]
+            if path in found and not found[path]:
+                del found[path]
+        total = sum(sum(c.values()) for c in found.values())
         if grown and args.baseline.exists():
             print("insecure-transport: refusing to write a baseline that grows:", file=sys.stderr)
             for g in grown:
@@ -187,6 +228,8 @@ def main() -> int:
             print(f"  {g}", file=sys.stderr)
         return 1
     note = f"; {shrunk} retired since the baseline: run with --write to record it" if shrunk else ""
+    if by_deficiency:
+        note += f"; {by_deficiency} allowed by accepted deficiencies (config/transport-inventory.json)"
     print(f"insecure-transport: OK: {total} recorded occurrence(s) in {len(found)} file(s), none new{note}")
     return 0
 

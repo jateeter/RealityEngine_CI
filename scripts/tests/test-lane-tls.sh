@@ -119,6 +119,15 @@ lane_tls_ollama_front_start "$TMP/no-localaistack" 2>/dev/null && bad "front: st
 LANE_OLLAMA_FRONT_PID_FILE="$TMP/front.pid"; echo $$ > "$LANE_OLLAMA_FRONT_PID_FILE"
 lane_tls_ollama_front_stop; kill -0 $$ 2>/dev/null && [ ! -e "$LANE_OLLAMA_FRONT_PID_FILE" ] \
   && ok "front stop: a pid file naming another process kills nothing" || bad "front stop"
+# OpenClaw's lane directory (localOpenClawStack#92): the layout its lib/lane-tls.sh reads.
+O="$RE_INSTANCE_STATE_DIR/openclaw/tls"
+lane_tls_openclaw 192.0.2.10 && [ "$LANE_TLS_OPENCLAW_DIR" = "$O" ] && ok "openclaw on: issued" || bad "openclaw on: issue"
+[ -f "$O/gateway/chain.pem" ] && [ -f "$O/gateway/key.pem" ] && [ -f "$O/browser/chain.pem" ] && [ -L "$O/ca.crt" ] && [ -L "$O/ca.crl" ] \
+  && ok "openclaw on: gateway/, browser/, ca.crt and ca.crl linked" || bad "openclaw on: layout"
+openssl x509 -in "$O/gateway/cert.pem" -noout -ext extendedKeyUsage 2>/dev/null | grep -q "TLS Web Client Authentication" \
+  && ok "openclaw on: the gateway certificate also calls (the Ollama front, CDP)" || bad "openclaw on: gateway lacks clientAuth"
+RE_TLS=off; lane_tls_openclaw 192.0.2.10 && [ -z "$LANE_TLS_OPENCLAW_DIR" ] && ok "openclaw off: nothing handed over" || bad "openclaw off"
+RE_TLS=on
 unset RE_INSTANCE_STATE_DIR
 
 # --- a broken PKI -------------------------------------------------------------

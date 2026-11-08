@@ -79,6 +79,15 @@ expect_fail claim 'without a probe record'
 mutate mtlsclaim inventory 'i["links"][0]["mtls"]=True'
 expect_fail mtlsclaim 'without a probe record'
 
+mutate srcnotplain inventory 'l=next(x for x in i["links"] if x["id"]=="pe-to-openclaw"); l["deficiency"]["sources"]=[{"file":"localOpenClawStack/x.conf","pattern":"plaintext-url","count":1}]'
+expect_fail srcnotplain 'only for a link allowed to be plaintext'
+
+mutate srcshape inventory 'l=next(x for x in i["links"] if x["id"]=="browser-cdp-proxy-to-chromium"); l["deficiency"]["sources"]=[{"file":"x.conf","pattern":"plaintext-url","count":0}]'
+expect_fail srcshape 'deficiency.sources must list'
+
+mutate srcpattern inventory 'l=next(x for x in i["links"] if x["id"]=="browser-cdp-proxy-to-chromium"); l["deficiency"]["sources"][0]["pattern"]="anything-goes"'
+expect_fail srcpattern 'deficiency.sources must list'
+
 mutate defnoowner inventory 'next(l for l in i["links"] if l.get("deficiency"))["deficiency"]["accepted"]="a contributor"'
 expect_fail defnoowner 'accepted only by the owner'
 
