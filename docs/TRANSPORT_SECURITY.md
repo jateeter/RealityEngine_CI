@@ -204,7 +204,10 @@ With the lane on:
     `config/prometheus.lane.yml` and `prometheus-web.lane.yml`. The bridge
     metrics exporter serves and calls on the lane through `mcp/src/lane-tls.js`.
     Loki and Promtail moved to 3.5.10 and Prometheus to v3.15.1, builds that offer
-    X25519MLKEM768. The OpenAPI portal is still plaintext (#730).
+    X25519MLKEM768.
+  - **The OpenAPI portal** serves the browser over TLS 1.3 (server TLS, its own
+    `openapi-portal` certificate) and its "Try it" proxy presents that
+    certificate to the engines (#730).
 - **The docker lane** issues each instance (`scala-1`, `cpp-1`, `lsp-1`) a
   certificate from its own `docker` CA, covering the compose service names
   (`engine-<rt>-re`, `engine-<rt>-pe`), `host.docker.internal`, `localhost` and
@@ -272,11 +275,13 @@ allows.
 
 **A consequence, not a deficiency: OpenAPI "Try it".** Engine RE and PE ports
 require a client certificate (mTLS). A browser, or the OpenAPI pages'
-"Try it" button (`scripts/serve-openapi`), therefore can't call an engine
-directly. Those calls go through Manager, whose backend holds a client
-certificate. The generated OpenAPI documents' `servers` entries still name the
-engines' ports; they describe the internal surface and are not a route a
-browser can use (owner, 2026-11-07).
+"Try it" button, therefore can't call an engine directly (owner, 2026-11-07).
+Those calls go through a server-side proxy that holds a lane certificate: the
+OpenAPI portal's own `/proxy` (`scripts/serve_openapi.py`), which on the lane
+serves the browser TLS 1.3 (server TLS) and presents its `openapi-portal`
+certificate to the engines (#730). The portal rewrites each served document's
+`servers` to that proxy; the checked-in documents still name the engines'
+ports, which describe the internal surface and are not a route a browser can use.
 
 **Components and their TLS:**
 - **The OpenClaw gateway** serves HTTPS and WSS natively (OpenClaw 2026.10.8:

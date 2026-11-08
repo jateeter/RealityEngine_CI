@@ -19,13 +19,22 @@ PORT="${1:-8088}"
 HOST="${OPENAPI_SWAGGER_HOST:-127.0.0.1}"
 REGISTRY="${RE_REGISTRY_PATH:-/tmp/re-registry/re-registry.json}"
 
-echo "Serving $DOCROOT on http://${HOST}:${PORT}/"
-echo "  Swagger portal : http://${HOST}:${PORT}/"
-echo "  Raw specs      : http://${HOST}:${PORT}/{cpp,lsp,scala}-{re,pe}.yaml"
-echo "  Proxy          : http://${HOST}:${PORT}/proxy/{cpp,lsp,scala}/{re,pe}/..."
+# The lane's TLS (#730): OPENAPI_TLS_CERT/KEY make the portal serve TLS 1.3.
+TLS_ARGS=()
+SCHEME=http
+if [ -n "${OPENAPI_TLS_CERT:-}" ]; then
+  TLS_ARGS=(--tls-cert "$OPENAPI_TLS_CERT" --tls-key "${OPENAPI_TLS_KEY:?OPENAPI_TLS_CERT is set, so OPENAPI_TLS_KEY must be too}")
+  SCHEME=https
+fi
+
+echo "Serving $DOCROOT on $SCHEME://${HOST}:${PORT}/"
+echo "  Swagger portal : $SCHEME://${HOST}:${PORT}/"
+echo "  Raw specs      : $SCHEME://${HOST}:${PORT}/{cpp,lsp,scala}-{re,pe}.yaml"
+echo "  Proxy          : $SCHEME://${HOST}:${PORT}/proxy/{cpp,lsp,scala}/{re,pe}/..."
 echo "Ctrl-C to stop."
 exec python3 "$CI_DIR/scripts/serve_openapi.py" \
   --host "$HOST" \
   --port "$PORT" \
   --docroot "$DOCROOT" \
-  --registry "$REGISTRY"
+  --registry "$REGISTRY" \
+  ${TLS_ARGS[@]+"${TLS_ARGS[@]}"}

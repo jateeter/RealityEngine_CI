@@ -74,14 +74,33 @@ def server_context(cert: str, key: str, ca: str, crl: str | None = None):
     return ctx
 
 
-def _ensure_conf(cert: str) -> None:
-    """Re-exec once with OPENSSL_CONF naming the profile's config."""
+def user_facing_context(cert: str, key: str):
+    """A browser-facing listener (the OpenAPI portal, #730): TLS 1.3 at the
+    profile, server authentication only. A browser has no lane certificate;
+    user and device authentication sit on top (the transport profile)."""
+    import ssl
+    ctx = ssl.SSLContext(ssl.PROTOCOL_TLS_SERVER)
+    ctx.minimum_version = ssl.TLSVersion.TLSv1_3
+    ctx.maximum_version = ssl.TLSVersion.TLSv1_3
+    ctx.load_cert_chain(cert, key)
+    return ctx
+
+
+def ensure_profile(script: str, cert: str) -> None:
+    """Re-exec `script` once with OPENSSL_CONF naming the profile's config, so
+    the TLS 1.3 suites and groups Python cannot set itself are the profile's.
+    The config is written next to the certificate."""
     if os.environ.get(_CONF_MARK) == "1":
         return
     conf = Path(cert).resolve().parent / "openssl-transport.cnf"
     conf.write_text(openssl_conf_text(_pq_capable()))
     env = dict(os.environ, OPENSSL_CONF=str(conf), **{_CONF_MARK: "1"})
-    os.execve(sys.executable, [sys.executable, os.path.abspath(__file__), *sys.argv[1:]], env)
+    os.execve(sys.executable, [sys.executable, os.path.abspath(script), *sys.argv[1:]], env)
+
+
+def _ensure_conf(cert: str) -> None:
+    """Re-exec this module once with OPENSSL_CONF naming the profile's config."""
+    ensure_profile(__file__, cert)
 
 
 def serve_static(directory: str, port: int, bind: str, ctx) -> None:

@@ -271,15 +271,15 @@
       "id": "browser-to-openapi-portal",
       "from": "browser",
       "to": "OpenAPI Swagger portal (127.0.0.1:8088) and its /proxy to the engines",
-      "protocol": "HTTP",
+      "protocol": "HTTPS",
       "lanes": [
         "native"
       ],
       "owner": "RealityEngine_CI",
       "issue": "RealityEngine_CI#730",
-      "status": "plaintext",
+      "status": "tls",
       "mtls": false,
-      "note": "scripts/serve_openapi.py serves the portal over plain HTTP on loopback; with RE_TLS=on its /proxy to the engines has no lane certificate, so 'Try it' fails there (owner, 2026-11-07: Try it goes through Manager). Moving the portal to TLS is open under #730."
+      "note": "With RE_TLS=on scripts/serve_openapi.py serves TLS 1.3 at the profile (server TLS: a browser-facing page; its own certificate, openapi-portal) and its /proxy reaches the engines over mTLS with that certificate, so Try it works on the lane without a browser touching an engine port (owner, 2026-11-07). Verified by scripts/tests/test-serve-openapi.sh: TLS 1.2 and plaintext refused, specs aim at the https proxy, the proxy presents its certificate to an engine requiring one. Not `compliant` until the probe (#728) records it."
     },
     {
       "id": "localai-to-engines",
