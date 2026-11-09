@@ -23,7 +23,7 @@ the deficiency does. Nothing else is exempted.
 
 Not transport, never counted: XML/RDF/JSON-Schema namespace URIs and license
 URLs (w3.org, json-schema.org, purl.org, xmlns.com, schema.org, apache.org
-licenses), which are identifiers that no client connects to.
+licenses, Apple plist DTDs), which are identifiers that no client connects to.
 
 Usage:
   python3 scripts/check-insecure-transport.py            # check
@@ -57,7 +57,7 @@ NAMES = {"Dockerfile", ".env.example", "Makefile"}
 SKIP_PARTS = {"node_modules", "vendor", "openapi", "dist", "build", "target", ".git", "quicklisp"}
 NAMESPACES = re.compile(
     r"http://(www\.w3\.org|json-schema\.org|purl\.org|xmlns\.com|schema\.org|www\.apache\.org/licenses"
-    r"|www\.opengis\.net|ns\.adobe\.com|www\.iana\.org/assignments)\b")
+    r"|www\.opengis\.net|ns\.adobe\.com|www\.iana\.org/assignments|www\.apple\.com/DTDs)\b")
 # Files whose occurrences define or exercise the check and open no connection:
 # the checker's own patterns, and its test's fixtures (the profile's "named test
 # fixture" exception). Nothing else is ever added here.
