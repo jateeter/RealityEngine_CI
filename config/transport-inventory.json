@@ -596,15 +596,15 @@
       "id": "iphone-to-pe",
       "from": "iPhone (HealthKit bridge)",
       "to": "PE ingest (/api/integrations/healthkit/ingest)",
-      "protocol": "HTTP",
+      "protocol": "HTTPS",
       "lanes": [
         "native"
       ],
       "owner": "localHealthkitBridge",
       "issue": "localHealthkitBridge#52",
-      "status": "unverified",
+      "status": "tls",
       "mtls": false,
-      "note": "External device on the LAN."
+      "note": "External device on the LAN. With RE_TLS=on the PE serves the device routes (healthkit ingest, /status, /scope) on TLS 1.3 without a client certificate, authenticated by the bridge token, and answers its other routes 403 without one (docs/TRANSPORT_SECURITY.md); the app holds its session to TLS 1.3 and trusts the install CA through the profile scripts/ca_profile.sh writes, which the owner installs and fully trusts (localHealthkitBridge#53). Verified live 2026-11-09 on cpp, lsp and scala PEs and an iPhone SE (iOS 27.2): e2e_device.sh passed over https; TLS 1.2 and plain http refused; nothing delivered before the CA was trusted. Server TLS only by design (mtls false). Not `compliant` until the probe (#728) records it."
     },
     {
       "id": "mqtt-yuma",
