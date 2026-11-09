@@ -16,9 +16,19 @@
 # account password and bridge token. It never touches an operator's PIM stack
 # or .solid data, and tears everything down on exit.
 #
+# With RE_TLS=on the leg runs on the lane (OpenCommons-Health PIM#86): PIM's
+# certificates are issued from the lane PKI by PIM's scripts/lane-tls-certs.sh
+# into the work directory, CSS serves TLS 1.3 itself, PIM serves https only and
+# reaches CSS over TLS 1.3 presenting its certificate, and the bridge's
+# PIMWireTests verify PIM against the lane CA (HEALTHKIT_PIM_WIRE_CA) on TLS 1.3.
+#
 # Usage: pim-mirror-leg.sh <pim-dir> <bridge-dir> <report-dir>
-# Env:   PIM_MIRROR_CSS_PORT (13910), PIM_MIRROR_APP_PORT (18190)
+# Env:   PIM_MIRROR_CSS_PORT (13910), PIM_MIRROR_APP_PORT (18190), RE_TLS (off|on)
 set -euo pipefail
+
+CI_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+# shellcheck source=lib/lane-tls.sh
+source "$CI_DIR/scripts/lib/lane-tls.sh"
 
 if [ "$#" -ne 3 ]; then
   echo "usage: $0 <pim-dir> <bridge-dir> <report-dir>" >&2
@@ -56,10 +66,31 @@ cleanup() {
     docker compose -f docker-compose.host-local.yml down -v --remove-orphans >"$WORK/compose-down.log" 2>&1) || true
   # The report directory is retained in run history; per-run credentials are
   # not evidence and must not be kept, even for a CSS that no longer exists.
-  rm -rf "$WORK/credentials" "$WORK/pim.env"
+  # $WORK/tls holds links into the lane PKI, never keys of its own.
+  rm -rf "$WORK/credentials" "$WORK/pim.env" "$WORK/tls"
   exit "$rc"
 }
 trap cleanup EXIT
+
+# Lane TLS: PIM's certificates, linked under $WORK/tls. Only PIM_TLS_DIR is
+# exported; PIM gets its RE_TLS_* from the env file local-host-solid-up.sh
+# writes, so no other child of this script serves with PIM's identity.
+SCHEME=http
+CURL=(curl)
+WIRE_CA=""
+if lane_tls_enabled; then
+  [ -x "$PIM_DIR/scripts/lane-tls-certs.sh" ] \
+    || { log "RE_TLS=on, but this PIM has no scripts/lane-tls-certs.sh (it predates PIM#86)"; exit 1; }
+  RE_PKI="$CI_DIR/scripts/lib/re_pki.py" PIM_TLS_DIR="$WORK/tls" \
+    "$PIM_DIR/scripts/lane-tls-certs.sh" >"$WORK/lane-tls.log" 2>&1 \
+    || { log "issuing PIM's lane certificates failed; see $WORK/lane-tls.log"; exit 1; }
+  export PIM_TLS_DIR="$WORK/tls"
+  tls_curl="$(lane_curl)" || { log "RE_TLS=on needs a TLS 1.3-capable curl (Homebrew curl)"; exit 3; }
+  CURL=("$tls_curl" --tlsv1.3 --tls-max 1.3 --cacert "$PIM_TLS_DIR/ca.crt")
+  SCHEME=https
+  WIRE_CA="$PIM_TLS_DIR/ca.crt"
+  log "lane TLS on: PIM and its CSS on TLS 1.3 (certificates from $CI_DIR/scripts/lib/re_pki.py)"
+fi
 
 log "CSS on :$CSS_PORT, PIM on :$APP_PORT, compose project $PROJECT"
 (
@@ -89,11 +120,11 @@ log "starting PIM with the HealthKit mirror"
 ) >"$WORK/pim.log" 2>&1 &
 PIM_PID=$!
 
-PIM_URL="http://127.0.0.1:$APP_PORT"
+PIM_URL="$SCHEME://127.0.0.1:$APP_PORT"
 ready=false
 for _ in $(seq 1 60); do
   if ! kill -0 "$PIM_PID" 2>/dev/null; then break; fi
-  if curl -fsS --max-time 3 -H "authorization: Bearer $BRIDGE_TOKEN" \
+  if "${CURL[@]}" -fsS --max-time 3 -H "authorization: Bearer $BRIDGE_TOKEN" \
       "$PIM_URL/api/integrations/healthkit/metrics" >/dev/null 2>&1; then
     ready=true
     break
@@ -108,7 +139,7 @@ fi
 log "running the bridge's PIMWireTests"
 set +e
 (cd "$BRIDGE_DIR" && HEALTHKIT_PIM_WIRE_URL="$PIM_URL" HEALTHKIT_PIM_WIRE_TOKEN="$BRIDGE_TOKEN" \
-  swift test --filter PIMWireTests) >"$WORK/wire-test.log" 2>&1
+  HEALTHKIT_PIM_WIRE_CA="$WIRE_CA" swift test --filter PIMWireTests) >"$WORK/wire-test.log" 2>&1
 wire_rc=$?
 set -e
 if [ "$wire_rc" -ne 0 ]; then
@@ -121,7 +152,7 @@ if grep -q "skipped" "$WORK/wire-test.log" && ! grep -q "Executed 1 test, with 0
 fi
 
 # The status surface must count what landed, read back from the POD.
-curl -fsS --max-time 10 "$PIM_URL/api/pod/healthkit/status" >"$WORK/status.json"
+"${CURL[@]}" -fsS --max-time 10 "$PIM_URL/api/pod/healthkit/status" >"$WORK/status.json"
 vitals="$(jq -r '.data.pillars["vital-signs"] // .pillars["vital-signs"] // 0' "$WORK/status.json")"
 activity="$(jq -r '.data.pillars.activity // .pillars.activity // 0' "$WORK/status.json")"
 log "status counts: vital-signs=$vitals activity=$activity"
@@ -130,7 +161,7 @@ if [ "$vitals" -lt 1 ] || [ "$activity" -lt 1 ]; then
   exit 1
 fi
 
-jq -n --argjson vitals "$vitals" --argjson activity "$activity" \
-  '{status: "passed", legs: ["happy-path", "idempotence", "conflict-pod-wins", "no-approval-403", "stale-generation-409", "bad-token-401", "status-counts"], counts: {"vital-signs": $vitals, activity: $activity}}' \
+jq -n --argjson vitals "$vitals" --argjson activity "$activity" --arg transport "$SCHEME" \
+  '{status: "passed", transport: $transport, legs: ["happy-path", "idempotence", "conflict-pod-wins", "no-approval-403", "stale-generation-409", "bad-token-401", "status-counts"], counts: {"vital-signs": $vitals, activity: $activity}}' \
   >"$REPORT_DIR/pim-mirror.json"
 log "passed"

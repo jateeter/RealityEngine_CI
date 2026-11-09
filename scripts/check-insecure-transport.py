@@ -48,6 +48,7 @@ REPOS = [
     "RealityEngine_CI", "RealityEngine_Manager", "RealityEngine_Machines", "RealityEngine_CPP",
     "RealityEngine_LSP", "RealityEngine_Scala", "RealityEngine_Rust", "localAIStack",
     "localOpenClawStack", "localHealthkitBridge", "localAssetStorageStack",
+    "OpenCommons-Health---Personal-Information-Management",
 ]
 SUFFIXES = {".sh", ".py", ".js", ".mjs", ".cjs", ".ts", ".tsx", ".yml", ".yaml", ".conf",
             ".lisp", ".asd", ".scala", ".sbt", ".cpp", ".hpp", ".h", ".cc", ".rs", ".swift",

@@ -73,6 +73,16 @@ expect_fail owner 'not a focus-set repository'
 mutate issue inventory 'i["links"][0]["issue"]="#193"'
 expect_fail issue 'issue must be written'
 
+# A repository name may hold hyphens and dots (PIM's does); it is still <repo>#<n>.
+mutate hyphen inventory 'i["links"][0]["issue"]="OpenCommons-Health---Personal-Information-Management#86"'
+if python3 "$CHECK" --profile "$TMP/hyphen/profile.json" --inventory "$TMP/hyphen/inventory.json" >/dev/null 2>&1; then
+  ok "issue in a hyphenated repository is accepted"
+else
+  bad "issue in a hyphenated repository is accepted"
+fi
+mutate issuespace inventory 'i["links"][0]["issue"]="Some Repo#86"'
+expect_fail issuespace 'issue must be written'
+
 mutate claim inventory 'i["links"][0]["status"]="compliant"'
 expect_fail claim 'without a probe record'
 

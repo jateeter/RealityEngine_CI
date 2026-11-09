@@ -100,7 +100,8 @@ repository's TLS issue implements the same thing.
   ports.
 - **User-facing ports require server TLS only.** Users and devices authenticate
   on top of it. These are the Manager frontend, `assets-dokieli`, `assets-css`,
-  Open WebUI, Grafana, and the PE's device ingest.
+  Open WebUI, Grafana, the PE's device ingest, PIM (its browser UI and the
+  HealthKit bridge's mirror routes) and PIM's own CSS (OpenCommons-Health PIM#86).
 - **Health endpoints are served over TLS too,** and healthchecks verify against
   `RE_TLS_CA`.
 - **Where the certificate is required.** A port with no user-facing routes
