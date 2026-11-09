@@ -784,6 +784,7 @@ default is wrong rather than different.
 |---|---|---|---|---|
 | `arbitrationRetention` | `engine` | `false` | `true` | arbitration records retained per step; `false` is the legacy escape (#296) |
 | `arbitrationWindow` | `engine` | `1` | `true` | steps of arbitration records retained, ending at the latest; `[0, 1024]` (#296) |
+| `clone.maxActive` | `engine` | `8` | `true` | live clones allowed per template on this engine instance; a whole number in `[0, 1024]` ("Cloneable machines") |
 | `historyLimit` | `engine` | `250` | `true` | entries retained in the simulation-step history |
 | `includeActiveRegions` | `engine` | `true` | `true` | the active-region list in a step response |
 | `includeMachineResults` | `engine` | `true` | `true` | per-machine results in a step response |
@@ -1589,6 +1590,24 @@ limited: rule 9 limits the folded cells alone.
 not listed: a clone is never itself cloneable. This listing is a compared
 surface: in regression the voting engines must return it byte-identical.
 
+How the rules read a machine (RealityEngine_CI#713, settled while implementing
+RealityEngine_CPP#191):
+- A machine's **file name** is the base name of the corpus file it was loaded
+  from (`AGX001_aquaculture-water-quality-stability.json`), and its **file
+  stem** is that name without `.json`. Both are the file's own spelling, not the
+  normalised machine id. A machine loaded by name
+  (`GET /api/machines/json/:name`) has its file's name; a `PUT` keeps the name of
+  the machine it replaces.
+- A machine registered from a request body (`POST /api/machines`,
+  `POST /api/machines/json/import`) has **no file**. No handoff can name it as
+  its source (rule 1's handoff clause cannot hold) and no edge can target it
+  (rule 3 cannot fail).
+- Rule 5 reads string entries of `metadata.tags` only.
+- A machine with no `perceptualMapping` has no region to move into a block and
+  fails rule 7 (`input-too-long`).
+- Each `targetInputElements` array counts its entries; an edge without one
+  folds no cells.
+
 #### The clone space
 
 These constants are fixed by this specification. The corpus records the same
@@ -1702,7 +1721,13 @@ The clone:
   activation, history or checkpoints is copied;
 - is processed on every step like any other machine, and appears in
   `GET /api/machines` with `cloneOf` (the template's id), `assetId` and
-  `envelopeId`.
+  `envelopeId`. Only clones carry those three fields;
+- keeps the template's `name`, `description`, `metadata` and every other
+  declared field unchanged. Only its id and its two regions differ;
+- grows the perceptual space as any registered machine does, to cover its input
+  and output regions. Recycling never shrinks it.
+
+`asset` and `envelope` are percent-decoded before use.
 
 Its id is `<machineId>.<engineInstance>.<envelopeId>`. `engineInstance` is the
 id the engine was launched as (`INSTANCE_ID`, set by `startUniverse.sh` and the
@@ -1734,6 +1759,22 @@ release's `re-init`, for example `cpp-1`).
 | `404` | No such machine. |
 | `409` | The envelope holds a clone of a different machine; the template is at `clone.maxActive`; the band has no free block; or the engine was launched without an `INSTANCE_ID`. |
 
+A machine id naming a clone is refused `400` with `reason: "clone"`.
+
+The checks run in this order, and the first that fails decides the answer, so
+the voting engines refuse a request alike:
+1. `asset` or `envelope` missing or empty: `400`;
+2. no such machine: `404`;
+3. the machine is a clone (`reason: "clone"`) or not cloneable (its rule code): `400`;
+4. no `INSTANCE_ID`: `409`;
+5. the envelope already holds a clone: `200` if of this machine, otherwise `409`;
+6. the template is at `clone.maxActive`: `409`;
+7. no free block: `409`.
+
+A clone changes only through recycle. `PUT`, `PATCH` and `DELETE` on
+`/api/machines/:id` naming a clone are refused `409`, because each would leave
+its block held by a machine that no longer exists.
+
 #### `POST /api/engine/recycle/machine/:cloneId?generation=:generation`
 
 Recycles a clone when its agentic action completes. The clone is unregistered,
@@ -1747,10 +1788,12 @@ block's generation increments. A template is never recycled; only clones are.
 | `404` | No live clone has that id. |
 | `409 {"error": ..., "generation": <current>}` | `generation` is not the clone's. The clone is left running. |
 
+The checks run in the order of this table: `400`, then `404`, then `409`.
+
 #### `GET /api/engine/clones`
 
 Every live clone, sorted by block index, each with the same fields as the
-`201` above.
+`201` above: `{"clones": [ ... ]}`.
 
 #### What regression compares
 
