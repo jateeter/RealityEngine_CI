@@ -492,16 +492,25 @@
       "id": "pim-to-css",
       "from": "PIM",
       "to": "PIM's Solid Community Server (css.localhost:13000)",
-      "protocol": "HTTP",
+      "protocol": "HTTPS",
       "lanes": [
         "native",
         "docker"
       ],
-      "owner": "RealityEngine_CI",
-      "issue": "RealityEngine_CI#730",
-      "status": "unverified",
+      "owner": "OpenCommons-Health---Personal-Information-Management",
+      "issue": "OpenCommons-Health---Personal-Information-Management#86",
+      "status": "tls",
       "mtls": false,
-      "note": "PIM is outside the focus set; its CSS is not this stack's (D1)."
+      "note": "PIM's own CSS (docker-compose.host-local.yml / docker-compose.yml, not the asset-storage one) serves TLS 1.3 itself through config/css-https.json and the docker-compose*.tls.yml overlays, with the profile's suites. PIM verifies it against the install CA and presents its own lane certificate (src/laneTls.ts covers both fetch and node:https). Not `compliant` until the probe (#728) records it.",
+      "deficiency": {
+        "accepted": "owner, 2026-11-09 (RealityEngine_CI#668)",
+        "what": "The Solid Community Server does not verify client certificates, so this link is TLS 1.3 without mTLS.",
+        "compensation": "PIM authenticates to CSS with Solid-OIDC client credentials and DPoP-bound tokens; the CSS port binds 127.0.0.1 only.",
+        "remedy": "mTLS once CSS verifies client certificates.",
+        "allows": {
+          "mtls": false
+        }
+      }
     },
     {
       "id": "browser-to-assets-dokieli",
@@ -754,16 +763,16 @@
     {
       "id": "healthkit-to-pim",
       "from": "HealthKit bridge (mirror leg)",
-      "to": "PIM app",
-      "protocol": "HTTP",
+      "to": "PIM app (HealthKit mirror routes)",
+      "protocol": "HTTPS",
       "lanes": [
         "native"
       ],
-      "owner": "localHealthkitBridge",
-      "issue": "localHealthkitBridge#52",
-      "status": "unverified",
+      "owner": "OpenCommons-Health---Personal-Information-Management",
+      "issue": "OpenCommons-Health---Personal-Information-Management#86",
+      "status": "tls",
       "mtls": false,
-      "note": "The HealthKit → PIM → POD mirror leg (scripts/pim-mirror-leg.sh)."
+      "note": "The HealthKit → PIM → POD mirror leg (scripts/pim-mirror-leg.sh). With RE_TLS_CERT PIM serves https only, TLS 1.3 at the profile (src/laneTls.ts). It is a user-facing port (browser UI and the bridge), so it uses server TLS and the bridge authenticates with PIM_HEALTHKIT_BRIDGE_TOKEN. The bridge's PIMClient holds its session to TLS 1.3 and the phone trusts the install CA through its profile (localHealthkitBridge#52). Server TLS only by design (mtls false). Not `compliant` until the probe (#728) records it."
     },
     {
       "id": "browser-to-grafana",
@@ -844,6 +853,35 @@
           "mtls": false
         }
       }
+    },
+    {
+      "id": "pim-to-pe-scope",
+      "from": "PIM (owner's approved HealthKit metric set)",
+      "to": "PE /api/integrations/healthkit/scope (HEALTHKIT_PE_SCOPE_URLS)",
+      "protocol": "HTTPS",
+      "lanes": [
+        "native"
+      ],
+      "owner": "OpenCommons-Health---Personal-Information-Management",
+      "issue": "OpenCommons-Health---Personal-Information-Management#86",
+      "status": "tls",
+      "mtls": false,
+      "note": "On the lane PIM refuses a plaintext internal scope URL at startup, trusts the install CA alone and presents its lane certificate; the PE serves the scope route as a device route and verifies any certificate presented (docs/TRANSPORT_SECURITY.md), and the call carries HEALTHKIT_PE_TOKEN. mtls stays false until the probe (#728) records it."
+    },
+    {
+      "id": "pim-to-epic",
+      "from": "PIM (Epic SMART on FHIR import)",
+      "to": "Epic FHIR and authorization servers (EPIC_FHIR_BASE_URL)",
+      "protocol": "HTTPS",
+      "lanes": [
+        "native",
+        "docker"
+      ],
+      "owner": "OpenCommons-Health---Personal-Information-Management",
+      "issue": "OpenCommons-Health---Personal-Information-Management#86",
+      "status": "tls",
+      "mtls": false,
+      "note": "External party, off by default (EPIC_ENABLED=false, EPIC_MODE=mock). On the lane it is verified against the system store and held to TLS 1.3 and the profile's suites (src/laneTls.ts); it gets no lane certificate. An external party cannot present an install-CA certificate, so mTLS is not applicable."
     }
   ]
 }

@@ -44,10 +44,11 @@ OWNERS = {
     "RealityEngine_CI", "RealityEngine_Manager", "RealityEngine_Machines", "RealityEngine_CPP",
     "RealityEngine_LSP", "RealityEngine_Scala", "RealityEngine_Rust", "localAIStack",
     "localOpenClawStack", "localHealthkitBridge", "localAssetStorageStack",
+    "OpenCommons-Health---Personal-Information-Management",
 }
 AEAD = {"TLS_AES_256_GCM_SHA384", "TLS_CHACHA20_POLY1305_SHA256", "TLS_AES_128_GCM_SHA256"}
 PQ_HYBRID = {"X25519MLKEM768", "SecP256r1MLKEM768", "SecP384r1MLKEM1024"}
-ISSUE = re.compile(r"^[A-Za-z_]+#\d+$")
+ISSUE = re.compile(r"^[A-Za-z0-9_.-]+#\d+$")  # a GitHub repository name, then #<n>
 
 
 def profile_problems(profile: dict[str, Any]) -> list[str]:

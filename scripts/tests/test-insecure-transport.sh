@@ -19,7 +19,8 @@ bad() { FAIL=$((FAIL + 1)); printf '  FAIL %s\n' "$1"; }
 
 WS="$TMP/ws"
 for r in RealityEngine_CI RealityEngine_Manager RealityEngine_Machines RealityEngine_CPP RealityEngine_LSP \
-         RealityEngine_Scala RealityEngine_Rust localAIStack localOpenClawStack localHealthkitBridge localAssetStorageStack; do
+         RealityEngine_Scala RealityEngine_Rust localAIStack localOpenClawStack localHealthkitBridge localAssetStorageStack \
+         OpenCommons-Health---Personal-Information-Management; do
   mkdir -p "$WS/$r"; git -C "$WS/$r" init -q
 done
 commit() { git -C "$WS/$1" add -A >/dev/null; git -C "$WS/$1" -c user.email=t@t -c user.name=t commit -q -m t >/dev/null 2>&1 || true; }
@@ -27,6 +28,7 @@ commit() { git -C "$WS/$1" add -A >/dev/null; git -C "$WS/$1" -c user.email=t@t 
 cat > "$WS/localAIStack/client.py" <<'PY'
 URL = "http://localhost:4000"          # recorded
 NS = "http://www.w3.org/2001/XMLSchema" # a namespace, never counted
+DTD = "http://www.apple.com/DTDs/PropertyList-1.0.dtd" # a plist DTD identifier, never counted
 PY
 printf '# docs are not scanned: http://example.invalid\n' > "$WS/localAIStack/README.md"
 commit localAIStack

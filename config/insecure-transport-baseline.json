@@ -2,6 +2,204 @@
   "schemaVersion": "1.0.0",
   "purpose": "Insecure-transport occurrences recorded before the TLS 1.3 rule (RealityEngine_CI#668, #727). Counts only shrink: scripts/check-insecure-transport.py fails any increase, and --write records a decrease.",
   "files": {
+    "OpenCommons-Health---Personal-Information-Management/.env.example": {
+      "plaintext-url": 5
+    },
+    "OpenCommons-Health---Personal-Information-Management/.github/workflows/docker-deploy.yml": {
+      "plaintext-url": 16
+    },
+    "OpenCommons-Health---Personal-Information-Management/Dockerfile": {
+      "plaintext-url": 1
+    },
+    "OpenCommons-Health---Personal-Information-Management/docker-compose.host-local.yml": {
+      "plaintext-url": 5
+    },
+    "OpenCommons-Health---Personal-Information-Management/docker-compose.test.yml": {
+      "plaintext-url": 5
+    },
+    "OpenCommons-Health---Personal-Information-Management/docker-compose.yml": {
+      "plaintext-url": 12
+    },
+    "OpenCommons-Health---Personal-Information-Management/public/app.js": {
+      "plaintext-url": 5
+    },
+    "OpenCommons-Health---Personal-Information-Management/scripts/epic-diagnostics-check.mjs": {
+      "plaintext-url": 1
+    },
+    "OpenCommons-Health---Personal-Information-Management/scripts/epic-preview-data-path-e2e.mjs": {
+      "plaintext-url": 1
+    },
+    "OpenCommons-Health---Personal-Information-Management/scripts/local-container-up.sh": {
+      "plaintext-url": 6
+    },
+    "OpenCommons-Health---Personal-Information-Management/scripts/local-host-smoke.sh": {
+      "plaintext-url": 6
+    },
+    "OpenCommons-Health---Personal-Information-Management/scripts/local-host-solid-up.sh": {
+      "plaintext-url": 1
+    },
+    "OpenCommons-Health---Personal-Information-Management/scripts/playwright-medicare-wellness-e2e.mjs": {
+      "plaintext-url": 9
+    },
+    "OpenCommons-Health---Personal-Information-Management/scripts/playwright-modal-close-e2e.mjs": {
+      "plaintext-url": 2
+    },
+    "OpenCommons-Health---Personal-Information-Management/scripts/playwright-responsive-layout-e2e.mjs": {
+      "plaintext-url": 2
+    },
+    "OpenCommons-Health---Personal-Information-Management/scripts/playwright-terminology-modal-e2e.mjs": {
+      "plaintext-url": 16
+    },
+    "OpenCommons-Health---Personal-Information-Management/scripts/playwright-wellness-landing-e2e.mjs": {
+      "plaintext-url": 2
+    },
+    "OpenCommons-Health---Personal-Information-Management/scripts/validate-localhost-mvp.mjs": {
+      "plaintext-url": 4
+    },
+    "OpenCommons-Health---Personal-Information-Management/scripts/validate-semantic-domain-contract.mjs": {
+      "plaintext-url": 4
+    },
+    "OpenCommons-Health---Personal-Information-Management/scripts/validate-wellness-pillar-seeds.mjs": {
+      "plaintext-url": 6
+    },
+    "OpenCommons-Health---Personal-Information-Management/scripts/verify-deployment.sh": {
+      "plaintext-url": 13
+    },
+    "OpenCommons-Health---Personal-Information-Management/scripts/wait-for-pod.sh": {
+      "plaintext-url": 1
+    },
+    "OpenCommons-Health---Personal-Information-Management/src/auth/solidAuth.ts": {
+      "plaintext-url": 1
+    },
+    "OpenCommons-Health---Personal-Information-Management/src/httpApp.ts": {
+      "plaintext-url": 1
+    },
+    "OpenCommons-Health---Personal-Information-Management/src/index.ts": {
+      "plaintext-url": 6
+    },
+    "OpenCommons-Health---Personal-Information-Management/src/integrations/epic/mockFhir.ts": {
+      "plaintext-url": 11
+    },
+    "OpenCommons-Health---Personal-Information-Management/src/integrations/epic/smartClient.ts": {
+      "plaintext-url": 4
+    },
+    "OpenCommons-Health---Personal-Information-Management/src/integrations/healthkit/mapper.ts": {
+      "plaintext-url": 1
+    },
+    "OpenCommons-Health---Personal-Information-Management/src/laneTls.ts": {
+      "plaintext-url": 1
+    },
+    "OpenCommons-Health---Personal-Information-Management/src/openapi.ts": {
+      "plaintext-url": 9
+    },
+    "OpenCommons-Health---Personal-Information-Management/src/pod/podClient.ts": {
+      "plaintext-url": 1
+    },
+    "OpenCommons-Health---Personal-Information-Management/src/standards/fhir.ts": {
+      "plaintext-url": 1
+    },
+    "OpenCommons-Health---Personal-Information-Management/src/standards/vitalSigns.ts": {
+      "plaintext-url": 1
+    },
+    "OpenCommons-Health---Personal-Information-Management/src/utils/rdfUtils.ts": {
+      "plaintext-url": 4
+    },
+    "OpenCommons-Health---Personal-Information-Management/tests/dom/wellnessLanding.dom.test.ts": {
+      "plaintext-url": 6
+    },
+    "OpenCommons-Health---Personal-Information-Management/tests/integration/conditions.repository.integration.test.ts": {
+      "plaintext-url": 5
+    },
+    "OpenCommons-Health---Personal-Information-Management/tests/integration/wellnessSummary.integration.test.ts": {
+      "plaintext-url": 4
+    },
+    "OpenCommons-Health---Personal-Information-Management/tests/roundtrip/conditions.rdf.roundtrip.test.ts": {
+      "plaintext-url": 3
+    },
+    "OpenCommons-Health---Personal-Information-Management/tests/types/health.test.ts": {
+      "plaintext-url": 4
+    },
+    "OpenCommons-Health---Personal-Information-Management/tests/unit/auth/solidAuth.test.ts": {
+      "plaintext-url": 14
+    },
+    "OpenCommons-Health---Personal-Information-Management/tests/unit/healthkitStatus.test.ts": {
+      "plaintext-url": 2
+    },
+    "OpenCommons-Health---Personal-Information-Management/tests/unit/httpApp.healthkit.test.ts": {
+      "plaintext-url": 4
+    },
+    "OpenCommons-Health---Personal-Information-Management/tests/unit/httpApp.test.ts": {
+      "plaintext-url": 18
+    },
+    "OpenCommons-Health---Personal-Information-Management/tests/unit/integrations/epic.mapper.test.ts": {
+      "plaintext-url": 1
+    },
+    "OpenCommons-Health---Personal-Information-Management/tests/unit/integrations/epic.service.test.ts": {
+      "plaintext-url": 16
+    },
+    "OpenCommons-Health---Personal-Information-Management/tests/unit/integrations/epic.smartClient.test.ts": {
+      "plaintext-url": 2
+    },
+    "OpenCommons-Health---Personal-Information-Management/tests/unit/integrations/epic.vitalSigns.test.ts": {
+      "plaintext-url": 3
+    },
+    "OpenCommons-Health---Personal-Information-Management/tests/unit/integrations/healthkit.service.test.ts": {
+      "plaintext-url": 8
+    },
+    "OpenCommons-Health---Personal-Information-Management/tests/unit/laneTls.test.ts": {
+      "plaintext-url": 6
+    },
+    "OpenCommons-Health---Personal-Information-Management/tests/unit/pod/podClient.test.ts": {
+      "plaintext-url": 16
+    },
+    "OpenCommons-Health---Personal-Information-Management/tests/unit/podActivityRepository.test.ts": {
+      "plaintext-url": 3
+    },
+    "OpenCommons-Health---Personal-Information-Management/tests/unit/privacy.test.ts": {
+      "plaintext-url": 14
+    },
+    "OpenCommons-Health---Personal-Information-Management/tests/unit/publicAppSnomed.test.ts": {
+      "plaintext-url": 3
+    },
+    "OpenCommons-Health---Personal-Information-Management/tests/unit/reconciliation.test.ts": {
+      "plaintext-url": 1
+    },
+    "OpenCommons-Health---Personal-Information-Management/tests/unit/repositories/baseRepository.test.ts": {
+      "plaintext-url": 3
+    },
+    "OpenCommons-Health---Personal-Information-Management/tests/unit/repositories/conditionRepository.test.ts": {
+      "plaintext-url": 5
+    },
+    "OpenCommons-Health---Personal-Information-Management/tests/unit/repositories/documentRepository.test.ts": {
+      "plaintext-url": 2
+    },
+    "OpenCommons-Health---Personal-Information-Management/tests/unit/repositories/insuranceRepository.test.ts": {
+      "plaintext-url": 1
+    },
+    "OpenCommons-Health---Personal-Information-Management/tests/unit/repositories/pillarObservationRepository.test.ts": {
+      "plaintext-url": 4
+    },
+    "OpenCommons-Health---Personal-Information-Management/tests/unit/repositories/vitalSignsRepository.test.ts": {
+      "plaintext-url": 2
+    },
+    "OpenCommons-Health---Personal-Information-Management/tests/unit/repositories/workflowTaskRepository.test.ts": {
+      "plaintext-url": 2
+    },
+    "OpenCommons-Health---Personal-Information-Management/tests/unit/runtimeConfig.test.ts": {
+      "plaintext-url": 17
+    },
+    "OpenCommons-Health---Personal-Information-Management/tests/unit/semanticDomainContract.test.ts": {
+      "plaintext-url": 4
+    },
+    "OpenCommons-Health---Personal-Information-Management/tests/unit/wellness.test.ts": {
+      "plaintext-url": 7
+    },
+    "OpenCommons-Health---Personal-Information-Management/tests/unit/wellnessPillarSeeds.test.ts": {
+      "plaintext-url": 6
+    },
+    "OpenCommons-Health---Personal-Information-Management/tests/utils/rdfUtils.test.ts": {
+      "plaintext-url": 5
+    },
     "RealityEngine_CI/.env.example": {
       "plaintext-url": 1,
       "plaintext-ws": 2
