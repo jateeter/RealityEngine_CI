@@ -1535,8 +1535,10 @@ access to persistent storage.
 Clone takes the query parameters `asset` and `envelope`, and recycle takes
 `generation`, as each route's section below specifies.
 
-The ✓ marks are the target; no runtime implements these routes yet
-(RealityEngine_CPP#191, RealityEngine_LSP#184, RealityEngine_Scala#209).
+The three voting engines implement these routes (RealityEngine_CPP#197,
+RealityEngine_LSP#189, RealityEngine_Scala#213, 2026-11-09), and
+`RealityEngine_Machines/tests/integration/clone-recycle-quorum.spec.ts` compares
+them 3-of-3 in regression (RealityEngine_Machines#248).
 `RealityEngine_Rust`, a conformance follower, adopts them on its own cadence
 (RealityEngine_Rust#71) and is measured against what the voting engines agree
 on, never as a vote. The other follower, the TypeScript PE in
