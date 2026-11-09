@@ -242,6 +242,12 @@ from the insecure-transport baseline. A release requires every link
   `security add-trusted-cert`).
 - **Devices** (the iPhone running the HealthKit bridge) are given the CA through
   a configuration profile the owner installs (localHealthkitBridge#52).
+  localHealthkitBridge `scripts/ca_profile.sh` writes it from the lane CA. On
+  the phone, install it (Settings › General › VPN & Device Management) and turn
+  on full trust (Settings › General › About › Certificate Trust Settings):
+  iOS keeps an installed CA without trusting it for TLS until then. A Mac-side
+  check of a TLS lane needs a curl built on OpenSSL (`lane_curl`): macOS
+  `/usr/bin/curl` (LibreSSL) cannot complete a handshake under the profile.
 
 ## External parties
 
