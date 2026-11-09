@@ -12,7 +12,7 @@ the profile is [`config/transport-profile.json`](../config/transport-profile.jso
 | The profile: TLS 1.3, AEAD suites, `X25519MLKEM768` preferred, ECDSA P-384, 90-day leaves | `config/transport-profile.json` | #725 |
 | Every link, its status today, its owner and its issue | `config/transport-inventory.json`, checked by `scripts/check-transport-inventory.py` | #725 |
 | The PKI: a CA per install, service and instance certificates, rotation, revocation | `scripts/lib/re_pki.py` | #726 |
-| No new plaintext or disabled verification | `scripts/check-insecure-transport.py`, baseline `config/insecure-transport-baseline.json` | #727 |
+| No new plaintext or disabled verification | `scripts/check-insecure-transport.py`, baseline `config/insecure-transport-baseline.json`; what each shrink retired is archived in `config/insecure-transport-retired/<date>.json` | #727 |
 | Each link measured live | the probe stage in `regression-test.sh` | #728 |
 | Release gate, `re-init` on the PKI, install docs | `check-transport-inventory.py --require-compliant`, `release/` | #729 |
 
