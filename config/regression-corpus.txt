@@ -24,6 +24,17 @@
 #                   members with more than one writer, which is the only
 #                   condition under which the arbiter runs at all.
 #
+#   the workflow    CLONING. IFRS_Sec01_GeneralPurposeFS_Verifier hands its
+#                   COMPLIANCE-REVIEW asset off to
+#                   IFRS_Sec03_Compliance_Assertion_Arbiter, which hands it to
+#                   nothing: a two-step document workflow. Both are cloneable
+#                   templates with reserved input cells 2–7, and the
+#                   asset-workflow stage runs the approval chain through them on
+#                   every voting engine (localAssetStorageStack ROADMAP phase
+#                   11, RealityEngine_CI#715). They must be in the boot corpus,
+#                   not loaded later: the handoff rule reads a machine's file
+#                   name, and a machine posted as a body has none.
+#
 #   the escalation  ESCALATION. BSX118, CSX022 and TFX047 commit
 #                   urgent-intervention at RED and carry an agentBinding, so
 #                   their dispatches are counted by
@@ -144,3 +155,7 @@ domains/transportation/TFX047_security-and-safety-emergency-detour-safety.json
 rag_corrective_cycle.json
 session_rag_context.json
 session_agent_context.json
+
+# ── The workflow: a two-step IFRS document workflow (cloning) ───────────────
+domains/ifrs-accounting/IFRS_Sec01_GeneralPurposeFS_Verifier.json
+domains/ifrs-accounting/IFRS_Sec03_Compliance_Assertion_Arbiter.json

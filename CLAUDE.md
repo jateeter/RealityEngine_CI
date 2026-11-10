@@ -16,6 +16,8 @@ npm run test:e2e
 npm run test:all
 npm run test:deployment
 ./startUniverse.sh --engines=cpp:1,lsp:1,scala:1 --openclaw --machine-load=runtime --pe-source-bootstrap=auto --warn-only
+# With the dokieli asset storage stack and Manager's workflow instantiation:
+./startUniverse.sh --engines=cpp:1,lsp:1,scala:1 --assets --machine-load=runtime --warn-only
 ./stopUniverse.sh   # everything the universe uses: engines, Docker stacks, gateway,
                     # re-regression, host Ollama; --keep-docker / --keep-ollama opt out
 
@@ -96,6 +98,24 @@ npm run test:deployment
 - `startUniverse.sh --openclaw` delegates to `localOpenClawStack/scripts/start.sh`; keep hardening, immutable image pins, WebUI bootstrap, and live verification authoritative in that native stack entrypoint.
   - **The gateway runs natively by default (#592):** `--openclaw-runtime=native` passes `--native`, so the host's `openclaw` runs as the LaunchAgent `org.realityengine.openclaw-gateway` on 127.0.0.1:18789 with its home in `~/.realityengine/openclaw`; Open WebUI and the browser sidecar stay in Docker. `--openclaw-runtime=container` is the `openclaw-gateway` compose service. Startup cleanup unloads the LaunchAgent, and `stopUniverse.sh` stops it.
 - Keep e2e results separated by availability, instance registry alignment, contract parity, byte equivalence, and integration success.
+- **`--assets` (localAssetStorageStack ROADMAP phase 11).** Multi-engine mode
+  starts the asset storage stack (assets-css, assets-dokieli, the lifecycle API)
+  through its own `scripts/up.js`, before Manager:
+  - with `RE_TLS=on` it passes the instance registry, so the lifecycle reaches the
+    engines (continuation rule 7, frame lanes);
+  - it writes the lifecycle's engine token to `~/.reality-engine/assets/` (0600)
+    and gives Manager `INSTANTIATION_ENABLED`, `LIFECYCLE_URL` and
+    `LIFECYCLE_ENGINE_TOKEN_FILE`;
+  - it records the stack's addresses as `assetStorage` in `config/integrations.json`;
+  - `stopUniverse.sh` stops the stack only when `.universe-assets` says this universe
+    started it, and keeps its volumes (pods and frames survive at the same
+    addresses).
+
+  `regression-test.sh` passes `--assets` on the local lane when the repo is in the
+  run and Docker is up. Its `asset-workflow` stage runs the stack's
+  `scripts/smoke.js` and `scripts/chain-regression.js`: the IFRS chain on three
+  engines, compared 3-of-3 (#715). The regression corpus carries the chain's two
+  IFRS templates.
 - **Two conformance followers, never votes** (`docs/QUORUM_CONTRACT.md`): RealityEngine_Rust
   (RE and PE) and, since 2026-11-06, the TypeScript PE in RealityEngine_Manager
   (PE only). Quorum stays 3-of-3 among C++, LSP and Scala.

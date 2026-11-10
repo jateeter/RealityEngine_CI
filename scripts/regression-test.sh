@@ -396,6 +396,12 @@ if [ -n "$RELEASE_IMAGES_FILE" ] && [ "$CONTAINERIZED" = false ]; then
   exit 2
 fi
 
+# The asset storage stack and Manager's workflow instantiation
+# (localAssetStorageStack ROADMAP phase 11): on the local native lane when the
+# repo is in the run and Docker is up. Resolved again at start, where the run's
+# repos are known.
+ASSETS_FLAG=""
+
 # Any manifest in config/ is a corpus, not just the two that were hardcoded.
 #
 # config/arbiter-fixture-corpus.txt and config/standard-deployment-plus-ring-corpus.txt
@@ -1498,6 +1504,13 @@ start_universe() {
   # the mute and C++ and LSP did not, which failed boot-source-declaration,
   # export-parity and trajectory-parity. A run whose broker did not answer
   # already booted this way, and those nights are the green ones.
+  # The asset storage stack, its lifecycle on the instance registry, and
+  # Manager's workflow instantiation, for the asset-workflow stage.
+  if [ "$LOCAL_LANE" = true ] && [ "$CONTAINERIZED" = false ] && repo_present localAssetStorageStack \
+      && docker info >/dev/null 2>&1; then
+    ASSETS_FLAG="--assets"
+    args+=("$ASSETS_FLAG")
+  fi
   run_cmd "$label" bash -lc "cd '$ci' && ./startUniverse.sh ${args[*]}"
 }
 
@@ -2316,6 +2329,35 @@ run_healthkit_bridge() {
     bash "$bridge/scripts/e2e_device.sh"
 }
 
+# The asset workflow (localAssetStorageStack ROADMAP phase 11, RealityEngine_CI#715):
+# the stack's smoke test, then the IFRS approval chain on every voting engine,
+# compared 3-of-3, with Manager running every step. Both scripts are the
+# stack's own (scripts/smoke.js, scripts/chain-regression.js); this stage hands
+# them the universe's addresses and the harness's lane trust.
+run_asset_workflow() {
+  step "Asset workflow: smoke, and the IFRS chain on three engines"
+  if [ "$ASSETS_FLAG" != "--assets" ]; then
+    log "SKIP asset-workflow: the asset storage stack was not started (hosted or containerized lane, no Docker, or the repo is absent)"
+    write_skip_report "asset-workflow-skipped.json" "the asset storage stack was not started on this lane"
+    return 0
+  fi
+  if [ "${RE_TLS:-off}" != on ]; then
+    log "SKIP asset-workflow: RE_TLS is off, so the lifecycle's engine link is unwired"
+    write_skip_report "asset-workflow-skipped.json" "RE_TLS off: the lifecycle cannot reach the engines (frame lanes, rule 7)"
+    return 0
+  fi
+  local lass ci reg
+  lass="$(repo_root localAssetStorageStack)"
+  ci="$(repo_root RealityEngine_CI)"
+  reg="$(cat "$ci/.universe-registry-url" 2>/dev/null || true)"
+  [ -n "$reg" ] || { log "asset-workflow: no .universe-registry-url in $ci"; return 1; }
+  run_cmd "asset-smoke" env NODE_EXTRA_CA_CERTS="$RE_HARNESS_TLS_CA" \
+    node --dns-result-order=ipv4first "$lass/scripts/smoke.js" "$REPORT_DIR/asset-smoke.json"
+  run_cmd "asset-chain" env NODE_EXTRA_CA_CERTS="$RE_HARNESS_TLS_CA" RE_REGISTRY_URL="$reg" \
+    MANAGER_URL="https://localhost:3001" \
+    node --dns-result-order=ipv4first "$lass/scripts/chain-regression.js" "$REPORT_DIR/asset-chain.json"
+}
+
 run_pim_mirror() {
   step "HealthKit → PIM → POD mirror leg"
   # MIRROR_CONTRACT §8. D2 makes the mirror block the MVP: a skip below is a
@@ -2598,6 +2640,10 @@ if [ "$LIVE_TESTS" = true ]; then
   # The follower, after every certifying stage that measures the universe (the
   # lane resets every voter) and before mqtt-yuma (see run_follower).
   run_follower
+  # After the certifying stages and the follower: it makes clones, which the
+  # parity stages would see in GET /api/machines while they live, and recycles
+  # them all before it ends.
+  run_stage "asset-workflow"    run_asset_workflow
   # After every stage that measures the universe. A live MQTT session leaves
   # sources behind that muting does not remove, and the runtimes do not leave
   # the same ones: Scala declares a source per mapping when the bridge is
