@@ -579,16 +579,32 @@ PYEOF
 
 generate_prometheus_file_sd() {
     mkdir -p "$PROMETHEUS_FILE_SD_DIR"
+    # The asset workflow's targets (localAssetStorageStack ROADMAP phase 10,
+    # #723): the lifecycle's /metrics on its free host port and Manager's
+    # instantiation metrics, when --assets started the stack; none otherwise.
     python3 - "$REGISTRY_FILE" \
         "$PROMETHEUS_FILE_SD_DIR/reality-engine-targets.json" \
-        "$PROMETHEUS_FILE_SD_DIR/perception-engine-targets.json" <<'PYEOF'
+        "$PROMETHEUS_FILE_SD_DIR/perception-engine-targets.json" \
+        "$PROMETHEUS_FILE_SD_DIR/asset-workflow-targets.json" "${ASSETS_LIFECYCLE_URL:-}" <<'PYEOF'
 import json
 import pathlib
 import sys
+from urllib.parse import urlparse
 
 registry_path = pathlib.Path(sys.argv[1])
 re_path = pathlib.Path(sys.argv[2])
 pe_path = pathlib.Path(sys.argv[3])
+asset_path = pathlib.Path(sys.argv[4])
+lifecycle_url = sys.argv[5]
+asset_targets = []
+if lifecycle_url:
+    asset_targets = [
+        {"targets": [f"host.docker.internal:{urlparse(lifecycle_url).port}"],
+         "labels": {"component": "lifecycle", "__metrics_path__": "/metrics", "source": "assets"}},
+        {"targets": ["host.docker.internal:3001"],
+         "labels": {"component": "manager-instantiation", "__metrics_path__": "/api/instantiation/metrics", "source": "assets"}},
+    ]
+asset_path.write_text(json.dumps(asset_targets, indent=2) + "\n")
 allowed = {"scala", "cpp", "lsp"}
 re_targets = []
 pe_targets = []
@@ -630,7 +646,7 @@ for inst in registry.get("instances", []):
 
 re_path.write_text(json.dumps(re_targets, indent=2) + "\n")
 pe_path.write_text(json.dumps(pe_targets, indent=2) + "\n")
-print(f"{len(re_targets)} RE targets, {len(pe_targets)} PE targets")
+print(f"{len(re_targets)} RE targets, {len(pe_targets)} PE targets, {len(asset_targets)} asset-workflow targets")
 PYEOF
 }
 

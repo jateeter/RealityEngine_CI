@@ -152,3 +152,30 @@ scrape_configs:
         target_label: container
       - target_label: source
         replacement: compose
+
+  # ── The asset storage stack (localAssetStorageStack ROADMAP phase 10, #723) ──
+  # Its containers carry org.realityengine.stack=localassetstoragestack, the
+  # selector here rather than the compose project, which is the checkout's
+  # directory name. The lifecycle API writes every event it commits to its log
+  # as a JSON line with kind "lifecycle.event" (frameId, assetId,
+  # continuationId, type, by); the asset-workflow dashboard parses them at query
+  # time, so no frame or asset id becomes a Loki label.
+  - job_name: asset-storage
+    docker_sd_configs:
+      - host: unix:///var/run/docker.sock
+        refresh_interval: 10s
+        filters:
+          - name: label
+            values: ["org.realityengine.stack=localassetstoragestack"]
+    relabel_configs:
+      - source_labels: [__meta_docker_container_label_com_docker_compose_service]
+        regex: (.+)
+        replacement: localassetstoragestack-$1
+        target_label: service
+      - source_labels: [__meta_docker_container_label_com_docker_compose_project]
+        target_label: project
+      - source_labels: [__meta_docker_container_name]
+        regex: /?(.*)
+        target_label: container
+      - target_label: source
+        replacement: compose

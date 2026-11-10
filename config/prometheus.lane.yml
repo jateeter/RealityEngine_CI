@@ -51,6 +51,22 @@ scrape_configs:
           - /etc/prometheus/file_sd/perception-engine-targets.json
         refresh_interval: 10s
 
+  # The asset workflow (localAssetStorageStack ROADMAP phase 10, #723): the
+  # lifecycle API's /metrics and Manager's /api/instantiation/metrics, as file_sd
+  # targets with their own metrics paths, written by startUniverse.sh --assets
+  # (none without it). Neither asks for a client certificate; Prometheus presents
+  # its own anyway.
+  - job_name:     asset-workflow
+    scrape_interval: 15s
+    scrape_timeout:  10s
+    honor_labels: true
+    scheme:       https
+    tls_config: *lane
+    file_sd_configs:
+      - files:
+          - /etc/prometheus/file_sd/asset-workflow-targets.json
+        refresh_interval: 10s
+
   - job_name:     ai-bridge-operations
     metrics_path: /metrics
     scrape_interval: 15s

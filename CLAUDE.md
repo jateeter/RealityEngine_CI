@@ -116,6 +116,18 @@ npm run test:deployment
   `scripts/smoke.js` and `scripts/chain-regression.js`: the IFRS chain on three
   engines, compared 3-of-3 (#715). The regression corpus carries the chain's two
   IFRS templates.
+
+  **Grafana's Asset Workflow dashboard** (`config/dashboards/asset-workflow.json`,
+  #723, lass phase 10) follows each asset from frame to clone to review to head
+  close. It reads:
+  - the lifecycle's `/metrics` and Manager's `/api/instantiation/metrics`, which
+    `generate_prometheus_file_sd` writes as `asset-workflow-targets.json` when
+    `--assets` started the stack (the lane Prometheus job `asset-workflow`);
+  - the lifecycle's event lines in Loki, through Promtail's `asset-storage` job,
+    which selects containers by `org.realityengine.stack=localassetstoragestack`.
+
+  Lane TLS only: the lifecycle is TLS-only, so `config/prometheus.yml` has no
+  asset-workflow job.
 - **Two conformance followers, never votes** (`docs/QUORUM_CONTRACT.md`): RealityEngine_Rust
   (RE and PE) and, since 2026-11-06, the TypeScript PE in RealityEngine_Manager
   (PE only). Quorum stays 3-of-3 among C++, LSP and Scala.
