@@ -56,6 +56,7 @@ CPP_DIR="$CI_DIR/../RealityEngine_CPP"
 LSP_DIR="$CI_DIR/../RealityEngine_LSP"
 LAS_DIR="$CI_DIR/../localAIStack"
 OCS_DIR="$CI_DIR/../localOpenClawStack"
+LASS_DIR="$CI_DIR/../localAssetStorageStack"
 FULL_MACHINES_DIR="$MACHINES_DIR"
 CI_INTEGRATIONS_CONFIG="$CI_DIR/config/integrations.json"
 CI_INTEGRATIONS_EXAMPLE="$CI_DIR/config/integrations.example.json"
@@ -97,6 +98,7 @@ POST_START_FULL_CORPUS="off" # off | seed
 PE_SOURCE_BOOTSTRAP="auto"   # auto | off
 VALIDATE_CORPUS="once"       # once | off
 MANAGER_NATIVE=false
+ASSETS=no            # --assets: the dokieli asset storage stack and workflow instantiation
 HEALTHKIT_TOKEN_ENABLED=true   # PE HealthKit ingest requires a bridge token by default
 DRY_RUN=false
 RE_ENGINE="${RE_ENGINE:-ai}"       # ai | cpp | lsp
@@ -161,6 +163,10 @@ startUniverse.sh — engine-selectable CI orchestrator
   --validate-corpus=off         Skip corpus validation in ci-seed mode
   --skip-seed                   Legacy alias for --machine-load=runtime --pe-source-bootstrap=off
   --manager-native              Start Visualizer+PE via RealityEngine_Manager/start.sh
+  --assets                      Start localAssetStorageStack (assets-css, assets-dokieli, the
+                                lifecycle API) with the instance registry, and run Manager's
+                                workflow instantiation against it (multi-engine mode;
+                                localAssetStorageStack ROADMAP phase 11)
                                 instead of Docker (points to Docker public endpoints: RE :5001, PE :3004)
   --engines=SPEC                Multi-engine native mode.  SPEC is a comma-separated list of
                                 <runtime>:<count> pairs, e.g. --engines=scala:2,cpp:1
@@ -219,6 +225,7 @@ for arg in "$@"; do
     --mqtt-broker-url=*)   MQTT_BROKER_URL_OVERRIDE="${arg#*=}" ;;
     --mqtt-mappings=*)     MQTT_MAPPINGS_OVERRIDE="${arg#*=}" ;;
     --openclaw)            OPENCLAW=yes ;;
+    --assets)              ASSETS=yes ;;
     --no-openclaw)         OPENCLAW=no ;;
     --openclaw-runtime=*)  OPENCLAW_RUNTIME="${arg#*=}" ;;
     --healthkit-token=*)   HEALTHKIT_BRIDGE_TOKEN="${arg#*=}"; HEALTHKIT_TOKEN_ENABLED=true ;;
@@ -2489,8 +2496,86 @@ if [ "$MANAGER_NATIVE" = true ]; then
     info "  RE API: https://localhost:5001  PE: https://localhost:3004"
 fi
 
+# ── Asset storage (--assets; localAssetStorageStack ROADMAP phase 11) ──────
+# The stack's own up.js issues its certificates from this lane's PKI, starts
+# assets-css, assets-dokieli and the lifecycle API, and writes runtime/
+# registry.json. With the lane on, the lifecycle reaches the engines through
+# the instance registry (continuation rule 7, frame lanes); with it off, its
+# engine link stays unwired and says so. Manager then runs workflow
+# instantiation against the lifecycle. Started before Manager, which needs
+# its address and engine token.
+ASSETS_LIFECYCLE_URL=""
+ASSETS_ENGINE_TOKEN_FILE=""
+ASSETS_STAMP="$CI_DIR/.universe-assets"
+start_asset_stack() {
+    [ -d "$LASS_DIR" ] || die "--assets: localAssetStorageStack not found at $LASS_DIR"
+    command -v node >/dev/null 2>&1 || die "--assets needs Node"
+    # Service tokens, made once and kept: never overwritten (the .env is the
+    # stack's, gitignored).
+    if [ ! -f "$LASS_DIR/.env" ]; then
+        info "Asset storage: writing $LASS_DIR/.env (service tokens, once)"
+        ( umask 077
+          { for k in ADMIN_TOKEN REGISTRAR_TOKEN ENGINE_TOKEN; do
+              printf '%s=%s\n' "$k" "$(openssl rand -base64 33 | tr -d '/+=')"
+            done
+            printf 'ASSETS_PEOPLE=author:author,reviewer:reviewer\n'
+          } > "$LASS_DIR/.env" )
+    fi
+    local registry_env=()
+    if lane_tls_enabled; then
+        registry_env=(RE_REGISTRY_URL="$(lane_tls_scheme)://$HOST_IP:${REGISTRY_PORT}/re-registry.json")
+    else
+        warn "Asset storage: RE_TLS is off, so the lifecycle's engine link stays unwired (rule 7 'unchecked', lanes not sent)"
+    fi
+    info "Asset storage: starting assets-css, assets-dokieli and the lifecycle API"
+    # The stack is its own compose project: a COMPOSE_PROJECT_NAME meant for
+    # this repo's stacks would put it in theirs, where the next
+    # `up --remove-orphans` removes it.
+    if ! (cd "$LASS_DIR" && env -u COMPOSE_PROJECT_NAME ${registry_env[@]+"${registry_env[@]}"} RE_PKI="$LANE_TLS_PKI" \
+            node scripts/up.js > /tmp/asset_storage_up.log 2>&1); then
+        tail -20 /tmp/asset_storage_up.log >&2
+        die "Asset storage: up.js failed (/tmp/asset_storage_up.log)"
+    fi
+    ASSETS_LIFECYCLE_URL=$(python3 -c "import json,sys;print(json.load(open(sys.argv[1]))['services']['lifecycle']['externalUrl'])" "$LASS_DIR/runtime/registry.json")
+    local ca
+    ca=$(python3 -c "import json,sys;print(json.load(open(sys.argv[1]))['ca'])" "$LASS_DIR/runtime/registry.json")
+    local ready=false c
+    # A curl that speaks the transport profile (macOS's LibreSSL one cannot).
+    c=$(lane_curl) || die "Asset storage: no TLS 1.3 curl (lane_curl)"
+    for _ in $(seq 60); do
+        if "$c" -fsS --tlsv1.3 --cacert "$ca" "${ASSETS_LIFECYCLE_URL}health" 2>/dev/null | grep -q '"ready"'; then ready=true; break; fi
+        sleep 2
+    done
+    [ "$ready" = true ] || die "Asset storage: the lifecycle's service identity did not become ready (${ASSETS_LIFECYCLE_URL}health)"
+    # Manager's engine token, readable only by this user.
+    local token_dir="$HOME/.reality-engine/assets"
+    mkdir -p "$token_dir"; chmod 700 "$token_dir"
+    ASSETS_ENGINE_TOKEN_FILE="$token_dir/lifecycle-engine-token"
+    ( umask 077; grep '^ENGINE_TOKEN=' "$LASS_DIR/.env" | cut -d= -f2- | tr -d '\n' > "$ASSETS_ENGINE_TOKEN_FILE" )
+    echo "$LASS_DIR" > "$ASSETS_STAMP"
+    # The stack's addresses, for the PE integrations config.
+    python3 - "$CI_INTEGRATIONS_CONFIG" "$LASS_DIR/runtime/registry.json" <<'PYEOF'
+import json, sys
+from pathlib import Path
+config_path, registry_path = Path(sys.argv[1]), Path(sys.argv[2])
+if config_path.exists():
+    cfg = json.loads(config_path.read_text())
+    services = json.loads(registry_path.read_text())["services"]
+    cfg["assetStorage"] = {
+        "lifecycleUrl": services["lifecycle"]["externalUrl"],
+        "cssUrl": services["assets-css"]["externalUrl"],
+        "dokieliUrl": services["assets-dokieli"]["externalUrl"],
+    }
+    config_path.write_text(json.dumps(cfg, indent=2) + "\n")
+PYEOF
+    ok "Asset storage: lifecycle $ASSETS_LIFECYCLE_URL, pods https://assets-css.localhost:13443/, dokieli https://assets-dokieli.localhost:13444/"
+}
+
 if [ "$MULTI_ENGINE_MODE" = true ]; then
     info "Multi-engine mode — Docker RE/PE services skipped (native instances already running)"
+    if [ "$ASSETS" = yes ]; then
+        start_asset_stack
+    fi
 
     # Start Manager (Visualizer backend + frontend) natively so port 5173 is available.
     # The visualizer backend uses RE_REGISTRY_URL to discover and switch instances;
@@ -2536,6 +2621,11 @@ except Exception:
         lane_tls_issue_instance manager "" "$HOST_IP" || die "manager: certificate issue failed (RE_TLS=on)"
         if lane_tls_enabled; then
             _mgr_tls_env=(RE_TLS_CERT="$INST_TLS_CERT" RE_TLS_KEY="$INST_TLS_KEY" RE_TLS_CA="$INST_TLS_CA" RE_TLS_CRL="$INST_TLS_CRL")
+        fi
+        # Workflow instantiation against the asset storage stack (--assets;
+        # RealityEngine_Manager#323, docs/INSTANTIATION.md).
+        if [ "$ASSETS" = yes ]; then
+            _mgr_tls_env+=(INSTANTIATION_ENABLED=true LIFECYCLE_URL="$ASSETS_LIFECYCLE_URL" LIFECYCLE_ENGINE_TOKEN_FILE="$ASSETS_ENGINE_TOKEN_FILE")
         fi
         # The Load Machines catalog is the full corpus plus localAIStack's own
         # machines, not the bounded working copy MACHINES_DIR names in

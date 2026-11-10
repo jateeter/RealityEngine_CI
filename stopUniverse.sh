@@ -483,6 +483,7 @@ stop_ai_stack() {
       ok "localAIStack stopped"
     fi
     stop_regression_release_install
+    stop_asset_stack
   else
     info "Docker stacks: leaving containers running (--keep-docker)"
   fi
@@ -495,6 +496,23 @@ stop_ai_stack() {
 # instance registry on 5999, ...) and outlived every teardown, because nothing
 # here knew it. It is stopped with its containers removed and its volumes kept,
 # as `realityengine down` would; the lane installs it again on its next run.
+# The asset storage stack, when this universe started it (--assets left its
+# directory in .universe-assets). Its containers stop; its volumes stay, so a
+# pod's documents, accounts and the lifecycle's frames survive to the next
+# universe, at the same addresses. A stack started by hand is not touched.
+stop_asset_stack() {
+  local stamp="$CI_DIR/.universe-assets" dir
+  [ -f "$stamp" ] || return 0
+  dir="$(cat "$stamp")"
+  if [ -d "$dir" ] && [ -f "$dir/docker-compose.yml" ]; then
+    info "Stopping the asset storage stack ($dir)..."
+    # Its own compose project, whatever COMPOSE_PROJECT_NAME this run has.
+    if (cd "$dir" && env -u COMPOSE_PROJECT_NAME docker compose down 2>&1); then ok "Asset storage stopped (volumes kept)"
+    else fail "asset storage compose down failed — containers may still be running"; fi
+  fi
+  rm -f "$stamp"
+}
+
 REGRESSION_RELEASE_PROJECT="${REGRESSION_RELEASE_PROJECT:-re-regression}"
 stop_regression_release_install() {
   local ids dir state
