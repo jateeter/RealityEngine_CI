@@ -2642,6 +2642,30 @@ except Exception:
         # RealityEngine_Manager#323, docs/INSTANTIATION.md).
         if [ "$ASSETS" = yes ]; then
             _mgr_tls_env+=(INSTANTIATION_ENABLED=true LIFECYCLE_URL="$ASSETS_LIFECYCLE_URL" LIFECYCLE_ENGINE_TOKEN_FILE="$ASSETS_ENGINE_TOKEN_FILE")
+            # With --openclaw, each workflow step runs a per-clone OpenClaw
+            # agent (lass ROADMAP phase 8; localOpenClawStack#91): a copy of
+            # the template machine's agent, loaded and unloaded through
+            # localOpenClawStack's clone-agents CLI. Otherwise the simulated
+            # agent runs the steps.
+            _oc_cli="$OCS_DIR/scripts/clone-agents.mjs"
+            _oc_tok=$(grep -E '^OPENCLAW_GATEWAY_TOKEN=' "$OCS_DIR/.env" 2>/dev/null | tail -1 | cut -d= -f2- | tr -d "\"'" || true)
+            if [ "$OPENCLAW" = yes ] && [ -f "$_oc_cli" ] && [ -n "$_oc_tok" ]; then
+                _oc_port=$(grep -E '^OPENCLAW_GATEWAY_PORT=' "$OCS_DIR/.env" 2>/dev/null | tail -1 | cut -d= -f2- || true)
+                _oc_tok_file="$HOME/.reality-engine/assets/openclaw-gateway-token"
+                ( umask 077; printf '%s' "$_oc_tok" > "$_oc_tok_file" )
+                if [ "$OPENCLAW_RUNTIME" = container ]; then
+                    _oc_state="$OCS_DIR/openclaw"; _oc_home=/home/node/.openclaw
+                else
+                    _oc_state="${OPENCLAW_NATIVE_HOME:-$HOME/.realityengine/openclaw}"; _oc_home="$_oc_state"
+                fi
+                _mgr_tls_env+=(INSTANTIATION_AGENT=openclaw
+                    INSTANTIATION_OPENCLAW_URL="$(lane_tls_scheme)://127.0.0.1:${_oc_port:-18789}"
+                    INSTANTIATION_OPENCLAW_TOKEN_FILE="$_oc_tok_file"
+                    OPENCLAW_CLONE_AGENTS="$_oc_cli" OPENCLAW_STATE_DIR="$_oc_state" OPENCLAW_HOME_DIR="$_oc_home")
+                info "Instantiation: per-clone OpenClaw agents (gateway :${_oc_port:-18789}, $OPENCLAW_RUNTIME)"
+            else
+                info "Instantiation: the simulated agent runs workflow steps (per-clone OpenClaw agents need --openclaw and localOpenClawStack's clone-agents CLI)"
+            fi
         fi
         # The Load Machines catalog is the full corpus plus localAIStack's own
         # machines, not the bounded working copy MACHINES_DIR names in
