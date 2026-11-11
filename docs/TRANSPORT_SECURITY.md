@@ -13,7 +13,7 @@ the profile is [`config/transport-profile.json`](../config/transport-profile.jso
 | Every link, its status today, its owner and its issue | `config/transport-inventory.json`, checked by `scripts/check-transport-inventory.py` | #725 |
 | The PKI: a CA per install, service and instance certificates, rotation, revocation | `scripts/lib/re_pki.py` | #726 |
 | No new plaintext or disabled verification | `scripts/check-insecure-transport.py`, baseline `config/insecure-transport-baseline.json` | #727 |
-| Each link measured live | the probe stage in `regression-test.sh` | #728 |
+| Each link measured live | `scripts/transport-probe.py`, the `transport-probe` stage of `regression-test.sh` (local lane, `RE_TLS=on`); `--write` records `probe.<lane>` in the inventory | #728 |
 | Release gate, `re-init` on the PKI, install docs | `check-transport-inventory.py --require-compliant`, `release/` | #729 |
 
 ## The PKI

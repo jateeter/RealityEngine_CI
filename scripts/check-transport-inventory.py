@@ -11,7 +11,8 @@ Checks, always:
 - every link is well formed: a unique id, a status from the defined set, lanes
   from the defined set, an owner in the focus set, and an implementation
   issue written <repo>#<n>;
-- no link claims `compliant` or `mtls: true` without a probe record (#728);
+- no link claims `compliant` or `mtls: true` without a probe record (#728) on
+  every lane it lists, each agreeing with the claim;
 - a `deficiency` (owner-accepted only) names who accepted it, what falls short,
   what compensates, the remedy, and `allows`: the status or mtls value it
   permits, and nothing more.
@@ -122,8 +123,24 @@ def link_problems(inventory: dict[str, Any]) -> list[str]:
                     ):
                         out.append(f"{lid}: deficiency.sources must list {{file: <repo>/<path>, pattern, count > 0}}")
         claims = link.get("status") == "compliant" or link.get("mtls") is True
-        if claims and not isinstance(link.get("probe"), dict):
+        probe = link.get("probe")
+        if claims and not isinstance(probe, dict):
             out.append(f"{lid}: compliant or mtls claimed without a probe record (RealityEngine_CI#728)")
+        elif claims:
+            # One status describes the link on every lane it lists, so each of
+            # them needs its own probe (scripts/transport-probe.py --write).
+            lanes = [lane for lane in link.get("lanes", []) if lane in LANES]
+            missing = [lane for lane in lanes if not isinstance(probe.get(lane), dict)]
+            if missing:
+                out.append(f"{lid}: compliant or mtls claimed without a probe record on {', '.join(missing)} "
+                           "(RealityEngine_CI#728)")
+            else:
+                if link.get("status") == "compliant":
+                    out += [f"{lid}: claims compliant, but the {lane} probe found {probe[lane].get('verdict')!r}"
+                            for lane in lanes if probe[lane].get("verdict") != "compliant"]
+                if link.get("mtls") is True:
+                    out += [f"{lid}: claims mtls, but the {lane} probe did not observe it"
+                            for lane in lanes if probe[lane].get("mtls") is not True]
     return out
 
 
