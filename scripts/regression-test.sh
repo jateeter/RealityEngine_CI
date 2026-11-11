@@ -2358,6 +2358,32 @@ run_asset_workflow() {
     node --dns-result-order=ipv4first "$lass/scripts/chain-regression.js" "$REPORT_DIR/asset-chain.json"
 }
 
+# The live transport probe (#728, #668 work item 4b): every inventory link the
+# lane serves, asked for its TLS version, suite, group and mTLS, and whether it
+# refuses TLS 1.2 and plaintext. It fails on plaintext or a downgrade that no
+# owner-accepted deficiency allows; a missing mTLS is recorded for the release
+# gate (#729), not failed here. Report: transport-probe.json.
+run_transport_probe() {
+  step "Transport probe: every link the lane serves, against the profile"
+  if [ "$LOCAL_LANE" != true ]; then
+    log "SKIP transport-probe: the hosted profile serves no lane listeners"
+    write_skip_report "transport-probe-skipped.json" "hosted profile: no lane listeners to probe"
+    return 0
+  fi
+  if [ "${RE_TLS:-off}" != on ]; then
+    log "SKIP transport-probe: RE_TLS is off, so the lane is plaintext by configuration"
+    write_skip_report "transport-probe-skipped.json" "RE_TLS off: the lane is plaintext by configuration"
+    return 0
+  fi
+  local ci reg
+  ci="$(repo_root RealityEngine_CI)"
+  reg="$(cat "$ci/.universe-registry-url" 2>/dev/null || true)"
+  [ -n "$reg" ] || { log "transport-probe: no .universe-registry-url in $ci"; return 1; }
+  run_cmd "transport-probe" env RE_REGISTRY_URL="$reg" RE_RUN_ID="$RUN_ID" \
+    python3 "$ci/scripts/transport-probe.py" --lane native \
+      --integrations "$ci/config/integrations.json" --report "$REPORT_DIR/transport-probe.json"
+}
+
 run_pim_mirror() {
   step "HealthKit → PIM → POD mirror leg"
   # MIRROR_CONTRACT §8. D2 makes the mirror block the MVP: a skip below is a
@@ -2644,6 +2670,8 @@ if [ "$LIVE_TESTS" = true ]; then
   # parity stages would see in GET /api/machines while they live, and recycles
   # them all before it ends.
   run_stage "asset-workflow"    run_asset_workflow
+  # With every lane service up, and before mqtt-yuma: it reads, writes nothing.
+  run_stage "transport-probe"   run_transport_probe
   # After every stage that measures the universe. A live MQTT session leaves
   # sources behind that muting does not remove, and the runtimes do not leave
   # the same ones: Scala declares a source per mapping when the bridge is

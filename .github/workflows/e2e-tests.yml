@@ -534,6 +534,9 @@ jobs:
       - name: Transport inventory checker tests
         working-directory: RealityEngine_CI
         run: bash scripts/tests/test-transport-inventory.sh
+      - name: Transport probe tests (#728; skips without OpenSSL 3.5+)
+        working-directory: RealityEngine_CI
+        run: bash scripts/tests/test-transport-probe.sh
       - name: System PKI tests (re_pki)
         working-directory: RealityEngine_CI
         run: bash scripts/tests/test-re-pki.sh
