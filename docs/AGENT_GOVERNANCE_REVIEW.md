@@ -10,6 +10,28 @@ MS AGT, as an alternative." It records the deficiency, what the sources say
 today, how the current design fares against the OWASP Agentic Top 10, and the
 options, with a recommendation.
 
+## Owner decision (2026-11-11)
+
+The owner did not take the §5 recommendation:
+
+> I don't think the manager is the right place for the ATG/ACS. The manager is
+> responsible for observation and configuration and, although it has a PE, it
+> is used as a manual testing and validation. the agent dispatch is currently in
+> the right position. I think we will sunset openclaw on v0.0.3, so the solution
+> we have in place now, with the known deficiencies, is correct for V0.0.2.
+
+So:
+
+- **No AGT/ACS host in Manager.** Option B as written (§4) is rejected. Manager
+  stays observation and configuration; its PE is for manual testing and
+  validation.
+- **Agent dispatch stays where it is:** Manager's instantiation component
+  dispatches per-clone OpenClaw agents (lass ROADMAP phase 8).
+- **release-v0.0.2 ships the current design with its recorded deficiencies,**
+  including §1 (gateway-wide MCP servers, RealityEngine_CI#714).
+- **OpenClaw is to be sunset in v0.0.3.** Where governance (AGT, ACS) and its
+  replacement attach is a v0.0.3 question; §2–§4 remain the input to it.
+
 ## 1. The deficiency (accepted while testing)
 
 **OpenClaw's MCP servers are gateway-wide.**
@@ -192,8 +214,8 @@ RealityEngine_Manager#338).
    - record that wrapped MCP is mandatory if MCP is used (reopens A8);
    - note that the reference Guardian is AGT-based, so option D builds on B or A.
 
-**Needs the owner:** choose between B and A for workflow steps. Confirm OpenClaw
-stays on the ACP path. Decide whether to reopen A8 (MCP wrapping).
+**Owner decision:** see "Owner decision (2026-11-11)" above. This recommendation
+is kept as the review's record; it is not the plan.
 
 ## 6. Not verified here
 
