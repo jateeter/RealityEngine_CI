@@ -117,6 +117,18 @@ npm run test:deployment
   engines, compared 3-of-3 (#715). The regression corpus carries the chain's two
   IFRS templates.
 
+  **Per-clone OpenClaw agents** (lass ROADMAP phase 8, localOpenClawStack#91):
+  - With `--openclaw` as well, Manager runs each workflow step with
+    `INSTANTIATION_AGENT=openclaw`. The step's agent is a copy of the template
+    machine's agent, loaded and unloaded through localOpenClawStack's
+    `scripts/clone-agents.mjs`, queued FIFO in Manager.
+  - The driver reads the frame and documents and writes the return. The agent
+    holds no lifecycle credential.
+  - The driver uses its own variables: `INSTANTIATION_OPENCLAW_URL` and
+    `INSTANTIATION_OPENCLAW_TOKEN_FILE`. `OPENCLAW_GATEWAY_URL` is the PE's ACP
+    `ws(s)` URL.
+  - Without `--openclaw`, the simulated agent runs the steps.
+
   **Grafana's Asset Workflow dashboard** (`config/dashboards/asset-workflow.json`,
   #723, lass phase 10) follows each asset from frame to clone to review to head
   close. It reads:
