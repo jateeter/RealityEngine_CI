@@ -485,6 +485,15 @@ The rule is in `docs/ENGINEERING_CONTRACT.md`; the design in
 - `check-transport-inventory.py`: checks `config/transport-profile.json` and
   `config/transport-inventory.json`. With `--require-compliant` it is the
   release gate.
+- `transport-probe.py` (#728): probes every inventory link the running lane
+  serves (resolved from the instance registry, the universe manifest and
+  `config/integrations.json`), with `openssl s_client` 3.5+ and a plain socket:
+  TLS 1.3 as a profile client with and without the harness certificate,
+  TLS 1.2, a suite outside the profile, and plaintext. It fails on plaintext or
+  a downgrade an accepted deficiency does not allow, and records mTLS as
+  observed. `--write` stores `probe.<lane>` in the inventory and moves a link's
+  status only when every lane it lists has a probe. The `transport-probe`
+  regression stage runs it on the local lane with `RE_TLS=on`.
 - `check-insecure-transport.py`: fails a new `http://`, `ws://`, `curl -k`,
   `rejectUnauthorized: false`, `verify=False` or similar, across the focus
   set. The baseline only shrinks; `--write --ref origin/main` records it from
@@ -500,8 +509,9 @@ The rule is in `docs/ENGINEERING_CONTRACT.md`; the design in
   lockstep in `docs/TRANSPORT_SECURITY.md`). `lane_curl` refuses macOS's
   SecureTransport curl when the lane is on.
 - Tests: `tests/test-re-pki.sh`, which runs a real TLS 1.3 + mTLS handshake on
-  loopback (`X25519MLKEM768` where OpenSSL supports it), and
-  `tests/test-transport-inventory.sh`.
+  loopback (`X25519MLKEM768` where OpenSSL supports it),
+  `tests/test-transport-inventory.sh`, and `tests/test-transport-probe.sh`
+  (three loopback listeners under a throwaway CA; skips without OpenSSL 3.5+).
 
 ## Standing rules
 

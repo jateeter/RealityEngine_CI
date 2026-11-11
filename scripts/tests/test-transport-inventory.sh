@@ -83,11 +83,18 @@ fi
 mutate issuespace inventory 'i["links"][0]["issue"]="Some Repo#86"'
 expect_fail issuespace 'issue must be written'
 
-mutate claim inventory 'i["links"][0]["status"]="compliant"'
+mutate claim inventory 'next(l for l in i["links"] if "probe" not in l)["status"]="compliant"'
 expect_fail claim 'without a probe record'
 
-mutate mtlsclaim inventory 'i["links"][0]["mtls"]=True'
+mutate mtlsclaim inventory 'next(l for l in i["links"] if "probe" not in l)["mtls"]=True'
 expect_fail mtlsclaim 'without a probe record'
+
+# A probe on one lane does not back a claim for the link's other lanes.
+mutate onelane inventory 'l=next(x for x in i["links"] if len(x["lanes"])>1); l["status"]="compliant"; l["probe"]={l["lanes"][0]: {"verdict":"compliant","mtls":True}}'
+expect_fail onelane 'without a probe record on'
+
+mutate disagrees inventory 'l=next(x for x in i["links"] if len(x["lanes"])>1); l["status"]="compliant"; l["mtls"]=True; l["probe"]={ln: {"verdict":"tls","mtls":True} for ln in l["lanes"]}'
+expect_fail disagrees 'probe found'
 
 mutate srcnotplain inventory 'l=next(x for x in i["links"] if x["id"]=="pe-to-openclaw"); l["deficiency"]["sources"]=[{"file":"localOpenClawStack/x.conf","pattern":"plaintext-url","count":1}]'
 expect_fail srcnotplain 'only for a link allowed to be plaintext'
@@ -111,21 +118,21 @@ expect_fail defmissing 'deficiency.remedy is required'
 mutate gatedef inventory '
 for l in i["links"]:
     allows = (l.get("deficiency") or {}).get("allows", {})
-    l["status"] = allows.get("status", "compliant"); l["mtls"] = allows.get("mtls", True); l["probe"] = {"tls": "TLSv1.3"}'
+    l["status"] = allows.get("status", "compliant"); l["mtls"] = allows.get("mtls", True); l["probe"] = {ln: {"verdict": l["status"], "mtls": l["mtls"]} for ln in l["lanes"]}'
 out=$(python3 "$CHECK" --profile "$TMP/gatedef/profile.json" --inventory "$TMP/gatedef/inventory.json" --require-compliant 2>&1)
 if [[ $? -eq 0 && "$out" == *"accepted deficiency"* && "$out" == *"release gate passes"* ]]; then ok "gate passes a link within its accepted deficiency, and lists it"; else bad "gatedef: $out"; fi
 
 mutate gatebeyond inventory '
 for l in i["links"]:
     allows = (l.get("deficiency") or {}).get("allows", {})
-    l["status"] = allows.get("status", "compliant"); l["mtls"] = allows.get("mtls", True); l["probe"] = {"tls": "TLSv1.3"}
+    l["status"] = allows.get("status", "compliant"); l["mtls"] = allows.get("mtls", True); l["probe"] = {ln: {"verdict": l["status"], "mtls": l["mtls"]} for ln in l["lanes"]}
 next(l for l in i["links"] if l["id"] == "lifecycle-to-assets-css")["status"] = "plaintext"'
 out=$(python3 "$CHECK" --profile "$TMP/gatebeyond/profile.json" --inventory "$TMP/gatebeyond/inventory.json" --require-compliant 2>&1)
 if [[ $? -ne 0 && "$out" == *"lifecycle-to-assets-css: plaintext"* ]]; then ok "gate fails a deficient link beyond what it allows"; else bad "gatebeyond: $out"; fi
 
 mutate allgood inventory '
 for l in i["links"]:
-    l["status"]="compliant"; l["mtls"]=True; l["probe"]={"tls":"TLSv1.3"}'
+    l["status"]="compliant"; l["mtls"]=True; l["probe"]={ln: {"verdict": "compliant", "mtls": True} for ln in l["lanes"]}'
 out=$(python3 "$CHECK" --profile "$TMP/allgood/profile.json" --inventory "$TMP/allgood/inventory.json" --require-compliant 2>&1)
 if [[ $? -eq 0 && "$out" == *"release gate passes"* ]]; then ok "release gate passes when every link is compliant with mTLS"; else bad "allgood: $out"; fi
 
