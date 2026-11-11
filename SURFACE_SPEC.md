@@ -2437,6 +2437,34 @@ full source set immediately, completely and inactive, so `GET /api/sources`
 reflects it before any traffic arrives. Membership changes only on
 register/deregister — reads, pushes and resets do not move it.
 
+#### `POST /api/sources`: the create body
+
+The payload below ("Sensor source payload") is the source as **served**. A
+create need not repeat it: an integration sends what it knows, and every
+runtime fills the rest with the same defaults (#755).
+
+- **Kind:** `type` names it (`test`, `simulated`, `sensor`). `kind` is accepted
+  in its place, and `type` wins when both are present. With neither, the source
+  is `simulated`.
+- **Required:** `region` (`{offset, length}`), and `sensorId` for a sensor. A
+  create without `region` is outside this contract: the runtimes do not refuse
+  it alike.
+- **Defaults, every kind:** `id` minted when absent; `name` `"source"`;
+  `active` `true`. A sensor's stored `active` is still derived (`requested AND
+  a value has arrived`), so a create cannot assert an unfed sensor into
+  activity, and `active: false` is honoured.
+- **Sensor:** `lastValue` `[]`, `lastUpdated` `null`, `ttlMs` `5000`, `origin`
+  absent.
+- **Test:** `machineId`, `machineName`, `sequenceName` `""`; `inputs` `[]`;
+  `loop` `true`; `metadata` and `sequence` `{}`.
+- **Simulated:** `pattern` `constant`, `frequency` `1`, `amplitude` `1`,
+  `dcOffset` `0`.
+
+The full serialized shape remains a valid create body. The parity check is
+RealityEngine_Machines `tests/integration/pe-source-create-body.spec.ts`: a
+sparse and a full sensor body on every PE in the instance registry, read back
+alike.
+
 #### Sensor source payload
 
 A sensor source serializes `sensorId`, `lastValue`, `lastUpdated`, `ttlMs` and,
