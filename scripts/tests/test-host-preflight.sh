@@ -40,7 +40,10 @@ BIN="$T/bin"; mkdir -p "$BIN"
 cat > "$BIN/curl" <<'EOF'
 #!/bin/bash
 case "$*" in
-  *11434/api/version*) [ -n "${FAKE_OLLAMA_API:-}" ] && { printf '{"version":"%s"}' "$FAKE_OLLAMA_API"; exit 0; }; exit 7 ;;
+  *11434/api/version*)
+    # An update (RE_OLLAMA_UPDATER) writes the new version here.
+    [ -s "${OLLAMA_UPDATED_FILE:-/nonexistent}" ] && { printf '{"version":"%s"}' "$(cat "$OLLAMA_UPDATED_FILE")"; exit 0; }
+    [ -n "${FAKE_OLLAMA_API:-}" ] && { printf '{"version":"%s"}' "$FAKE_OLLAMA_API"; exit 0; }; exit 7 ;;
   *11434/api/tags*) printf '%s' "${FAKE_TAGS:-{\"models\":[]\}}"; exit 0 ;;
   *) exit 7 ;;
 esac
@@ -48,7 +51,8 @@ EOF
 cat > "$BIN/node" <<'EOF'
 #!/bin/bash
 if [ "${1:-}" = "--version" ]; then echo "v${FAKE_NODE:-26.12.1}"; exit 0; fi
-[ -f "${1:-}" ] && { echo "OpenClaw ${FAKE_OC:-2026.10.7} (abc1234)"; exit 0; }
+# An update (the npm stub) writes the new version here.
+[ -f "${1:-}" ] && { v="$(cat "${OC_UPDATED_FILE:-/nonexistent}" 2>/dev/null)"; echo "OpenClaw ${v:-${FAKE_OC:-2026.10.7}} (abc1234)"; exit 0; }
 exit 0
 EOF
 printf '#!/bin/bash\necho "ollama version is ${FAKE_OLLAMA_CLI:-0.0.0}"\n' > "$BIN/ollama"
@@ -66,6 +70,21 @@ esac
 exit 0
 EOF
 chmod +x "$BIN/gh"
+# npm installs openclaw@<v> by recording it (NPM_FAIL makes it fail); the Ollama
+# updater does the same for Ollama.
+cat > "$BIN/npm" <<'EOF'
+#!/bin/bash
+echo "$*" >> "$NPM_LOG"
+[ -z "${NPM_FAIL:-}" ] || exit 1
+for a in "$@"; do case "$a" in openclaw@*) printf '%s' "${a#openclaw@}" > "$OC_UPDATED_FILE" ;; esac; done
+exit 0
+EOF
+printf '#!/bin/bash
+printf "%%s" "$1" > "$OLLAMA_UPDATED_FILE"
+' > "$BIN/ollama-updater"
+chmod +x "$BIN/npm" "$BIN/ollama-updater"
+export NPM_LOG="$T/npm.log" OC_UPDATED_FILE="$T/oc-updated" OLLAMA_UPDATED_FILE="$T/ollama-updated"
+export RE_NPM="$BIN/npm" RE_OLLAMA_UPDATER="$BIN/ollama-updater"
 
 # run <dir> [args...]: the CLI on a PATH of stubs plus the system's tools.
 SYS="/usr/bin:/bin:/usr/sbin:/sbin"
@@ -168,6 +187,47 @@ rr nemotron-3-nano:4b "$TAGS" "$PS_LLAMA" | grep -q "^WARN .*running on 'llamacp
 rr nemotron-3-nano:4b "$TAGS" "$PS_MLX" | grep -q "^OK .*running on MLX (loaded)"; expect "a loaded model on MLX is confirmed" $?
 rr gemma3:4b "$TAGS" '{"models":[]}' | grep -q "^WARN .*declared for 'llamacpp'"; expect "a declared non-MLX default warns" $?
 [ -z "$(rr nosuch "$TAGS" '{"models":[]}')" ]; expect "an unknown model says nothing" $?
+
+# ── 9. kept current (RealityEngine_CI#663): updated when asked, never on a plain check ──
+with_openclaw
+reset_updates() { rm -f "$OC_UPDATED_FILE" "$OLLAMA_UPDATED_FILE"; : > "$NPM_LOG"; }
+reset_updates
+env FAKE_OLLAMA_API=0.40.14 FAKE_OC=2026.10.6 RE_LATEST_OLLAMA=0.40.20 RE_LATEST_OPENCLAW=2026.10.7 RE_HOST_UPDATE_ISSUES=0 \
+  REALITYENGINE_DIR="$T/c9a" PATH="$BIN:$SYS" /bin/bash "$CLI" host-check >/dev/null 2>&1
+[ ! -s "$NPM_LOG" ] && [ ! -f "$OLLAMA_UPDATED_FILE" ]; expect "a plain host-check changes nothing" $?
+reset_updates
+env FAKE_OLLAMA_API=0.40.14 FAKE_OC=2026.10.6 RE_LATEST_OLLAMA=0.40.20 RE_LATEST_OPENCLAW=2026.10.7 RE_HOST_UPDATE_ISSUES=0 \
+  REALITYENGINE_DIR="$T/c9b" PATH="$BIN:$SYS" /bin/bash "$CLI" host-check --update >"$T/c9b.out" 2>&1
+expect "host-check --update passes" $?
+grep -q "install -g openclaw@2026.10.7 --allow-scripts=openclaw" "$NPM_LOG"; expect "...installs the current OpenClaw, its postinstall allowed" $?
+grep -q '"installed": "0.40.20"' "$T/c9b/state/host-services.json" && grep -q '"installed": "2026.10.7"' "$T/c9b/state/host-services.json"
+expect "...and records the versions that now run" $?
+grep -q '"updated": "ollama 0.40.14→0.40.20; openclaw 2026.10.6→2026.10.7"' "$T/c9b/state/host-services.json"; expect "...and what it updated" $?
+[ ! -f "$T/c9b/state/host-updates.md" ]; expect "...and leaves no update note" $?
+reset_updates
+env FAKE_OLLAMA_API=0.40.20 FAKE_OC=2026.10.6 RE_LATEST_OLLAMA=0.40.20 RE_LATEST_OPENCLAW=2026.10.7 RE_HOST_UPDATE_ISSUES=0 NPM_FAIL=1 \
+  REALITYENGINE_DIR="$T/c9c" PATH="$BIN:$SYS" /bin/bash "$CLI" host-check --update >"$T/c9c.out" 2>&1
+expect "a failed update above the floor still passes" $?
+grep -q "OpenClaw stays at 2026.10.6" "$T/c9c.out" && grep -q "OpenClaw 2026.10.7 available" "$T/c9c/state/host-updates.md"
+expect "...says so, and notes the update" $?
+reset_updates
+env FAKE_OLLAMA_API=0.40.20 FAKE_OC=2026.10.6 RE_LATEST_OLLAMA=0.40.20 RE_LATEST_OPENCLAW= RE_HOST_UPDATE_ISSUES=0 \
+  REALITYENGINE_DIR="$T/c9d" PATH="$BIN:$SYS" /bin/bash "$CLI" host-check --update >"$T/c9d.out" 2>&1
+[ ! -s "$NPM_LOG" ] && grep -q "NOT checked" "$T/c9d.out"; expect "an unreadable lookup keeps what is installed, and says so" $?
+reset_updates
+set +e
+env FAKE_OLLAMA_API=0.40.20 FAKE_OC=2026.9.1 RE_LATEST_OLLAMA=0.40.20 RE_LATEST_OPENCLAW=2026.10.7 RE_HOST_UPDATE_ISSUES=0 \
+  REALITYENGINE_DIR="$T/c9e" PATH="$BIN:$SYS" /bin/bash "$CLI" host-check --update >"$T/c9e.out" 2>&1
+rc=$?
+set -e
+[ "$rc" -eq 0 ] && grep -q '"installed": "2026.10.7"' "$T/c9e/state/host-services.json"; expect "below the floor: updated, then passes" $? "exit $rc"
+reset_updates
+set +e
+env FAKE_OLLAMA_API=0.40.20 FAKE_OC=2026.9.1 RE_LATEST_OLLAMA=0.40.20 RE_LATEST_OPENCLAW=2026.10.7 RE_HOST_UPDATE_ISSUES=0 NPM_FAIL=1 \
+  REALITYENGINE_DIR="$T/c9f" PATH="$BIN:$SYS" /bin/bash "$CLI" host-check --update >"$T/c9f.out" 2>&1
+rc=$?
+set -e
+[ "$rc" -ne 0 ]; expect "below the floor and the update fails: refused" $? "exit $rc"
 
 [ "$fails" -eq 0 ] && { echo "all ok"; exit 0; }
 echo "$fails failure(s)"; exit 1

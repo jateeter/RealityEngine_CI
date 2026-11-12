@@ -42,15 +42,23 @@ with no checkout (`docs/ReleaseRoadmap.md`, decisions A1–A11; `RELEASE.md`;
   run `realityengine reembed` when the collections were filled by another model
   (`reembed_if_needed`); it execs `python -m reembed_cli` in the localAI image,
   which keeps the old collection until `reembed drop-old`.
-- **Host services are checked, not installed** (#592). `realityengine host-check`
-  (also run by `install`, `up`, `upgrade`, `startUniverse.sh` and every regression
-  run) finds Ollama, OpenClaw and the Node OpenClaw runs on, compares them with
-  `host-requirements.json` and the current public releases, and records
-  `state/host-services.json`, which `configure` copies into `release.json`.
-  Below the requirement fails and names the upgrade command; behind the current
-  release warns and files one `host-update` issue per service and version (or
-  writes `state/host-updates.md` where `gh` cannot file); a failed lookup says
-  so and is never read as current. `openclaw.required` is `true`: the gateway
+- **Host services are kept current, never pinned** (#592, #663). `realityengine
+  host-check` (also run by `install`, `up`, `upgrade`, `startUniverse.sh` and
+  every regression run) finds Ollama, OpenClaw and the Node OpenClaw runs on,
+  compares them with `host-requirements.json` and the current public releases,
+  and records `state/host-services.json` (with `updated`, what it changed),
+  which `configure` copies into `release.json` and every regression manifest
+  embeds as `hostServices`: that record, not a pin, is what certification reads.
+  `install`, `up`, `upgrade` and `host-check --update` update a service behind
+  current or below the minimum, the way it was installed (Ollama.app from the
+  signed release zip, checked against GitHub's digest and Ollama's Developer ID
+  team; Homebrew; `npm install -g openclaw@<current> --allow-scripts=openclaw`),
+  with the gateway stopped first. A plain `host-check` never changes the host.
+  A failed update below the minimum fails; above it, the version is kept and
+  one `host-update` issue is filed per service and version (or
+  `state/host-updates.md` written where `gh` cannot file); a failed lookup says
+  so, keeps what is installed, and is never read as current. `RE_HOST_UPDATE=0`
+  turns updating off. `openclaw.required` is `true`: the gateway
   runs natively, so a missing OpenClaw, or a Node other than `node.exact`,
   fails install. The probe resolves the `openclaw` the LaunchAgent runs
   (`RE_OPENCLAW_BIN`/`OPENCLAW_BIN`, Homebrew's prefix, then PATH).

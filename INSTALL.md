@@ -49,11 +49,18 @@ starts both services and loads the suite's configuration and agents into them
 | Node | **Exactly 26.12.1**, the version this release pins for OpenClaw (`release/host-requirements.json`) |
 | OpenClaw | The **current public release**, npm `latest`, installed globally for your user |
 
-Nothing else is needed: no Homebrew, no Xcode, no source checkout. If Ollama
-or OpenClaw falls behind its current public release, `install` and `up` warn
-you, print the upgrade command, and keep going. On a Mac where the GitHub CLI
-is signed in to this repository, they also open an issue for the update. A
-Node version other than the pinned one is an error.
+Nothing else is needed: no Homebrew, no Xcode, no source checkout. **Ollama and
+OpenClaw are kept current; the release requires at least Ollama 0.40.13 and
+OpenClaw 2026.10.5.** When either is behind its current public release (or below
+that minimum), `install.sh`, `realityengine install`, `up` and `upgrade` update
+it the way it was installed: Ollama.app from its signed GitHub release, a
+Homebrew Ollama with Homebrew, OpenClaw with `npm install -g openclaw@latest`.
+They say in one line what changed. If the current release can't be looked up,
+the installed version is kept and that is said; if an update fails above the
+minimum, the version is kept, noted, and on a Mac where the GitHub CLI is signed
+in to this repository an issue is opened. Below the minimum, a failed update is
+an error. `realityengine host-check` only reports; `host-check --update` updates.
+A Node version other than the pinned one is an error (Node stays exact).
 
 ## Preparing a clean Mac
 
