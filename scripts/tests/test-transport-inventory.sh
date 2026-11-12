@@ -114,6 +114,10 @@ expect_fail defallows 'allows must name only'
 mutate defmissing inventory 'del next(l for l in i["links"] if l.get("deficiency"))["deficiency"]["remedy"]'
 expect_fail defmissing 'deficiency.remedy is required'
 
+# probeAccepts may name only findings from the fixed set; plaintext is never one.
+mutate accepts inventory 'next(l for l in i["links"] if l.get("deficiency"))["deficiency"]["probeAccepts"]=["plaintext answered"]'
+expect_fail accepts 'probeAccepts must list'
+
 # The gate honours a deficiency exactly as far as it allows, and no further.
 mutate gatedef inventory '
 for l in i["links"]:

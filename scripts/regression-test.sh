@@ -2386,9 +2386,49 @@ run_transport_probe() {
     reg="$(cat "$ci/.universe-registry-url" 2>/dev/null || true)"
   fi
   [ -n "$reg" ] || { log "transport-probe: no instance registry URL for the $lane lane"; return 1; }
+  if [ "$CONTAINERIZED" != true ]; then
+    local rc=0 browser image ca="${RE_HARNESS_TLS_CA:-$HOME/.reality-engine/pki/$lane/ca/ca.crt}"
+    run_cmd "transport-probe" env RE_REGISTRY_URL="$reg" RE_RUN_ID="$RUN_ID" \
+      python3 "$ci/scripts/transport-probe.py" --lane "$lane" \
+        --integrations "$integrations" --report "$REPORT_DIR/transport-probe.json" || rc=$?
+    # The OpenClaw browser sidecar's CDP proxy reaches Chromium on the
+    # container's own loopback: probed from inside that network namespace,
+    # with localAI's image (OpenSSL 3.5+).
+    browser="$(docker ps -q --filter label=com.docker.compose.project=localopenclawstack \
+      --filter label=com.docker.compose.service=browser 2>/dev/null | head -1)"
+    image="$(docker inspect localai_api --format '{{.Config.Image}}' 2>/dev/null || true)"
+    if [ -n "$browser" ] && [ -n "$image" ]; then
+      printf '{"browser-cdp-proxy-to-chromium": [{"url": "https://127.0.0.1:9222", "path": "/json/version"}]}\n' \
+        > "$RUN_DIR/transport-probe-browser.json"
+      run_cmd "transport-probe-browser" docker run --rm --network "container:$browser" --user "$(id -u):$(id -g)" \
+        --entrypoint python3 -v "$ci:/ci:ro" -v "${ca%/ca/ca.crt}:/pki:ro" \
+        -v "$RUN_DIR/transport-probe-browser.json:/eps.json:ro" -v "$REPORT_DIR:/reports" \
+        -e RE_HARNESS_TLS_CA=/pki/ca/ca.crt -e RE_HARNESS_TLS_CERT=/pki/issued/harness/chain.pem \
+        -e RE_HARNESS_TLS_KEY=/pki/issued/harness/key.pem -e RE_RUN_ID="$RUN_ID" \
+        "$image" /ci/scripts/transport-probe.py --lane "$lane" --only-endpoints \
+          --endpoints /eps.json --report /reports/transport-probe-browser.json || rc=$?
+    fi
+    return "$rc"
+  fi
+  # The release lane: the install names its other listeners; those only on its
+  # compose network are probed from a container on that network, with the
+  # install's localai-api image (OpenSSL 3.5+). Two reports, both recorded with
+  # transport-probe.py --apply.
+  local eps="$RUN_DIR/transport-probe-endpoints" network image rc=0
+  local pki="${RE_HARNESS_TLS_CA%/ca/ca.crt}"  # the install's PKI (containerized_start)
+  { read -r network; read -r image; } < <(python3 "$ci/scripts/lib/release_probe_endpoints.py" \
+      "$RUN_DIR/install" "$eps") || { log "transport-probe: the install's endpoints could not be read"; return 1; }
   run_cmd "transport-probe" env RE_REGISTRY_URL="$reg" RE_RUN_ID="$RUN_ID" \
-    python3 "$ci/scripts/transport-probe.py" --lane "$lane" \
-      --integrations "$integrations" --report "$REPORT_DIR/transport-probe.json"
+    python3 "$ci/scripts/transport-probe.py" --lane release --manifest "$RUN_DIR/no-manifest.json" \
+      --integrations "$integrations" --endpoints "$eps/host.json" \
+      --report "$REPORT_DIR/transport-probe.json" || rc=$?
+  run_cmd "transport-probe-network" docker run --rm --network "$network" --user "$(id -u):$(id -g)" \
+    --entrypoint python3 -v "$ci:/ci:ro" -v "$pki:/pki:ro" -v "$eps:/eps:ro" -v "$REPORT_DIR:/reports" \
+    -e RE_HARNESS_TLS_CA=/pki/ca/ca.crt -e RE_HARNESS_TLS_CERT=/pki/issued/harness/cert.pem \
+    -e RE_HARNESS_TLS_KEY=/pki/issued/harness/key.pem -e RE_RUN_ID="$RUN_ID" \
+    "$image" /ci/scripts/transport-probe.py --lane release --only-endpoints \
+      --endpoints /eps/network.json --report /reports/transport-probe-network.json || rc=$?
+  return "$rc"
 }
 
 run_pim_mirror() {

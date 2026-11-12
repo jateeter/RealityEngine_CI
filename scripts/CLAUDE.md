@@ -492,8 +492,21 @@ The rule is in `docs/ENGINEERING_CONTRACT.md`; the design in
   TLS 1.2, a suite outside the profile, and plaintext. It fails on plaintext or
   a downgrade an accepted deficiency does not allow, and records mTLS as
   observed. `--write` stores `probe.<lane>` in the inventory and moves a link's
-  status only when every lane it lists has a probe. The `transport-probe`
-  regression stage runs it on the local lane with `RE_TLS=on`.
+  status only when every lane it lists has a probe; `--apply REPORT...` records
+  saved reports the same way. The asset stack's own service file
+  (`localAssetStorageStack/runtime/registry.json`) names its listeners and
+  their CA. `--endpoints FILE` adds listeners the lane knows that nothing else
+  names; `--only-endpoints` probes just those (a pass from a container on a
+  compose network). An external link (`audience: external`) is probed at its
+  inventory `probeTargets` as the profile holds outside parties: a profile
+  client verified against the system store, never a stage failure
+  (`--external-only`, `--no-external`). A deficiency's `probeAccepts` names
+  findings the owner accepted, which are recorded instead of failed. The
+  `transport-probe` regression stage runs it with `RE_TLS=on`: on the release
+  lane from the host with the install's endpoints
+  (`lib/release_probe_endpoints.py`) and from a container on the install's
+  network; the PIM mirror leg probes PIM and its CSS while they are up
+  (`transport-probe-pim.json`).
 - `check-insecure-transport.py`: fails a new `http://`, `ws://`, `curl -k`,
   `rejectUnauthorized: false`, `verify=False` or similar, across the focus
   set. The baseline only shrinks; `--write --ref origin/main` records it from

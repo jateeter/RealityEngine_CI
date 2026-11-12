@@ -15,7 +15,9 @@ Checks, always:
   every lane it lists, each agreeing with the claim;
 - a `deficiency` (owner-accepted only) names who accepted it, what falls short,
   what compensates, the remedy, and `allows`: the status or mtls value it
-  permits, and nothing more.
+  permits, and nothing more; `probeAccepts` names the probe findings it
+  accepts (TLS 1.2 or a suite outside the profile on a server that cannot be
+  restricted), which the probe stage then records instead of failing.
 
 With --require-compliant (the release gate, #729): every link must be
 `compliant`, and a service-to-service link must also have `mtls: true`, except
@@ -122,6 +124,10 @@ def link_problems(inventory: dict[str, Any]) -> list[str]:
                     out.append(f"{lid}: a deficiency is accepted only by the owner")
                 elif allows.get("status") not in (None, *STATUSES) or allows.get("mtls") not in (None, False):
                     out.append(f"{lid}: deficiency.allows has an invalid value")
+                accepts = deficiency.get("probeAccepts")
+                if accepts is not None and (not isinstance(accepts, list) or not accepts
+                                            or set(accepts) - PROBE_ACCEPTABLE):
+                    out.append(f"{lid}: deficiency.probeAccepts must list findings from {sorted(PROBE_ACCEPTABLE)}")
                 sources = deficiency.get("sources")
                 if sources is not None:
                     # Exact occurrences the insecure-transport gate allows for this
@@ -157,6 +163,11 @@ def link_problems(inventory: dict[str, Any]) -> list[str]:
                             for lane in lanes if probe[lane].get("mtls") is not True]
     return out
 
+
+# Probe findings (scripts/transport-probe.py) a deficiency may accept, so the
+# probe stage records them instead of failing. Plaintext is never one: a
+# plaintext link is accepted through allows.status.
+PROBE_ACCEPTABLE = {"TLS 1.2 accepted", "a suite outside the profile accepted"}
 
 # The insecure-transport gate's pattern names (scripts/check-insecure-transport.py).
 SOURCE_PATTERNS = {"plaintext-url", "plaintext-ws", "curl-insecure", "wget-no-check",
