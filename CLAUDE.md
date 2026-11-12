@@ -92,8 +92,10 @@ npm run test:deployment
 - The Docker path (no `--engines`) runs the same engine set as
   `--engines=cpp:1,lsp:1,scala:1`: compose services `engine-{scala,cpp,lsp}-{re,pe}`
   (images in `docker/scala`, `docker/scala-perception-engine`, `docker/cpp`,
-  `docker/lsp`), plain HTTP on 6100/6101, 6300/6301, 6600/6601 (PE/RE),
-  registered as `scala-1`, `cpp-1`, `lsp-1`. The TLS-proxied `reality-engine` +
+  `docker/lsp`), on 6100/6101, 6300/6301, 6600/6601 (PE/RE), registered as
+  `scala-1`, `cpp-1`, `lsp-1`: plain HTTP by default, TLS 1.3 with mTLS under
+  `RE_TLS=on` from the docker lane's own CA (#732; the Manager pair is not on
+  the lane yet). The TLS-proxied `reality-engine` +
   TypeScript PE pair stays Manager's and is not an engine instance (#363).
 - `startUniverse.sh --openclaw` delegates to `localOpenClawStack/scripts/start.sh`; keep hardening, immutable image pins, WebUI bootstrap, and live verification authoritative in that native stack entrypoint.
   - **The gateway runs natively by default (#592):** `--openclaw-runtime=native` passes `--native`, so the host's `openclaw` runs as the LaunchAgent `org.realityengine.openclaw-gateway` on 127.0.0.1:18789 with its home in `~/.realityengine/openclaw`; Open WebUI and the browser sidecar stay in Docker. `--openclaw-runtime=container` is the `openclaw-gateway` compose service. Startup cleanup unloads the LaunchAgent, and `stopUniverse.sh` stops it.

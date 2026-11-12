@@ -37,6 +37,25 @@
               "plaintext": "refused"
             }
           ]
+        },
+        "docker": {
+          "profileId": "re-transport-2026.11",
+          "at": "2026-11-12T01:51:38Z",
+          "run": "docker-20261112-probe",
+          "verdict": "compliant",
+          "mtls": true,
+          "endpoints": [
+            {
+              "path": "/api/health",
+              "version": "TLSv1.3",
+              "cipher": "TLS_AES_256_GCM_SHA384",
+              "group": "X25519",
+              "mtls": "handshake",
+              "tls12": "refused",
+              "nonProfileSuite": "refused",
+              "plaintext": "refused"
+            }
+          ]
         }
       }
     },
@@ -74,6 +93,25 @@
               "plaintext": "refused"
             }
           ]
+        },
+        "docker": {
+          "profileId": "re-transport-2026.11",
+          "at": "2026-11-12T01:51:38Z",
+          "run": "docker-20261112-probe",
+          "verdict": "compliant",
+          "mtls": true,
+          "endpoints": [
+            {
+              "path": "/api/health",
+              "version": "TLSv1.3",
+              "cipher": "TLS_AES_256_GCM_SHA384",
+              "group": "X25519",
+              "mtls": "handshake",
+              "tls12": "refused",
+              "nonProfileSuite": "refused",
+              "plaintext": "refused"
+            }
+          ]
         }
       }
     },
@@ -104,6 +142,25 @@
               "version": "TLSv1.3",
               "cipher": "TLS_AES_256_GCM_SHA384",
               "group": "X25519MLKEM768",
+              "mtls": "http",
+              "tls12": "refused",
+              "nonProfileSuite": "refused",
+              "plaintext": "refused"
+            }
+          ]
+        },
+        "docker": {
+          "profileId": "re-transport-2026.11",
+          "at": "2026-11-12T01:51:38Z",
+          "run": "docker-20261112-probe",
+          "verdict": "compliant",
+          "mtls": true,
+          "endpoints": [
+            {
+              "path": "/api/state",
+              "version": "TLSv1.3",
+              "cipher": "TLS_AES_256_GCM_SHA384",
+              "group": "X25519",
               "mtls": "http",
               "tls12": "refused",
               "nonProfileSuite": "refused",
@@ -147,6 +204,25 @@
               "plaintext": "refused"
             }
           ]
+        },
+        "docker": {
+          "profileId": "re-transport-2026.11",
+          "at": "2026-11-12T01:51:38Z",
+          "run": "docker-20261112-probe",
+          "verdict": "compliant",
+          "mtls": true,
+          "endpoints": [
+            {
+              "path": "/api/health",
+              "version": "TLSv1.3",
+              "cipher": "TLS_AES_256_GCM_SHA384",
+              "group": "X25519",
+              "mtls": "handshake",
+              "tls12": "refused",
+              "nonProfileSuite": "refused",
+              "plaintext": "refused"
+            }
+          ]
         }
       }
     },
@@ -184,6 +260,25 @@
               "plaintext": "refused"
             }
           ]
+        },
+        "docker": {
+          "profileId": "re-transport-2026.11",
+          "at": "2026-11-12T01:51:38Z",
+          "run": "docker-20261112-probe",
+          "verdict": "compliant",
+          "mtls": true,
+          "endpoints": [
+            {
+              "path": "/api/health",
+              "version": "TLSv1.3",
+              "cipher": "TLS_AES_256_GCM_SHA384",
+              "group": "X25519",
+              "mtls": "handshake",
+              "tls12": "refused",
+              "nonProfileSuite": "refused",
+              "plaintext": "refused"
+            }
+          ]
         }
       }
     },
@@ -214,6 +309,25 @@
               "version": "TLSv1.3",
               "cipher": "TLS_AES_256_GCM_SHA384",
               "group": "X25519MLKEM768",
+              "mtls": "http",
+              "tls12": "refused",
+              "nonProfileSuite": "refused",
+              "plaintext": "refused"
+            }
+          ]
+        },
+        "docker": {
+          "profileId": "re-transport-2026.11",
+          "at": "2026-11-12T01:51:38Z",
+          "run": "docker-20261112-probe",
+          "verdict": "compliant",
+          "mtls": true,
+          "endpoints": [
+            {
+              "path": "/api/state",
+              "version": "TLSv1.3",
+              "cipher": "TLS_AES_256_GCM_SHA384",
+              "group": "X25519",
               "mtls": "http",
               "tls12": "refused",
               "nonProfileSuite": "refused",
@@ -257,6 +371,25 @@
               "plaintext": "refused"
             }
           ]
+        },
+        "docker": {
+          "profileId": "re-transport-2026.11",
+          "at": "2026-11-12T01:51:38Z",
+          "run": "docker-20261112-probe",
+          "verdict": "compliant",
+          "mtls": true,
+          "endpoints": [
+            {
+              "path": "/api/health",
+              "version": "TLSv1.3",
+              "cipher": "TLS_AES_256_GCM_SHA384",
+              "group": "X25519MLKEM768",
+              "mtls": "handshake",
+              "tls12": "refused",
+              "nonProfileSuite": "refused",
+              "plaintext": "refused"
+            }
+          ]
         }
       }
     },
@@ -294,6 +427,25 @@
               "plaintext": "refused"
             }
           ]
+        },
+        "docker": {
+          "profileId": "re-transport-2026.11",
+          "at": "2026-11-12T01:51:38Z",
+          "run": "docker-20261112-probe",
+          "verdict": "compliant",
+          "mtls": true,
+          "endpoints": [
+            {
+              "path": "/api/health",
+              "version": "TLSv1.3",
+              "cipher": "TLS_AES_256_GCM_SHA384",
+              "group": "X25519MLKEM768",
+              "mtls": "handshake",
+              "tls12": "refused",
+              "nonProfileSuite": "refused",
+              "plaintext": "refused"
+            }
+          ]
         }
       }
     },
@@ -324,6 +476,25 @@
               "version": "TLSv1.3",
               "cipher": "TLS_AES_256_GCM_SHA384",
               "group": "X25519",
+              "mtls": "http",
+              "tls12": "refused",
+              "nonProfileSuite": "refused",
+              "plaintext": "refused"
+            }
+          ]
+        },
+        "docker": {
+          "profileId": "re-transport-2026.11",
+          "at": "2026-11-12T01:51:38Z",
+          "run": "docker-20261112-probe",
+          "verdict": "compliant",
+          "mtls": true,
+          "endpoints": [
+            {
+              "path": "/api/state",
+              "version": "TLSv1.3",
+              "cipher": "TLS_AES_256_GCM_SHA384",
+              "group": "X25519MLKEM768",
               "mtls": "http",
               "tls12": "refused",
               "nonProfileSuite": "refused",
@@ -396,6 +567,25 @@
               "plaintext": "refused"
             }
           ]
+        },
+        "docker": {
+          "profileId": "re-transport-2026.11",
+          "at": "2026-11-12T01:51:38Z",
+          "run": "docker-20261112-probe",
+          "verdict": "compliant",
+          "mtls": false,
+          "endpoints": [
+            {
+              "path": "/",
+              "version": "TLSv1.3",
+              "cipher": "TLS_AES_256_GCM_SHA384",
+              "group": "X25519MLKEM768",
+              "mtls": "none",
+              "tls12": "refused",
+              "nonProfileSuite": "refused",
+              "plaintext": "refused"
+            }
+          ]
         }
       }
     },
@@ -418,6 +608,25 @@
           "profileId": "re-transport-2026.11",
           "at": "2026-11-11T22:09:11Z",
           "run": "local-native-20261111-probe",
+          "verdict": "compliant",
+          "mtls": false,
+          "endpoints": [
+            {
+              "path": "/api/health",
+              "version": "TLSv1.3",
+              "cipher": "TLS_AES_256_GCM_SHA384",
+              "group": "X25519MLKEM768",
+              "mtls": "none",
+              "tls12": "refused",
+              "nonProfileSuite": "refused",
+              "plaintext": "refused"
+            }
+          ]
+        },
+        "docker": {
+          "profileId": "re-transport-2026.11",
+          "at": "2026-11-12T01:51:38Z",
+          "run": "docker-20261112-probe",
           "verdict": "compliant",
           "mtls": false,
           "endpoints": [
@@ -500,6 +709,25 @@
               "plaintext": "refused"
             }
           ]
+        },
+        "docker": {
+          "profileId": "re-transport-2026.11",
+          "at": "2026-11-12T01:51:38Z",
+          "run": "docker-20261112-probe",
+          "verdict": "compliant",
+          "mtls": true,
+          "endpoints": [
+            {
+              "path": "/re-registry.json",
+              "version": "TLSv1.3",
+              "cipher": "TLS_AES_256_GCM_SHA384",
+              "group": "X25519MLKEM768",
+              "mtls": "handshake",
+              "tls12": "refused",
+              "nonProfileSuite": "refused",
+              "plaintext": "refused"
+            }
+          ]
         }
       }
     },
@@ -523,6 +751,25 @@
           "profileId": "re-transport-2026.11",
           "at": "2026-11-11T22:09:11Z",
           "run": "local-native-20261111-probe",
+          "verdict": "compliant",
+          "mtls": true,
+          "endpoints": [
+            {
+              "path": "/",
+              "version": "TLSv1.3",
+              "cipher": "TLS_AES_256_GCM_SHA384",
+              "group": "X25519MLKEM768",
+              "mtls": "handshake",
+              "tls12": "refused",
+              "nonProfileSuite": "refused",
+              "plaintext": "refused"
+            }
+          ]
+        },
+        "docker": {
+          "profileId": "re-transport-2026.11",
+          "at": "2026-11-12T01:51:38Z",
+          "run": "docker-20261112-probe",
           "verdict": "compliant",
           "mtls": true,
           "endpoints": [
@@ -668,6 +915,25 @@
           "profileId": "re-transport-2026.11",
           "at": "2026-11-11T22:09:11Z",
           "run": "local-native-20261111-probe",
+          "verdict": "compliant",
+          "mtls": true,
+          "endpoints": [
+            {
+              "path": "/",
+              "version": "TLSv1.3",
+              "cipher": "TLS_AES_256_GCM_SHA384",
+              "group": "X25519MLKEM768",
+              "mtls": "handshake",
+              "tls12": "refused",
+              "nonProfileSuite": "refused",
+              "plaintext": "refused"
+            }
+          ]
+        },
+        "docker": {
+          "profileId": "re-transport-2026.11",
+          "at": "2026-11-12T01:51:38Z",
+          "run": "docker-20261112-probe",
           "verdict": "compliant",
           "mtls": true,
           "endpoints": [
@@ -1010,6 +1276,25 @@
           "profileId": "re-transport-2026.11",
           "at": "2026-11-11T22:09:11Z",
           "run": "local-native-20261111-probe",
+          "verdict": "tls",
+          "mtls": true,
+          "endpoints": [
+            {
+              "path": "/-/ready",
+              "version": "TLSv1.3",
+              "cipher": "TLS_AES_256_GCM_SHA384",
+              "group": "X25519MLKEM768",
+              "mtls": "handshake",
+              "tls12": "refused",
+              "nonProfileSuite": "accepted",
+              "plaintext": "refused"
+            }
+          ]
+        },
+        "docker": {
+          "profileId": "re-transport-2026.11",
+          "at": "2026-11-12T01:51:38Z",
+          "run": "docker-20261112-probe",
           "verdict": "tls",
           "mtls": true,
           "endpoints": [

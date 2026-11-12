@@ -2,7 +2,9 @@ version: '3.8'
 
 # Shared by the six engine-* services (the C++/LSP/Scala RE+PE trio). They are
 # the containerized counterpart of `startUniverse.sh --engines=cpp:1,lsp:1,scala:1`:
-# plain HTTP, each RE paired with its own runtime's PE, published on host
+# plain HTTP, or TLS 1.3 with mTLS under RE_TLS=on (#732: RE_LANE_SCHEME, the
+# instance's tls.env, and a health check that presents its certificate), each
+# RE paired with its own runtime's PE, published on host
 # ports that mirror the native band layout one thousand up (scala 6100/6101,
 # cpp 6300/6301, lsp 6600/6601: PE then RE), so they collide with neither the
 # native universe nor the TLS proxy. startUniverse.sh registers them in the
@@ -55,7 +57,7 @@ x-engine-corpus: &engine-corpus
 x-engine-re-env: &engine-re-env
   MACHINES_DIR: /app/machines
   VECTOR_DIMENSION: ${VECTOR_DIMENSION:-7680}
-  QDRANT_URL: http://host.docker.internal:4333
+  QDRANT_URL: ${RE_LANE_SCHEME:-http}://host.docker.internal:4333
   SEMANTICS_MANIFEST: /app/semantics/abox-manifest.json
 
 services:
@@ -155,7 +157,7 @@ services:
     environment:
       # Unified Qdrant: localAIStack exposes Qdrant on host port 4333.
       # host.docker.internal resolves to the host from within this Docker network.
-      - QDRANT_URL=http://host.docker.internal:4333
+      - QDRANT_URL=${RE_LANE_SCHEME:-http}://host.docker.internal:4333
       - COLLECTION_NAME=reality-events
       - VECTOR_DIMENSION=${VECTOR_DIMENSION:-7680}
       - PORT=3000
@@ -166,6 +168,11 @@ services:
       - AUDIT_LOG_ENABLED=true
       - AUDIT_LOG_LEVEL=2
       - AUDIT_LOG_SERVICE=reality-engine
+    env_file:
+      # Lane TLS (#732): RE_TLS_* only with the lane on; it then wins over the
+      # legacy certs/ pair (lane_tls_docker_manager).
+      - path: ${RE_INSTANCE_STATE_DIR:-${HOME}/.reality-engine}/docker/manager.tls.env
+        required: false
     depends_on:
       loki:
         condition: service_healthy
@@ -193,6 +200,9 @@ services:
       # well-formed while carrying none of the join the milestone exists for.
       - ${MACHINE_CORPUS_DIR:-${MACHINES_DIR:?MACHINES_DIR must be set — run via startUniverse.sh}}/semantics:/app/semantics:ro
       - ./certs:/etc/certs:ro
+      - ${RE_INSTANCE_STATE_DIR:-${HOME}/.reality-engine}/docker/tls/manager:/run/re-tls/instance:ro
+      - ${RE_INSTANCE_STATE_DIR:-${HOME}/.reality-engine}/docker/tls/ca.crt:/run/re-tls/ca.crt:ro
+      - ${RE_INSTANCE_STATE_DIR:-${HOME}/.reality-engine}/docker/tls/ca.crl:/run/re-tls/ca.crl:ro
     logging:
       driver: loki
       options:
@@ -203,7 +213,7 @@ services:
         loki-max-backoff: "1000ms"
         loki-external-labels: "service=reality-engine,environment=production,app=reality-engine"
     healthcheck:
-      test: ["CMD", "wget", "-qO-", "--no-check-certificate", "https://127.0.0.1:3000/api/health"]
+      test: ["CMD-SHELL", "if [ -n \"$$RE_TLS_CERT\" ]; then wget -qO- --ca-certificate=\"$$RE_TLS_CA\" --certificate=\"$$RE_TLS_CERT\" --private-key=\"$$RE_TLS_KEY\" https://127.0.0.1:3000/api/health; else wget -qO- --no-check-certificate https://127.0.0.1:3000/api/health; fi"]
       interval: 15s
       timeout: 10s
       retries: 5
@@ -238,7 +248,7 @@ services:
     ports:
       - "6101:3000"
     healthcheck:
-      test: ["CMD", "wget", "-qO-", "http://127.0.0.1:3000/api/health"]
+      test: ["CMD-SHELL", "if [ -n \"$$RE_TLS_CERT\" ]; then wget -qO- --ca-certificate=\"$$RE_TLS_CA\" --certificate=\"$$RE_TLS_CERT\" --private-key=\"$$RE_TLS_KEY\" https://127.0.0.1:3000/api/health; else wget -qO- http://127.0.0.1:3000/api/health; fi"]
       interval: 10s
       timeout: 5s
       retries: 12
@@ -255,15 +265,15 @@ services:
       - MQTT_CLIENT_ID=re-pe-docker-scala-1
       - PORT=3004
       - PERCEPTION_ENGINE_PORT=3004
-      - REALITY_ENGINE_URL=http://engine-scala-re:3000
+      - REALITY_ENGINE_URL=${RE_LANE_SCHEME:-http}://engine-scala-re:3000
       - DATA_PATH=/app/data
       - FRESH_START=true
       - JAVA_TOOL_OPTIONS=${ENGINE_SCALA_PE_JAVA_OPTS:--Xmx2g}
       - MACHINES_DIR=/app/machines
       - VECTOR_DIMENSION=${VECTOR_DIMENSION:-7680}
-      - QDRANT_URL=http://host.docker.internal:4333
+      - QDRANT_URL=${RE_LANE_SCHEME:-http}://host.docker.internal:4333
       - SEMANTICS_MANIFEST=/app/semantics/abox-manifest.json
-      - LOCAL_AI_API_URL=http://host.docker.internal:4000
+      - LOCAL_AI_API_URL=${RE_LANE_SCHEME:-http}://host.docker.internal:4000
       - LOCAL_AI_MACHINES_DIR=/app/localai-machines
       - INTEGRATIONS_CONFIG=/app/config/integrations.json
       # Pass-through from the host shell, as for perception-engine-backend.
@@ -300,7 +310,7 @@ services:
       engine-scala-re:
         condition: service_healthy
     healthcheck:
-      test: ["CMD", "wget", "-qO-", "http://127.0.0.1:3004/api/health"]
+      test: ["CMD-SHELL", "if [ -n \"$$RE_TLS_CERT\" ]; then wget -qO- --ca-certificate=\"$$RE_TLS_CA\" --certificate=\"$$RE_TLS_CERT\" --private-key=\"$$RE_TLS_KEY\" https://127.0.0.1:3004/api/health; else wget -qO- http://127.0.0.1:3004/api/health; fi"]
       interval: 10s
       timeout: 5s
       retries: 12
@@ -330,7 +340,7 @@ services:
     ports:
       - "6301:3000"
     healthcheck:
-      test: ["CMD", "wget", "-qO-", "http://127.0.0.1:3000/api/health"]
+      test: ["CMD-SHELL", "if [ -n \"$$RE_TLS_CERT\" ]; then wget -qO- --ca-certificate=\"$$RE_TLS_CA\" --certificate=\"$$RE_TLS_CERT\" --private-key=\"$$RE_TLS_KEY\" https://127.0.0.1:3000/api/health; else wget -qO- http://127.0.0.1:3000/api/health; fi"]
       interval: 10s
       timeout: 5s
       retries: 12
@@ -350,9 +360,9 @@ services:
       - MQTT_CLIENT_ID=re-pe-docker-cpp-1
       - MACHINES_DIR=/app/machines
       - VECTOR_DIMENSION=${VECTOR_DIMENSION:-7680}
-      - QDRANT_URL=http://host.docker.internal:4333
+      - QDRANT_URL=${RE_LANE_SCHEME:-http}://host.docker.internal:4333
       - SEMANTICS_MANIFEST=/app/semantics/abox-manifest.json
-      - LOCAL_AI_API_URL=http://host.docker.internal:4000
+      - LOCAL_AI_API_URL=${RE_LANE_SCHEME:-http}://host.docker.internal:4000
       - LOCAL_AI_MACHINES_DIR=/app/localai-machines
       - INTEGRATIONS_CONFIG=/app/config/integrations.json
       # Pass-through from the host shell, as for perception-engine-backend.
@@ -372,8 +382,8 @@ services:
       - TRIGGERS_ENABLED
       - TRIGGER_DISPATCH_MODE
       - TRIGGER_GRAPHQL_URL
-    command: ["/app/bin/perception_engine_server", "3004", "http://engine-cpp-re:3000",
-              "http://host.docker.internal:4000", "/app/localai-machines", "${VECTOR_DIMENSION:-7680}"]
+    command: ["/app/bin/perception_engine_server", "3004", "${RE_LANE_SCHEME:-http}://engine-cpp-re:3000",
+              "${RE_LANE_SCHEME:-http}://host.docker.internal:4000", "/app/localai-machines", "${VECTOR_DIMENSION:-7680}"]
     env_file:
       - path: ${RE_INSTANCE_STATE_DIR:-${HOME}/.reality-engine}/docker/cpp-1.tls.env
         required: false
@@ -391,7 +401,7 @@ services:
       engine-cpp-re:
         condition: service_healthy
     healthcheck:
-      test: ["CMD", "wget", "-qO-", "http://127.0.0.1:3004/api/health"]
+      test: ["CMD-SHELL", "if [ -n \"$$RE_TLS_CERT\" ]; then wget -qO- --ca-certificate=\"$$RE_TLS_CA\" --certificate=\"$$RE_TLS_CERT\" --private-key=\"$$RE_TLS_KEY\" https://127.0.0.1:3004/api/health; else wget -qO- http://127.0.0.1:3004/api/health; fi"]
       interval: 10s
       timeout: 5s
       retries: 12
@@ -422,7 +432,7 @@ services:
     ports:
       - "6601:3000"
     healthcheck:
-      test: ["CMD", "wget", "-qO-", "http://127.0.0.1:3000/api/health"]
+      test: ["CMD-SHELL", "if [ -n \"$$RE_TLS_CERT\" ]; then wget -qO- --ca-certificate=\"$$RE_TLS_CA\" --certificate=\"$$RE_TLS_CERT\" --private-key=\"$$RE_TLS_KEY\" https://127.0.0.1:3000/api/health; else wget -qO- http://127.0.0.1:3000/api/health; fi"]
       interval: 10s
       timeout: 5s
       retries: 18
@@ -441,12 +451,12 @@ services:
       # One MQTT client id per PE: two sharing one evict each other on a broker.
       - MQTT_CLIENT_ID=re-pe-docker-lsp-1
       - PERCEPTION_ENGINE_PORT=3004
-      - REALITY_ENGINE_URL=http://engine-lsp-re:3000
+      - REALITY_ENGINE_URL=${RE_LANE_SCHEME:-http}://engine-lsp-re:3000
       - MACHINES_DIR=/app/machines
       - VECTOR_DIMENSION=${VECTOR_DIMENSION:-7680}
-      - QDRANT_URL=http://host.docker.internal:4333
+      - QDRANT_URL=${RE_LANE_SCHEME:-http}://host.docker.internal:4333
       - SEMANTICS_MANIFEST=/app/semantics/abox-manifest.json
-      - LOCAL_AI_API_URL=http://host.docker.internal:4000
+      - LOCAL_AI_API_URL=${RE_LANE_SCHEME:-http}://host.docker.internal:4000
       - LOCAL_AI_MACHINES_DIR=/app/localai-machines
       - INTEGRATIONS_CONFIG=/app/config/integrations.json
       # Pass-through from the host shell, as for perception-engine-backend.
@@ -484,7 +494,7 @@ services:
       engine-lsp-re:
         condition: service_healthy
     healthcheck:
-      test: ["CMD", "wget", "-qO-", "http://127.0.0.1:3004/api/health"]
+      test: ["CMD-SHELL", "if [ -n \"$$RE_TLS_CERT\" ]; then wget -qO- --ca-certificate=\"$$RE_TLS_CA\" --certificate=\"$$RE_TLS_CERT\" --private-key=\"$$RE_TLS_KEY\" https://127.0.0.1:3004/api/health; else wget -qO- http://127.0.0.1:3004/api/health; fi"]
       interval: 10s
       timeout: 5s
       retries: 18
@@ -515,7 +525,7 @@ services:
       # Without it Manager knew only the pair above and could not switch to the
       # engine-* instances the registry lists (#363). Manager polls it, so it
       # need not exist yet when this container starts.
-      - RE_REGISTRY_URL=http://host.docker.internal:${REGISTRY_PORT:-5999}/re-registry.json
+      - RE_REGISTRY_URL=${RE_LANE_SCHEME:-http}://host.docker.internal:${REGISTRY_PORT:-5999}/re-registry.json
       - TLS_CERT_PATH=/etc/certs/server.crt
       - TLS_KEY_PATH=/etc/certs/server.key
       - NODE_EXTRA_CA_CERTS=/etc/certs/ca.crt
@@ -536,6 +546,11 @@ services:
       # from this lane, none from the native one.
       - VIZ_RATE_LIMIT_MAX=${VIZ_RATE_LIMIT_MAX:-5000}
       - VIZ_MACHINES_RATE_LIMIT_MAX=${VIZ_MACHINES_RATE_LIMIT_MAX:-2000}
+    env_file:
+      # Lane TLS (#732): RE_TLS_* only with the lane on; it then wins over the
+      # legacy certs/ pair (lane_tls_docker_manager).
+      - path: ${RE_INSTANCE_STATE_DIR:-${HOME}/.reality-engine}/docker/manager.tls.env
+        required: false
     depends_on:
       reality-engine:
         condition: service_healthy
@@ -550,6 +565,9 @@ services:
       # localAIStack's own machines, which bounded corpora list as an extra
       # source root; offered in the catalog's corpus/ branch.
       - ../localAIStack/data/machines:/app/catalog-extra:ro
+      - ${RE_INSTANCE_STATE_DIR:-${HOME}/.reality-engine}/docker/tls/manager:/run/re-tls/instance:ro
+      - ${RE_INSTANCE_STATE_DIR:-${HOME}/.reality-engine}/docker/tls/ca.crt:/run/re-tls/ca.crt:ro
+      - ${RE_INSTANCE_STATE_DIR:-${HOME}/.reality-engine}/docker/tls/ca.crl:/run/re-tls/ca.crl:ro
     logging:
       driver: loki
       options:
@@ -605,7 +623,7 @@ services:
       - REALITY_ENGINE_URL=https://reality-engine:3000
       - DATA_PATH=/app/data
       - VECTOR_SIZE=${VECTOR_DIMENSION:-7680}
-      - LOCAL_AI_BASE_URL=http://host.docker.internal:4000
+      - LOCAL_AI_BASE_URL=${RE_LANE_SCHEME:-http}://host.docker.internal:4000
       - TLS_CERT_PATH=/etc/certs/server.crt
       - TLS_KEY_PATH=/etc/certs/server.key
       - CA_CERT_PATH=/etc/certs/ca.crt
@@ -649,6 +667,11 @@ services:
       # corpus semantics manifest. Named explicitly rather than left to the
       # walk-up fallback, which cannot work in an image whose cwd is /app.
       - SEMANTICS_MANIFEST=/app/semantics/abox-manifest.json
+    env_file:
+      # Lane TLS (#732): RE_TLS_* only with the lane on; it then wins over the
+      # legacy certs/ pair (lane_tls_docker_manager).
+      - path: ${RE_INSTANCE_STATE_DIR:-${HOME}/.reality-engine}/docker/manager.tls.env
+        required: false
     volumes:
       - perception_sources_data:/app/data
       - ./config:/app/config:ro
@@ -658,6 +681,9 @@ services:
       # the PE cannot map — so a missing mount was indistinguishable from a
       # source that genuinely addresses no machine.
       - ${MACHINE_CORPUS_DIR:-${MACHINES_DIR:?MACHINES_DIR must be set — run via startUniverse.sh}}/semantics:/app/semantics:ro
+      - ${RE_INSTANCE_STATE_DIR:-${HOME}/.reality-engine}/docker/tls/manager:/run/re-tls/instance:ro
+      - ${RE_INSTANCE_STATE_DIR:-${HOME}/.reality-engine}/docker/tls/ca.crt:/run/re-tls/ca.crt:ro
+      - ${RE_INSTANCE_STATE_DIR:-${HOME}/.reality-engine}/docker/tls/ca.crl:/run/re-tls/ca.crl:ro
     depends_on:
       reality-engine:
         condition: service_healthy
@@ -676,7 +702,8 @@ services:
         loki-max-backoff: "1000ms"
         loki-external-labels: "service=perception-engine-backend,environment=production,app=reality-engine"
     healthcheck:
-      test: ["CMD", "wget", "-qO-", "--no-check-certificate", "https://localhost:3004/api/health"]
+      # Alpine: BusyBox wget presents no client certificate, so on the lane Node does.
+      test: ["CMD-SHELL", "if [ -n \"$$RE_TLS_CERT\" ]; then node -e \"const f=require('fs');require('https').get({host:'127.0.0.1',port:3004,path:'/api/health',ca:f.readFileSync(process.env.RE_TLS_CA),cert:f.readFileSync(process.env.RE_TLS_CERT),key:f.readFileSync(process.env.RE_TLS_KEY)},r=>process.exit(r.statusCode===200?0:1)).on('error',()=>process.exit(1))\"; else wget -qO- --no-check-certificate https://localhost:3004/api/health; fi"]
       interval: 15s
       timeout: 5s
       retries: 3
@@ -751,8 +778,12 @@ services:
       - "5001:5001"
       - "5173:5173"
     volumes:
-      - ./nginx/tls-proxy.conf:/etc/nginx/nginx.conf:ro
+      # The lane's config under RE_TLS=on (startUniverse.sh sets TLS_PROXY_CONF):
+      # TLS 1.3 at the profile, the lane certificate, mTLS to its upstreams (#732).
+      - ${TLS_PROXY_CONF:-./nginx/tls-proxy.conf}:/etc/nginx/nginx.conf:ro
       - ./certs:/etc/nginx/certs:ro
+      - ${RE_INSTANCE_STATE_DIR:-${HOME}/.reality-engine}/docker/tls/manager:/etc/nginx/lane/instance:ro
+      - ${RE_INSTANCE_STATE_DIR:-${HOME}/.reality-engine}/docker/tls/ca.crt:/etc/nginx/lane/ca.crt:ro
     depends_on:
       reality-engine:
         condition: service_healthy

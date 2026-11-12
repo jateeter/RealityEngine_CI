@@ -69,14 +69,16 @@ lane_tls_init() {
 
 # lane_tls_issue_service NAME HOST_IP: a server certificate for a listener CI
 # runs itself (the instance registry shim), covering localhost, NAME.localhost,
-# 127.0.0.1 and HOST_IP. Sets SVC_TLS_CERT/KEY, empty unless the lane is on.
+# host.docker.internal (how a container reaches the host: Manager's docker
+# backend reads the instance registry there, #732), 127.0.0.1 and HOST_IP.
+# Sets SVC_TLS_CERT/KEY, empty unless the lane is on.
 # shellcheck disable=SC2034  # SVC_TLS_* are read by the caller (registry.sh)
 lane_tls_issue_service() {
     local name="$1" host_ip="${2:-127.0.0.1}"
     SVC_TLS_CERT=""; SVC_TLS_KEY=""
     lane_tls_enabled || return 0
     [ "$LANE_TLS_READY" = 1 ] || return 1
-    local args="--kind server --dns localhost --dns $name.localhost --ip 127.0.0.1"
+    local args="--kind server --dns localhost --dns $name.localhost --dns host.docker.internal --ip 127.0.0.1"
     [ "$host_ip" != "127.0.0.1" ] && args="$args --ip $host_ip"
     # shellcheck disable=SC2086  # args is a word list built above
     python3 "$LANE_TLS_PKI" issue "$name" $args >/dev/null || return 1
@@ -143,6 +145,33 @@ lane_tls_docker_instance() {
     python3 "$LANE_TLS_PKI" issue "$id" $args >/dev/null || { lane_tls_enabled && return 1; return 0; }
     local issued; issued=$(dirname "$(_lane_tls_path "$id" chain)")
     _lane_tls_link "$issued" "$links/$id" &&
+        _lane_tls_link "$LANE_TLS_CA" "$links/ca.crt" &&
+        _lane_tls_link "$LANE_TLS_CRL" "$links/ca.crl" || { lane_tls_enabled && return 1; return 0; }
+    if lane_tls_enabled; then
+        printf 'RE_TLS_CERT=/run/re-tls/instance/chain.pem\nRE_TLS_KEY=/run/re-tls/instance/key.pem\nRE_TLS_CA=/run/re-tls/ca.crt\nRE_TLS_CRL=/run/re-tls/ca.crl\n' >> "$env_file"
+    fi
+}
+
+# lane_tls_docker_manager HOST_IP: the certificate of Manager's docker pair
+# (#732): reality-engine (Manager's RE), the TypeScript PE, the visualizer
+# backend and tls-proxy, which serve and call each other on the compose network
+# and the engines and instance registry beyond it, so kind both. One
+# certificate for the four, as one Manager. Linked, with the lane CA and CRL, as
+# <state>/docker/tls/manager; <state>/docker/manager.tls.env carries RE_TLS_*
+# (container paths) only when the lane is on.
+lane_tls_docker_manager() {
+    local host_ip="${1:-127.0.0.1}"
+    local state="${RE_INSTANCE_STATE_DIR:-$HOME/.reality-engine}"
+    local env_file="$state/docker/manager.tls.env" links="$state/docker/tls"
+    mkdir -p "$links"
+    printf '# Lane TLS for Manager'"'"'s docker pair (RealityEngine_CI#732), written by startUniverse.sh. Empty while RE_TLS is off.\n' > "$env_file"
+    [ "$LANE_TLS_READY" = 1 ] || { lane_tls_enabled && return 1; return 0; }
+    local args="--kind both --dns localhost --dns reality-engine --dns visualizer-backend"
+    args="$args --dns perception-engine-backend --dns tls-proxy --dns host.docker.internal --ip 127.0.0.1"
+    [ "$host_ip" != "127.0.0.1" ] && args="$args --ip $host_ip"
+    # shellcheck disable=SC2086  # args is a word list built above
+    python3 "$LANE_TLS_PKI" issue manager-docker $args >/dev/null || { lane_tls_enabled && return 1; return 0; }
+    _lane_tls_link "$(dirname "$(_lane_tls_path manager-docker chain)")" "$links/manager" &&
         _lane_tls_link "$LANE_TLS_CA" "$links/ca.crt" &&
         _lane_tls_link "$LANE_TLS_CRL" "$links/ca.crl" || { lane_tls_enabled && return 1; return 0; }
     if lane_tls_enabled; then
