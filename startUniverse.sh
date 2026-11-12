@@ -303,13 +303,13 @@ _FULL_MACHINE_CORPUS_COUNT="$(find "$FULL_MACHINES_DIR/machines" -name '*.json' 
 # When --engines= is specified it supersedes --re-engine / --pe-engine
 MULTI_ENGINE_MODE=false
 [ -n "$ENGINES" ] && MULTI_ENGINE_MODE=true
-# The docker lane issues and mounts each instance's certificate (#732), but its
-# health checks, instance registry URLs and Manager pair are still plaintext.
-# Refuse rather than start it half-TLS under RE_TLS=on.
-if [ "${RE_TLS:-off}" = on ] && [ "$MULTI_ENGINE_MODE" != true ]; then
-    echo "RE_TLS=on is supported on the native lane (--engines) only; the docker lane mounts certificates but does not serve TLS yet (RealityEngine_CI#732)" >&2
-    exit 2
-fi
+# One CA per lane (#732): the native lane's PKI for --engines, the docker
+# lane's for the containerized path. Every certificate a run issues (instances,
+# the instance registry, localAI, observability, the harness) comes from it, so
+# mTLS between them holds. RE_LANE_SCHEME is what docker-compose.yml builds its
+# in-network URLs with (PE -> RE, the instance registry).
+if [ "$MULTI_ENGINE_MODE" = true ]; then UNIVERSE_PKI_LANE=native; else UNIVERSE_PKI_LANE=docker; fi
+if [ "${RE_TLS:-off}" = on ]; then export RE_LANE_SCHEME=https; else export RE_LANE_SCHEME=http; fi
 # The engines and Manager serve TLS 1.3 with mTLS under RE_TLS=on (wave 2 of
 # #668); localAIStack does with its lane overlay (localAIStack#172) and the
 # native OpenClaw gateway with OPENCLAW_TLS_DIR (localOpenClawStack#92), and
@@ -2118,7 +2118,7 @@ fi
 # (owner option a, #668); the front starts whenever Ollama is up.
 lane_tls_ollama_front_stop
 if lane_tls_enabled; then
-    lane_tls_init native || die "RE_TLS=on but the native lane PKI is unusable (scripts/lib/re_pki.py)"
+    lane_tls_init "$UNIVERSE_PKI_LANE" || die "RE_TLS=on but the $UNIVERSE_PKI_LANE lane PKI is unusable (scripts/lib/re_pki.py)"
     lane_tls_localai "$HOST_IP" || die "RE_TLS=on but localAIStack's lane certificates could not be issued"
     ok "localAIStack lane certificates: $LANE_TLS_LOCALAI_DIR"
     lane_tls_observability || die "RE_TLS=on but the observability stack's lane certificates could not be issued"
@@ -2833,8 +2833,9 @@ if [ "$DRY_RUN" = false ]; then
     DOCKER_UUID_LSP_1=$(instance_uuid_docker_env lsp-1)     || die "lsp-1: instance UUID allocation failed"
     # Lane TLS (#732): each instance's certificate from the docker lane's own CA,
     # linked where its compose services mount it, before they are created. The
-    # RE_TLS_* reach a container only with the lane on (refused above until the
-    # engines serve TLS), so this is inert today.
+    # RE_TLS_* reach a container only with the lane on; then each engine serves
+    # TLS 1.3 with mTLS, its PE reaches its RE over https on the compose network
+    # (RE_LANE_SCHEME), and its healthcheck presents the instance certificate.
     lane_tls_init docker || die "RE_TLS=on but the docker lane PKI is unusable (scripts/lib/re_pki.py)"
     lane_tls_docker_instance scala-1 scala "$DOCKER_UUID_SCALA_1" "$HOST_IP" || die "scala-1: certificate issue failed (RE_TLS=on)"
     lane_tls_docker_instance cpp-1   cpp   "$DOCKER_UUID_CPP_1"   "$HOST_IP" || die "cpp-1: certificate issue failed (RE_TLS=on)"
@@ -2900,11 +2901,11 @@ if [ "$MULTI_ENGINE_MODE" != true ] && [ "$DRY_RUN" = false ]; then
     instance_registry_start
     # $HOST_IP, as the native lane registers, not localhost: Manager's
     # Visualizer backend runs in a container here, and its localhost is itself.
-    registry_add "scala-1" "scala" "http://$HOST_IP:6101" "http://$HOST_IP:6100" "" "" \
+    registry_add "scala-1" "scala" "$(lane_tls_scheme)://$HOST_IP:6101" "$(lane_tls_scheme)://$HOST_IP:6100" "" "" \
         "$DOCKER_UUID_SCALA_1" || die "scala-1: not registered (see above)"
-    registry_add "cpp-1"   "cpp"   "http://$HOST_IP:6301" "http://$HOST_IP:6300" "" "" \
+    registry_add "cpp-1"   "cpp"   "$(lane_tls_scheme)://$HOST_IP:6301" "$(lane_tls_scheme)://$HOST_IP:6300" "" "" \
         "$DOCKER_UUID_CPP_1" || die "cpp-1: not registered (see above)"
-    registry_add "lsp-1"   "lsp"   "http://$HOST_IP:6601" "http://$HOST_IP:6600" "" "" \
+    registry_add "lsp-1"   "lsp"   "$(lane_tls_scheme)://$HOST_IP:6601" "$(lane_tls_scheme)://$HOST_IP:6600" "" "" \
         "$DOCKER_UUID_LSP_1" || die "lsp-1: not registered (see above)"
     _publish_service "registry"         "${REGISTRY_PORT}" "/re-registry.json"
     _publish_service "manager_backend"  3001 "/health"  https

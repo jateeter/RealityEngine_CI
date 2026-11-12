@@ -2,7 +2,9 @@ version: '3.8'
 
 # Shared by the six engine-* services (the C++/LSP/Scala RE+PE trio). They are
 # the containerized counterpart of `startUniverse.sh --engines=cpp:1,lsp:1,scala:1`:
-# plain HTTP, each RE paired with its own runtime's PE, published on host
+# plain HTTP, or TLS 1.3 with mTLS under RE_TLS=on (#732: RE_LANE_SCHEME, the
+# instance's tls.env, and a health check that presents its certificate), each
+# RE paired with its own runtime's PE, published on host
 # ports that mirror the native band layout one thousand up (scala 6100/6101,
 # cpp 6300/6301, lsp 6600/6601: PE then RE), so they collide with neither the
 # native universe nor the TLS proxy. startUniverse.sh registers them in the
@@ -238,7 +240,7 @@ services:
     ports:
       - "6101:3000"
     healthcheck:
-      test: ["CMD", "wget", "-qO-", "http://127.0.0.1:3000/api/health"]
+      test: ["CMD-SHELL", "if [ -n \"$$RE_TLS_CERT\" ]; then wget -qO- --ca-certificate=\"$$RE_TLS_CA\" --certificate=\"$$RE_TLS_CERT\" --private-key=\"$$RE_TLS_KEY\" https://127.0.0.1:3000/api/health; else wget -qO- http://127.0.0.1:3000/api/health; fi"]
       interval: 10s
       timeout: 5s
       retries: 12
@@ -255,7 +257,7 @@ services:
       - MQTT_CLIENT_ID=re-pe-docker-scala-1
       - PORT=3004
       - PERCEPTION_ENGINE_PORT=3004
-      - REALITY_ENGINE_URL=http://engine-scala-re:3000
+      - REALITY_ENGINE_URL=${RE_LANE_SCHEME:-http}://engine-scala-re:3000
       - DATA_PATH=/app/data
       - FRESH_START=true
       - JAVA_TOOL_OPTIONS=${ENGINE_SCALA_PE_JAVA_OPTS:--Xmx2g}
@@ -300,7 +302,7 @@ services:
       engine-scala-re:
         condition: service_healthy
     healthcheck:
-      test: ["CMD", "wget", "-qO-", "http://127.0.0.1:3004/api/health"]
+      test: ["CMD-SHELL", "if [ -n \"$$RE_TLS_CERT\" ]; then wget -qO- --ca-certificate=\"$$RE_TLS_CA\" --certificate=\"$$RE_TLS_CERT\" --private-key=\"$$RE_TLS_KEY\" https://127.0.0.1:3004/api/health; else wget -qO- http://127.0.0.1:3004/api/health; fi"]
       interval: 10s
       timeout: 5s
       retries: 12
@@ -330,7 +332,7 @@ services:
     ports:
       - "6301:3000"
     healthcheck:
-      test: ["CMD", "wget", "-qO-", "http://127.0.0.1:3000/api/health"]
+      test: ["CMD-SHELL", "if [ -n \"$$RE_TLS_CERT\" ]; then wget -qO- --ca-certificate=\"$$RE_TLS_CA\" --certificate=\"$$RE_TLS_CERT\" --private-key=\"$$RE_TLS_KEY\" https://127.0.0.1:3000/api/health; else wget -qO- http://127.0.0.1:3000/api/health; fi"]
       interval: 10s
       timeout: 5s
       retries: 12
@@ -372,7 +374,7 @@ services:
       - TRIGGERS_ENABLED
       - TRIGGER_DISPATCH_MODE
       - TRIGGER_GRAPHQL_URL
-    command: ["/app/bin/perception_engine_server", "3004", "http://engine-cpp-re:3000",
+    command: ["/app/bin/perception_engine_server", "3004", "${RE_LANE_SCHEME:-http}://engine-cpp-re:3000",
               "http://host.docker.internal:4000", "/app/localai-machines", "${VECTOR_DIMENSION:-7680}"]
     env_file:
       - path: ${RE_INSTANCE_STATE_DIR:-${HOME}/.reality-engine}/docker/cpp-1.tls.env
@@ -391,7 +393,7 @@ services:
       engine-cpp-re:
         condition: service_healthy
     healthcheck:
-      test: ["CMD", "wget", "-qO-", "http://127.0.0.1:3004/api/health"]
+      test: ["CMD-SHELL", "if [ -n \"$$RE_TLS_CERT\" ]; then wget -qO- --ca-certificate=\"$$RE_TLS_CA\" --certificate=\"$$RE_TLS_CERT\" --private-key=\"$$RE_TLS_KEY\" https://127.0.0.1:3004/api/health; else wget -qO- http://127.0.0.1:3004/api/health; fi"]
       interval: 10s
       timeout: 5s
       retries: 12
@@ -422,7 +424,7 @@ services:
     ports:
       - "6601:3000"
     healthcheck:
-      test: ["CMD", "wget", "-qO-", "http://127.0.0.1:3000/api/health"]
+      test: ["CMD-SHELL", "if [ -n \"$$RE_TLS_CERT\" ]; then wget -qO- --ca-certificate=\"$$RE_TLS_CA\" --certificate=\"$$RE_TLS_CERT\" --private-key=\"$$RE_TLS_KEY\" https://127.0.0.1:3000/api/health; else wget -qO- http://127.0.0.1:3000/api/health; fi"]
       interval: 10s
       timeout: 5s
       retries: 18
@@ -441,7 +443,7 @@ services:
       # One MQTT client id per PE: two sharing one evict each other on a broker.
       - MQTT_CLIENT_ID=re-pe-docker-lsp-1
       - PERCEPTION_ENGINE_PORT=3004
-      - REALITY_ENGINE_URL=http://engine-lsp-re:3000
+      - REALITY_ENGINE_URL=${RE_LANE_SCHEME:-http}://engine-lsp-re:3000
       - MACHINES_DIR=/app/machines
       - VECTOR_DIMENSION=${VECTOR_DIMENSION:-7680}
       - QDRANT_URL=http://host.docker.internal:4333
@@ -484,7 +486,7 @@ services:
       engine-lsp-re:
         condition: service_healthy
     healthcheck:
-      test: ["CMD", "wget", "-qO-", "http://127.0.0.1:3004/api/health"]
+      test: ["CMD-SHELL", "if [ -n \"$$RE_TLS_CERT\" ]; then wget -qO- --ca-certificate=\"$$RE_TLS_CA\" --certificate=\"$$RE_TLS_CERT\" --private-key=\"$$RE_TLS_KEY\" https://127.0.0.1:3004/api/health; else wget -qO- http://127.0.0.1:3004/api/health; fi"]
       interval: 10s
       timeout: 5s
       retries: 18
@@ -515,7 +517,7 @@ services:
       # Without it Manager knew only the pair above and could not switch to the
       # engine-* instances the registry lists (#363). Manager polls it, so it
       # need not exist yet when this container starts.
-      - RE_REGISTRY_URL=http://host.docker.internal:${REGISTRY_PORT:-5999}/re-registry.json
+      - RE_REGISTRY_URL=${RE_LANE_SCHEME:-http}://host.docker.internal:${REGISTRY_PORT:-5999}/re-registry.json
       - TLS_CERT_PATH=/etc/certs/server.crt
       - TLS_KEY_PATH=/etc/certs/server.key
       - NODE_EXTRA_CA_CERTS=/etc/certs/ca.crt

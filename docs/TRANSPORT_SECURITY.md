@@ -218,9 +218,19 @@ With the lane on:
   `<state>/docker/tls/` (`lane_tls_docker_instance`). The links are not copies,
   so keys stay in the PKI's 0600 files, and the CA directory is never mounted
   because it holds the CA key. `<state>/docker/<id>.tls.env` carries `RE_TLS_*`
-  as container paths only when the lane is on. The lane still refuses
-  `RE_TLS=on`: its health checks, instance registry URLs and Manager pair are
-  plaintext until the engines serve TLS (wave 2). Docker Desktop lets a non-root
+  as container paths only when the lane is on. **With `RE_TLS=on` the docker
+  lane serves the engines on TLS 1.3 with mTLS** (2026-11-11, #732, verified by
+  the #728 probe): each PE reaches its RE at `https://engine-<rt>-re:3000` on
+  the compose network (`RE_LANE_SCHEME`, which `startUniverse.sh` exports), each
+  health check presents the instance certificate, and the instance registry
+  serves and lists `https`. One CA per run: the docker lane's PKI issues every
+  certificate of a docker run (the instances, the instance registry, localAI,
+  observability, the harness), as the native lane's does for `--engines`.
+  **Not yet on the lane:** Manager's docker pair (`reality-engine`, the
+  TypeScript PE, the visualizer behind `tls-proxy`) still serves the legacy
+  dev certificates (`certs/`, retired by #729), accepts TLS 1.2 and answers
+  plaintext, and the visualizer backend cannot read the lane's instance
+  registry, which needs a lane client certificate. Docker Desktop lets a non-root
   container user read the 0600 key. On Linux the container user must own it,
   which the release lane settles (#729). A CRL replaced on the host reaches a
   running container when the container is recreated.
