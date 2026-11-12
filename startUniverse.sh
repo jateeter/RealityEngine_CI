@@ -2840,6 +2840,20 @@ if [ "$DRY_RUN" = false ]; then
     lane_tls_docker_instance scala-1 scala "$DOCKER_UUID_SCALA_1" "$HOST_IP" || die "scala-1: certificate issue failed (RE_TLS=on)"
     lane_tls_docker_instance cpp-1   cpp   "$DOCKER_UUID_CPP_1"   "$HOST_IP" || die "cpp-1: certificate issue failed (RE_TLS=on)"
     lane_tls_docker_instance lsp-1   lsp   "$DOCKER_UUID_LSP_1"   "$HOST_IP" || die "lsp-1: certificate issue failed (RE_TLS=on)"
+    # Manager's docker pair (reality-engine, the TypeScript PE, the visualizer
+    # backend, tls-proxy): one lane certificate, and tls-proxy's lane config,
+    # derived from nginx/tls-proxy.conf (#732).
+    lane_tls_docker_manager "$HOST_IP" || die "Manager docker pair: certificate issue failed (RE_TLS=on)"
+    if lane_tls_enabled; then
+        TLS_PROXY_CONF="${RE_INSTANCE_STATE_DIR:-$HOME/.reality-engine}/docker/tls-proxy.lane.conf"
+        python3 "$CI_DIR/scripts/lib/tls_proxy_lane_conf.py" "$CI_DIR/nginx/tls-proxy.conf" "$TLS_PROXY_CONF" \
+            || die "tls-proxy: the lane config could not be generated"
+        export TLS_PROXY_CONF
+        # Every compose call of this run takes the observability overlay, so
+        # `up` below does not recreate Loki, Prometheus and Grafana without it.
+        export COMPOSE_FILE=docker-compose.yml:docker-compose.observability-tls.yml
+        export OBS_TLS_DIR="${LANE_TLS_OBS_DIR:-${RE_INSTANCE_STATE_DIR:-$HOME/.reality-engine}/observability/tls}"
+    fi
 fi
 
 info "Starting RE services (waiting for all healthchecks, timeout 360s)..."
@@ -2864,6 +2878,14 @@ if [ "$MANAGER_NATIVE" = true ]; then
     echo -n "  PE  "
     poll_http "https://localhost:3004/api/health" "PE backend ready (:3004)" 30 "-skf" || \
         add_warn "PE backend not reachable on https://localhost:3004"
+elif lane_tls_enabled; then
+    # tls-proxy serves TLS 1.3 only on the lane: the lane's curl and CA (#732).
+    echo -n "  API "
+    poll_lane "https://localhost:5001/api/health" "RE API reachable (lane TLS)" 15 || \
+        add_warn "RE API not reachable on https://localhost:5001 after startup"
+    echo -n "  PE  "
+    poll_lane "https://localhost:3004/api/health" "PE Backend reachable (lane TLS)" 15 || \
+        add_warn "Perception Engine not reachable on https://localhost:3004 after startup"
 else
     echo -n "  API "
     poll_http "https://localhost:5001/api/health" "RE API reachable" 15 "-skf" || \
