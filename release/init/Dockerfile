@@ -22,7 +22,8 @@ COPY release/realityengine /opt/release/realityengine
 # The RealityEngine_CI files an install needs, unchanged: the instance UUID
 # allocator (#296), the integration registry template, and the monitoring
 # configuration and dashboards.
-COPY scripts/lib/instance_uuids.py /opt/ci/scripts/lib/
+COPY scripts/lib/instance_uuids.py scripts/lib/re_pki.py scripts/lib/re_tls_server.py /opt/ci/scripts/lib/
+COPY config/transport-profile.json /opt/ci/config/
 COPY scripts/bridge-metrics-exporter.mjs /opt/ci/scripts/
 COPY config/integrations.example.json config/loki-config.yml config/grafana-datasources.yml \
      config/grafana-dashboards.yml config/regression-corpus.txt /opt/ci/config/

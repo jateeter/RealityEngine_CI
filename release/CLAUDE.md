@@ -62,6 +62,20 @@ with no checkout (`docs/ReleaseRoadmap.md`, decisions A1–A11; `RELEASE.md`;
   runs natively, so a missing OpenClaw, or a Node other than `node.exact`,
   fails install. The probe resolves the `openclaw` the LaunchAgent runs
   (`RE_OPENCLAW_BIN`/`OPENCLAW_BIN`, Homebrew's prefix, then PATH).
+- **The install's PKI and the TLS switch** (#729, #668). `re-init configure`
+  issues, on every run, a CA per install under `<install>/pki` with the suite's
+  `scripts/lib/re_pki.py` (ECDSA P-384, the transport profile's validities):
+  a certificate per engine instance (its compose names, `urn:uuid:`), the
+  instance registry, Manager's pair and the CLI's `harness`. `--tls on` (or
+  `RE_TLS=on`; default off, recorded in `.env` and `release.json` with the
+  profile id) puts the engines and the instance registry on TLS 1.3 with mTLS:
+  `RE_TLS_*` and read-only mounts of the instance's certificate, the CA and the
+  CRL (never the CA key), `https` URLs in both registry views and from each PE
+  to its RE, health checks that present the certificate, and a generated
+  `compose.tls.yml` for the registry, which serves through the suite's
+  `re_tls_server.py`. The other services move onto it in later slices; the
+  default flips once all have (the release gate, `--require-compliant`). The
+  legacy `certs/` RSA pair still serves Manager's proxy until then.
 - **The OpenClaw gateway is the Mac's own `openclaw`, not an image** (#592).
   `re-init configure` (and `machines-load`) generate its home in
   `<install>/openclaw` with localOpenClawStack's scripts, in the `entries`
