@@ -636,10 +636,10 @@ configure() {
   set -- "$@" "$img" configure --install /install --engines "$ENGINES" --version "$VERSION" --registry "$REGISTRY" --project "$proj"
   [ -f "$DIR/images.json" ] && set -- "$@" --images /install/images.json
   # The TLS switch (#729): RE_TLS from the environment, else what this install
-  # was configured with, so `up` and `upgrade` keep it; off by default.
+  # was configured with, so `up` and `upgrade` keep it; on by default.
   tls="${RE_TLS:-}"
   [ -z "$tls" ] && [ -f "$DIR/.env" ] && tls="$(sed -n 's/^RE_TLS=//p' "$DIR/.env" | tail -1)"
-  set -- "$@" --tls "${tls:-off}"
+  set -- "$@" --tls "${tls:-on}"
   "$@"
   save_conf
 }

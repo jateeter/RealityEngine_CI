@@ -106,6 +106,16 @@ containerized_start() {
   run_cmd "install-release" containerized_cli install --version "$tag" --engines "$ENGINES_SPEC" "${args[@]}" || return 1
   REGISTRY_FILE="$RUN_DIR/install/registry/re-registry.json"
   RE_REGISTRY_URL="http://localhost:${RE_PORT_REGISTRY:-5999}/re-registry.json"
+  # The install's TLS switch (#729, on by default): the stages reach it over
+  # https, with the install's own CA and its CLI harness certificate (re_tls.py
+  # and lane_curl read RE_HARNESS_TLS_*), as they do the native lane's.
+  if grep -qx 'RE_TLS=on' "$RUN_DIR/install/.env" 2>/dev/null; then
+    local pki="$RUN_DIR/install/pki"
+    RE_REGISTRY_URL="https://localhost:${RE_PORT_REGISTRY:-5999}/re-registry.json"
+    export RE_TLS=on RE_PKI_LANE=release RE_HARNESS_TLS_CA="$pki/ca/ca.crt" \
+      RE_HARNESS_TLS_CERT="$pki/issued/harness/cert.pem" RE_HARNESS_TLS_KEY="$pki/issued/harness/key.pem"
+    log "the install serves TLS 1.3 (RE_TLS=on): stages use its CA and harness certificate"
+  fi
   export RE_REGISTRY_URL
   log "instance registry: $REGISTRY_FILE"
 }

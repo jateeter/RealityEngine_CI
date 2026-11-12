@@ -1200,9 +1200,9 @@ def main(argv: list[str]) -> int:
     c.add_argument("--registry", default="ghcr.io/jateeter")
     c.add_argument("--project", default="realityengine")
     c.add_argument("--skip-openclaw", action="store_true")
-    c.add_argument("--tls", choices=("on", "off"), default=os.environ.get("RE_TLS", "off"),
-                   help="serve the engines and the instance registry on TLS 1.3 with mTLS (#729); "
-                        "the install's other services follow in later releases of this switch")
+    c.add_argument("--tls", choices=("on", "off"), default=os.environ.get("RE_TLS", "on"),
+                   help="every service on TLS 1.3, with mTLS between services (#729, #668); on by "
+                        "default. Ollama and Open WebUI stay plain http (owner, 2026-11-12)")
     s = sub.add_parser("serve-registry")
     s.add_argument("--dir", default="/install/registry")
     s.add_argument("--port", type=int, default=8000)

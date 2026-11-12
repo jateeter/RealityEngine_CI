@@ -48,7 +48,22 @@ trap 'rm -rf "$TMP"' EXIT
 SHA_A="aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
 SHA_B="bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"
 DIGEST="sha256:1111111111111111111111111111111111111111111111111111111111111111"
-REQUIRED=(service-inventory trajectory-parity universal-vectors machine-set-parity export-parity pe-step-contract engine-process-parity mcp openclaw local-ai pim-mirror)
+REQUIRED=(transport-probe service-inventory trajectory-parity universal-vectors machine-set-parity export-parity pe-step-contract engine-process-parity mcp openclaw local-ai pim-mirror)
+
+# The release gate reads the link inventory (#729). The committed one is not yet
+# compliant, so the generate cases read a compliant copy: every link compliant
+# with mTLS, probed on every lane it lists.
+COMPLIANT_INVENTORY="$TMP/compliant-inventory.json"
+python3 - "$CI_DIR/config/transport-inventory.json" "$COMPLIANT_INVENTORY" <<'EOF'
+import json, sys
+inv = json.load(open(sys.argv[1]))
+for l in inv["links"]:
+    l["status"], l["mtls"] = "compliant", True
+    l["probe"] = {lane: {"verdict": "compliant", "mtls": True} for lane in l["lanes"]}
+    l.pop("deficiency", None)
+json.dump(inv, open(sys.argv[2], "w"))
+EOF
+export RELEASE_TRANSPORT_INVENTORY="$COMPLIANT_INVENTORY"
 
 # $1=dir $2=status $3=worktreeSha $4=originMainSha [$5=profile] [$6=RepoB worktreeSha]
 make_run() {
@@ -508,5 +523,16 @@ assert_eq "$CODE" "1" "a missing repo fails verification"
 assert_contains "$OUT" "not checked out" "names the missing repo"
 
 echo
+echo "the transport gate (#729)"
+# The committed inventory, not the compliant copy: a green run's manifest is
+# refused while any link falls short, and the reason names the gate.
+set +e
+OUT="$(env -u RELEASE_TRANSPORT_INVENTORY python3 "$CI_DIR/scripts/release-manifest.py" generate --run-dir "$TMP/green" \
+  --images "$TMP/images.json" "${HK[@]}" --version release-v9.9.9-rc1 --out "$TMP/transport.json" 2>&1)"; CODE=$?
+set -e
+assert_eq "$([ "$CODE" -ne 0 ] && echo refused)" "refused" "a non-compliant inventory makes the release ineligible"
+assert_contains "$OUT" "transport: the link inventory is not compliant under re-transport-2026.11" "and names the transport gate"
+assert_eq "$(field "$TMP/green.json" "m['transport']['profileId']")" "re-transport-2026.11" "the manifest records the profile the release runs under"
+
 echo "passed: $PASS  failed: $FAIL"
 [ "$FAIL" -eq 0 ]

@@ -183,6 +183,9 @@ UNTAGGED = "untagged"
 # wrapper exit as success. pim-mirror is required by decision D2
 # (MVP_ROADMAP.md, 2026-09-25).
 REQUIRED_STAGES = (
+    # Every link the lane serves, against the transport profile (#728); a
+    # release needs it (#729, the release-v0.0.2 gate of #668).
+    "transport-probe",
     "service-inventory",
     "trajectory-parity",
     "universal-vectors",
@@ -303,6 +306,21 @@ def lane_problems(label: str, lane: dict[str, Any], profile: str) -> list[str]:
     return problems
 
 
+def transport_record() -> dict[str, Any]:
+    """The transport profile this release is certified under, and the link
+    inventory's release gate (#729): check-transport-inventory.py
+    --require-compliant, run against this checkout's inventory."""
+    ci = Path(__file__).resolve().parent.parent
+    profile = json.loads((ci / "config" / "transport-profile.json").read_text())["profileId"]
+    cmd = [sys.executable, str(ci / "scripts" / "check-transport-inventory.py"), "--require-compliant"]
+    if os.environ.get("RELEASE_TRANSPORT_INVENTORY"):   # tests
+        cmd += ["--inventory", os.environ["RELEASE_TRANSPORT_INVENTORY"]]
+    done = subprocess.run(cmd, capture_output=True, text=True)
+    gaps = [line.strip() for line in (done.stdout + done.stderr).splitlines()
+            if line.startswith("  ") and "accepted deficiency" not in line]
+    return {"profileId": profile, "compliant": done.returncode == 0, "gaps": gaps}
+
+
 def eligibility(manifest: dict[str, Any]) -> list[str]:
     """Why this manifest may not be cut; empty when it may (ReleaseRoadmap E4)."""
     problems: list[str] = []
@@ -353,6 +371,13 @@ def eligibility(manifest: dict[str, Any]) -> list[str]:
     meta = manifest.get("imagesFile") or {}
     if images and not meta.get("pushed"):
         problems.append(f"images file {meta.get('tag', '?')} was not pushed to a registry")
+    transport = manifest.get("transport")
+    if not transport:
+        problems.append("transport: no record of the profile the release runs under (#729)")
+    elif not transport.get("compliant"):
+        gaps = transport.get("gaps") or []
+        problems.append(f"transport: the link inventory is not compliant under {transport.get('profileId', '?')} "
+                        f"({len(gaps)} gap(s); check-transport-inventory.py --require-compliant, #729)")
     return problems
 
 
@@ -430,6 +455,7 @@ def cmd_generate(args: argparse.Namespace) -> int:
         "generatedAt": utc_now(),
         "certifiedBy": certified_by,
         "repos": sorted(entries, key=lambda e: e["name"]),
+        "transport": transport_record(),
     }
 
     if args.images:

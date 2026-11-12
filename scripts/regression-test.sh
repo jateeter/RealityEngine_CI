@@ -2375,13 +2375,20 @@ run_transport_probe() {
     write_skip_report "transport-probe-skipped.json" "RE_TLS off: the lane is plaintext by configuration"
     return 0
   fi
-  local ci reg
+  local ci reg lane=native integrations
   ci="$(repo_root RealityEngine_CI)"
-  reg="$(cat "$ci/.universe-registry-url" 2>/dev/null || true)"
-  [ -n "$reg" ] || { log "transport-probe: no .universe-registry-url in $ci"; return 1; }
+  integrations="$ci/config/integrations.json"
+  if [ "$CONTAINERIZED" = true ]; then
+    # A release install (#729): its links are the release lane's, its registry
+    # the install's (containerized_start exports it).
+    lane=release; reg="$RE_REGISTRY_URL"; integrations="$RUN_DIR/no-integrations.json"
+  else
+    reg="$(cat "$ci/.universe-registry-url" 2>/dev/null || true)"
+  fi
+  [ -n "$reg" ] || { log "transport-probe: no instance registry URL for the $lane lane"; return 1; }
   run_cmd "transport-probe" env RE_REGISTRY_URL="$reg" RE_RUN_ID="$RUN_ID" \
-    python3 "$ci/scripts/transport-probe.py" --lane native \
-      --integrations "$ci/config/integrations.json" --report "$REPORT_DIR/transport-probe.json"
+    python3 "$ci/scripts/transport-probe.py" --lane "$lane" \
+      --integrations "$integrations" --report "$REPORT_DIR/transport-probe.json"
 }
 
 run_pim_mirror() {
