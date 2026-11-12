@@ -183,10 +183,12 @@ else
 fi
 
 # ── 3. Ollama and its models ──────────────────────────────────────────────────
-# Looked for first: an Ollama at or above this release's minimum is kept as it
-# is, whether it came from the app or Homebrew, and only a newer release is
-# mentioned (the release's own rule: behind latest is a warning, never a
-# failure). Models are asked of the running Ollama, so none is pulled twice.
+# Looked for first, wherever it was installed (the app or Homebrew). Ollama is
+# kept current, never pinned (RealityEngine_CI#663): one behind the current
+# release is updated the way it was installed, one below the minimum is
+# installed, and when the current release can't be looked up the installed one
+# is kept and that is said. Models are asked of the running Ollama, so none is
+# pulled twice.
 step "Ollama and its models"
 OLLAMA_API="http://127.0.0.1:11434"
 ollama_version() {  # a CLI's client version; "" when it does not run
@@ -206,20 +208,42 @@ running="$(curl -fsS --max-time 3 "$OLLAMA_API/api/version" 2>/dev/null | sed -n
 # makes curl fail on SIGPIPE, which pipefail turns into the script's exit.
 ollama_release="$(curl -fsS --max-time 10 https://api.github.com/repos/ollama/ollama/releases/latest 2>/dev/null || true)"
 ollama_latest="$(printf '%s\n' "$ollama_release" | awk -F'"' '/"tag_name"/ {print $4}' | sed 's/^v//' | sed -n 1p)"
-if [ -n "$ollama_have" ] && version_ge "$ollama_have" "$OLLAMA_MIN"; then
+ollama_behind=false
+[ -n "$ollama_have" ] && [ -n "$ollama_latest" ] && ! version_ge "$ollama_have" "$ollama_latest" && ollama_behind=true
+[ -n "$ollama_latest" ] || [ -z "$ollama_have" ] || \
+  printf '  %s!%s The current Ollama release could not be looked up; keeping %s.\n' "$Y" "$N" "$ollama_have"
+if [ -n "$ollama_have" ] && version_ge "$ollama_have" "$OLLAMA_MIN" && ! $ollama_behind; then
   ok "Ollama $ollama_have already installed${OLLAMA_CLI:+ ($OLLAMA_CLI)}"
-  if [ -n "$ollama_latest" ] && ! version_ge "$ollama_have" "$ollama_latest"; then
-    printf '  %s!%s Ollama %s is available; this install keeps %s. To update: https://ollama.com/download\n' \
-      "$Y" "$N" "$ollama_latest" "$ollama_have"
-  fi
 elif $CHECK; then
-  todo "install Ollama ${ollama_latest:-current}${ollama_have:+ (installed: $ollama_have, below the minimum $OLLAMA_MIN)}"
+  if $ollama_behind && version_ge "$ollama_have" "$OLLAMA_MIN"; then
+    todo "update Ollama $ollama_have → $ollama_latest"
+  else
+    todo "install Ollama ${ollama_latest:-current}${ollama_have:+ (installed: $ollama_have, below the minimum $OLLAMA_MIN)}"
+  fi
+elif $ollama_behind && [ ! -d /Applications/Ollama.app ] && command -v brew >/dev/null 2>&1 \
+    && brew list --versions ollama >/dev/null 2>&1; then
+  # A Homebrew Ollama is updated by Homebrew, and restarted if it runs as a service.
+  long "updating Ollama $ollama_have → $ollama_latest (Homebrew)" brew upgrade ollama || fail "Homebrew could not update Ollama."
+  if brew services list 2>/dev/null | awk '$1 == "ollama" && $2 == "started"' | grep -q .; then
+    quiet brew services restart ollama || true
+  fi
+  ollama_have="$(ollama_version "$(brew --prefix)/bin/ollama")"
+  ok "Ollama updated to $ollama_have"
 else
   quiet osascript -e 'quit app "Ollama"' || true
   long "downloading Ollama ${ollama_latest:-current}" curl -fL -o "$WORK/Ollama.dmg" \
     https://github.com/ollama/ollama/releases/latest/download/Ollama.dmg || fail "Ollama could not be downloaded."
   mnt="$(hdiutil attach -nobrowse -readonly "$WORK/Ollama.dmg" | awk -F'\t' '/\/Volumes\// {print $NF}')"
   [ -n "$mnt" ] || fail "The Ollama disk image could not be opened."
+  # Signed and notarized by Ollama (Developer ID team 3MU9H2V9Y9) before it
+  # replaces anything.
+  if ! codesign --verify --deep --strict "$mnt/Ollama.app" 2>/dev/null \
+      || ! codesign -dv "$mnt/Ollama.app" 2>&1 | grep -q '^TeamIdentifier=3MU9H2V9Y9$'; then
+    quiet hdiutil detach "$mnt" || true
+    fail "The downloaded Ollama.app is not signed by Ollama; nothing was replaced."
+  fi
+  # A running app keeps serving the old version from the replaced bundle.
+  pkill -f '/Applications/Ollama.app/Contents/' 2>/dev/null || true
   rm -rf /Applications/Ollama.app && cp -R "$mnt/Ollama.app" /Applications/ || fail "Ollama could not be copied to /Applications."
   quiet hdiutil detach "$mnt" || true
   rm -f "$WORK/Ollama.dmg"
@@ -301,12 +325,25 @@ for cand in "$(command -v openclaw 2>/dev/null || true)" "$HOME/.npm-global/bin/
   [ -n "$v" ] && { OC_BIN="$cand"; oc_have="$v"; break; }
 done
 oc_latest="$("$NPM" view openclaw@latest version 2>/dev/null || true)"
-if [ -n "$oc_have" ] && version_ge "$oc_have" "$OPENCLAW_MIN"; then
+# Kept current, never pinned (RealityEngine_CI#663): behind the current release
+# is updated in place; an unreadable npm keeps what is installed, and says so.
+oc_behind=false
+[ -n "$oc_have" ] && [ -n "$oc_latest" ] && ! version_ge "$oc_have" "$oc_latest" && oc_behind=true
+[ -n "$oc_latest" ] || [ -z "$oc_have" ] || \
+  printf '  %s!%s The current OpenClaw release could not be looked up; keeping %s.\n' "$Y" "$N" "$oc_have"
+if [ -n "$oc_have" ] && version_ge "$oc_have" "$OPENCLAW_MIN" && ! $oc_behind; then
   ok "OpenClaw $oc_have already installed ($OC_BIN)"
-  if [ -n "$oc_latest" ] && ! version_ge "$oc_have" "$oc_latest"; then
-    printf '  %s!%s OpenClaw %s is available; this install keeps %s. To update: npm install -g openclaw@latest\n' \
-      "$Y" "$N" "$oc_latest" "$oc_have"
-  fi
+  PATH="$(dirname "$OC_BIN"):$PATH"; export PATH
+elif $oc_behind && version_ge "$oc_have" "$OPENCLAW_MIN" && $CHECK; then
+  todo "update OpenClaw $oc_have → $oc_latest ($OC_BIN)"
+elif $oc_behind && version_ge "$oc_have" "$OPENCLAW_MIN"; then
+  # In place, into the prefix it is already in. npm 11 skips install scripts
+  # unless allowed; OpenClaw's own postinstall prunes the old version's files.
+  long "updating OpenClaw $oc_have → $oc_latest" "$NPM" install -g "openclaw@$oc_latest" --allow-scripts=openclaw \
+    || fail "OpenClaw could not be updated."
+  hash -r
+  oc_have="$(PATH="$NODE_DIR:$PATH" openclaw_version "$OC_BIN")"
+  ok "OpenClaw updated to $oc_have"
   PATH="$(dirname "$OC_BIN"):$PATH"; export PATH
 else
   # A user-owned global prefix, so OpenClaw installs without sudo, unless the
@@ -324,7 +361,7 @@ else
       grep -qs 'npm-global/bin' "$HOME/.zprofile" \
         || echo 'export PATH="$HOME/.npm-global/bin:$PATH"' >> "$HOME/.zprofile"
     fi
-    long "installing OpenClaw ${oc_latest:-latest}" "$NPM" install -g "openclaw@${oc_latest:-latest}" \
+    long "installing OpenClaw ${oc_latest:-latest}" "$NPM" install -g "openclaw@${oc_latest:-latest}" --allow-scripts=openclaw \
       || fail "OpenClaw did not install."
     export PATH="$npm_prefix/bin:$PATH"
     hash -r

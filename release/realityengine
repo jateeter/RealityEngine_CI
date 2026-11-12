@@ -14,8 +14,9 @@
 #                                              on GitHub (default main), validated first
 #   realityengine machines load --domain D | --machine M | --all
 #                                              load catalog machines into every engine
-#   realityengine host-check [--json]          check Ollama, OpenClaw and Node against this release
-#                                              (no Docker needed); records state/host-services.json
+#   realityengine host-check [--json|--update] check Ollama, OpenClaw and Node against this release
+#                                              (no Docker needed); records state/host-services.json;
+#                                              --update brings Ollama and OpenClaw to current (#663)
 #   realityengine reembed [status|run|rollback|drop-old] [COLLECTION ...]
 #                                              rebuild localAI's Qdrant collections after the
 #                                              embedding model changes (vectors from two models
@@ -314,8 +315,8 @@ json_str() { printf '"%s"' "$(printf '%s' "$1" | sed 's/\\/\\\\/g; s/"/\\"/g')";
 
 host_services_json() {
   local skipped="false"; [ -n "$HOST_LOOKUPS_SKIPPED" ] && skipped="true"
-  printf '{\n  "checked_at": %s,\n  "release": %s,\n  "lookups_skipped": %s,\n' \
-    "$(json_str "$(date -u +%Y-%m-%dT%H:%M:%SZ)")" "$(json_str "$HOST_MILESTONE")" "$skipped"
+  printf '{\n  "checked_at": %s,\n  "release": %s,\n  "lookups_skipped": %s,\n  "updated": %s,\n' \
+    "$(json_str "$(date -u +%Y-%m-%dT%H:%M:%SZ)")" "$(json_str "$HOST_MILESTONE")" "$skipped" "$(json_str "${HOST_UPDATED%; }")"
   printf '  "ollama":   {"installed": %s, "latest": %s, "min": %s, "status": %s, "note": %s},\n' \
     "$(json_str "$OLLAMA_VER")" "$(json_str "$OLLAMA_LATEST")" "$(json_str "$HOST_REQ_OLLAMA_MIN")" "$(json_str "$OLLAMA_STATUS")" "$(json_str "$OLLAMA_NOTE")"
   printf '  "openclaw": {"installed": %s, "latest": %s, "min": %s, "status": %s, "bin": %s, "note": %s},\n' \
@@ -388,9 +389,96 @@ host_file_issue() { # title fix
   fi
 }
 
+# Ollama and OpenClaw are kept current, never pinned (RealityEngine_CI#663).
+# install, up and upgrade (and host-check --update) bring a service that is
+# behind the current release, or below the minimum, up to the current release,
+# the way it was installed. A lookup that failed keeps what is installed; the
+# report says so. RE_HOST_UPDATE=0 turns updating off (tests, a held host).
+HOST_UPDATE=false
+HOST_UPDATED=""
+
+update_openclaw() { # to
+  local npm
+  npm="${RE_NPM:-$(dirname "${OPENCLAW_NODE:-/usr/bin/node}")/npm}"
+  [ -x "$npm" ] || npm="$(command -v npm 2>/dev/null || true)"
+  [ -n "$npm" ] || { warn "No npm beside OpenClaw's Node; OpenClaw stays at $OPENCLAW_VER."; return 1; }
+  say "Updating OpenClaw $OPENCLAW_VER → $1"
+  # npm 11 skips install scripts unless allowed; OpenClaw's own postinstall
+  # prunes the previous version's files.
+  "$npm" install -g "openclaw@$1" --allow-scripts=openclaw >/dev/null 2>&1 \
+    || { warn "npm could not install openclaw@$1; OpenClaw stays at $OPENCLAW_VER."; return 1; }
+  HOST_UPDATED="${HOST_UPDATED}openclaw ${OPENCLAW_VER}→$1; "
+}
+
+update_ollama() { # to
+  local app=/Applications/Ollama.app work digest got url
+  if [ -n "${RE_OLLAMA_UPDATER:-}" ]; then  # tests
+    "$RE_OLLAMA_UPDATER" "$1" || return 1
+  elif [ -d "$app" ]; then
+    # The release's own zip, checked against GitHub's digest and Ollama's
+    # Developer ID (team 3MU9H2V9Y9) before it replaces anything.
+    work="$(mktemp -d)"
+    url="https://github.com/ollama/ollama/releases/download/v$1/Ollama-darwin.zip"
+    digest="$(curl -fsS --max-time 10 "https://api.github.com/repos/ollama/ollama/releases/tags/v$1" 2>/dev/null \
+      | tr ',' '\n' | awk '/"name": *"Ollama-darwin.zip"/ {f=1} f && /"digest"/ {sub(/.*sha256:/, ""); gsub(/[" }]/, ""); print; exit}')"
+    say "Updating Ollama $OLLAMA_VER → $1 (Ollama.app)"
+    if ! curl -fsSL --max-time 900 -o "$work/Ollama-darwin.zip" "$url"; then
+      rm -rf "$work"; warn "Ollama $1 could not be downloaded; Ollama stays at $OLLAMA_VER."; return 1
+    fi
+    got="$(shasum -a 256 "$work/Ollama-darwin.zip" | awk '{print $1}')"
+    if [ -z "$digest" ] || [ "$got" != "$digest" ]; then
+      rm -rf "$work"; warn "Ollama $1's download does not match GitHub's digest; nothing was replaced."; return 1
+    fi
+    ditto -x -k "$work/Ollama-darwin.zip" "$work/x"
+    if ! codesign --verify --deep --strict "$work/x/Ollama.app" 2>/dev/null \
+        || ! codesign -dv "$work/x/Ollama.app" 2>&1 | grep -q '^TeamIdentifier=3MU9H2V9Y9$'; then
+      rm -rf "$work"; warn "Ollama $1 is not signed by Ollama; nothing was replaced."; return 1
+    fi
+    osascript -e 'quit app "Ollama"' >/dev/null 2>&1 || true
+    # A running app keeps serving the old version from the replaced bundle.
+    pkill -f "$app/Contents/" 2>/dev/null || true
+    rm -rf "$app" && ditto "$work/x/Ollama.app" "$app"
+    rm -rf "$work"
+    open -a "$app" >/dev/null 2>&1 || true
+  elif command -v brew >/dev/null 2>&1 && brew list --versions ollama >/dev/null 2>&1; then
+    say "Updating Ollama $OLLAMA_VER → current (Homebrew)"
+    brew upgrade ollama >/dev/null 2>&1 || { warn "Homebrew could not update Ollama."; return 1; }
+    if brew services list 2>/dev/null | awk '$1 == "ollama" && $2 == "started"' | grep -q .; then
+      brew services restart ollama >/dev/null 2>&1 || true
+    fi
+  else
+    warn "Ollama is neither the app nor Homebrew's; update it by hand. $OLLAMA_FIX"; return 1
+  fi
+  local n=0
+  until curl -fsS --max-time 3 http://127.0.0.1:11434/api/version >/dev/null 2>&1; do
+    n=$((n + 1)); [ "$n" -le 30 ] || break; sleep 2
+  done
+  HOST_UPDATED="${HOST_UPDATED}ollama ${OLLAMA_VER}→$1; "
+}
+
+host_update() {
+  [ "$HOST_UPDATE" = true ] || return 0
+  if [ "${RE_HOST_UPDATE:-1}" = 0 ]; then
+    warn "RE_HOST_UPDATE=0: host services are not updated."; return 0
+  fi
+  local again=false
+  case "$OLLAMA_STATUS" in
+    behind) update_ollama "$OLLAMA_LATEST" && again=true ;;
+    below-min) [ -n "$OLLAMA_LATEST" ] && update_ollama "$OLLAMA_LATEST" && again=true ;;
+  esac
+  case "$OPENCLAW_STATUS" in
+    behind|below-min) [ -n "$OPENCLAW_LATEST" ] && update_openclaw "$OPENCLAW_LATEST" && again=true ;;
+  esac
+  if [ "$again" = true ]; then
+    host_check
+    ok "Updated: ${HOST_UPDATED%; }"
+  fi
+}
+
 # Fail (strict) when a host service is below what this release needs.
 host_gate() { # strict|warn
   host_check
+  host_update
   host_report
   local svc kind inst want fix failed=""
   while IFS='|' read -r svc kind inst want fix; do
@@ -651,12 +739,13 @@ status() {
 case "$CMD" in
   install)
     VERSION="${VERSION:-release-v0.0.1}"
-    preflight; check_ports; configure; pull_images; start; urls ;;
+    HOST_UPDATE=true; preflight; check_ports; configure; pull_images; start; urls ;;
   up)
     [ -f "$CONF" ] || die "Nothing is installed in $DIR. Run: $PROG install"
     # A port held by something else makes compose leave that container half
     # created, without its network; refuse before starting anything.
-    host_gate strict; gateway_down; check_ports; configure; pull_images; start; urls ;;
+    # The gateway stops first: an OpenClaw update replaces the package it runs.
+    HOST_UPDATE=true; gateway_down; host_gate strict; check_ports; configure; pull_images; start; urls ;;
   down)
     gateway_down; compose down; ok "Stopped. Data is kept; '$PROG up' starts it again." ;;
   status) status ;;
@@ -665,7 +754,7 @@ case "$CMD" in
     compose logs --tail 200 ${ARGS_REST:-} ;;
   upgrade)
     [ -n "$TO" ] || die "Pass --to VERSION."
-    VERSION="$TO"; host_gate strict; check_ollama; gateway_down; check_ports; configure; pull_images; start; urls ;;
+    VERSION="$TO"; HOST_UPDATE=true; gateway_down; host_gate strict; check_ollama; check_ports; configure; pull_images; start; urls ;;
   uninstall)
     gateway_down
     rm -f "$HOME/Library/LaunchAgents/$GATEWAY_LABEL.plist"
@@ -687,6 +776,9 @@ case "$CMD" in
     mkdir -p "$DIR" 2>/dev/null || true
     case "${ARGS_REST:-}" in
       *--json*) host_check >/dev/null 2>&1 || true; host_services_json ;;
+      # Updating is asked for; a plain check never changes the host (the
+      # regression lane and startUniverse.sh call it).
+      *--update*) HOST_UPDATE=true; host_gate strict ;;
       *--warn-only*) host_gate warn ;;
       *) host_gate strict ;;
     esac ;;
