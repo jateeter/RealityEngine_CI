@@ -21,8 +21,17 @@
 #   loki_driver_state     # prints exactly one of: true | false | missing | unknown:<raw>
 
 loki_driver_state() {
-  local raw
-  if ! raw=$(docker plugin inspect loki --format '{{.Enabled}}' 2>/dev/null); then
+  local raw="" try
+  # Docker Desktop sometimes fails a plugin query for a moment while it is
+  # busy, and a single miss read as "missing" stopped the docker lane with the
+  # plugin installed and enabled (2026-11-11, twice). Missing means missing on
+  # every one of five tries.
+  for try in 1 2 3 4 5; do
+    if raw=$(docker plugin inspect loki --format '{{.Enabled}}' 2>/dev/null); then break; fi
+    raw=""
+    [ "$try" -lt 5 ] && sleep 2
+  done
+  if [ -z "$raw" ]; then
     echo missing
     return 0
   fi
