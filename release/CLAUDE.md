@@ -77,8 +77,20 @@ with no checkout (`docs/ReleaseRoadmap.md`, decisions A1–A11; `RELEASE.md`;
   certificate (it reads the registry over https and reaches the engines with
   it), and tls-proxy serves `config/nginx.lane.conf`, generated from
   `config/nginx.conf` by the suite's `tls_proxy_lane_conf.py` (TLS 1.3 at the
-  profile, the lane certificate, mTLS upstream). The other services move onto
-  it in later slices; the default flips once all have (the release gate,
+  profile, the lane certificate, mTLS upstream). localAI, Qdrant and Redis
+  (as localAIStack's docker-compose.tls.yml), re-mcp, PIM and its CSS (as PIM's
+  docker-compose.tls.yml; `config/css-https.json` vendored from PIM), Loki,
+  Promtail, Prometheus, Grafana and the bridge exporter (as
+  docker-compose.observability-tls.yml; Promtail's and Prometheus's lane configs
+  derived from the release's own) are on it too. **Not on it, by owner decision
+  (2026-11-12), accepted v0.0.2 deficiencies:** Ollama (no host TLS front on a
+  release Mac) and Open WebUI (which reaches the gateway over https, trusting
+  the install CA). The native OpenClaw gateway serves the lane's certificate
+  (`pki/openclaw` in localOpenClawStack#92's layout; `realityengine` passes
+  `OPENCLAW_TLS_DIR`), its browser sidecar's CDP sits behind nginx with mTLS,
+  and the PEs reach the gateway at `wss://`. `machines-load` presents the
+  harness certificate and trusts the install CA; `urls` and `trust-ca` follow
+  the switch, and `configure` keeps an install's switch across `up`; the default flips once all have (the release gate,
   `--require-compliant`). With TLS off the legacy `certs/` RSA pair serves the
   proxy as before.
 - **The OpenClaw gateway is the Mac's own `openclaw`, not an image** (#592).
