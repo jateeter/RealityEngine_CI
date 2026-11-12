@@ -110,7 +110,9 @@ Both runs must pass the **transport probe** (`transport-probe`, #728), and the
 manifest records the transport profile the release runs under
 (`transport.profileId`) and whether the link inventory meets it: a manifest is
 eligible only when `check-transport-inventory.py --require-compliant` passes
-(#729, the release-v0.0.2 gate of #668). Owner-accepted deficiencies are listed
+(#729, the release-v0.0.2 gate of #668). Links between services need mTLS;
+user-facing and external links (`audience` in the inventory) expose TLS only.
+Owner-accepted deficiencies are listed
 in `config/transport-inventory.json` and named in the release notes.
 
 The two runs are compared stage by stage with `scripts/compare-lane-runs.py`

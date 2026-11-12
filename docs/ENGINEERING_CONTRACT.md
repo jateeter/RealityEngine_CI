@@ -369,7 +369,12 @@ information.
   baseline (`config/insecure-transport-baseline.json`) that only shrinks.
 - `scripts/check-transport-inventory.py` checks the profile and the inventory.
   With `--require-compliant` it is the release gate: every link must be
-  verified compliant with mTLS (RealityEngine_CI#729).
+  verified compliant, and a link between two RealityEngine entities must also
+  be mTLS (RealityEngine_CI#729). A user-facing link (a person's browser or
+  device) or a link to an external party exposes TLS only, with no client
+  certificate, and nothing else: plaintext or unverified TLS on it fails the
+  gate unless an owner deficiency records it (owner, 2026-11-12). The
+  inventory marks these with `audience: user` or `audience: external`.
 - A live probe stage measures each link's protocol, cipher, group and mTLS in
   the regression lanes (RealityEngine_CI#728).
 - Design and operation: [`TRANSPORT_SECURITY.md`](TRANSPORT_SECURITY.md).

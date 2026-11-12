@@ -1,7 +1,7 @@
 {
   "schemaVersion": "1.0.0",
   "profile": "config/transport-profile.json",
-  "purpose": "Every link between RealityEngine entities, its protocol, its transport status today and the issue that brings it to the profile (RealityEngine_CI#668, #725). status: plaintext | tls (encrypted, profile compliance not yet verified) | compliant (verified against the profile by the probe stage, #728) | unverified (not yet checked). mtls is true only when the probe has verified both ends present install-CA certificates. A link may carry a `deficiency` only by owner decision: what falls short of the profile, what compensates, the remedy, and `allows`, the exact status or mtls value it permits. The release gate reports such a link instead of failing on it, within what `allows` permits.",
+  "purpose": "Every link between RealityEngine entities, its protocol, its transport status today and the issue that brings it to the profile (RealityEngine_CI#668, #725). status: plaintext | tls (encrypted, profile compliance not yet verified) | compliant (verified against the profile by the probe stage, #728) | unverified (not yet checked). mtls is true only when the probe has verified both ends present install-CA certificates. A link may carry a `deficiency` only by owner decision: what falls short of the profile, what compensates, the remedy, and `allows`, the exact status or mtls value it permits. The release gate reports such a link instead of failing on it, within what `allows` permits. audience: service (default; mTLS) | user (a person's browser or device) | external (an outside party); user-facing and external links expose TLS only and need no client certificate, but plaintext or an unverified link on them fails the release gate unless an owner deficiency records it (owner, 2026-11-12).",
   "links": [
     {
       "id": "cpp-pe-to-re",
@@ -709,6 +709,7 @@
       "from": "browser",
       "to": "Manager frontend (:5173)",
       "protocol": "HTTPS",
+      "audience": "user",
       "lanes": [
         "native",
         "docker",
@@ -1039,6 +1040,7 @@
       "from": "browser",
       "to": "OpenAPI Swagger portal (127.0.0.1:8088) and its /proxy to the engines",
       "protocol": "HTTPS",
+      "audience": "user",
       "lanes": [
         "native"
       ],
@@ -1318,6 +1320,7 @@
       "from": "browser",
       "to": "Open WebUI (:8080)",
       "protocol": "HTTP",
+      "audience": "user",
       "lanes": [
         "native",
         "docker",
@@ -1429,6 +1432,7 @@
       "from": "browser",
       "to": "assets-dokieli (https://assets-dokieli.localhost:13444/)",
       "protocol": "HTTPS",
+      "audience": "user",
       "lanes": [
         "native",
         "docker",
@@ -1445,6 +1449,7 @@
       "from": "browser and dokieli (Solid-OIDC, pod reads and writes)",
       "to": "assets-css (https://assets-css.localhost:13443/)",
       "protocol": "HTTPS",
+      "audience": "user",
       "lanes": [
         "native",
         "docker",
@@ -1518,6 +1523,7 @@
       "from": "iPhone (HealthKit bridge)",
       "to": "PE ingest (/api/integrations/healthkit/ingest)",
       "protocol": "HTTPS",
+      "audience": "user",
       "lanes": [
         "native"
       ],
@@ -1532,6 +1538,7 @@
       "from": "engines and PEs",
       "to": "Yuma MQTT broker (external)",
       "protocol": "MQTT",
+      "audience": "external",
       "lanes": [
         "native",
         "docker",
@@ -1727,6 +1734,7 @@
       "from": "installer and hosts",
       "to": "image registry, release assets, model pulls (external)",
       "protocol": "HTTPS",
+      "audience": "external",
       "lanes": [
         "release"
       ],
@@ -1757,6 +1765,7 @@
       "from": "HealthKit bridge (mirror leg)",
       "to": "PIM app (HealthKit mirror routes)",
       "protocol": "HTTPS",
+      "audience": "user",
       "lanes": [
         "native"
       ],
@@ -1771,6 +1780,7 @@
       "from": "browser",
       "to": "Grafana through tls-proxy (:3000)",
       "protocol": "HTTPS",
+      "audience": "user",
       "lanes": [
         "docker",
         "release"
@@ -1786,6 +1796,7 @@
       "from": "browser",
       "to": "Grafana (127.0.0.1:3002, native lane)",
       "protocol": "HTTPS",
+      "audience": "user",
       "lanes": [
         "native"
       ],
@@ -1830,6 +1841,7 @@
       "from": "PEs (OpenAI integration)",
       "to": "OpenAI API (external)",
       "protocol": "HTTPS",
+      "audience": "external",
       "lanes": [
         "native",
         "docker",
@@ -1886,6 +1898,7 @@
       "from": "PIM (Epic SMART on FHIR import)",
       "to": "Epic FHIR and authorization servers (EPIC_FHIR_BASE_URL)",
       "protocol": "HTTPS",
+      "audience": "external",
       "lanes": [
         "native",
         "docker"

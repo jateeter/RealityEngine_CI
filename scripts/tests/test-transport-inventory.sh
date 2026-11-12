@@ -136,5 +136,32 @@ for l in i["links"]:
 out=$(python3 "$CHECK" --profile "$TMP/allgood/profile.json" --inventory "$TMP/allgood/inventory.json" --require-compliant 2>&1)
 if [[ $? -eq 0 && "$out" == *"release gate passes"* ]]; then ok "release gate passes when every link is compliant with mTLS"; else bad "allgood: $out"; fi
 
+# audience (owner, 2026-11-12): user-facing and external links expose TLS only.
+mutate badaudience inventory 'i["links"][0]["audience"]="public"'
+expect_fail badaudience 'audience'
+
+ALLGOOD_NO_MTLS='
+for l in i["links"]:
+    l["status"]="compliant"; l["mtls"]=l.get("audience","service")=="service"; l["probe"]={ln: {"verdict": "compliant", "mtls": l["mtls"]} for ln in l["lanes"]}'
+mutate tlsonly inventory "$ALLGOOD_NO_MTLS"
+out=$(python3 "$CHECK" --profile "$TMP/tlsonly/profile.json" --inventory "$TMP/tlsonly/inventory.json" --require-compliant 2>&1)
+if [[ $? -eq 0 && "$out" == *"release gate passes"* ]]; then ok "gate passes user-facing and external links on TLS without mTLS"; else bad "tlsonly: $out"; fi
+
+mutate svcnomtls inventory "$ALLGOOD_NO_MTLS
+l=next(x for x in i['links'] if x['id']=='instance-registry'); l['mtls']=False; l['probe']={ln: {'verdict': 'compliant', 'mtls': False} for ln in l['lanes']}"
+out=$(python3 "$CHECK" --profile "$TMP/svcnomtls/profile.json" --inventory "$TMP/svcnomtls/inventory.json" --require-compliant 2>&1)
+if [[ $? -ne 0 && "$out" == *"instance-registry: compliant, no mTLS"* ]]; then ok "gate still demands mTLS between services"; else bad "svcnomtls: $out"; fi
+
+for aud in user external; do
+  mutate "plain$aud" inventory "$ALLGOOD_NO_MTLS
+l=next(x for x in i['links'] if x.get('audience')=='$aud' and not x.get('deficiency')); l['status']='plaintext'; l.pop('probe')"
+  out=$(python3 "$CHECK" --profile "$TMP/plain$aud/profile.json" --inventory "$TMP/plain$aud/inventory.json" --require-compliant 2>&1)
+  if [[ $? -ne 0 && "$out" == *"plaintext, $aud: TLS only"* ]]; then ok "gate fails a plaintext $aud link without a deficiency"; else bad "plain$aud: $out"; fi
+  mutate "unver$aud" inventory "$ALLGOOD_NO_MTLS
+l=next(x for x in i['links'] if x.get('audience')=='$aud' and not x.get('deficiency')); l['status']='tls'; l.pop('probe')"
+  out=$(python3 "$CHECK" --profile "$TMP/unver$aud/profile.json" --inventory "$TMP/unver$aud/inventory.json" --require-compliant 2>&1)
+  if [[ $? -ne 0 && "$out" == *"tls, $aud: TLS only"* ]]; then ok "gate fails a $aud link whose TLS is not verified at the profile"; else bad "unver$aud: $out"; fi
+done
+
 echo "transport-inventory: $PASS passed, $FAIL failed"
 [[ $FAIL -eq 0 ]]
