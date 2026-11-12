@@ -591,7 +591,11 @@ gateway_env() {
   # shellcheck disable=SC1091
   [ -f "$DIR/.env" ] && . "$DIR/.env"
   probe_openclaw
-  env OPENCLAW_VERSION="$OPENCLAW_VER" OPENCLAW_BIN="$OPENCLAW_BIN" OPENCLAW_NATIVE_HOME="$DIR/openclaw" \
+  # The install's TLS switch (#729): the gateway serves the lane's certificate.
+  local tls_dir=""
+  [ "${RE_TLS:-off}" = on ] && tls_dir="$DIR/pki/openclaw"
+  env OPENCLAW_TLS_DIR="$tls_dir" \
+    OPENCLAW_VERSION="$OPENCLAW_VER" OPENCLAW_BIN="$OPENCLAW_BIN" OPENCLAW_NATIVE_HOME="$DIR/openclaw" \
     OPENCLAW_GATEWAY_PORT="${RE_PORT_OPENCLAW:-18789}" RE_PORT_BROWSER_CDP="${RE_PORT_BROWSER_CDP:-9222}" \
     OPENCLAW_NODE_EXACT="$HOST_REQ_NODE" "$@"
 }
@@ -631,6 +635,11 @@ configure() {
   for v in $(env | sed -n 's/^\(RE_PORT_[A-Z_]*\)=.*/\1/p'); do set -- "$@" -e "$v"; done
   set -- "$@" "$img" configure --install /install --engines "$ENGINES" --version "$VERSION" --registry "$REGISTRY" --project "$proj"
   [ -f "$DIR/images.json" ] && set -- "$@" --images /install/images.json
+  # The TLS switch (#729): RE_TLS from the environment, else what this install
+  # was configured with, so `up` and `upgrade` keep it; off by default.
+  tls="${RE_TLS:-}"
+  [ -z "$tls" ] && [ -f "$DIR/.env" ] && tls="$(sed -n 's/^RE_TLS=//p' "$DIR/.env" | tail -1)"
+  set -- "$@" --tls "${tls:-off}"
   "$@"
   save_conf
 }
@@ -701,16 +710,18 @@ wait_healthy() {
 urls() {
   # shellcheck disable=SC1091
   . "$DIR/.env"
+  # The install's TLS switch (#729): every service but Open WebUI serves https.
+  s=http; [ "${RE_TLS:-off}" = on ] && s=https
   cat <<EOF
 
   Manager (Visualizer)   https://localhost:${RE_PORT_MANAGER_UI}
-  Instance registry      http://localhost:${RE_PORT_REGISTRY}/re-registry.json
-  localAI API            http://localhost:${RE_PORT_LOCALAI}
-  OpenClaw gateway       http://localhost:${RE_PORT_OPENCLAW}
+  Instance registry      $s://localhost:${RE_PORT_REGISTRY}/re-registry.json
+  localAI API            $s://localhost:${RE_PORT_LOCALAI}
+  OpenClaw gateway       $s://localhost:${RE_PORT_OPENCLAW}
   Open WebUI             http://localhost:${RE_PORT_WEBUI}   (${WEBUI_ADMIN_EMAIL})
-  PIM                    http://localhost:${RE_PORT_PIM}
-  Grafana                http://localhost:${RE_PORT_GRAFANA}  (admin)
-  MCP                    http://localhost:${RE_PORT_MCP}
+  PIM                    $s://localhost:${RE_PORT_PIM}
+  Grafana                $s://localhost:${RE_PORT_GRAFANA}  (admin)
+  MCP                    $s://localhost:${RE_PORT_MCP}
 
   Engines ($RE_ENGINES): see '$PROG status'. Passwords: $DIR/state/secrets.json
   Trust the local CA so browsers accept https://localhost: $PROG trust-ca
@@ -766,9 +777,14 @@ case "$CMD" in
       ok "Removed the containers. Data and configuration are kept in $DIR and the Docker volumes; '--purge' deletes them."
     fi ;;
   trust-ca)
-    [ -f "$DIR/certs/ca.crt" ] || die "No CA in $DIR/certs."
-    say "Adding $DIR/certs/ca.crt to your login keychain as trusted (macOS will ask for your password)"
-    security add-trusted-cert -r trustRoot -k "$HOME/Library/Keychains/login.keychain-db" "$DIR/certs/ca.crt"
+    # The CA that signs what the browser sees: the install's own (pki/) with TLS
+    # on (#729), the legacy certs/ pair otherwise. The owner's step, asked for.
+    # shellcheck disable=SC1091
+    [ -f "$DIR/.env" ] && . "$DIR/.env"
+    ca="$DIR/certs/ca.crt"; [ "${RE_TLS:-off}" = on ] && ca="$DIR/pki/ca/ca.crt"
+    [ -f "$ca" ] || die "No CA at $ca."
+    say "Adding $ca to your login keychain as trusted (macOS will ask for your password)"
+    security add-trusted-cert -r trustRoot -k "$HOME/Library/Keychains/login.keychain-db" "$ca"
     ok "Trusted. Restart your browser." ;;
   host-check)
     # Usable with nothing installed (the regression lane and startUniverse.sh call

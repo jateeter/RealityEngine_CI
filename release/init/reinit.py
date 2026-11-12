@@ -221,8 +221,8 @@ def engine_services(insts: list[dict], tls: bool = False) -> dict:
             "LOCAL_AI_MACHINES_DIR": "/app/localai-machines",
             "INTEGRATIONS_CONFIG": "/app/config/integrations.json",
             "ACP_ENABLED": "true", "ACP_PLATFORM": "OpenClaw", "ACP_SURFACE": "xACP",
-            "ACP_GATEWAY_URL": f"ws://{GATEWAY_HOST}:{gateway_port()}",
-            "OPENCLAW_GATEWAY_URL": f"ws://{GATEWAY_HOST}:{gateway_port()}",
+            "ACP_GATEWAY_URL": f"{'wss' if tls else 'ws'}://{GATEWAY_HOST}:{gateway_port()}",
+            "OPENCLAW_GATEWAY_URL": f"{'wss' if tls else 'ws'}://{GATEWAY_HOST}:{gateway_port()}",
             "ACP_SESSION_KEY": "agent:main:main", "OPENCLAW_ACP_SESSION": "agent:main:main",
             "ACP_TARGET_AGENT": "openclaw",
             "ACP_COMPLETION_SOURCE_MAPPING_ID": "acp-openclaw-completion",
@@ -378,7 +378,7 @@ def file_sd(insts: list[dict]) -> tuple[list, list]:
     return re_t, pe_t
 
 
-def integrations() -> dict:
+def integrations(tls: bool = False) -> dict:
     """CI's integration registry template, with every address the container
     network's (startUniverse.sh ensure_ci_integrations_config does the same
     for the native lane, with host addresses)."""
@@ -392,7 +392,7 @@ def integrations() -> dict:
             td["url"] = td["url"].replace("http://localhost:4000", "http://localai-api:8000")
         if item.get("id") == "openclaw-xacp" or item.get("kind") in ("acp", "openclaw-acp"):
             item.update({"enabled": True, "platform": "OpenClaw", "surface": "xACP",
-                         "gatewayUrl": f"ws://{GATEWAY_HOST}:{gateway_port()}", "sessionKey": "agent:main:main",
+                         "gatewayUrl": f"{'wss' if tls else 'ws'}://{GATEWAY_HOST}:{gateway_port()}", "sessionKey": "agent:main:main",
                          "targetAgent": "openclaw", "completionSourceMappingId": "acp-openclaw-completion"})
         if item.get("kind") == "mqtt":
             item["enabled"] = False      # no MQTT-parity claim in this release (A11)
@@ -445,6 +445,18 @@ def pki(install: pathlib.Path, insts: list[dict], ip: str) -> None:
     run("issue", "obs-prometheus", "--kind", "both", "--dns", "prometheus", "--dns", "localhost", "--ip", "127.0.0.1")
     run("issue", "obs-grafana", "--kind", "both", "--dns", "grafana", "--dns", "localhost", "--ip", "127.0.0.1")
     run("issue", "bridge-metrics", "--kind", "both", "--dns", "bridge-metrics", "--dns", "localhost", "--ip", "127.0.0.1")
+    # The native gateway and its browser sidecar (localOpenClawStack#92's
+    # layout under pki/openclaw: gateway/ browser/ ca.crt ca.crl, relative links
+    # so they resolve both in re-init's container and on the Mac).
+    run("issue", "openclaw-gateway", "--kind", "both", "--dns", "localhost", "--dns", GATEWAY_HOST, *ip_args)
+    run("issue", "openclaw-browser", "--kind", "server", "--dns", "localhost", "--dns", "browser", *ip_args)
+    oc = install / "pki" / "openclaw"
+    oc.mkdir(parents=True, exist_ok=True)
+    for link, target in (("gateway", "../issued/openclaw-gateway"), ("browser", "../issued/openclaw-browser"),
+                         ("ca.crt", "../ca/ca.crt"), ("ca.crl", "../ca/ca.crl")):
+        if (oc / link).is_symlink() or (oc / link).exists():
+            (oc / link).unlink()
+        (oc / link).symlink_to(target)
     run("issue", "re-mcp", "--kind", "both", "--dns", "localhost", "--dns", "mcp", "--dns", GATEWAY_HOST, *ip_args)
     run("crl")
     log("issued the install's lane certificates (pki/)")
@@ -520,7 +532,8 @@ def observability_tls_services(install: pathlib.Path) -> dict:
             "healthcheck": {"test": ["CMD", "curl", "-fsS", "--cacert", f"{TLS_DIR}/ca.crt", "-o", "/dev/null",
                                      "https://localhost:3000/api/health"]}},
         "bridge-metrics": {
-            "environment": {**TLS_ENV, "LOCALAI_API_URL": "https://localai-api:8000", "QDRANT_URL": "https://qdrant:6333"},
+            "environment": {**TLS_ENV, "LOCALAI_API_URL": "https://localai-api:8000", "QDRANT_URL": "https://qdrant:6333",
+                            "OPENCLAW_GATEWAY_URL": "https://host.docker.internal:${RE_PORT_OPENCLAW:-18789}"},
             "volumes": tls_mounts("bridge-metrics")},
     }
 
@@ -723,7 +736,7 @@ def host_install(install: pathlib.Path) -> dict:
     return have
 
 
-def configure_openclaw(install: pathlib.Path, sec: dict[str, str]) -> None:
+def configure_openclaw(install: pathlib.Path, sec: dict[str, str], tls: bool = False) -> None:
     """The native gateway's home (RealityEngine_CI#592), made by
     localOpenClawStack's own scripts at the release commit: the hardened config
     (harden-config.sh), the deployed corpus's agents (sync-machine-agents.sh) and
@@ -747,7 +760,12 @@ def configure_openclaw(install: pathlib.Path, sec: dict[str, str]) -> None:
            "OPENCLAW_STATE_DIR": str(home), "OPENCLAW_HOME_DIR": host_home,
            "OPENCLAW_GATEWAY_BIND": "loopback", "OPENCLAW_GATEWAY_PORT": str(ports["OPENCLAW"]),
            "OLLAMA_BASE_URL": "http://127.0.0.1:11434",
-           "OPENCLAW_BROWSER_CDP_URL": f"http://127.0.0.1:{ports['BROWSER_CDP']}"}
+           "OPENCLAW_BROWSER_CDP_URL": f"{'https' if tls else 'http'}://127.0.0.1:{ports['BROWSER_CDP']}"}
+    if tls:
+        # On the lane (#729): harden-config.sh writes gateway.tls from the TLS
+        # directory, checked here at re-init's path and rewritten below to the
+        # Mac's, where the gateway runs. Ollama stays plain http (owner, 2026-11-12).
+        env["OPENCLAW_TLS_DIR"] = str(install / "pki" / "openclaw")
     if profile.startswith("manifest:"):
         # Loaded machines resolve against the catalog the installer synced.
         env["OPENCLAW_CORPUS_MACHINES_ROOT"] = "/volumes/catalog/machines"
@@ -774,6 +792,14 @@ def configure_openclaw(install: pathlib.Path, sec: dict[str, str]) -> None:
             sys.stderr.write(p.stdout + p.stderr)
             raise SystemExit(f"OpenClaw {script} failed")
     env_file.unlink(missing_ok=True)
+    if tls:
+        cfg_path = home / "openclaw.json"
+        cfg = json.loads(cfg_path.read_text())
+        mac = f"{host['dir'].rstrip('/')}/pki/openclaw"
+        for k in ("certPath", "keyPath", "caPath"):
+            if k in cfg.get("gateway", {}).get("tls", {}):
+                cfg["gateway"]["tls"][k] = cfg["gateway"]["tls"][k].replace(str(install / "pki" / "openclaw"), mac)
+        write_json(cfg_path, cfg)
     total = json.loads(pathlib.Path(index).read_text()).get("total")
     write_json(install / "openclaw-agents.json", {"profile": profile, "agents": total})
 
@@ -868,6 +894,19 @@ def cmd_configure(args) -> int:
                                   "./pki/ca/ca.crt:/etc/nginx/lane/ca.crt:ro"]},
                   **localai_tls_services(),
                   **pim_tls_services(),
+                  # The gateway's browser sidecar: CDP behind nginx with TLS 1.3 and
+                  # mTLS (localOpenClawStack's docker-compose.tls.yml); the nginx ->
+                  # Chromium hop inside it is the accepted browser-cdp-proxy deficiency.
+                  "browser": {
+                      "volumes": ["./ocs/docker/browser/cdp-proxy-tls.conf:/etc/nginx/cdp-proxy.conf:ro",
+                                  f"./pki/issued/openclaw-browser:{TLS_DIR}/browser:ro",
+                                  f"./pki/ca/ca.crt:{TLS_DIR}/ca.crt:ro", f"./pki/ca/ca.crl:{TLS_DIR}/ca.crl:ro"]},
+                  # Open WebUI itself stays plain http (owner, 2026-11-12); the
+                  # gateway it calls serves only https on the lane, so it trusts the CA.
+                  "open-webui": {
+                      "environment": {"OPENAI_API_BASE_URL": "https://host.docker.internal:${RE_PORT_OPENCLAW:-18789}/v1",
+                                      "SSL_CERT_FILE": f"{TLS_DIR}/ca.crt", "REQUESTS_CA_BUNDLE": f"{TLS_DIR}/ca.crt"},
+                      "volumes": [f"./pki/ca/ca.crt:{TLS_DIR}/ca.crt:ro"]},
                   **observability_tls_services(install),
                   "mcp": {
                       "environment": {**TLS_ENV, "RE_REGISTRY_URL": "https://registry:8000/re-registry.internal.json"},
@@ -888,12 +927,12 @@ def cmd_configure(args) -> int:
     re_t, pe_t = file_sd(insts)
     write_json(install / "config" / "file_sd" / "reality-engine-targets.json", re_t)
     write_json(install / "config" / "file_sd" / "perception-engine-targets.json", pe_t)
-    write_json(install / "config" / "integrations.json", integrations())
+    write_json(install / "config" / "integrations.json", integrations(tls))
     certificates(install, ip)
 
     sec = secrets_env(install)
     if not args.skip_openclaw:
-        configure_openclaw(install, sec)
+        configure_openclaw(install, sec, tls)
 
     images_file = pathlib.Path(args.images) if args.images else None
     refs = image_refs(args.version, images_file, args.registry)
@@ -981,6 +1020,17 @@ def cmd_prepare_volumes(args) -> int:
 MACHINES_REPO = "jateeter/RealityEngine_Machines"
 
 
+def internal_registry_url() -> str:
+    """The instance registry as the compose network reaches it."""
+    return f"{'https' if install_tls() else 'http'}://registry:8000/re-registry.internal.json"
+
+
+def install_tls() -> bool:
+    """Whether the install at /install has its TLS switch on (.env RE_TLS=on)."""
+    env = pathlib.Path("/install/.env")
+    return env.is_file() and "\nRE_TLS=on\n" in "\n" + env.read_text() + "\n"
+
+
 def http_json(url: str, data=None, timeout: int = 120, method: str | None = None):
     import ssl
     import urllib.request
@@ -988,9 +1038,15 @@ def http_json(url: str, data=None, timeout: int = 120, method: str | None = None
     req = urllib.request.Request(url, data=body, method=method or ("POST" if body is not None else "GET"),
                                  headers={"Content-Type": "application/json", "User-Agent": "re-init"})
     ctx = ssl.create_default_context()
-    ca = pathlib.Path("/install/certs/ca.crt")
-    if ca.exists():
-        ctx.load_verify_locations(str(ca))
+    if install_tls():
+        # The install's TLS switch (#729): the install CA, and the CLI's harness
+        # certificate for the services that require one (the engines, the registry).
+        ctx.load_verify_locations("/install/pki/ca/ca.crt")
+        ctx.load_cert_chain("/install/pki/issued/harness/cert.pem", "/install/pki/issued/harness/key.pem")
+    else:
+        ca = pathlib.Path("/install/certs/ca.crt")
+        if ca.exists():
+            ctx.load_verify_locations(str(ca))
     with urllib.request.urlopen(req, timeout=timeout, context=ctx) as r:
         raw = r.read()
         return json.loads(raw) if raw else None
@@ -1091,7 +1147,7 @@ def cmd_machines_load(args) -> int:
     for e in res.get("engines", []):
         log(f"{e['engine']}: loaded {e['loaded']}, already present {e['skipped']}, failed {e['failed']}")
     failed = sum(e["failed"] for e in res.get("engines", []))
-    reg = http_json(args.registry)
+    reg = http_json(getattr(args, "registry", None) or internal_registry_url())
     for inst in reg.get("instances", []):
         try:
             http_json(f"{inst['pe_url']}/api/sources/bootstrap-from-machines", {}, timeout=120)
@@ -1161,7 +1217,7 @@ def main(argv: list[str]) -> int:
     ml.add_argument("--all", action="store_true")
     ml.add_argument("--replay", action="store_true", help="reload what was loaded before")
     ml.add_argument("--manager", default="https://visualizer-backend:3001")
-    ml.add_argument("--registry", default="http://registry:8000/re-registry.internal.json")
+    ml.add_argument("--registry", default=None, help="default: the internal instance registry, https with TLS on")
     mls = sub.add_parser("machines-list")
     mls.add_argument("--manager", default="https://visualizer-backend:3001")
     mls.add_argument("--catalog", default="/volumes/catalog")
