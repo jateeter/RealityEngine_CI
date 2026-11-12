@@ -373,6 +373,9 @@ services:
       OLLAMA_BASE_URL: http://host.docker.internal:11434
     volumes:
       - ./config/bridge-metrics-exporter.mjs:/opt/bridge/bridge-metrics-exporter.mjs:ro
+      # The exporter imports ../mcp/src/lane-tls.js (RealityEngine_CI#730); without
+      # it beside the exporter, the service failed at startup.
+      - ./config/lane-tls.js:/opt/mcp/src/lane-tls.js:ro
     security_opt: [no-new-privileges:true]
 
   # Ships every container's log to Loki through the Docker API; no logging

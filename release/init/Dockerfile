@@ -23,8 +23,10 @@ COPY release/realityengine /opt/release/realityengine
 # allocator (#296), the integration registry template, and the monitoring
 # configuration and dashboards.
 COPY scripts/lib/instance_uuids.py scripts/lib/re_pki.py scripts/lib/re_tls_server.py scripts/lib/tls_proxy_lane_conf.py /opt/ci/scripts/lib/
-COPY config/transport-profile.json /opt/ci/config/
+COPY config/transport-profile.json config/prometheus-web.lane.yml config/prometheus-health.lane.yml \
+     config/grafana-datasources.lane.yml /opt/ci/config/
 COPY scripts/bridge-metrics-exporter.mjs /opt/ci/scripts/
+COPY mcp/src/lane-tls.js /opt/ci/mcp/src/
 COPY config/integrations.example.json config/loki-config.yml config/grafana-datasources.yml \
      config/grafana-dashboards.yml config/regression-corpus.txt /opt/ci/config/
 COPY config/dashboards/ /opt/ci/config/dashboards/
