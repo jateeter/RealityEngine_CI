@@ -73,9 +73,14 @@ with no checkout (`docs/ReleaseRoadmap.md`, decisions A1–A11; `RELEASE.md`;
   CRL (never the CA key), `https` URLs in both registry views and from each PE
   to its RE, health checks that present the certificate, and a generated
   `compose.tls.yml` for the registry, which serves through the suite's
-  `re_tls_server.py`. The other services move onto it in later slices; the
-  default flips once all have (the release gate, `--require-compliant`). The
-  legacy `certs/` RSA pair still serves Manager's proxy until then.
+  `re_tls_server.py`. Manager's visualizer backend takes the `manager`
+  certificate (it reads the registry over https and reaches the engines with
+  it), and tls-proxy serves `config/nginx.lane.conf`, generated from
+  `config/nginx.conf` by the suite's `tls_proxy_lane_conf.py` (TLS 1.3 at the
+  profile, the lane certificate, mTLS upstream). The other services move onto
+  it in later slices; the default flips once all have (the release gate,
+  `--require-compliant`). With TLS off the legacy `certs/` RSA pair serves the
+  proxy as before.
 - **The OpenClaw gateway is the Mac's own `openclaw`, not an image** (#592).
   `re-init configure` (and `machines-load`) generate its home in
   `<install>/openclaw` with localOpenClawStack's scripts, in the `entries`

@@ -26,7 +26,8 @@ OPT="$TMP/opt"
 mkdir -p "$OPT/release/config" "$OPT/ci/scripts/lib" "$OPT/ci/config"
 cp "$CI_DIR/release/compose.yml" "$CI_DIR/release/images.json" "$OPT/release/"
 cp "$CI_DIR"/release/config/* "$OPT/release/config/"
-cp "$CI_DIR/scripts/lib/instance_uuids.py" "$CI_DIR/scripts/lib/re_pki.py" "$CI_DIR/scripts/lib/re_tls_server.py" "$OPT/ci/scripts/lib/"
+cp "$CI_DIR/scripts/lib/instance_uuids.py" "$CI_DIR/scripts/lib/re_pki.py" "$CI_DIR/scripts/lib/re_tls_server.py" \
+   "$CI_DIR/scripts/lib/tls_proxy_lane_conf.py" "$OPT/ci/scripts/lib/"
 cp "$CI_DIR/config/transport-profile.json" "$OPT/ci/config/"
 cp "$CI_DIR/scripts/bridge-metrics-exporter.mjs" "$OPT/ci/scripts/"
 cp "$CI_DIR"/config/{integrations.example.json,loki-config.yml,grafana-datasources.yml,grafana-dashboards.yml} "$OPT/ci/config/"
@@ -192,12 +193,18 @@ assert_contains "$(cat "$INSTALL/compose.engines.yml")" "--certificate=/run/re-t
 assert_contains "$(cat "$INSTALL/.env")" "COMPOSE_FILE=compose.yml:compose.engines.yml:compose.tls.yml" "the TLS overlay is in COMPOSE_FILE"
 assert_contains "$(cat "$INSTALL/.env")" "RE_TLS=on" ".env records the switch"
 assert_contains "$(cat "$INSTALL/compose.tls.yml")" "registry" "the instance registry serves TLS"
+assert_contains "$(cat "$INSTALL/compose.tls.yml")" "https://registry:8000/re-registry.internal.json" "Manager reads the registry over https"
+assert_contains "$(cat "$INSTALL/compose.tls.yml")" "./pki/issued/manager:/run/re-tls/instance:ro" "Manager carries its lane certificate"
+assert_contains "$(cat "$INSTALL/config/nginx.lane.conf")" "ssl_protocols       TLSv1.3;" "tls-proxy's lane config: TLS 1.3 only"
+assert_eq "$(grep -c 'certs/server' "$INSTALL/config/nginx.lane.conf")" 0 "and not the legacy certificate"
 assert_eq "$(json "$INSTALL/registry/re-registry.json" "d['instances'][2]['pe_url']")" "https://localhost:6310" "host view: https"
 assert_eq "$(json "$INSTALL/registry/re-registry.internal.json" "d['services']['registry']['url']")" "https://registry:8000" "internal view: https registry"
 assert_eq "$(json "$INSTALL/release.json" "d['tls']['enabled']")" "True" "release.json records TLS on"
 assert_eq "$(json "$INSTALL/release.json" "d['tls']['profile']")" "re-transport-2026.11" "and the profile it runs under"
 reinit configure --install "$INSTALL" --engines cpp:2,lsp:1,scala:1 --version dev --skip-openclaw --tls off
 [ ! -f "$INSTALL/compose.tls.yml" ]; assert_eq "$?" 0 "turning TLS off removes the overlay"
+reinit configure --install "$TMP/fresh-tls" --engines cpp:1 --version dev --skip-openclaw --tls on
+assert_eq "$RC" 0 "a fresh install configures with --tls on"
 
 echo "$PASS passed, $FAIL failed"
 [ "$FAIL" -eq 0 ]
