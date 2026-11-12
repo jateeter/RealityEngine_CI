@@ -18,9 +18,20 @@ Checks, always:
   permits, and nothing more.
 
 With --require-compliant (the release gate, #729): every link must be
-`compliant` with `mtls: true`, except where an accepted deficiency `allows`
-otherwise, and such links are listed. Until then the check reports progress
-and passes.
+`compliant`, and a service-to-service link must also have `mtls: true`, except
+where an accepted deficiency `allows` otherwise, and such links are listed.
+Until then the check reports progress and passes.
+
+A link's `audience` says who is on the other end (owner, 2026-11-12):
+- `service` (the default): two RealityEngine entities; mTLS
+  (profile authentication.serviceToService).
+- `user`: a person's browser or device; it exposes TLS only, server
+  authentication at the profile with the user or device authenticated on top
+  (profile authentication.usersAndDevices). No client certificate is required.
+- `external`: an outside party; TLS only, held to the profile
+  (profile externalParties). No client certificate is required.
+User-facing and external links must expose TLS and nothing else: plaintext or
+an unverified link fails the gate unless an owner deficiency records it.
 
 Usage:
   python3 scripts/check-transport-inventory.py
@@ -41,6 +52,7 @@ from typing import Any
 CI_DIR = Path(__file__).resolve().parent.parent
 STATUSES = {"plaintext", "tls", "compliant", "unverified"}
 LANES = {"native", "docker", "release"}
+AUDIENCES = {"service", "user", "external"}
 OWNERS = {
     "RealityEngine_CI", "RealityEngine_Manager", "RealityEngine_Machines", "RealityEngine_CPP",
     "RealityEngine_LSP", "RealityEngine_Scala", "RealityEngine_Rust", "localAIStack",
@@ -91,6 +103,8 @@ def link_problems(inventory: dict[str, Any]) -> list[str]:
             out.append(f"{lid}: owner {link['owner']!r} is not a focus-set repository")
         if link.get("issue") and not ISSUE.match(str(link["issue"])):
             out.append(f"{lid}: issue must be written <repo>#<n>, got {link['issue']!r}")
+        if link.get("audience", "service") not in AUDIENCES:
+            out.append(f"{lid}: audience {link.get('audience')!r} is not one of {sorted(AUDIENCES)}")
         if not isinstance(link.get("mtls"), bool):
             out.append(f"{lid}: mtls must be true or false")
         deficiency = link.get("deficiency")
@@ -155,8 +169,14 @@ def gate_problems(inventory: dict[str, Any]) -> tuple[list[str], list[str]]:
     for link in inventory.get("links", []):
         allows = (link.get("deficiency") or {}).get("allows") or {}
         status_ok = link.get("status") == "compliant" or ("status" in allows and link.get("status") == allows["status"])
-        mtls_ok = link.get("mtls") is True or ("mtls" in allows and link.get("mtls") is allows["mtls"])
-        line = f"{link['id']}: {link['status']}{'' if link.get('mtls') else ', no mTLS'} (owner {link['owner']}, {link['issue']})"
+        # A user-facing or external link exposes TLS only; mTLS is for services.
+        needs_mtls = link.get("audience", "service") == "service"
+        mtls_ok = (not needs_mtls or link.get("mtls") is True
+                   or ("mtls" in allows and link.get("mtls") is allows["mtls"]))
+        audience = "" if not needs_mtls or link.get("mtls") else ", no mTLS"
+        if not needs_mtls:
+            audience = f", {link['audience']}: TLS only"
+        line = f"{link['id']}: {link['status']}{audience} (owner {link['owner']}, {link['issue']})"
         if status_ok and mtls_ok:
             if allows:
                 accepted.append(f"{line}: accepted deficiency, {link['deficiency']['accepted']}")
@@ -194,11 +214,11 @@ def main() -> int:
         for a in accepted:
             print(f"  {a}")
         if gaps:
-            print(f"transport-inventory: release gate FAILS: {len(gaps)} link(s) not compliant with mTLS", file=sys.stderr)
+            print(f"transport-inventory: release gate FAILS: {len(gaps)} link(s) not compliant (with mTLS between services)", file=sys.stderr)
             for g in gaps:
                 print(f"  {g}", file=sys.stderr)
             return 1
-        print("transport-inventory: release gate passes: every link compliant with mTLS")
+        print("transport-inventory: release gate passes: every link compliant, services with mTLS")
     return 0
 
 
