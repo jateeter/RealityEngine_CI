@@ -210,15 +210,46 @@ has a 3 GB heap and the PE a 2 GB heap.
 The generated passwords (Open WebUI admin, Grafana admin, the Solid account) and
 tokens are in `~/.realityengine/state/secrets.json`.
 
-Manager uses HTTPS with a certificate from the install's own CA. To have your
-browser trust it:
+### Certificates and encryption
+
+**Every service talks over TLS 1.3**, with each service presenting a
+certificate to the others (mutual TLS), under the suite's transport profile
+(`config/transport-profile.json`, recorded in `release.json`). Two exceptions,
+accepted for release-v0.0.2:
+- Open WebUI serves plain HTTP on `127.0.0.1:8080`, behind its own login;
+- Ollama is reached over plain HTTP on the Mac (it serves no TLS).
+
+**The install's own certificate authority** lives in `~/.realityengine/pki`,
+made on the first `install` and never shared with another Mac. Every service's
+certificate comes from it: one per engine instance (naming the instance's
+UUID), and one each for the instance registry, Manager, localAI, Qdrant, Redis,
+MCP, PIM and its Solid server, the monitoring stack, and the OpenClaw gateway
+and its browser. Private keys stay in that directory and are mounted read-only
+into the one container that uses each; the CA's key is mounted nowhere.
+
+**Trust the CA in your browser** (your step; nothing changes a trust store
+without you):
 
 ```bash
-./realityengine trust-ca     # adds the CA to your login keychain; macOS asks for your password
+./realityengine trust-ca     # adds ~/.realityengine/pki/ca/ca.crt to your login keychain; macOS asks for your password
 ```
 
+**Rotation.** Service certificates are valid for 90 days. Every `up` and
+`upgrade` renews any that is within 30 days of expiry, and the services pick up
+the new certificate when they restart. The CA is valid for 5 years.
+
+**Revocation.** `re_pki.py revoke NAME` (with `RE_PKI_DIR=~/.realityengine/pki`)
+revokes a certificate and regenerates the CA's revocation list, which every
+service checks; recreate the services (`./realityengine up`) to load it.
+
+**Turning it off** (for troubleshooting only): `RE_TLS=off ./realityengine up`
+reconfigures the install without TLS; `RE_TLS=on ./realityengine up` turns it
+back on. An install keeps its setting across `up` and `upgrade`.
+
 Tools that use the instance registry find the engines with
-`RE_REGISTRY_URL=http://localhost:5999/re-registry.json`.
+`RE_REGISTRY_URL=https://localhost:5999/re-registry.json`, trusting the CA
+above and presenting a client certificate (the CLI's own is
+`~/.realityengine/pki/issued/harness`).
 
 ## Loading machines
 

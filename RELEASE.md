@@ -106,6 +106,13 @@ Two green runs at the same commits:
    (E1, CI#165). This proves the images are the same application, and it is
    the run the manifest pins its repos from.
 
+Both runs must pass the **transport probe** (`transport-probe`, #728), and the
+manifest records the transport profile the release runs under
+(`transport.profileId`) and whether the link inventory meets it: a manifest is
+eligible only when `check-transport-inventory.py --require-compliant` passes
+(#729, the release-v0.0.2 gate of #668). Owner-accepted deficiencies are listed
+in `config/transport-inventory.json` and named in the release notes.
+
 The two runs are compared stage by stage with `scripts/compare-lane-runs.py`
 (E2). A disagreement that is still there after a re-run, and is not explained
 as a difference between the lanes rather than the engines, blocks the
@@ -353,7 +360,9 @@ git add releases/release-v0.0.1.json && git commit -m "release: release-v0.0.1"
 Commit through a documentation PR; the CI commit the manifest pins stays the one
 that was certified and tagged. The manifest is the record. Keep it even if the
 tags are later moved. The release notes, `releases/<tag>.md`, name the
-certifying runs, every stage they skipped and why, and the known limitations.
+certifying runs, every stage they skipped and why, the known limitations, and
+the transport profile the release was certified under (the manifest's
+`transport.profileId`) with the accepted transport deficiencies.
 Commit with them the promotion run's images file, unchanged, as
 `release/candidates/<tag>.images.json`.
 

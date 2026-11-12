@@ -59,8 +59,8 @@ assert_eq "$(json "$INSTALL/registry/re-registry.json" "[i['id'] for i in d['ins
 echo "ports: a band per engine type, a stride of 10 per instance, PE then RE"
 assert_eq "$(json "$INSTALL/registry/re-registry.json" "[(i['id'],i['pe_port'],i['re_port']) for i in d['instances']]")" \
   "[('scala-1', 6100, 6101), ('cpp-1', 6300, 6301), ('cpp-2', 6310, 6311), ('lsp-1', 6600, 6601)]" "host ports"
-assert_eq "$(json "$INSTALL/registry/re-registry.json" "d['instances'][2]['pe_url']")" "http://localhost:6310" "host view: localhost addresses"
-assert_eq "$(json "$INSTALL/registry/re-registry.internal.json" "d['instances'][2]['pe_url']")" "http://engine-cpp-2-pe:3004" "internal view: container addresses"
+assert_eq "$(json "$INSTALL/registry/re-registry.json" "d['instances'][2]['pe_url']")" "https://localhost:6310" "host view: localhost addresses, https by default (#729)"
+assert_eq "$(json "$INSTALL/registry/re-registry.internal.json" "d['instances'][2]['pe_url']")" "https://engine-cpp-2-pe:3004" "internal view: container addresses"
 assert_eq "$(json "$INSTALL/registry/re-registry.json" "d['host']")" "192.0.2.10" "the registry's host is the Mac's LAN address"
 
 echo "the services block is the native instance registry's contract"
@@ -92,7 +92,7 @@ ENG="$(cat "$INSTALL/compose.engines.yml")"
 for s in engine-scala-1-re engine-scala-1-pe engine-cpp-1-re engine-cpp-2-pe engine-lsp-1-re engine-lsp-1-pe; do
   assert_contains "$ENG" "  $s:" "$s"
 done
-assert_contains "$ENG" '"http://engine-cpp-2-re:3000"' "a PE is paired with its own RE"
+assert_contains "$ENG" '"https://engine-cpp-2-re:3000"' "a PE is paired with its own RE"
 assert_contains "$ENG" '"6310:3004"' "and published on its band port"
 assert_contains "$ENG" '${RE_IMAGE_SCALA_PE}' "the Scala PE uses its own image"
 assert_eq "$(grep -c 'OLLAMA_BASE_URL.*host.docker.internal:11434' "$INSTALL/compose.engines.yml")" 4 \
@@ -115,9 +115,9 @@ assert_eq "$(json "$INSTALL/config/file_sd/reality-engine-targets.json" "d[1]['l
 
 echo ".env, secrets and certificates"
 ENV="$(cat "$INSTALL/.env")"
-assert_contains "$ENV" "COMPOSE_FILE=compose.yml:compose.engines.yml" "COMPOSE_FILE joins both files"
+assert_contains "$ENV" "COMPOSE_FILE=compose.yml:compose.engines.yml:compose.tls.yml" "COMPOSE_FILE joins the files, the TLS overlay by default"
 assert_contains "$ENV" "RE_IMAGE_CPP=ghcr.io/jateeter/re-cpp:dev" "without an images file, images are by tag"
-assert_contains "$ENV" "HEALTHKIT_PE_SCOPE_URLS=http://engine-scala-1-pe:3004,http://engine-cpp-1-pe:3004" "PIM reaches every PE"
+assert_contains "$ENV" "HEALTHKIT_PE_SCOPE_URLS=https://engine-scala-1-pe:3004,https://engine-cpp-1-pe:3004" "PIM reaches every PE"
 # GNU stat first: on Linux, BSD `stat -f` is a filesystem query that succeeds.
 assert_eq "$(stat -c %a "$INSTALL/.env" 2>/dev/null || stat -f %Lp "$INSTALL/.env")" 600 ".env is 0600"
 S1="$(json "$INSTALL/state/secrets.json" "d['OPENCLAW_GATEWAY_TOKEN']")"
@@ -147,7 +147,7 @@ echo "the integration registry uses container addresses"
 INT="$(cat "$INSTALL/config/integrations.json")"
 case "$INT" in *"localhost:4000"*) echo "  FAIL: integrations.json still names localhost:4000"; FAIL=$((FAIL+1)) ;;
   *) echo "  PASS: no host address left"; PASS=$((PASS+1)) ;; esac
-assert_contains "$INT" "ws://host.docker.internal:18789" "the ACP gateway is the Mac's native gateway, reached from the containers"
+assert_contains "$INT" "wss://host.docker.internal:18789" "the ACP gateway is the Mac's native gateway, reached from the containers"
 
 echo
 # ── The gateway is native: no gateway image, and the CDP port is allocated ───

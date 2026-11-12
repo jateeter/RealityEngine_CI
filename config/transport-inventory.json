@@ -15,8 +15,8 @@
       ],
       "owner": "RealityEngine_CPP",
       "issue": "RealityEngine_CPP#193",
-      "status": "plaintext",
-      "mtls": false,
+      "status": "compliant",
+      "mtls": true,
       "note": "Within one instance. Native spawns use http://$HOST_IP:<port> (startUniverse.sh).",
       "probe": {
         "native": {
@@ -42,6 +42,25 @@
           "profileId": "re-transport-2026.11",
           "at": "2026-11-12T01:51:38Z",
           "run": "docker-20261112-probe",
+          "verdict": "compliant",
+          "mtls": true,
+          "endpoints": [
+            {
+              "path": "/api/health",
+              "version": "TLSv1.3",
+              "cipher": "TLS_AES_256_GCM_SHA384",
+              "group": "X25519",
+              "mtls": "handshake",
+              "tls12": "refused",
+              "nonProfileSuite": "refused",
+              "plaintext": "refused"
+            }
+          ]
+        },
+        "release": {
+          "profileId": "re-transport-2026.11",
+          "at": "2026-11-12T20:57:03Z",
+          "run": "release-install-20261112",
           "verdict": "compliant",
           "mtls": true,
           "endpoints": [
@@ -71,8 +90,8 @@
       ],
       "owner": "RealityEngine_CPP",
       "issue": "RealityEngine_CPP#193",
-      "status": "plaintext",
-      "mtls": false,
+      "status": "compliant",
+      "mtls": true,
       "note": "Instance registry URLs are http on the native lane.",
       "probe": {
         "native": {
@@ -98,6 +117,25 @@
           "profileId": "re-transport-2026.11",
           "at": "2026-11-12T01:51:38Z",
           "run": "docker-20261112-probe",
+          "verdict": "compliant",
+          "mtls": true,
+          "endpoints": [
+            {
+              "path": "/api/health",
+              "version": "TLSv1.3",
+              "cipher": "TLS_AES_256_GCM_SHA384",
+              "group": "X25519",
+              "mtls": "handshake",
+              "tls12": "refused",
+              "nonProfileSuite": "refused",
+              "plaintext": "refused"
+            }
+          ]
+        },
+        "release": {
+          "profileId": "re-transport-2026.11",
+          "at": "2026-11-12T20:57:03Z",
+          "run": "release-install-20261112",
           "verdict": "compliant",
           "mtls": true,
           "endpoints": [
@@ -127,8 +165,8 @@
       ],
       "owner": "RealityEngine_CPP",
       "issue": "RealityEngine_CPP#193",
-      "status": "plaintext",
-      "mtls": false,
+      "status": "compliant",
+      "mtls": true,
       "probe": {
         "native": {
           "profileId": "re-transport-2026.11",
@@ -153,6 +191,25 @@
           "profileId": "re-transport-2026.11",
           "at": "2026-11-12T01:51:38Z",
           "run": "docker-20261112-probe",
+          "verdict": "compliant",
+          "mtls": true,
+          "endpoints": [
+            {
+              "path": "/api/state",
+              "version": "TLSv1.3",
+              "cipher": "TLS_AES_256_GCM_SHA384",
+              "group": "X25519",
+              "mtls": "http",
+              "tls12": "refused",
+              "nonProfileSuite": "refused",
+              "plaintext": "refused"
+            }
+          ]
+        },
+        "release": {
+          "profileId": "re-transport-2026.11",
+          "at": "2026-11-12T20:57:03Z",
+          "run": "release-install-20261112",
           "verdict": "compliant",
           "mtls": true,
           "endpoints": [
@@ -182,8 +239,8 @@
       ],
       "owner": "RealityEngine_LSP",
       "issue": "RealityEngine_LSP#186",
-      "status": "plaintext",
-      "mtls": false,
+      "status": "compliant",
+      "mtls": true,
       "note": "Within one instance. Native spawns use http://$HOST_IP:<port> (startUniverse.sh).",
       "probe": {
         "native": {
@@ -209,6 +266,25 @@
           "profileId": "re-transport-2026.11",
           "at": "2026-11-12T01:51:38Z",
           "run": "docker-20261112-probe",
+          "verdict": "compliant",
+          "mtls": true,
+          "endpoints": [
+            {
+              "path": "/api/health",
+              "version": "TLSv1.3",
+              "cipher": "TLS_AES_256_GCM_SHA384",
+              "group": "X25519",
+              "mtls": "handshake",
+              "tls12": "refused",
+              "nonProfileSuite": "refused",
+              "plaintext": "refused"
+            }
+          ]
+        },
+        "release": {
+          "profileId": "re-transport-2026.11",
+          "at": "2026-11-12T20:57:03Z",
+          "run": "release-install-20261112",
           "verdict": "compliant",
           "mtls": true,
           "endpoints": [
@@ -238,8 +314,8 @@
       ],
       "owner": "RealityEngine_LSP",
       "issue": "RealityEngine_LSP#186",
-      "status": "plaintext",
-      "mtls": false,
+      "status": "compliant",
+      "mtls": true,
       "note": "Instance registry URLs are http on the native lane.",
       "probe": {
         "native": {
@@ -279,6 +355,25 @@
               "plaintext": "refused"
             }
           ]
+        },
+        "release": {
+          "profileId": "re-transport-2026.11",
+          "at": "2026-11-12T20:57:03Z",
+          "run": "release-install-20261112",
+          "verdict": "compliant",
+          "mtls": true,
+          "endpoints": [
+            {
+              "path": "/api/health",
+              "version": "TLSv1.3",
+              "cipher": "TLS_AES_256_GCM_SHA384",
+              "group": "X25519",
+              "mtls": "handshake",
+              "tls12": "refused",
+              "nonProfileSuite": "refused",
+              "plaintext": "refused"
+            }
+          ]
         }
       }
     },
@@ -294,8 +389,8 @@
       ],
       "owner": "RealityEngine_LSP",
       "issue": "RealityEngine_LSP#186",
-      "status": "plaintext",
-      "mtls": false,
+      "status": "compliant",
+      "mtls": true,
       "probe": {
         "native": {
           "profileId": "re-transport-2026.11",
@@ -334,6 +429,25 @@
               "plaintext": "refused"
             }
           ]
+        },
+        "release": {
+          "profileId": "re-transport-2026.11",
+          "at": "2026-11-12T20:57:03Z",
+          "run": "release-install-20261112",
+          "verdict": "compliant",
+          "mtls": true,
+          "endpoints": [
+            {
+              "path": "/api/state",
+              "version": "TLSv1.3",
+              "cipher": "TLS_AES_256_GCM_SHA384",
+              "group": "X25519",
+              "mtls": "http",
+              "tls12": "refused",
+              "nonProfileSuite": "refused",
+              "plaintext": "refused"
+            }
+          ]
         }
       }
     },
@@ -349,8 +463,8 @@
       ],
       "owner": "RealityEngine_Scala",
       "issue": "RealityEngine_Scala#210",
-      "status": "plaintext",
-      "mtls": false,
+      "status": "compliant",
+      "mtls": true,
       "note": "Within one instance. Native spawns use http://$HOST_IP:<port> (startUniverse.sh).",
       "probe": {
         "native": {
@@ -390,6 +504,25 @@
               "plaintext": "refused"
             }
           ]
+        },
+        "release": {
+          "profileId": "re-transport-2026.11",
+          "at": "2026-11-12T20:57:03Z",
+          "run": "release-install-20261112",
+          "verdict": "compliant",
+          "mtls": true,
+          "endpoints": [
+            {
+              "path": "/api/health",
+              "version": "TLSv1.3",
+              "cipher": "TLS_AES_256_GCM_SHA384",
+              "group": "X25519MLKEM768",
+              "mtls": "handshake",
+              "tls12": "refused",
+              "nonProfileSuite": "refused",
+              "plaintext": "refused"
+            }
+          ]
         }
       }
     },
@@ -405,8 +538,8 @@
       ],
       "owner": "RealityEngine_Scala",
       "issue": "RealityEngine_Scala#210",
-      "status": "plaintext",
-      "mtls": false,
+      "status": "compliant",
+      "mtls": true,
       "note": "Instance registry URLs are http on the native lane.",
       "probe": {
         "native": {
@@ -446,6 +579,25 @@
               "plaintext": "refused"
             }
           ]
+        },
+        "release": {
+          "profileId": "re-transport-2026.11",
+          "at": "2026-11-12T20:57:03Z",
+          "run": "release-install-20261112",
+          "verdict": "compliant",
+          "mtls": true,
+          "endpoints": [
+            {
+              "path": "/api/health",
+              "version": "TLSv1.3",
+              "cipher": "TLS_AES_256_GCM_SHA384",
+              "group": "X25519MLKEM768",
+              "mtls": "handshake",
+              "tls12": "refused",
+              "nonProfileSuite": "refused",
+              "plaintext": "refused"
+            }
+          ]
         }
       }
     },
@@ -461,8 +613,8 @@
       ],
       "owner": "RealityEngine_Scala",
       "issue": "RealityEngine_Scala#210",
-      "status": "plaintext",
-      "mtls": false,
+      "status": "compliant",
+      "mtls": true,
       "probe": {
         "native": {
           "profileId": "re-transport-2026.11",
@@ -487,6 +639,25 @@
           "profileId": "re-transport-2026.11",
           "at": "2026-11-12T01:51:38Z",
           "run": "docker-20261112-probe",
+          "verdict": "compliant",
+          "mtls": true,
+          "endpoints": [
+            {
+              "path": "/api/state",
+              "version": "TLSv1.3",
+              "cipher": "TLS_AES_256_GCM_SHA384",
+              "group": "X25519MLKEM768",
+              "mtls": "http",
+              "tls12": "refused",
+              "nonProfileSuite": "refused",
+              "plaintext": "refused"
+            }
+          ]
+        },
+        "release": {
+          "profileId": "re-transport-2026.11",
+          "at": "2026-11-12T20:57:03Z",
+          "run": "release-install-20261112",
           "verdict": "compliant",
           "mtls": true,
           "endpoints": [
@@ -545,7 +716,7 @@
       ],
       "owner": "RealityEngine_Manager",
       "issue": "RealityEngine_Manager#327",
-      "status": "tls",
+      "status": "compliant",
       "mtls": false,
       "note": "Profile compliance (TLS 1.3 only, groups) unverified.",
       "probe": {
@@ -586,6 +757,25 @@
               "plaintext": "refused"
             }
           ]
+        },
+        "release": {
+          "profileId": "re-transport-2026.11",
+          "at": "2026-11-12T20:57:03Z",
+          "run": "release-install-20261112",
+          "verdict": "compliant",
+          "mtls": false,
+          "endpoints": [
+            {
+              "path": "/",
+              "version": "TLSv1.3",
+              "cipher": "TLS_AES_256_GCM_SHA384",
+              "group": "X25519MLKEM768",
+              "mtls": "none",
+              "tls12": "refused",
+              "nonProfileSuite": "refused",
+              "plaintext": "refused"
+            }
+          ]
         }
       }
     },
@@ -601,7 +791,7 @@
       ],
       "owner": "RealityEngine_Manager",
       "issue": "RealityEngine_Manager#327",
-      "status": "tls",
+      "status": "compliant",
       "mtls": false,
       "probe": {
         "native": {
@@ -627,6 +817,25 @@
           "profileId": "re-transport-2026.11",
           "at": "2026-11-12T01:51:38Z",
           "run": "docker-20261112-probe",
+          "verdict": "compliant",
+          "mtls": false,
+          "endpoints": [
+            {
+              "path": "/api/health",
+              "version": "TLSv1.3",
+              "cipher": "TLS_AES_256_GCM_SHA384",
+              "group": "X25519MLKEM768",
+              "mtls": "none",
+              "tls12": "refused",
+              "nonProfileSuite": "refused",
+              "plaintext": "refused"
+            }
+          ]
+        },
+        "release": {
+          "profileId": "re-transport-2026.11",
+          "at": "2026-11-12T20:57:03Z",
+          "run": "release-install-20261112",
           "verdict": "compliant",
           "mtls": false,
           "endpoints": [
@@ -687,8 +896,8 @@
       ],
       "owner": "RealityEngine_CI",
       "issue": "RealityEngine_CI#730",
-      "status": "plaintext",
-      "mtls": false,
+      "status": "compliant",
+      "mtls": true,
       "note": "RE_REGISTRY_URL is http://$HOST_IP:<port> with the lane off; with RE_TLS=on the native lane serves it over TLS 1.3 with mTLS (scripts/lib/re_tls_server.py, #732). It is compliant once the lane switches on.",
       "probe": {
         "native": {
@@ -728,6 +937,25 @@
               "plaintext": "refused"
             }
           ]
+        },
+        "release": {
+          "profileId": "re-transport-2026.11",
+          "at": "2026-11-12T20:57:03Z",
+          "run": "release-install-20261112",
+          "verdict": "compliant",
+          "mtls": true,
+          "endpoints": [
+            {
+              "path": "/re-registry.json",
+              "version": "TLSv1.3",
+              "cipher": "TLS_AES_256_GCM_SHA384",
+              "group": "X25519MLKEM768",
+              "mtls": "handshake",
+              "tls12": "refused",
+              "nonProfileSuite": "refused",
+              "plaintext": "refused"
+            }
+          ]
         }
       }
     },
@@ -743,8 +971,8 @@
       ],
       "owner": "RealityEngine_CI",
       "issue": "RealityEngine_CI#730",
-      "status": "tls",
-      "mtls": false,
+      "status": "compliant",
+      "mtls": true,
       "note": "With RE_TLS_CERT (startUniverse.sh with RE_TLS=on; issued as re-mcp, kind both) the Streamable HTTP gateway serves TLS 1.3 at the profile and requires a lane client certificate, and its calls to the engines and the instance registry present its certificate and trust the lane CA alone; RE_MCP_INSECURE_TLS is ignored and plaintext internal URLs are refused (mcp/src/lane-tls.js). Verified by mcp/test/lane-tls.test.js (throwaway CA, stub engine requiring mTLS). Not `compliant` until the probe (#728) records it. The OpenClaw gateway can reach it with its native mcp.servers.<name>.clientCert.",
       "probe": {
         "native": {
@@ -770,6 +998,25 @@
           "profileId": "re-transport-2026.11",
           "at": "2026-11-12T01:51:38Z",
           "run": "docker-20261112-probe",
+          "verdict": "compliant",
+          "mtls": true,
+          "endpoints": [
+            {
+              "path": "/",
+              "version": "TLSv1.3",
+              "cipher": "TLS_AES_256_GCM_SHA384",
+              "group": "X25519MLKEM768",
+              "mtls": "handshake",
+              "tls12": "refused",
+              "nonProfileSuite": "refused",
+              "plaintext": "refused"
+            }
+          ]
+        },
+        "release": {
+          "profileId": "re-transport-2026.11",
+          "at": "2026-11-12T20:57:03Z",
+          "run": "release-install-20261112",
           "verdict": "compliant",
           "mtls": true,
           "endpoints": [
@@ -852,7 +1099,28 @@
       "issue": "localAIStack#172",
       "status": "tls",
       "mtls": false,
-      "note": "Verified by hand 2026-11-08 under the localAIStack lane overlay (localAIStack#174, throwaway lane CA): localai-api serves TLS 1.3 with mTLS (serve.py): TLS_AES_256_GCM_SHA384, X25519MLKEM768; no client certificate, TLS 1.2, AES-128 and plaintext refused. The engines' localai-graphql baseUrl is https on the lane (startUniverse.sh)."
+      "note": "Verified by hand 2026-11-08 under the localAIStack lane overlay (localAIStack#174, throwaway lane CA): localai-api serves TLS 1.3 with mTLS (serve.py): TLS_AES_256_GCM_SHA384, X25519MLKEM768; no client certificate, TLS 1.2, AES-128 and plaintext refused. The engines' localai-graphql baseUrl is https on the lane (startUniverse.sh).",
+      "probe": {
+        "release": {
+          "profileId": "re-transport-2026.11",
+          "at": "2026-11-12T20:57:03Z",
+          "run": "release-install-20261112",
+          "verdict": "compliant",
+          "mtls": true,
+          "endpoints": [
+            {
+              "path": "/health",
+              "version": "TLSv1.3",
+              "cipher": "TLS_AES_256_GCM_SHA384",
+              "group": "X25519MLKEM768",
+              "mtls": "handshake",
+              "tls12": "refused",
+              "nonProfileSuite": "refused",
+              "plaintext": "refused"
+            }
+          ]
+        }
+      }
     },
     {
       "id": "localai-to-qdrant",
@@ -902,8 +1170,7 @@
       "protocol": "HTTP",
       "lanes": [
         "native",
-        "docker",
-        "release"
+        "docker"
       ],
       "owner": "localAIStack",
       "issue": "localAIStack#172",
@@ -952,6 +1219,30 @@
       }
     },
     {
+      "id": "release-to-ollama",
+      "from": "localAI, the engines' PEs, Open WebUI and the OpenClaw gateway (release install)",
+      "to": "Ollama on the Mac (host.docker.internal:11434 from containers, 127.0.0.1:11434 from the gateway)",
+      "protocol": "HTTP",
+      "lanes": [
+        "release"
+      ],
+      "owner": "RealityEngine_CI",
+      "issue": "RealityEngine_CI#729",
+      "status": "plaintext",
+      "mtls": false,
+      "note": "A release install has no TLS front for Ollama: the front (localAIStack scripts/ollama_tls_front.py) runs on the host on the dev lanes, and a release Mac cannot be assumed to have Python.",
+      "deficiency": {
+        "accepted": "owner, 2026-11-12 (RealityEngine_CI#729)",
+        "what": "In a release install every Ollama client reaches the Mac's Ollama over plain http: from containers through Docker Desktop's host gateway, from the native gateway on loopback.",
+        "compensation": "Ollama binds 127.0.0.1 only, so nothing off the Mac reaches it; the traffic carries prompts and completions for local models, no credentials.",
+        "remedy": "A host-side TLS front the release can run (the front ported to Node, which the release already requires), or native TLS in Ollama; then this link leaves the list.",
+        "allows": {
+          "status": "plaintext",
+          "mtls": false
+        }
+      }
+    },
+    {
       "id": "pe-to-openclaw",
       "from": "PEs (ACP/xACP)",
       "to": "OpenClaw gateway (127.0.0.1:18789)",
@@ -974,6 +1265,27 @@
         "allows": {
           "mtls": false
         }
+      },
+      "probe": {
+        "release": {
+          "profileId": "re-transport-2026.11",
+          "at": "2026-11-12T20:57:03Z",
+          "run": "release-install-20261112",
+          "verdict": "compliant",
+          "mtls": false,
+          "endpoints": [
+            {
+              "path": "/",
+              "version": "TLSv1.3",
+              "cipher": "TLS_AES_256_GCM_SHA384",
+              "group": "X25519MLKEM768",
+              "mtls": "none",
+              "tls12": "refused",
+              "nonProfileSuite": "refused",
+              "plaintext": "refused"
+            }
+          ]
+        }
       }
     },
     {
@@ -990,7 +1302,16 @@
       "issue": "localOpenClawStack#92",
       "status": "unverified",
       "mtls": false,
-      "note": "Open WebUI is not on the TLS lane (owner, 2026-11-08): startUniverse.sh does not start it under RE_TLS=on. The browser sidecar is reached by the gateway, not the other way round (openclaw-to-browser-cdp)."
+      "note": "Open WebUI is not on the dev lanes' TLS (owner, 2026-11-08). In a release install with TLS on it reaches the gateway at https://host.docker.internal:18789, trusting the install CA (RealityEngine_CI#729); the gateway cannot require a client certificate (pe-to-openclaw's deficiency). The browser sidecar is reached by the gateway, not the other way round (openclaw-to-browser-cdp).",
+      "deficiency": {
+        "accepted": "owner, 2026-11-08 (RealityEngine_CI#668, localOpenClawStack#92); release lane 2026-11-12 (#729)",
+        "what": "The OpenClaw gateway serves TLS 1.3 without client certificates (no requestCert in OpenClaw), so Open WebUI's calls to it are server TLS only.",
+        "compensation": "Every call needs the gateway bearer token; the gateway binds loopback.",
+        "remedy": "mTLS when OpenClaw can require client certificates (or the gateway's replacement in v0.0.3).",
+        "allows": {
+          "mtls": false
+        }
+      }
     },
     {
       "id": "browser-to-openwebui",
@@ -1004,9 +1325,19 @@
       ],
       "owner": "localOpenClawStack",
       "issue": "localOpenClawStack#92",
-      "status": "unverified",
+      "status": "plaintext",
       "mtls": false,
-      "note": "Not on the TLS lane yet (owner, 2026-11-08): Open WebUI serves plain HTTP and reaches Ollama without a client certificate, so the lane does not start it."
+      "note": "Open WebUI serves plain HTTP. Not started on the dev lanes under RE_TLS=on (owner, 2026-11-08); shipped as plain HTTP in release-v0.0.2 (owner, 2026-11-12).",
+      "deficiency": {
+        "accepted": "owner, 2026-11-12 (RealityEngine_CI#729)",
+        "what": "Open WebUI serves plain HTTP on 127.0.0.1:8080 in a release install.",
+        "compensation": "Bound to loopback only (127.0.0.1:8080), with Open WebUI's own login (WEBUI_AUTH) and signup disabled.",
+        "remedy": "Open WebUI behind tls-proxy (server TLS 1.3), or its own TLS; then this link leaves the list.",
+        "allows": {
+          "status": "plaintext",
+          "mtls": false
+        }
+      }
     },
     {
       "id": "openclaw-to-browser-cdp",
@@ -1260,7 +1591,7 @@
       "owner": "RealityEngine_CI",
       "issue": "RealityEngine_CI#730",
       "status": "tls",
-      "mtls": false,
+      "mtls": true,
       "note": "On the native lane with RE_TLS=on (docker-compose.observability-tls.yml, startUniverse.sh obs_compose; #730): every scrape (engines through the instance registry's file_sd, Qdrant, the bridge exporter, itself) is https with Prometheus's lane certificate, verified as localhost; its own listener requires a lane client certificate (config/prometheus-web.lane.yml). Not `compliant` until the probe (#728) records it. Live 2026-11-08 (run tls-lane-20261108e, RE_TLS=on): all 9 targets up over mTLS (3 RE, 3 PE, Qdrant, the bridge exporter, itself).",
       "deficiency": {
         "accepted": "owner, 2026-11-08 (RealityEngine_CI#668, #730)",
@@ -1295,6 +1626,25 @@
           "profileId": "re-transport-2026.11",
           "at": "2026-11-12T01:51:38Z",
           "run": "docker-20261112-probe",
+          "verdict": "tls",
+          "mtls": true,
+          "endpoints": [
+            {
+              "path": "/-/ready",
+              "version": "TLSv1.3",
+              "cipher": "TLS_AES_256_GCM_SHA384",
+              "group": "X25519MLKEM768",
+              "mtls": "handshake",
+              "tls12": "refused",
+              "nonProfileSuite": "accepted",
+              "plaintext": "refused"
+            }
+          ]
+        },
+        "release": {
+          "profileId": "re-transport-2026.11",
+          "at": "2026-11-12T20:57:03Z",
+          "run": "release-install-20261112",
           "verdict": "tls",
           "mtls": true,
           "endpoints": [
