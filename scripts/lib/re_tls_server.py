@@ -89,10 +89,12 @@ def user_facing_context(cert: str, key: str):
 def ensure_profile(script: str, cert: str) -> None:
     """Re-exec `script` once with OPENSSL_CONF naming the profile's config, so
     the TLS 1.3 suites and groups Python cannot set itself are the profile's.
-    The config is written next to the certificate."""
+    The config is written next to the certificate, or under RE_TLS_SERVER_CONF_DIR
+    when the certificate's directory is read-only (a container mount, #729)."""
     if os.environ.get(_CONF_MARK) == "1":
         return
-    conf = Path(cert).resolve().parent / "openssl-transport.cnf"
+    conf_dir = os.environ.get("RE_TLS_SERVER_CONF_DIR") or str(Path(cert).resolve().parent)
+    conf = Path(conf_dir) / "openssl-transport.cnf"
     conf.write_text(openssl_conf_text(_pq_capable()))
     env = dict(os.environ, OPENSSL_CONF=str(conf), **{_CONF_MARK: "1"})
     os.execve(sys.executable, [sys.executable, os.path.abspath(script), *sys.argv[1:]], env)

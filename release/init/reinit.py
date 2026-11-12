@@ -181,12 +181,13 @@ def allocate_uuids(install: pathlib.Path, insts: list[dict]) -> None:
 
 # ── the engine services ──────────────────────────────────────────────────────
 
-def engine_services(insts: list[dict]) -> dict:
+def engine_services(insts: list[dict], tls: bool = False) -> dict:
     services: dict[str, dict] = {}
+    scheme = "https" if tls else "http"
     for inst in insts:
         rt, iid = inst["runtime"], inst["id"]
         re_svc, pe_svc = inst["re_service"], inst["pe_service"]
-        re_url = f"http://{re_svc}:{RE_PORT}"
+        re_url = f"{scheme}://{re_svc}:{RE_PORT}"
         common = {
             "restart": "unless-stopped",
             "networks": ["realityengine"],
@@ -211,7 +212,7 @@ def engine_services(insts: list[dict]) -> dict:
             "depends_on": {"corpus": {"condition": "service_completed_successfully"},
                            "prepare": {"condition": "service_completed_successfully"},
                            "qdrant": {"condition": "service_healthy"}},
-            "healthcheck": {"test": ["CMD", "wget", "-qO-", f"http://127.0.0.1:{RE_PORT}/api/health"],
+            "healthcheck": {"test": health(RE_PORT, tls),
                             "interval": "10s", "timeout": "5s", "retries": 18, "start_period": "30s"},
         }
         pe_env = {
@@ -244,9 +245,15 @@ def engine_services(insts: list[dict]) -> dict:
             # upgrade): it holds sources derived from the RE's machines, and a
             # PE that outlived its RE kept them for ids the new RE no longer has.
             "depends_on": {re_svc: {"condition": "service_healthy", "restart": True}},
-            "healthcheck": {"test": ["CMD", "wget", "-qO-", f"http://127.0.0.1:{PE_PORT}/api/health"],
+            "healthcheck": {"test": health(PE_PORT, tls),
                             "interval": "10s", "timeout": "5s", "retries": 18, "start_period": "30s"},
         }
+        if tls:
+            # The instance's certificate on both of its services (#729): each
+            # serves TLS 1.3 with mTLS, and the PE calls its RE with it.
+            for d in (re_svc_def, pe_svc_def):
+                d["environment"].update(TLS_ENV)
+                d["volumes"] = d["volumes"] + tls_mounts(iid)
         if rt == "cpp":
             re_svc_def["command"] = ["/app/bin/reality_engine_server", str(RE_PORT),
                                      "/app/corpus/machines", "${VECTOR_DIMENSION:-7680}"]
@@ -314,7 +321,8 @@ def scalar(v) -> str:
 
 # ── the instance registry, in two views ──────────────────────────────────────
 
-def registries(insts: list[dict], ip: str, ports: dict[str, int]) -> tuple[dict, dict]:
+def registries(insts: list[dict], ip: str, ports: dict[str, int], tls: bool = False) -> tuple[dict, dict]:
+    eng = "https" if tls else "http"   # the engines and the registry, as TLS reaches them (#729)
     started = datetime.datetime.now(datetime.timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
 
     def entry(inst: dict, re_url: str, pe_url: str, re_port: int, pe_port: int) -> dict:
@@ -336,7 +344,7 @@ def registries(insts: list[dict], ip: str, ports: dict[str, int]) -> tuple[dict,
         return {"url": url, "port": port}
 
     host = {"host": ip, "lane": LANE, "instances": [
-        entry(i, f"http://localhost:{i['re_port']}", f"http://localhost:{i['pe_port']}", i["re_port"], i["pe_port"])
+        entry(i, f"{eng}://localhost:{i['re_port']}", f"{eng}://localhost:{i['pe_port']}", i["re_port"], i["pe_port"])
         for i in insts], "services": {
         "manager_backend": svc(f"https://localhost:{ports['MANAGER_API']}"),
         "manager_frontend": svc(f"https://localhost:{ports['MANAGER_UI']}"),
@@ -344,17 +352,17 @@ def registries(insts: list[dict], ip: str, ports: dict[str, int]) -> tuple[dict,
         "qdrant": svc(f"http://localhost:{ports['QDRANT']}"),
         "openclaw_gateway": svc(f"http://localhost:{ports['OPENCLAW']}"),
         "mcp": svc(f"http://localhost:{ports['MCP']}"),
-        "registry": svc(f"http://localhost:{ports['REGISTRY']}"),
+        "registry": svc(f"{eng}://localhost:{ports['REGISTRY']}"),
     }}
     internal = {"host": ip, "lane": LANE, "instances": [
-        entry(i, f"http://{i['re_service']}:{RE_PORT}", f"http://{i['pe_service']}:{PE_PORT}", RE_PORT, PE_PORT)
+        entry(i, f"{eng}://{i['re_service']}:{RE_PORT}", f"{eng}://{i['pe_service']}:{PE_PORT}", RE_PORT, PE_PORT)
         for i in insts], "services": {
         "manager_backend": svc("https://visualizer-backend:3001"),
         "localai_api": svc("http://localai-api:8000"),
         "qdrant": svc("http://qdrant:6333"),
         "openclaw_gateway": svc(f"http://{GATEWAY_HOST}:{gateway_port()}"),
         "mcp": svc("http://mcp:7331"),
-        "registry": svc("http://registry:8000"),
+        "registry": svc(f"{eng}://registry:8000"),
     }}
     return host, internal
 
@@ -389,6 +397,70 @@ def integrations() -> dict:
         if item.get("kind") == "mqtt":
             item["enabled"] = False      # no MQTT-parity claim in this release (A11)
     return data
+
+
+# ── the install's PKI (RealityEngine_CI#729, #668) ───────────────────────────
+#
+# One CA per install, issued by the suite's re_pki.py (ECDSA P-384, the
+# transport profile's validities), under <install>/pki: the release lane's
+# counterpart of ~/.reality-engine/pki/<lane>. Every engine instance gets a
+# certificate (kind both, its compose names, urn:uuid:<instance_uuid>), as do
+# the instance registry, Manager's pair and the CLI's harness. Issued on every
+# configure, whether or not TLS is on, so turning it on needs no other step;
+# re_pki keeps a current certificate and re-issues one inside its renewal window.
+RE_PKI = CI / "scripts" / "lib" / "re_pki.py"
+TLS_DIR = "/run/re-tls"   # where a container finds its certificate, the CA and the CRL
+
+
+def pki(install: pathlib.Path, insts: list[dict], ip: str) -> None:
+    env = {**os.environ, "RE_PKI_DIR": str(install / "pki")}
+
+    def run(*a: str) -> None:
+        subprocess.run([sys.executable, str(RE_PKI), *a], check=True, capture_output=True, env=env)
+
+    run("init")
+    run("renew")
+    ips = sorted({"127.0.0.1", ip})
+    ip_args = [x for a in ips for x in ("--ip", a)]
+    for i in insts:
+        run("issue", i["id"], "--kind", "both", "--dns", "localhost", "--dns", f"{i['id']}.localhost",
+            "--dns", i["re_service"], "--dns", i["pe_service"], "--dns", GATEWAY_HOST,
+            "--instance-uuid", i["instance_uuid"], *ip_args)
+    run("issue", "registry", "--kind", "server", "--dns", "localhost", "--dns", "registry",
+        "--dns", GATEWAY_HOST, *ip_args)
+    run("issue", "manager", "--kind", "both", "--dns", "localhost", "--dns", "visualizer-backend",
+        "--dns", "visualizer-frontend", "--dns", "tls-proxy", "--dns", GATEWAY_HOST, *ip_args)
+    run("issue", "harness", "--kind", "client")
+    run("crl")
+    log("issued the install's lane certificates (pki/)")
+
+
+# The registry's health check on the lane: a TLS 1.3 read presenting the
+# install's harness certificate (mounted for this), verified against the CA.
+REGISTRY_TLS_HEALTH = (
+    "import ssl,urllib.request;c=ssl.create_default_context(cafile='/run/re-tls/ca.crt');"
+    "c.load_cert_chain('/run/re-tls/harness/cert.pem','/run/re-tls/harness/key.pem');"
+    "urllib.request.urlopen('https://localhost:8000/re-registry.json',timeout=3,context=c)")
+
+
+def tls_mounts(name: str) -> list[str]:
+    """A service's certificate, the CA and the CRL, read-only; never the CA key."""
+    return [f"./pki/issued/{name}:{TLS_DIR}/instance:ro",
+            f"./pki/ca/ca.crt:{TLS_DIR}/ca.crt:ro", f"./pki/ca/ca.crl:{TLS_DIR}/ca.crl:ro"]
+
+
+TLS_ENV = {"RE_TLS_CERT": f"{TLS_DIR}/instance/chain.pem", "RE_TLS_KEY": f"{TLS_DIR}/instance/key.pem",
+           "RE_TLS_CA": f"{TLS_DIR}/ca.crt", "RE_TLS_CRL": f"{TLS_DIR}/ca.crl"}
+
+
+def health(port: int, tls: bool) -> list[str]:
+    """An engine's health check: with TLS on it presents the instance's own
+    certificate (the engines require one), with GNU wget in the images."""
+    if not tls:
+        return ["CMD", "wget", "-qO-", f"http://127.0.0.1:{port}/api/health"]
+    return ["CMD", "wget", "-qO-", f"--ca-certificate={TLS_DIR}/ca.crt",
+            f"--certificate={TLS_DIR}/instance/chain.pem", f"--private-key={TLS_DIR}/instance/key.pem",
+            f"https://127.0.0.1:{port}/api/health"]
 
 
 def certificates(install: pathlib.Path, ip: str) -> None:
@@ -604,15 +676,47 @@ def cmd_configure(args) -> int:
     ports = {k: int(os.environ.get(f"RE_PORT_{k}", v)) for k, v in HOST_PORTS.items()}
 
     allocate_uuids(install, insts)
+    tls = args.tls == "on"
+    pki(install, insts, ip)
     log("instances: " + ", ".join(f"{i['id']} (PE {i['pe_port']}, RE {i['re_port']})" for i in insts))
 
     shutil.copyfile(RELEASE / "compose.yml", install / "compose.yml")
     write(install / "compose.engines.yml",
           "# Generated by re-init from the engine spec " + args.engines + ". Do not edit:\n"
           "# `realityengine up --engines=...` regenerates it.\n"
-          + yaml_dump({"services": engine_services(insts)}) + "\n")
+          + yaml_dump({"services": engine_services(insts, tls)}) + "\n")
+    compose_files = ["compose.yml", "compose.engines.yml"]
+    tls_overlay = install / "compose.tls.yml"
+    if tls:
+        # The services this release has on the lane so far (#729): the instance
+        # registry, Manager's visualizer backend and tls-proxy here; the engines
+        # carry theirs in compose.engines.yml.
+        (install / "config").mkdir(parents=True, exist_ok=True)   # a fresh install has none yet
+        subprocess.run([sys.executable, str(CI / "scripts" / "lib" / "tls_proxy_lane_conf.py"),
+                        str(RELEASE / "config" / "nginx.conf"), str(install / "config" / "nginx.lane.conf")],
+                       check=True, capture_output=True)
+        write(tls_overlay, "# Generated by re-init (RE_TLS=on, RealityEngine_CI#729). Do not edit.\n"
+              + yaml_dump({"services": {
+                  "registry": {
+                      "environment": {**TLS_ENV, "RE_TLS_SERVER_CONF_DIR": "/tmp"},
+                      "volumes": tls_mounts("registry") + ["./pki/issued/harness:/run/re-tls/harness:ro"],
+                      # The registry requires a client certificate; it presents the harness's.
+                      "healthcheck": {"test": ["CMD", "python3", "-c", REGISTRY_TLS_HEALTH]}},
+                  # The lane certificate wins over certs/ (Manager's laneTls); it reads
+                  # the instance registry and reaches the engines with it.
+                  "visualizer-backend": {
+                      "environment": {**TLS_ENV, "RE_REGISTRY_URL": "https://registry:8000/re-registry.internal.json"},
+                      "volumes": tls_mounts("manager")},
+                  "tls-proxy": {
+                      "volumes": ["./config/nginx.lane.conf:/etc/nginx/nginx.conf:ro",
+                                  "./pki/issued/manager:/etc/nginx/lane/instance:ro",
+                                  "./pki/ca/ca.crt:/etc/nginx/lane/ca.crt:ro"]},
+              }}) + "\n")
+        compose_files.append("compose.tls.yml")
+    elif tls_overlay.exists():
+        tls_overlay.unlink()
 
-    host_reg, internal_reg = registries(insts, ip, ports)
+    host_reg, internal_reg = registries(insts, ip, ports, tls)
     write_json(install / "registry" / "re-registry.json", host_reg)
     write_json(install / "registry" / "re-registry.internal.json", internal_reg)
 
@@ -629,11 +733,12 @@ def cmd_configure(args) -> int:
 
     images_file = pathlib.Path(args.images) if args.images else None
     refs = image_refs(args.version, images_file, args.registry)
-    pe_urls = ",".join(f"http://{i['pe_service']}:{PE_PORT}" for i in insts)
+    pe_urls = ",".join(f"{'https' if tls else 'http'}://{i['pe_service']}:{PE_PORT}" for i in insts)
     env_lines = [
         "# Generated by re-init. Do not edit: `realityengine up` regenerates it.",
         f"COMPOSE_PROJECT_NAME={args.project}",
-        "COMPOSE_FILE=compose.yml:compose.engines.yml",
+        "COMPOSE_FILE=" + ":".join(compose_files),
+        f"RE_TLS={'on' if tls else 'off'}",
         f"RE_VERSION={args.version}",
         f"RE_ENGINES={args.engines}",
         f"HOST_IP={ip}",
@@ -658,6 +763,7 @@ def cmd_configure(args) -> int:
     write_json(install / "release.json", {
         "host_services": host_services,
         "version": args.version, "engines": args.engines, "lane": LANE,
+        "tls": {"enabled": tls, "profile": json.loads((CI / "config" / "transport-profile.json").read_text())["profileId"]},
         "instances": [{k: i[k] for k in ("id", "runtime", "instance_uuid", "re_port", "pe_port")} for i in insts],
         "images": refs, "images_file": str(images_file) if images_file else None,
         "configured_at": datetime.datetime.now(datetime.timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ"),
@@ -668,6 +774,16 @@ def cmd_configure(args) -> int:
 
 def cmd_serve_registry(args) -> int:
     root = pathlib.Path(args.dir)
+    if os.environ.get("RE_TLS_CERT"):
+        # On the lane (#729): TLS 1.3 with mTLS at the transport profile, the
+        # suite's own listener (scripts/lib/re_tls_server.py), not a second copy.
+        cmd = [sys.executable, str(CI / "scripts" / "lib" / "re_tls_server.py"), "serve-static", str(root),
+               str(args.port), "--cert", os.environ["RE_TLS_CERT"], "--key", os.environ["RE_TLS_KEY"],
+               "--ca", os.environ["RE_TLS_CA"]]
+        if os.environ.get("RE_TLS_CRL"):
+            cmd += ["--crl", os.environ["RE_TLS_CRL"]]
+        log(f"serving the instance registry from {root} on :{args.port} (TLS 1.3, mTLS)")
+        os.execv(sys.executable, cmd)
 
     class Handler(http.server.SimpleHTTPRequestHandler):
         def __init__(self, *a, **kw):
@@ -864,6 +980,9 @@ def main(argv: list[str]) -> int:
     c.add_argument("--registry", default="ghcr.io/jateeter")
     c.add_argument("--project", default="realityengine")
     c.add_argument("--skip-openclaw", action="store_true")
+    c.add_argument("--tls", choices=("on", "off"), default=os.environ.get("RE_TLS", "off"),
+                   help="serve the engines and the instance registry on TLS 1.3 with mTLS (#729); "
+                        "the install's other services follow in later releases of this switch")
     s = sub.add_parser("serve-registry")
     s.add_argument("--dir", default="/install/registry")
     s.add_argument("--port", type=int, default=8000)
