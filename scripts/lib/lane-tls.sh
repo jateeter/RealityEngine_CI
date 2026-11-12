@@ -69,14 +69,16 @@ lane_tls_init() {
 
 # lane_tls_issue_service NAME HOST_IP: a server certificate for a listener CI
 # runs itself (the instance registry shim), covering localhost, NAME.localhost,
-# 127.0.0.1 and HOST_IP. Sets SVC_TLS_CERT/KEY, empty unless the lane is on.
+# host.docker.internal (how a container reaches the host: Manager's docker
+# backend reads the instance registry there, #732), 127.0.0.1 and HOST_IP.
+# Sets SVC_TLS_CERT/KEY, empty unless the lane is on.
 # shellcheck disable=SC2034  # SVC_TLS_* are read by the caller (registry.sh)
 lane_tls_issue_service() {
     local name="$1" host_ip="${2:-127.0.0.1}"
     SVC_TLS_CERT=""; SVC_TLS_KEY=""
     lane_tls_enabled || return 0
     [ "$LANE_TLS_READY" = 1 ] || return 1
-    local args="--kind server --dns localhost --dns $name.localhost --ip 127.0.0.1"
+    local args="--kind server --dns localhost --dns $name.localhost --dns host.docker.internal --ip 127.0.0.1"
     [ "$host_ip" != "127.0.0.1" ] && args="$args --ip $host_ip"
     # shellcheck disable=SC2086  # args is a word list built above
     python3 "$LANE_TLS_PKI" issue "$name" $args >/dev/null || return 1
