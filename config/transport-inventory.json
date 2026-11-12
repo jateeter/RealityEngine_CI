@@ -40,8 +40,8 @@
         },
         "docker": {
           "profileId": "re-transport-2026.11",
-          "at": "2026-11-12T00:43:43Z",
-          "run": "docker-20261111-probe",
+          "at": "2026-11-12T01:51:38Z",
+          "run": "docker-20261112-probe",
           "verdict": "compliant",
           "mtls": true,
           "endpoints": [
@@ -96,8 +96,8 @@
         },
         "docker": {
           "profileId": "re-transport-2026.11",
-          "at": "2026-11-12T00:43:43Z",
-          "run": "docker-20261111-probe",
+          "at": "2026-11-12T01:51:38Z",
+          "run": "docker-20261112-probe",
           "verdict": "compliant",
           "mtls": true,
           "endpoints": [
@@ -151,8 +151,8 @@
         },
         "docker": {
           "profileId": "re-transport-2026.11",
-          "at": "2026-11-12T00:43:43Z",
-          "run": "docker-20261111-probe",
+          "at": "2026-11-12T01:51:38Z",
+          "run": "docker-20261112-probe",
           "verdict": "compliant",
           "mtls": true,
           "endpoints": [
@@ -207,8 +207,8 @@
         },
         "docker": {
           "profileId": "re-transport-2026.11",
-          "at": "2026-11-12T00:43:43Z",
-          "run": "docker-20261111-probe",
+          "at": "2026-11-12T01:51:38Z",
+          "run": "docker-20261112-probe",
           "verdict": "compliant",
           "mtls": true,
           "endpoints": [
@@ -263,8 +263,8 @@
         },
         "docker": {
           "profileId": "re-transport-2026.11",
-          "at": "2026-11-12T00:43:43Z",
-          "run": "docker-20261111-probe",
+          "at": "2026-11-12T01:51:38Z",
+          "run": "docker-20261112-probe",
           "verdict": "compliant",
           "mtls": true,
           "endpoints": [
@@ -318,8 +318,8 @@
         },
         "docker": {
           "profileId": "re-transport-2026.11",
-          "at": "2026-11-12T00:43:43Z",
-          "run": "docker-20261111-probe",
+          "at": "2026-11-12T01:51:38Z",
+          "run": "docker-20261112-probe",
           "verdict": "compliant",
           "mtls": true,
           "endpoints": [
@@ -374,8 +374,8 @@
         },
         "docker": {
           "profileId": "re-transport-2026.11",
-          "at": "2026-11-12T00:43:43Z",
-          "run": "docker-20261111-probe",
+          "at": "2026-11-12T01:51:38Z",
+          "run": "docker-20261112-probe",
           "verdict": "compliant",
           "mtls": true,
           "endpoints": [
@@ -430,8 +430,8 @@
         },
         "docker": {
           "profileId": "re-transport-2026.11",
-          "at": "2026-11-12T00:43:43Z",
-          "run": "docker-20261111-probe",
+          "at": "2026-11-12T01:51:38Z",
+          "run": "docker-20261112-probe",
           "verdict": "compliant",
           "mtls": true,
           "endpoints": [
@@ -485,8 +485,8 @@
         },
         "docker": {
           "profileId": "re-transport-2026.11",
-          "at": "2026-11-12T00:43:43Z",
-          "run": "docker-20261111-probe",
+          "at": "2026-11-12T01:51:38Z",
+          "run": "docker-20261112-probe",
           "verdict": "compliant",
           "mtls": true,
           "endpoints": [
@@ -570,9 +570,9 @@
         },
         "docker": {
           "profileId": "re-transport-2026.11",
-          "at": "2026-11-12T00:43:43Z",
-          "run": "docker-20261111-probe",
-          "verdict": "plaintext",
+          "at": "2026-11-12T01:51:38Z",
+          "run": "docker-20261112-probe",
+          "verdict": "compliant",
           "mtls": false,
           "endpoints": [
             {
@@ -581,9 +581,9 @@
               "cipher": "TLS_AES_256_GCM_SHA384",
               "group": "X25519MLKEM768",
               "mtls": "none",
-              "tls12": "accepted",
-              "nonProfileSuite": "accepted",
-              "plaintext": "answered"
+              "tls12": "refused",
+              "nonProfileSuite": "refused",
+              "plaintext": "refused"
             }
           ]
         }
@@ -625,9 +625,9 @@
         },
         "docker": {
           "profileId": "re-transport-2026.11",
-          "at": "2026-11-12T00:43:43Z",
-          "run": "docker-20261111-probe",
-          "verdict": "plaintext",
+          "at": "2026-11-12T01:51:38Z",
+          "run": "docker-20261112-probe",
+          "verdict": "compliant",
           "mtls": false,
           "endpoints": [
             {
@@ -636,9 +636,9 @@
               "cipher": "TLS_AES_256_GCM_SHA384",
               "group": "X25519MLKEM768",
               "mtls": "none",
-              "tls12": "accepted",
-              "nonProfileSuite": "accepted",
-              "plaintext": "answered"
+              "tls12": "refused",
+              "nonProfileSuite": "refused",
+              "plaintext": "refused"
             }
           ]
         }
@@ -712,8 +712,8 @@
         },
         "docker": {
           "profileId": "re-transport-2026.11",
-          "at": "2026-11-12T00:43:43Z",
-          "run": "docker-20261111-probe",
+          "at": "2026-11-12T01:51:38Z",
+          "run": "docker-20261112-probe",
           "verdict": "compliant",
           "mtls": true,
           "endpoints": [
@@ -768,8 +768,8 @@
         },
         "docker": {
           "profileId": "re-transport-2026.11",
-          "at": "2026-11-12T00:43:43Z",
-          "run": "docker-20261111-probe",
+          "at": "2026-11-12T01:51:38Z",
+          "run": "docker-20261112-probe",
           "verdict": "compliant",
           "mtls": true,
           "endpoints": [
@@ -932,8 +932,8 @@
         },
         "docker": {
           "profileId": "re-transport-2026.11",
-          "at": "2026-11-12T00:43:43Z",
-          "run": "docker-20261111-probe",
+          "at": "2026-11-12T01:51:38Z",
+          "run": "docker-20261112-probe",
           "verdict": "compliant",
           "mtls": true,
           "endpoints": [
@@ -1293,8 +1293,8 @@
         },
         "docker": {
           "profileId": "re-transport-2026.11",
-          "at": "2026-11-12T00:43:43Z",
-          "run": "docker-20261111-probe",
+          "at": "2026-11-12T01:51:38Z",
+          "run": "docker-20261112-probe",
           "verdict": "tls",
           "mtls": true,
           "endpoints": [
