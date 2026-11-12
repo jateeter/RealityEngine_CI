@@ -24,6 +24,10 @@ With --require-compliant (the release gate, #729): every link must be
 where an accepted deficiency `allows` otherwise, and such links are listed.
 Until then the check reports progress and passes.
 
+A service link may name `clientAuthentication` (owner-accepted; method
+`token`): its callers authenticate by token over TLS, and the gate then needs
+no mTLS on it (owner, 2026-11-12: the lifecycle API's tokens are fine).
+
 A link's `audience` says who is on the other end (owner, 2026-11-12):
 - `service` (the default): two RealityEngine entities; mTLS
   (profile authentication.serviceToService).
@@ -55,6 +59,8 @@ CI_DIR = Path(__file__).resolve().parent.parent
 STATUSES = {"plaintext", "tls", "compliant", "unverified"}
 LANES = {"native", "docker", "release"}
 AUDIENCES = {"service", "user", "external"}
+# Client authentication the owner accepts on a service link in place of mTLS.
+CLIENT_AUTH_METHODS = {"token"}
 OWNERS = {
     "RealityEngine_CI", "RealityEngine_Manager", "RealityEngine_Machines", "RealityEngine_CPP",
     "RealityEngine_LSP", "RealityEngine_Scala", "RealityEngine_Rust", "localAIStack",
@@ -107,6 +113,14 @@ def link_problems(inventory: dict[str, Any]) -> list[str]:
             out.append(f"{lid}: issue must be written <repo>#<n>, got {link['issue']!r}")
         if link.get("audience", "service") not in AUDIENCES:
             out.append(f"{lid}: audience {link.get('audience')!r} is not one of {sorted(AUDIENCES)}")
+        client_auth = link.get("clientAuthentication")
+        if client_auth is not None:
+            if (not isinstance(client_auth, dict) or client_auth.get("method") not in CLIENT_AUTH_METHODS
+                    or not client_auth.get("detail")):
+                out.append(f"{lid}: clientAuthentication must name a method from {sorted(CLIENT_AUTH_METHODS)} "
+                           "and its detail")
+            elif "owner" not in str(client_auth.get("accepted", "")):
+                out.append(f"{lid}: clientAuthentication is accepted only by the owner")
         if not isinstance(link.get("mtls"), bool):
             out.append(f"{lid}: mtls must be true or false")
         deficiency = link.get("deficiency")
@@ -181,12 +195,15 @@ def gate_problems(inventory: dict[str, Any]) -> tuple[list[str], list[str]]:
         allows = (link.get("deficiency") or {}).get("allows") or {}
         status_ok = link.get("status") == "compliant" or ("status" in allows and link.get("status") == allows["status"])
         # A user-facing or external link exposes TLS only; mTLS is for services.
-        needs_mtls = link.get("audience", "service") == "service"
+        # ... and so is a service link whose callers the owner accepted are
+        # authenticated otherwise (clientAuthentication: tokens).
+        needs_mtls = link.get("audience", "service") == "service" and not link.get("clientAuthentication")
         mtls_ok = (not needs_mtls or link.get("mtls") is True
                    or ("mtls" in allows and link.get("mtls") is allows["mtls"]))
         audience = "" if not needs_mtls or link.get("mtls") else ", no mTLS"
         if not needs_mtls:
-            audience = f", {link['audience']}: TLS only"
+            audience = (f", {link['audience']}: TLS only" if link.get("audience", "service") != "service"
+                        else f", {link['clientAuthentication']['method']} authentication")
         line = f"{link['id']}: {link['status']}{audience} (owner {link['owner']}, {link['issue']})"
         if status_ok and mtls_ok:
             if allows:

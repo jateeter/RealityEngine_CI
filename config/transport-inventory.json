@@ -681,13 +681,15 @@
       "to": "Rust RE and PE (follower lane)",
       "protocol": "HTTP",
       "lanes": [
-        "native"
+        "native",
+        "docker",
+        "release"
       ],
       "owner": "RealityEngine_Rust",
       "issue": "RealityEngine_Rust#72",
       "status": "unverified",
       "mtls": false,
-      "note": "Follower, on its own cadence."
+      "note": "Follower, on its own cadence. Every lane listed is in scope (owner, 2026-11-12: nothing is removed from the inventory); a lane without a probe record has the link not yet deployed or not yet probed there."
     },
     {
       "id": "manager-ts-pe",
@@ -695,13 +697,14 @@
       "to": "TypeScript PE (Manager)",
       "protocol": "HTTPS behind tls-proxy",
       "lanes": [
-        "docker"
+        "docker",
+        "release"
       ],
       "owner": "RealityEngine_Manager",
       "issue": "RealityEngine_Manager#327",
-      "status": "compliant",
+      "status": "unverified",
       "mtls": false,
-      "note": "tls-proxy listens with TLS on 3004 and proxies over https; profile compliance unverified. Not on the release lane: a release install has no TypeScript PE (Manager's TS PE is a docker-lane service). Add the lane back with the service.",
+      "note": "tls-proxy listens with TLS on 3004 and proxies over https; profile compliance unverified. Every lane listed is in scope (owner, 2026-11-12: nothing is removed from the inventory); a lane without a probe record has the link not yet deployed or not yet probed there.",
       "probe": {
         "docker": {
           "profileId": "re-transport-2026.11",
@@ -1107,13 +1110,14 @@
       "to": "Grafana",
       "protocol": "HTTP",
       "lanes": [
-        "docker"
+        "docker",
+        "release"
       ],
       "owner": "RealityEngine_CI",
       "issue": "RealityEngine_CI#730",
-      "status": "tls",
+      "status": "unverified",
       "mtls": false,
-      "note": "nginx/tls-proxy.conf: proxy_pass http://grafana:3000. Not on the release lane: a release install has its tls-proxy fronts only the visualizer (release/config/nginx.conf); Grafana serves its own port (browser-to-grafana-native). Add the lane back with the service.",
+      "note": "nginx/tls-proxy.conf: proxy_pass http://grafana:3000.conf); Grafana serves its own port (browser-to-grafana-native). Add the lane back with the service. Every lane listed is in scope (owner, 2026-11-12: nothing is removed from the inventory); a lane without a probe record has the link not yet deployed or not yet probed there.",
       "probe": {
         "docker": {
           "profileId": "re-transport-2026.11",
@@ -1792,13 +1796,14 @@
       "protocol": "HTTP",
       "lanes": [
         "native",
-        "docker"
+        "docker",
+        "release"
       ],
       "owner": "localAIStack",
       "issue": "localAIStack#172",
-      "status": "compliant",
-      "mtls": true,
-      "note": "Ollama serves no TLS (0.40.13; its FAQ offers only a reverse proxy). Clients reach a TLS 1.3 front with mTLS, which must meet the profile in full; the front-to-Ollama hop is the separate link ollama-front-to-ollama. Verified by hand 2026-11-08 under the localAIStack lane overlay (localAIStack#174, throwaway lane CA): the front (localAIStack scripts/ollama_tls_front.py) negotiates TLS 1.3, X25519MLKEM768, TLS_AES_256_GCM_SHA384; TLS 1.2, AES-128, plaintext and no client certificate refused; streaming passes through. The OpenClaw gateway presents its lane certificate through scripts/lib/lane-tls-preload.cjs (it has no client-certificate setting for providers); a real completion through an mTLS-only front verified 2026-11-08. Live 2026-11-08 (run tls-lane-20261108c, RE_TLS=on, native universe with OpenClaw on): an agent completion through the gateway answered via the front on 127.0.0.1:11443.",
+      "status": "unverified",
+      "mtls": false,
+      "note": "Ollama serves no TLS (0.40.13; its FAQ offers only a reverse proxy). Clients reach a TLS 1.3 front with mTLS, which must meet the profile in full; the front-to-Ollama hop is the separate link ollama-front-to-ollama. Verified by hand 2026-11-08 under the localAIStack lane overlay (localAIStack#174, throwaway lane CA): the front (localAIStack scripts/ollama_tls_front.py) negotiates TLS 1.3, X25519MLKEM768, TLS_AES_256_GCM_SHA384; TLS 1.2, AES-128, plaintext and no client certificate refused; streaming passes through. The OpenClaw gateway presents its lane certificate through scripts/lib/lane-tls-preload.cjs (it has no client-certificate setting for providers); a real completion through an mTLS-only front verified 2026-11-08. Live 2026-11-08 (run tls-lane-20261108c, RE_TLS=on, native universe with OpenClaw on): an agent completion through the gateway answered via the front on 127.0.0.1:11443. Every lane listed is in scope (owner, 2026-11-12: nothing is removed from the inventory); a lane without a probe record has the link not yet deployed or not yet probed there.",
       "probe": {
         "native": {
           "profileId": "re-transport-2026.11",
@@ -2060,13 +2065,15 @@
       "protocol": "HTTP",
       "audience": "user",
       "lanes": [
+        "native",
+        "docker",
         "release"
       ],
       "owner": "localOpenClawStack",
       "issue": "localOpenClawStack#92",
       "status": "plaintext",
       "mtls": false,
-      "note": "Open WebUI serves plain HTTP. Not started on the dev lanes under RE_TLS=on (owner, 2026-11-08); shipped as plain HTTP in release-v0.0.2 (owner, 2026-11-12). On the dev lanes it exists only with RE_TLS=off, so the link is the release install's alone.",
+      "note": "Open WebUI serves plain HTTP. Not started on the dev lanes under RE_TLS=on (owner, 2026-11-08); shipped as plain HTTP in release-v0.0.2 (owner, 2026-11-12). Every lane listed is in scope (owner, 2026-11-12: nothing is removed from the inventory); a lane without a probe record has the link not yet deployed or not yet probed there.",
       "deficiency": {
         "accepted": "owner, 2026-11-12 (RealityEngine_CI#729)",
         "what": "Open WebUI serves plain HTTP on 127.0.0.1:8080 in a release install.",
@@ -2232,13 +2239,20 @@
       "to": "lifecycle API (frame, /pod proxy)",
       "protocol": "HTTPS",
       "lanes": [
-        "native"
+        "native",
+        "docker",
+        "release"
       ],
       "owner": "localOpenClawStack",
       "issue": "localOpenClawStack#92",
-      "status": "compliant",
+      "status": "unverified",
       "mtls": false,
-      "note": "New with localAssetStorageStack#8. Not on the release lane: a release install has no asset storage stack yet (RealityEngine_CI#715). Add the lane back with the service. Not on the docker lane: startUniverse.sh --assets starts the stack in multi-engine mode only.",
+      "clientAuthentication": {
+        "method": "token",
+        "accepted": "owner, 2026-11-12",
+        "detail": "The lifecycle API authenticates every caller by token over TLS 1.3: people by Solid-OIDC DPoP access tokens, services by service tokens of 32 bytes or more, per-clone agents by per-binding EdDSA capability tokens (localAssetStorageStack lifecycle/src/auth). No client certificate is asked for."
+      },
+      "note": "New with localAssetStorageStack#8.sh --assets starts the stack in multi-engine mode only. Every lane listed is in scope (owner, 2026-11-12: nothing is removed from the inventory); a lane without a probe record has the link not yet deployed or not yet probed there.",
       "probe": {
         "native": {
           "profileId": "re-transport-2026.11",
@@ -2352,13 +2366,15 @@
       "protocol": "HTTPS",
       "audience": "user",
       "lanes": [
-        "native"
+        "native",
+        "docker",
+        "release"
       ],
       "owner": "localAssetStorageStack",
       "issue": "localAssetStorageStack#15",
-      "status": "compliant",
+      "status": "unverified",
       "mtls": false,
-      "note": "Verified by hand 2026-11-07 against the running stack (localAssetStorageStack#16): TLS 1.3, TLS_AES_256_GCM_SHA384, X25519MLKEM768 negotiated, certificate verifies by name; TLS 1.2 refused; plaintext answered with 0 bytes. Not `compliant` until the probe (#728) records it. Not on the release lane: a release install has no asset storage stack yet (its release images are pending, RealityEngine_CI#715). Add the lane back with the service. Not on the docker lane: startUniverse.sh --assets starts the stack in multi-engine mode only.",
+      "note": "Verified by hand 2026-11-07 against the running stack (localAssetStorageStack#16): TLS 1.3, TLS_AES_256_GCM_SHA384, X25519MLKEM768 negotiated, certificate verifies by name; TLS 1.2 refused; plaintext answered with 0 bytes. Not `compliant` until the probe (#728) records it.sh --assets starts the stack in multi-engine mode only. Every lane listed is in scope (owner, 2026-11-12: nothing is removed from the inventory); a lane without a probe record has the link not yet deployed or not yet probed there.",
       "probe": {
         "native": {
           "profileId": "re-transport-2026.11",
@@ -2388,13 +2404,15 @@
       "protocol": "HTTPS",
       "audience": "user",
       "lanes": [
-        "native"
+        "native",
+        "docker",
+        "release"
       ],
       "owner": "localAssetStorageStack",
       "issue": "localAssetStorageStack#15",
-      "status": "compliant",
+      "status": "unverified",
       "mtls": false,
-      "note": "Verified by hand 2026-11-07 against the running stack (localAssetStorageStack#16): TLS 1.3, TLS_AES_256_GCM_SHA384, X25519MLKEM768 negotiated, certificate verifies by name; TLS 1.2 refused; plaintext answered with 0 bytes. Not `compliant` until the probe (#728) records it. Not on the release lane: a release install has no asset storage stack yet (RealityEngine_CI#715). Add the lane back with the service. Not on the docker lane: startUniverse.sh --assets starts the stack in multi-engine mode only.",
+      "note": "Verified by hand 2026-11-07 against the running stack (localAssetStorageStack#16): TLS 1.3, TLS_AES_256_GCM_SHA384, X25519MLKEM768 negotiated, certificate verifies by name; TLS 1.2 refused; plaintext answered with 0 bytes. Not `compliant` until the probe (#728) records it.sh --assets starts the stack in multi-engine mode only. Every lane listed is in scope (owner, 2026-11-12: nothing is removed from the inventory); a lane without a probe record has the link not yet deployed or not yet probed there.",
       "probe": {
         "native": {
           "profileId": "re-transport-2026.11",
@@ -2423,13 +2441,15 @@
       "to": "assets-css (pod reads/writes, Solid Notifications WebSocket)",
       "protocol": "HTTPS/WebSocket",
       "lanes": [
-        "native"
+        "native",
+        "docker",
+        "release"
       ],
       "owner": "localAssetStorageStack",
       "issue": "localAssetStorageStack#15",
-      "status": "compliant",
+      "status": "unverified",
       "mtls": false,
-      "note": "Verified by hand 2026-11-07 against the running stack (localAssetStorageStack#16): TLS 1.3, TLS_AES_256_GCM_SHA384, X25519MLKEM768 negotiated, certificate verifies by name; TLS 1.2 refused; plaintext answered with 0 bytes. Not `compliant` until the probe (#728) records it. lifecycle verifies against the install CA, and is refused without it. Not on the release lane: a release install has no asset storage stack yet (RealityEngine_CI#715). Add the lane back with the service. Not on the docker lane: startUniverse.sh --assets starts the stack in multi-engine mode only.",
+      "note": "Verified by hand 2026-11-07 against the running stack (localAssetStorageStack#16): TLS 1.3, TLS_AES_256_GCM_SHA384, X25519MLKEM768 negotiated, certificate verifies by name; TLS 1.2 refused; plaintext answered with 0 bytes. Not `compliant` until the probe (#728) records it. lifecycle verifies against the install CA, and is refused without it.sh --assets starts the stack in multi-engine mode only. Every lane listed is in scope (owner, 2026-11-12: nothing is removed from the inventory); a lane without a probe record has the link not yet deployed or not yet probed there.",
       "deficiency": {
         "accepted": "owner, 2026-11-07 (RealityEngine_CI#668)",
         "what": "The Solid Community Server does not verify client certificates, so this link is TLS 1.3 without mTLS.",
@@ -2467,13 +2487,20 @@
       "to": "lifecycle API (frames, continuations, reviews)",
       "protocol": "HTTPS",
       "lanes": [
-        "native"
+        "native",
+        "docker",
+        "release"
       ],
       "owner": "localAssetStorageStack",
       "issue": "localAssetStorageStack#15",
-      "status": "compliant",
+      "status": "unverified",
       "mtls": false,
-      "note": "Verified by hand 2026-11-07 against the running stack (localAssetStorageStack#16): TLS 1.3, TLS_AES_256_GCM_SHA384, X25519MLKEM768 negotiated, certificate verifies by name; TLS 1.2 refused; plaintext answered with 0 bytes. Not `compliant` until the probe (#728) records it. mTLS is pending: the API also serves reviewers from browsers (Solid-OIDC), so client-certificate enforcement on a separate service listener lands with ROADMAP phase 2. Not on the release lane: a release install has no asset storage stack yet (RealityEngine_CI#715). Add the lane back with the service. Not on the docker lane: startUniverse.sh --assets starts the stack in multi-engine mode only.",
+      "clientAuthentication": {
+        "method": "token",
+        "accepted": "owner, 2026-11-12",
+        "detail": "The lifecycle API authenticates every caller by token over TLS 1.3: people by Solid-OIDC DPoP access tokens, services by service tokens of 32 bytes or more, per-clone agents by per-binding EdDSA capability tokens (localAssetStorageStack lifecycle/src/auth). No client certificate is asked for."
+      },
+      "note": "Verified by hand 2026-11-07 against the running stack (localAssetStorageStack#16): TLS 1.3, TLS_AES_256_GCM_SHA384, X25519MLKEM768 negotiated, certificate verifies by name; TLS 1.2 refused; plaintext answered with 0 bytes. Not `compliant` until the probe (#728) records it. mTLS is pending: the API also serves reviewers from browsers (Solid-OIDC), so client-certificate enforcement on a separate service listener lands with ROADMAP phase 2.sh --assets starts the stack in multi-engine mode only. Every lane listed is in scope (owner, 2026-11-12: nothing is removed from the inventory); a lane without a probe record has the link not yet deployed or not yet probed there.",
       "probe": {
         "native": {
           "profileId": "re-transport-2026.11",
@@ -2502,13 +2529,15 @@
       "to": "PE source ingest and /api/integrations/completions",
       "protocol": "HTTPS",
       "lanes": [
-        "native"
+        "native",
+        "docker",
+        "release"
       ],
       "owner": "localAssetStorageStack",
       "issue": "localAssetStorageStack#15",
-      "status": "compliant",
-      "mtls": true,
-      "note": "New with ROADMAP phase 6. Not on the release lane: a release install has no asset storage stack yet (RealityEngine_CI#715). Add the lane back with the service. Not on the docker lane: startUniverse.sh --assets starts the stack in multi-engine mode only.",
+      "status": "unverified",
+      "mtls": false,
+      "note": "New with ROADMAP phase 6.sh --assets starts the stack in multi-engine mode only. Every lane listed is in scope (owner, 2026-11-12: nothing is removed from the inventory); a lane without a probe record has the link not yet deployed or not yet probed there.",
       "probe": {
         "native": {
           "profileId": "re-transport-2026.11",
@@ -2644,8 +2673,8 @@
       "probe": {
         "release": {
           "profileId": "re-transport-2026.11",
-          "at": "2026-11-12T22:04:01Z",
-          "run": "probe-release-20261112",
+          "at": "2026-11-12T23:08:09Z",
+          "run": "probe-external-20261112b",
           "verdict": "plaintext",
           "mtls": false,
           "endpoints": [
@@ -3078,11 +3107,6 @@
           "path": "/"
         },
         {
-          "host": "registry.npmjs.org",
-          "port": 443,
-          "path": "/"
-        },
-        {
           "host": "ollama.com",
           "port": 443,
           "path": "/"
@@ -3102,12 +3126,12 @@
       "issue": "RealityEngine_CI#729",
       "status": "tls",
       "mtls": false,
-      "note": "Already HTTPS (#668); profile compliance unverified. probeTargets are the hosts install.sh, the realityengine CLI and docker pull reach (2026-11-12): GitHub (releases, raw, API), ghcr.io and its blob host, Docker Hub (registry, auth, blob CDN), nodejs.org, the npm registry, ollama.com and its model registry, Docker Desktop downloads.",
+      "note": "Already HTTPS (#668); profile compliance unverified. probeTargets are the hosts install.sh, the realityengine CLI and docker pull reach (2026-11-12): GitHub (releases, raw, API), ghcr.io and its blob host, Docker Hub (registry, auth, blob CDN), nodejs.org, the npm registry, ollama.com and its model registry, Docker Desktop downloads. registry.npmjs.org moved to its own link, openclaw-version-check, which carries its deficiency.",
       "probe": {
         "release": {
           "profileId": "re-transport-2026.11",
-          "at": "2026-11-12T22:04:01Z",
-          "run": "probe-release-20261112",
+          "at": "2026-11-12T23:08:09Z",
+          "run": "probe-external-20261112b",
           "verdict": "tls",
           "mtls": false,
           "endpoints": [
@@ -3201,14 +3225,6 @@
             },
             {
               "path": "/",
-              "version": "TLSv1.2",
-              "cipher": "ECDHE-ECDSA-CHACHA20-POLY1305",
-              "group": null,
-              "mtls": "none",
-              "tls12": "accepted"
-            },
-            {
-              "path": "/",
               "version": "TLSv1.3",
               "cipher": "TLS_AES_256_GCM_SHA384",
               "group": "X25519MLKEM768",
@@ -3236,19 +3252,70 @@
       }
     },
     {
+      "id": "openclaw-version-check",
+      "from": "realityengine CLI and install.sh (host-check: is OpenClaw current?)",
+      "to": "npm registry (registry.npmjs.org, external)",
+      "protocol": "HTTPS",
+      "audience": "external",
+      "lanes": [
+        "release"
+      ],
+      "probeTargets": [
+        {
+          "host": "registry.npmjs.org",
+          "port": 443,
+          "path": "/openclaw/latest"
+        }
+      ],
+      "owner": "RealityEngine_CI",
+      "issue": "RealityEngine_CI#663",
+      "status": "tls",
+      "mtls": false,
+      "note": "The CLI reads OpenClaw's current version from npm to keep the host's OpenClaw current (#663). Probed 2026-11-12: the registry offers TLS 1.2 only.",
+      "deficiency": {
+        "accepted": "owner, 2026-11-12 (RealityEngine_CI#729)",
+        "what": "registry.npmjs.org offers TLS 1.2 only, so the CLI's OpenClaw version check cannot meet the profile's TLS 1.3.",
+        "compensation": "TLS 1.2 with certificate verification against the system store; the answer is a version number, checked against OpenClaw's floor and installed only through npm's own signed packages.",
+        "remedy": "npm offers TLS 1.3, or the version is read from a TLS 1.3 source (OpenClaw's GitHub releases); OpenClaw sunsets in v0.0.3.",
+        "allows": {
+          "status": "tls"
+        }
+      },
+      "probe": {
+        "release": {
+          "profileId": "re-transport-2026.11",
+          "at": "2026-11-12T23:08:09Z",
+          "run": "probe-external-20261112b",
+          "verdict": "tls",
+          "mtls": false,
+          "endpoints": [
+            {
+              "path": "/openclaw/latest",
+              "version": "TLSv1.2",
+              "cipher": "ECDHE-ECDSA-CHACHA20-POLY1305",
+              "group": null,
+              "mtls": "none",
+              "tls12": "accepted"
+            }
+          ]
+        }
+      }
+    },
+    {
       "id": "pe-trigger-dispatch",
       "from": "PEs (trigger dispatch)",
       "to": "trigger GraphQL endpoint (TRIGGER_GRAPHQL_URL)",
       "protocol": "HTTP",
       "lanes": [
         "native",
-        "docker"
+        "docker",
+        "release"
       ],
       "owner": "RealityEngine_Manager",
       "issue": "RealityEngine_Manager#327",
-      "status": "compliant",
-      "mtls": true,
-      "note": "The TypeScript PE's trigger dispatch; the native PEs' equivalents are on their engine issues. Not on the release lane: a release install has no TypeScript PE, whose trigger dispatch this is. Add the lane back with the service.",
+      "status": "unverified",
+      "mtls": false,
+      "note": "The TypeScript PE's trigger dispatch; the native PEs' equivalents are on their engine issues. Every lane listed is in scope (owner, 2026-11-12: nothing is removed from the inventory); a lane without a probe record has the link not yet deployed or not yet probed there.",
       "probe": {
         "native": {
           "profileId": "re-transport-2026.11",
@@ -3353,13 +3420,14 @@
       "protocol": "HTTPS",
       "audience": "user",
       "lanes": [
-        "docker"
+        "docker",
+        "release"
       ],
       "owner": "RealityEngine_CI",
       "issue": "RealityEngine_CI#730",
-      "status": "compliant",
+      "status": "unverified",
       "mtls": false,
-      "note": "tls-proxy terminates TLS; the hop behind it is plaintext (tls-proxy-to-grafana). Not on the release lane: a release install has Grafana is reached on its own port, not through tls-proxy (browser-to-grafana-native). Add the lane back with the service.",
+      "note": "tls-proxy terminates TLS; the hop behind it is plaintext (tls-proxy-to-grafana). Every lane listed is in scope (owner, 2026-11-12: nothing is removed from the inventory); a lane without a probe record has the link not yet deployed or not yet probed there.",
       "probe": {
         "docker": {
           "profileId": "re-transport-2026.11",
@@ -3473,8 +3541,8 @@
       "probe": {
         "release": {
           "profileId": "re-transport-2026.11",
-          "at": "2026-11-12T22:04:01Z",
-          "run": "probe-release-20261112",
+          "at": "2026-11-12T23:08:09Z",
+          "run": "probe-external-20261112b",
           "verdict": "compliant",
           "mtls": false,
           "endpoints": [
@@ -3531,13 +3599,14 @@
       "protocol": "HTTP",
       "lanes": [
         "native",
-        "docker"
+        "docker",
+        "release"
       ],
       "owner": "localAIStack",
       "issue": "localAIStack#172",
       "status": "plaintext",
       "mtls": false,
-      "note": "Loopback only, on the host; Ollama never binds anything but 127.0.0.1. Not on the release lane: a release install has no TLS front (release-to-ollama).",
+      "note": "Loopback only, on the host; Ollama never binds anything but 127.0.0.1. Every lane listed is in scope (owner, 2026-11-12: nothing is removed from the inventory); a lane without a probe record has the link not yet deployed or not yet probed there.",
       "deficiency": {
         "accepted": "owner, 2026-11-07 (RealityEngine_CI#668, option a)",
         "what": "Ollama serves no TLS, so the hop from its TLS front to Ollama is plaintext on the host's loopback.",
@@ -3700,6 +3769,15 @@
               "tls12": "accepted"
             }
           ]
+        }
+      },
+      "deficiency": {
+        "accepted": "owner, 2026-11-12 (RealityEngine_CI#729)",
+        "what": "Epic's FHIR and authorization servers (fhir.epic.com probed 2026-11-12) offer TLS 1.2 only, below the profile's TLS 1.3.",
+        "compensation": "Off by default (EPIC_ENABLED=false, EPIC_MODE=mock). On the lane only Epic's hosts (EPIC_FHIR_BASE_URL's, EPIC_TLS12_EXTRA_HOSTS) may negotiate TLS 1.2, with ECDHE AEAD suites only and system-store verification; every other external host stays TLS 1.3 (OpenCommons-Health---Personal-Information-Management#88). SMART on FHIR tokens on top.",
+        "remedy": "Epic offers TLS 1.3; then this deficiency is removed.",
+        "allows": {
+          "status": "tls"
         }
       }
     }
