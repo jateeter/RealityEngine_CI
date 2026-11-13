@@ -111,7 +111,9 @@ try:
 except ImportError:
     sys.exit(0)
 d = yaml.safe_load(open(sys.argv[1]))
-assert len(d["services"]) == 9, d["services"].keys()
+# Four instances' RE and PE, localAI, and Manager's TypeScript PE with its own RE.
+assert len(d["services"]) == 11, d["services"].keys()
+assert {"ts-pe-re", "perception-engine-backend"} <= set(d["services"])
 assert set(d["services"]["localai-api"]["depends_on"]) == {s for s in d["services"] if s.endswith("-pe")}
 PY
 
