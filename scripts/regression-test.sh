@@ -1986,20 +1986,22 @@ run_mqtt_yuma() {
   # path covered rather than assumed to have succeeded at boot.
   local mqtt_args=(--broker-url "$MQTT_BROKER_URL")
   [ -n "$MQTT_MAPPINGS" ] && mqtt_args+=(--mappings "$MQTT_MAPPINGS")
-  local found=false
+  local found=false status=0
+  # Every instance runs, and any that fails fails the stage (see run_openclaw).
   while IFS='|' read -r instance_id runtime pe_url; do
     [ -n "$instance_id" ] || continue
     found=true
     run_cmd "mqtt-yuma-$instance_id" bash "$ci/scripts/test-mqtt-yuma.sh" \
       --pe-url "$pe_url" \
       --report-json "$REPORT_DIR/mqtt-yuma-$instance_id.json" \
-      "${mqtt_args[@]}"
+      "${mqtt_args[@]}" || status=1
   done < <(registry_instance_lines)
 
   # Hand exclusivity back to the stages that follow. Without this the bridge this
   # stage enabled would push into arbiter, engine-process-parity and the rest.
   mqtt_bridges mute
   [ "$found" = true ] || { log "SKIP MQTT: no running PE instances in registry"; write_mqtt_skip_report "no running PE instances in registry"; return 0; }
+  return "$status"
 }
 
 # Arbiter conformance (ARBITER_CONTRACT.md 9). Runs only when the lane booted a
@@ -2531,7 +2533,9 @@ PYEOF
   fi
   local ci
   ci="$(repo_root RealityEngine_CI)"
-  local found=false
+  local found=false status=0
+  # Every instance runs, and any that fails fails the stage. The loop alone
+  # returned the last statement's status, so a failing instance read as passed.
   while IFS='|' read -r instance_id runtime pe_url; do
     [ -n "$instance_id" ] || continue
     found=true
@@ -2539,7 +2543,7 @@ PYEOF
       PE_URL="$pe_url" \
       OPENCLAW_E2E_RUN_ID="$RUN_ID-$instance_id" \
       bash "$ci/scripts/test-openclaw-integration.sh" \
-      --report-json "$REPORT_DIR/openclaw-integration-$instance_id.json"
+      --report-json "$REPORT_DIR/openclaw-integration-$instance_id.json" || status=1
   done < <(registry_instance_lines)
   if [ "$found" != true ]; then
     log "SKIP OpenClaw: no running PE instances in registry"
@@ -2552,6 +2556,7 @@ Path(sys.argv[1]).write_text(json.dumps({"status": "skipped", "reason": "no runn
 PYEOF
     return 0
   fi
+  return "$status"
 }
 
 generate_regression_report() {
