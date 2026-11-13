@@ -387,7 +387,7 @@ stop_openclaw_stack() {
     if launchctl print "gui/$(id -u)/org.realityengine.openclaw-gateway" >/dev/null 2>&1; then
       (cd "$OCS_DIR" && ./scripts/native-gateway.sh down) || fail "native OpenClaw gateway did not stop"
     fi
-    if (cd "$OCS_DIR" && docker compose down 2>&1); then
+    if (cd "$OCS_DIR" && env -u COMPOSE_PROJECT_NAME -u COMPOSE_FILE docker compose down 2>&1); then
       ok "OpenClaw stopped"
     else
       fail "OpenClaw compose down failed — containers may still be running"
@@ -507,7 +507,7 @@ stop_asset_stack() {
   if [ -d "$dir" ] && [ -f "$dir/docker-compose.yml" ]; then
     info "Stopping the asset storage stack ($dir)..."
     # Its own compose project, whatever COMPOSE_PROJECT_NAME this run has.
-    if (cd "$dir" && env -u COMPOSE_PROJECT_NAME docker compose down 2>&1); then ok "Asset storage stopped (volumes kept)"
+    if (cd "$dir" && env -u COMPOSE_PROJECT_NAME -u COMPOSE_FILE docker compose down 2>&1); then ok "Asset storage stopped (volumes kept)"
     else fail "asset storage compose down failed — containers may still be running"; fi
   fi
   rm -f "$stamp"

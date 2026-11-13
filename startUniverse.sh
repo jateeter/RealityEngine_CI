@@ -2547,7 +2547,7 @@ start_asset_stack() {
     # The stack is its own compose project: a COMPOSE_PROJECT_NAME meant for
     # this repo's stacks would put it in theirs, where the next
     # `up --remove-orphans` removes it.
-    if ! (cd "$LASS_DIR" && env -u COMPOSE_PROJECT_NAME ${registry_env[@]+"${registry_env[@]}"} RE_PKI="$LANE_TLS_PKI" \
+    if ! (cd "$LASS_DIR" && env -u COMPOSE_PROJECT_NAME -u COMPOSE_FILE ${registry_env[@]+"${registry_env[@]}"} RE_PKI="$LANE_TLS_PKI" \
             node scripts/up.js > /tmp/asset_storage_up.log 2>&1); then
         tail -20 /tmp/asset_storage_up.log >&2
         die "Asset storage: up.js failed (/tmp/asset_storage_up.log)"
@@ -3108,7 +3108,11 @@ else
         info "OpenClaw agent profile: $AGENT_PROFILE (gateway: $OPENCLAW_RUNTIME)"
         # OPENCLAW_CORPUS_MACHINES_ROOT: the corpus a manifest profile resolves
         # against, the one this universe materialised from (a run worktree's).
-        (cd "$OCS_DIR" && env -u MACHINES_DIR OPENCLAW_CORPUS_MACHINES_ROOT="$FULL_MACHINES_DIR/machines" \
+        # env -u COMPOSE_PROJECT_NAME -u COMPOSE_FILE: the stack is its own
+        # compose project with its own files; an inherited project puts it in
+        # CI's, where it removes CI's networks (as the asset storage stack did),
+        # and the docker lane's COMPOSE_FILE names CI's overlay.
+        (cd "$OCS_DIR" && env -u MACHINES_DIR -u COMPOSE_PROJECT_NAME -u COMPOSE_FILE OPENCLAW_CORPUS_MACHINES_ROOT="$FULL_MACHINES_DIR/machines" \
             ${_ocs_lane_env[@]+"${_ocs_lane_env[@]}"} ./scripts/start.sh --agent-profile="$AGENT_PROFILE" \
             $([ "$OPENCLAW_RUNTIME" = native ] && echo --native) > /tmp/ocs_start.log 2>&1) || \
             die "OpenClaw startup failed\n$(tail -20 /tmp/ocs_start.log 2>/dev/null)"
@@ -3629,6 +3633,15 @@ manifest = {
     "docker_services":         [s for s in "$_docker_svcs".split(",") if s],
     "ollama_started_by_universe": "$_ollama_started" == "true",
     "openclaw_started":        "$OCS_STARTED" == "true",
+    # The OpenClaw browser sidecar's CDP proxy, and Loki: probed by
+    # scripts/transport-probe.py (#729).
+    "openclaw_browser_cdp_url": "$(lane_tls_scheme)://127.0.0.1:${RE_PORT_BROWSER_CDP:-9222}" if "$OCS_STARTED" == "true" else "",
+    "loki_url":                "$(lane_tls_scheme)://localhost:3100",
+    # localAIStack's Qdrant and Redis (its compose publishes 4333 and 4379) and
+    # the host's Ollama behind its TLS front.
+    "qdrant_url":              "$(lane_tls_scheme)://127.0.0.1:4333",
+    "redis_url":               "$(lane_tls_scheme)://127.0.0.1:4379",
+    "ollama_url":              "https://127.0.0.1:11434",
     "prometheus_started":      "$PROMETHEUS_STARTED" == "true",
     "prometheus_url":          "$(lane_tls_scheme)://localhost:9090",
     "grafana_started":         "$GRAFANA_STARTED" == "true",

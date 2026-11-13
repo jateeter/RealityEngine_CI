@@ -114,6 +114,21 @@ expect_fail defallows 'allows must name only'
 mutate defmissing inventory 'del next(l for l in i["links"] if l.get("deficiency"))["deficiency"]["remedy"]'
 expect_fail defmissing 'deficiency.remedy is required'
 
+# probeAccepts may name only findings from the fixed set; plaintext is never one.
+mutate accepts inventory 'next(l for l in i["links"] if l.get("deficiency"))["deficiency"]["probeAccepts"]=["plaintext answered"]'
+expect_fail accepts 'probeAccepts must list'
+
+# clientAuthentication: owner-accepted token authentication stands in for mTLS.
+mutate badauth inventory 'next(l for l in i["links"] if l.get("clientAuthentication"))["clientAuthentication"]["method"]="password"'
+expect_fail badauth 'clientAuthentication must name'
+mutate authowner inventory 'next(l for l in i["links"] if l.get("clientAuthentication"))["clientAuthentication"]["accepted"]="a contributor"'
+expect_fail authowner 'clientAuthentication is accepted only by the owner'
+mutate tokengate inventory '
+for l in i["links"]:
+    l["status"]="compliant"; l["mtls"]=l.get("audience","service")=="service" and not l.get("clientAuthentication"); l["probe"]={ln: {"verdict": "compliant", "mtls": l["mtls"]} for ln in l["lanes"]}'
+out=$(python3 "$CHECK" --profile "$TMP/tokengate/profile.json" --inventory "$TMP/tokengate/inventory.json" --require-compliant 2>&1)
+if [[ $? -eq 0 && "$out" == *"release gate passes"* ]]; then ok "gate passes a token-authenticated service link without mTLS"; else bad "tokengate: $out"; fi
+
 # The gate honours a deficiency exactly as far as it allows, and no further.
 mutate gatedef inventory '
 for l in i["links"]:

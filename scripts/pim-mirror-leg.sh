@@ -136,6 +136,25 @@ if [ "$ready" != true ]; then
   exit 1
 fi
 
+# On the lane, probe PIM's links while its CSS and PIM are up (the regression
+# transport-probe stage cannot: they are this leg's own, torn down on exit).
+# The report is recorded in the inventory with transport-probe.py --apply.
+# Not on the release lane: its PIM is the install's, probed with the install's
+# endpoints (lib/release_probe_endpoints.py), and these are the leg's own.
+if lane_tls_enabled && [ "${RE_PKI_LANE:-native}" != release ]; then
+  lane_tls_init "${RE_PKI_LANE:-native}" || { log "the lane PKI is unusable; cannot probe PIM's links"; exit 1; }
+  jq -n --arg css "https://127.0.0.1:$CSS_PORT" --arg pim "$PIM_URL" \
+    '{"pim-to-css": [{url: $css, path: "/"}],
+      "healthkit-to-pim": [{url: $pim, path: "/api/integrations/healthkit/metrics"}]}' >"$WORK/probe-endpoints.json"
+  log "probing PIM's links against the transport profile"
+  if ! python3 "$CI_DIR/scripts/transport-probe.py" --lane "$RE_PKI_LANE" --only-endpoints \
+      --endpoints "$WORK/probe-endpoints.json" --report "$REPORT_DIR/transport-probe-pim.json" \
+      >"$WORK/transport-probe.log" 2>&1; then
+    log "PIM's links failed the transport probe; see $WORK/transport-probe.log"
+    exit 1
+  fi
+fi
+
 log "running the bridge's PIMWireTests"
 set +e
 (cd "$BRIDGE_DIR" && HEALTHKIT_PIM_WIRE_URL="$PIM_URL" HEALTHKIT_PIM_WIRE_TOKEN="$BRIDGE_TOKEN" \
