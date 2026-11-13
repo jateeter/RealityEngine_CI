@@ -1,0 +1,1498 @@
+{
+  "schemaVersion": "1.0.0",
+  "generatedBy": "scripts/transport-bom.py from config/transport-bom-components.json, config/transport-inventory.json, release/images.json and the workspace's compose files",
+  "components": [
+    {
+      "id": "cpp-engine",
+      "name": "C++ Reality Engine and Perception Engine",
+      "kind": "engine",
+      "repo": "RealityEngine_CPP",
+      "links": [
+        "cpp-pe-to-re",
+        "clients-to-cpp-re",
+        "clients-to-cpp-pe",
+        "manager-backend-to-engines",
+        "localai-to-engines",
+        "lifecycle-to-pe",
+        "iphone-to-pe",
+        "pim-to-pe-scope",
+        "mcp",
+        "engines-to-localai",
+        "pe-to-openclaw",
+        "pe-to-openai",
+        "mqtt-yuma",
+        "to-ollama",
+        "release-to-ollama",
+        "pe-trigger-dispatch"
+      ],
+      "lanes": {
+        "native": {
+          "source": "RealityEngine_CPP",
+          "artifacts": [
+            "bin/reality_engine_server",
+            "bin/perception_engine_server"
+          ]
+        },
+        "docker": {
+          "compose": "RealityEngine_CI/docker-compose.yml",
+          "services": [
+            {
+              "service": "engine-cpp-re",
+              "build": "context: ../RealityEngine_CPP"
+            },
+            {
+              "service": "engine-cpp-pe",
+              "build": "context: ../RealityEngine_CPP"
+            }
+          ]
+        },
+        "release": {
+          "releaseImages": [
+            {
+              "name": "re-cpp",
+              "image": "ghcr.io/jateeter/re-cpp:<release>",
+              "repo": "RealityEngine_CPP",
+              "dockerfile": "RealityEngine_CI/docker/cpp/Dockerfile"
+            }
+          ]
+        }
+      }
+    },
+    {
+      "id": "lsp-engine",
+      "name": "Common Lisp Reality Engine and Perception Engine",
+      "kind": "engine",
+      "repo": "RealityEngine_LSP",
+      "links": [
+        "lsp-pe-to-re",
+        "clients-to-lsp-re",
+        "clients-to-lsp-pe",
+        "manager-backend-to-engines",
+        "localai-to-engines",
+        "lifecycle-to-pe",
+        "iphone-to-pe",
+        "pim-to-pe-scope",
+        "mcp",
+        "engines-to-localai",
+        "pe-to-openclaw",
+        "pe-to-openai",
+        "mqtt-yuma",
+        "to-ollama",
+        "release-to-ollama",
+        "pe-trigger-dispatch"
+      ],
+      "lanes": {
+        "native": {
+          "source": "RealityEngine_LSP",
+          "artifacts": [
+            "bin/reality-engine-lsp (or source mode)"
+          ]
+        },
+        "docker": {
+          "compose": "RealityEngine_CI/docker-compose.yml",
+          "services": [
+            {
+              "service": "engine-lsp-re",
+              "build": "context: ../RealityEngine_LSP"
+            },
+            {
+              "service": "engine-lsp-pe",
+              "build": "context: ../RealityEngine_LSP"
+            }
+          ]
+        },
+        "release": {
+          "releaseImages": [
+            {
+              "name": "re-lsp",
+              "image": "ghcr.io/jateeter/re-lsp:<release>",
+              "repo": "RealityEngine_LSP",
+              "dockerfile": "RealityEngine_CI/docker/lsp/Dockerfile"
+            }
+          ]
+        }
+      }
+    },
+    {
+      "id": "scala-engine",
+      "name": "Scala Reality Engine and Perception Engine",
+      "kind": "engine",
+      "repo": "RealityEngine_Scala",
+      "links": [
+        "scala-pe-to-re",
+        "clients-to-scala-re",
+        "clients-to-scala-pe",
+        "manager-backend-to-engines",
+        "localai-to-engines",
+        "lifecycle-to-pe",
+        "iphone-to-pe",
+        "pim-to-pe-scope",
+        "mcp",
+        "engines-to-localai",
+        "pe-to-openclaw",
+        "pe-to-openai",
+        "mqtt-yuma",
+        "to-ollama",
+        "release-to-ollama",
+        "pe-trigger-dispatch"
+      ],
+      "lanes": {
+        "native": {
+          "source": "RealityEngine_Scala",
+          "artifacts": [
+            "target/scala-2.13/reality-engine.jar",
+            "perception-engine/target/scala-2.13/perception-engine.jar"
+          ]
+        },
+        "docker": {
+          "compose": "RealityEngine_CI/docker-compose.yml",
+          "services": [
+            {
+              "service": "engine-scala-re",
+              "build": "context: ../RealityEngine_Scala"
+            },
+            {
+              "service": "engine-scala-pe",
+              "build": "context: ../RealityEngine_Scala/perception-engine"
+            }
+          ]
+        },
+        "release": {
+          "releaseImages": [
+            {
+              "name": "re-scala",
+              "image": "ghcr.io/jateeter/re-scala:<release>",
+              "repo": "RealityEngine_Scala",
+              "dockerfile": "RealityEngine_CI/docker/scala/Dockerfile"
+            },
+            {
+              "name": "re-scala-pe",
+              "image": "ghcr.io/jateeter/re-scala-pe:<release>",
+              "repo": "RealityEngine_Scala",
+              "dockerfile": "RealityEngine_CI/docker/scala-perception-engine/Dockerfile"
+            }
+          ]
+        }
+      }
+    },
+    {
+      "id": "rust-engine",
+      "name": "Rust Reality Engine and Perception Engine (non-voting follower)",
+      "kind": "engine",
+      "repo": "RealityEngine_Rust",
+      "links": [
+        "rust-re-pe"
+      ],
+      "lanes": {
+        "native": {
+          "source": "RealityEngine_Rust",
+          "artifacts": [
+            "target/release/reality-engine",
+            "target/release/perception-engine"
+          ]
+        },
+        "docker": {
+          "planned": "the re-rust image in the docker lane (RealityEngine_CI#729)"
+        },
+        "release": {
+          "releaseImages": [
+            {
+              "name": "re-rust",
+              "image": "ghcr.io/jateeter/re-rust:<release>",
+              "repo": "RealityEngine_Rust",
+              "dockerfile": "RealityEngine_CI/docker/rust/Dockerfile"
+            }
+          ]
+        }
+      }
+    },
+    {
+      "id": "manager-visualizer",
+      "name": "Manager: Visualizer backend and frontend",
+      "kind": "service",
+      "repo": "RealityEngine_Manager",
+      "links": [
+        "browser-to-manager-frontend",
+        "manager-frontend-to-backend",
+        "manager-backend-to-engines",
+        "prometheus-scrape",
+        "clients-to-lifecycle"
+      ],
+      "lanes": {
+        "native": {
+          "source": "RealityEngine_Manager",
+          "artifacts": [
+            "visualizer/backend",
+            "visualizer/frontend"
+          ]
+        },
+        "docker": {
+          "compose": "RealityEngine_CI/docker-compose.yml",
+          "services": [
+            {
+              "service": "visualizer-backend",
+              "build": "context: ../RealityEngine_Manager/visualizer/backend"
+            },
+            {
+              "service": "visualizer-frontend",
+              "build": "context: ../RealityEngine_Manager/visualizer/frontend"
+            }
+          ]
+        },
+        "release": {
+          "releaseImages": [
+            {
+              "name": "re-visualizer-backend",
+              "image": "ghcr.io/jateeter/re-visualizer-backend:<release>",
+              "repo": "RealityEngine_Manager",
+              "dockerfile": "RealityEngine_Manager/visualizer/backend/Dockerfile"
+            },
+            {
+              "name": "re-visualizer-frontend",
+              "image": "ghcr.io/jateeter/re-visualizer-frontend:<release>",
+              "repo": "RealityEngine_Manager",
+              "dockerfile": "RealityEngine_Manager/visualizer/frontend/Dockerfile"
+            }
+          ]
+        }
+      }
+    },
+    {
+      "id": "manager-ts-pe",
+      "name": "Manager: TypeScript Perception Engine (non-voting follower)",
+      "kind": "engine",
+      "repo": "RealityEngine_Manager",
+      "links": [
+        "manager-ts-pe",
+        "pe-trigger-dispatch"
+      ],
+      "lanes": {
+        "native": {
+          "none": "multi-engine mode runs the native engines' PEs"
+        },
+        "docker": {
+          "compose": "RealityEngine_CI/docker-compose.yml",
+          "services": [
+            {
+              "service": "perception-engine-backend",
+              "build": "context: ../RealityEngine_Manager/perception-engine/backend"
+            },
+            {
+              "service": "perception-engine-frontend",
+              "build": "context: ../RealityEngine_Manager/perception-engine/frontend"
+            }
+          ]
+        },
+        "release": {
+          "planned": "no release image yet"
+        }
+      }
+    },
+    {
+      "id": "tls-proxy",
+      "name": "tls-proxy (nginx)",
+      "kind": "proxy",
+      "links": [
+        "browser-to-manager-frontend",
+        "manager-frontend-to-backend",
+        "manager-ts-pe",
+        "browser-to-grafana",
+        "tls-proxy-to-grafana"
+      ],
+      "lanes": {
+        "native": {
+          "none": "Manager serves its own TLS natively"
+        },
+        "docker": {
+          "compose": "RealityEngine_CI/docker-compose.yml",
+          "services": [
+            {
+              "service": "tls-proxy",
+              "image": "nginx:alpine"
+            }
+          ]
+        },
+        "release": {
+          "compose": "RealityEngine_CI/release/compose.yml",
+          "services": [
+            {
+              "service": "tls-proxy",
+              "image": "nginx:1.29-alpine@sha256:5616878291a2eed594aee8db4dade5878cf7edcb475e59193904b198d9b830de"
+            }
+          ]
+        }
+      }
+    },
+    {
+      "id": "instance-registry",
+      "name": "Instance registry (re_tls_server.py)",
+      "kind": "service",
+      "repo": "RealityEngine_CI",
+      "links": [
+        "instance-registry"
+      ],
+      "lanes": {
+        "native": {
+          "source": "RealityEngine_CI",
+          "artifacts": [
+            "scripts/lib/re_tls_server.py"
+          ]
+        },
+        "docker": {
+          "source": "RealityEngine_CI",
+          "artifacts": [
+            "scripts/lib/re_tls_server.py"
+          ]
+        },
+        "release": {
+          "releaseImages": [
+            {
+              "name": "re-init",
+              "image": "ghcr.io/jateeter/re-init:<release>",
+              "repo": "RealityEngine_CI",
+              "dockerfile": "RealityEngine_CI/release/init/Dockerfile"
+            }
+          ]
+        }
+      }
+    },
+    {
+      "id": "re-mcp",
+      "name": "re-mcp (MCP server)",
+      "kind": "service",
+      "repo": "RealityEngine_CI",
+      "links": [
+        "mcp"
+      ],
+      "lanes": {
+        "native": {
+          "source": "RealityEngine_CI",
+          "artifacts": [
+            "mcp/"
+          ]
+        },
+        "docker": {
+          "source": "RealityEngine_CI",
+          "artifacts": [
+            "mcp/"
+          ]
+        },
+        "release": {
+          "releaseImages": [
+            {
+              "name": "re-mcp",
+              "image": "ghcr.io/jateeter/re-mcp:<release>",
+              "repo": "RealityEngine_CI",
+              "dockerfile": "RealityEngine_CI/mcp/Dockerfile"
+            }
+          ]
+        }
+      }
+    },
+    {
+      "id": "openapi-portal",
+      "name": "OpenAPI Swagger portal",
+      "kind": "service",
+      "repo": "RealityEngine_CI",
+      "links": [
+        "browser-to-openapi-portal"
+      ],
+      "lanes": {
+        "native": {
+          "source": "RealityEngine_CI",
+          "artifacts": [
+            "scripts/serve_openapi.py"
+          ]
+        },
+        "docker": {
+          "none": "native lane only"
+        },
+        "release": {
+          "none": "not in a release install"
+        }
+      }
+    },
+    {
+      "id": "localai-api",
+      "name": "localAI API",
+      "kind": "service",
+      "repo": "localAIStack",
+      "links": [
+        "localai-to-engines",
+        "engines-to-localai",
+        "localai-to-qdrant",
+        "localai-to-redis",
+        "pe-trigger-dispatch",
+        "to-ollama",
+        "release-to-ollama",
+        "bridge-metrics-to-services"
+      ],
+      "lanes": {
+        "native": {
+          "compose": "localAIStack/docker-compose.yml",
+          "services": [
+            {
+              "service": "api",
+              "build": "context: ."
+            }
+          ]
+        },
+        "docker": {
+          "compose": "localAIStack/docker-compose.yml",
+          "services": [
+            {
+              "service": "api",
+              "build": "context: ."
+            }
+          ]
+        },
+        "release": {
+          "releaseImages": [
+            {
+              "name": "re-localai-api",
+              "image": "ghcr.io/jateeter/re-localai-api:<release>",
+              "repo": "localAIStack",
+              "dockerfile": "localAIStack/services/api/Dockerfile"
+            }
+          ]
+        }
+      }
+    },
+    {
+      "id": "qdrant",
+      "name": "Qdrant",
+      "kind": "datastore",
+      "links": [
+        "localai-to-qdrant",
+        "bridge-metrics-to-services"
+      ],
+      "lanes": {
+        "native": {
+          "compose": "localAIStack/docker-compose.yml",
+          "services": [
+            {
+              "service": "qdrant",
+              "image": "qdrant/qdrant:v1.20.0"
+            }
+          ]
+        },
+        "docker": {
+          "compose": "localAIStack/docker-compose.yml",
+          "services": [
+            {
+              "service": "qdrant",
+              "image": "qdrant/qdrant:v1.20.0"
+            }
+          ]
+        },
+        "release": {
+          "compose": "RealityEngine_CI/release/compose.yml",
+          "services": [
+            {
+              "service": "qdrant",
+              "image": "qdrant/qdrant:v1.20.0@sha256:9bfc89f9914fc14876a88c05270685921a55b8877b254a98bcc1cc2f0a424cd2"
+            }
+          ]
+        }
+      }
+    },
+    {
+      "id": "redis",
+      "name": "Redis",
+      "kind": "datastore",
+      "links": [
+        "localai-to-redis"
+      ],
+      "lanes": {
+        "native": {
+          "compose": "localAIStack/docker-compose.yml",
+          "services": [
+            {
+              "service": "redis",
+              "image": "redis:7.4-alpine"
+            }
+          ]
+        },
+        "docker": {
+          "compose": "localAIStack/docker-compose.yml",
+          "services": [
+            {
+              "service": "redis",
+              "image": "redis:7.4-alpine"
+            }
+          ]
+        },
+        "release": {
+          "compose": "RealityEngine_CI/release/compose.yml",
+          "services": [
+            {
+              "service": "redis",
+              "image": "redis:7.4-alpine@sha256:858f009f9709ce576febc734aa78b8f6d624b82571f9ddb6bda4377c833b3499"
+            }
+          ]
+        }
+      }
+    },
+    {
+      "id": "ollama",
+      "name": "Ollama (Ollama.app, MLX)",
+      "kind": "host-tool",
+      "links": [
+        "to-ollama",
+        "release-to-ollama",
+        "ollama-front-to-ollama"
+      ],
+      "lanes": {
+        "native": {
+          "host": "ollama",
+          "floorFrom": "RealityEngine_CI/install.sh OLLAMA_MIN",
+          "floor": "0.40.13"
+        },
+        "docker": {
+          "host": "ollama",
+          "floorFrom": "RealityEngine_CI/install.sh OLLAMA_MIN",
+          "floor": "0.40.13"
+        },
+        "release": {
+          "host": "ollama",
+          "floorFrom": "RealityEngine_CI/install.sh OLLAMA_MIN",
+          "floor": "0.40.13"
+        }
+      }
+    },
+    {
+      "id": "ollama-tls-front",
+      "name": "Ollama's TLS front",
+      "kind": "proxy",
+      "repo": "localAIStack",
+      "links": [
+        "to-ollama",
+        "ollama-front-to-ollama"
+      ],
+      "lanes": {
+        "native": {
+          "source": "localAIStack",
+          "artifacts": [
+            "scripts/ollama_tls_front.py"
+          ]
+        },
+        "docker": {
+          "source": "localAIStack",
+          "artifacts": [
+            "scripts/ollama_tls_front.py"
+          ]
+        },
+        "release": {
+          "none": "a release install has no TLS front (release-to-ollama)"
+        }
+      }
+    },
+    {
+      "id": "openclaw-gateway",
+      "name": "OpenClaw gateway (host openclaw, LaunchAgent)",
+      "kind": "host-tool",
+      "repo": "localOpenClawStack",
+      "links": [
+        "pe-to-openclaw",
+        "openclaw-webui",
+        "openclaw-to-browser-cdp",
+        "openclaw-agents-to-lifecycle",
+        "openclaw-version-check",
+        "bridge-metrics-to-services"
+      ],
+      "lanes": {
+        "native": {
+          "host": "openclaw",
+          "floorFrom": "localOpenClawStack/scripts/lib/openclaw-version.sh OPENCLAW_MIN_DEFAULT",
+          "floor": "2026.10.5"
+        },
+        "docker": {
+          "host": "openclaw",
+          "floorFrom": "localOpenClawStack/scripts/lib/openclaw-version.sh OPENCLAW_MIN_DEFAULT",
+          "floor": "2026.10.5"
+        },
+        "release": {
+          "host": "openclaw",
+          "floorFrom": "RealityEngine_CI/install.sh OPENCLAW_MIN",
+          "floor": "2026.10.5"
+        }
+      }
+    },
+    {
+      "id": "open-webui",
+      "name": "Open WebUI",
+      "kind": "service",
+      "links": [
+        "browser-to-openwebui",
+        "openclaw-webui"
+      ],
+      "lanes": {
+        "native": {
+          "compose": "localOpenClawStack/docker-compose.yml",
+          "services": [
+            {
+              "service": "open-webui",
+              "image": "${OPEN_WEBUI_IMAGE:-ghcr.io/open-webui/open-webui:v0.11.3}"
+            }
+          ]
+        },
+        "docker": {
+          "compose": "localOpenClawStack/docker-compose.yml",
+          "services": [
+            {
+              "service": "open-webui",
+              "image": "${OPEN_WEBUI_IMAGE:-ghcr.io/open-webui/open-webui:v0.11.3}"
+            }
+          ]
+        },
+        "release": {
+          "compose": "RealityEngine_CI/release/compose.yml",
+          "services": [
+            {
+              "service": "open-webui",
+              "image": "ghcr.io/open-webui/open-webui:v0.11.3@sha256:41daa0cf2561a5d4c8d1ff31ee2a98d93ab4d3ac2605cac69366ff6a3374a933"
+            }
+          ]
+        }
+      }
+    },
+    {
+      "id": "openclaw-browser",
+      "name": "OpenClaw browser sidecar (Chromium, CDP proxy)",
+      "kind": "service",
+      "links": [
+        "openclaw-to-browser-cdp",
+        "browser-cdp-proxy-to-chromium"
+      ],
+      "lanes": {
+        "native": {
+          "compose": "localOpenClawStack/docker-compose.yml",
+          "services": [
+            {
+              "service": "browser",
+              "image": "${BROWSER_IMAGE:-coollabsio/openclaw-browser:0.3.0}"
+            }
+          ]
+        },
+        "docker": {
+          "compose": "localOpenClawStack/docker-compose.yml",
+          "services": [
+            {
+              "service": "browser",
+              "image": "${BROWSER_IMAGE:-coollabsio/openclaw-browser:0.3.0}"
+            }
+          ]
+        },
+        "release": {
+          "compose": "RealityEngine_CI/release/compose.yml",
+          "services": [
+            {
+              "service": "browser",
+              "image": "coollabsio/openclaw-browser:0.3.0@sha256:c5f8a9d812992429be2c5a0b6b8f5d70d63e81cc1b381c5475e067a91e0d3179"
+            }
+          ]
+        }
+      }
+    },
+    {
+      "id": "assets-css",
+      "name": "Asset storage: Solid Community Server",
+      "kind": "service",
+      "repo": "localAssetStorageStack",
+      "links": [
+        "browser-to-assets-css",
+        "lifecycle-to-assets-css"
+      ],
+      "lanes": {
+        "native": {
+          "compose": "localAssetStorageStack/docker-compose.yml",
+          "services": [
+            {
+              "service": "assets-css",
+              "image": "solidproject/community-server:7.3.0"
+            }
+          ]
+        },
+        "docker": {
+          "planned": "--assets in the docker lane (RealityEngine_CI#729)"
+        },
+        "release": {
+          "planned": "asset storage in the release (RealityEngine_CI#715, #729)"
+        }
+      }
+    },
+    {
+      "id": "assets-dokieli",
+      "name": "Asset storage: dokieli",
+      "kind": "service",
+      "repo": "localAssetStorageStack",
+      "links": [
+        "browser-to-assets-dokieli",
+        "browser-to-assets-css"
+      ],
+      "lanes": {
+        "native": {
+          "compose": "localAssetStorageStack/docker-compose.yml",
+          "services": [
+            {
+              "service": "assets-dokieli",
+              "build": "localAssetStorageStack/dokieli"
+            }
+          ]
+        },
+        "docker": {
+          "planned": "--assets in the docker lane (RealityEngine_CI#729)"
+        },
+        "release": {
+          "releaseImages": [
+            {
+              "name": "re-dokieli",
+              "image": "ghcr.io/jateeter/re-dokieli:<release>",
+              "repo": "localAssetStorageStack",
+              "dockerfile": "localAssetStorageStack/dokieli/Dockerfile"
+            }
+          ]
+        }
+      }
+    },
+    {
+      "id": "lifecycle",
+      "name": "Asset storage: lifecycle API",
+      "kind": "service",
+      "repo": "localAssetStorageStack",
+      "links": [
+        "clients-to-lifecycle",
+        "openclaw-agents-to-lifecycle",
+        "lifecycle-to-pe",
+        "lifecycle-to-assets-css",
+        "prometheus-scrape"
+      ],
+      "lanes": {
+        "native": {
+          "compose": "localAssetStorageStack/docker-compose.yml",
+          "services": [
+            {
+              "service": "lifecycle",
+              "build": "localAssetStorageStack/lifecycle"
+            }
+          ]
+        },
+        "docker": {
+          "planned": "--assets in the docker lane (RealityEngine_CI#729)"
+        },
+        "release": {
+          "releaseImages": [
+            {
+              "name": "re-lifecycle",
+              "image": "ghcr.io/jateeter/re-lifecycle:<release>",
+              "repo": "localAssetStorageStack",
+              "dockerfile": "localAssetStorageStack/lifecycle/Dockerfile"
+            }
+          ]
+        }
+      }
+    },
+    {
+      "id": "pim",
+      "name": "PIM (personal health information manager)",
+      "kind": "service",
+      "repo": "OpenCommons-Health---Personal-Information-Management",
+      "links": [
+        "pim-to-css",
+        "healthkit-to-pim",
+        "pim-to-pe-scope",
+        "pim-to-epic"
+      ],
+      "lanes": {
+        "native": {
+          "source": "OpenCommons-Health---Personal-Information-Management",
+          "artifacts": [
+            "dist/server.js (scripts/pim-mirror-leg.sh)"
+          ]
+        },
+        "docker": {
+          "source": "OpenCommons-Health---Personal-Information-Management",
+          "artifacts": [
+            "dist/server.js (scripts/pim-mirror-leg.sh)"
+          ]
+        },
+        "release": {
+          "releaseImages": [
+            {
+              "name": "re-pim",
+              "image": "ghcr.io/jateeter/re-pim:<release>",
+              "repo": "OpenCommons-Health---Personal-Information-Management",
+              "dockerfile": "OpenCommons-Health---Personal-Information-Management/Dockerfile"
+            }
+          ]
+        }
+      }
+    },
+    {
+      "id": "pim-css",
+      "name": "PIM's Solid Community Server",
+      "kind": "service",
+      "repo": "OpenCommons-Health---Personal-Information-Management",
+      "links": [
+        "pim-to-css"
+      ],
+      "lanes": {
+        "native": {
+          "compose": "OpenCommons-Health---Personal-Information-Management/docker-compose.host-local.yml",
+          "services": [
+            {
+              "service": "css",
+              "image": "opencommons-health-css:7.1.8-local"
+            }
+          ]
+        },
+        "docker": {
+          "compose": "OpenCommons-Health---Personal-Information-Management/docker-compose.host-local.yml",
+          "services": [
+            {
+              "service": "css",
+              "image": "opencommons-health-css:7.1.8-local"
+            }
+          ]
+        },
+        "release": {
+          "releaseImages": [
+            {
+              "name": "re-css",
+              "image": "ghcr.io/jateeter/re-css:<release>",
+              "repo": "OpenCommons-Health---Personal-Information-Management",
+              "dockerfile": "OpenCommons-Health---Personal-Information-Management/Dockerfile.css"
+            }
+          ]
+        }
+      }
+    },
+    {
+      "id": "healthkit-bridge",
+      "name": "HealthKit bridge (iOS app on the owner's iPhone)",
+      "kind": "device",
+      "repo": "localHealthkitBridge",
+      "links": [
+        "iphone-to-pe",
+        "healthkit-to-pim"
+      ],
+      "lanes": {
+        "native": {
+          "source": "localHealthkitBridge",
+          "artifacts": [
+            "Swift package / iOS app"
+          ]
+        },
+        "docker": {
+          "none": "the device reaches the native lane"
+        },
+        "release": {
+          "source": "localHealthkitBridge",
+          "artifacts": [
+            "Swift package / iOS app"
+          ]
+        }
+      }
+    },
+    {
+      "id": "loki",
+      "name": "Loki",
+      "kind": "observability",
+      "links": [
+        "promtail-to-loki",
+        "grafana-to-sources",
+        "loki-front-to-loki"
+      ],
+      "lanes": {
+        "native": {
+          "compose": "RealityEngine_CI/docker-compose.yml",
+          "services": [
+            {
+              "service": "loki",
+              "image": "grafana/loki:3.5.10"
+            }
+          ]
+        },
+        "docker": {
+          "compose": "RealityEngine_CI/docker-compose.yml",
+          "services": [
+            {
+              "service": "loki",
+              "image": "grafana/loki:3.5.10"
+            }
+          ]
+        },
+        "release": {
+          "compose": "RealityEngine_CI/release/compose.yml",
+          "services": [
+            {
+              "service": "loki",
+              "image": "grafana/loki:3.5.10@sha256:38f083d60b5fe84d79af9521ff5ee6ef0ab7bba429faddf6ad13bafd01fb43b8"
+            }
+          ]
+        }
+      }
+    },
+    {
+      "id": "promtail",
+      "name": "Promtail",
+      "kind": "observability",
+      "links": [
+        "promtail-to-loki"
+      ],
+      "lanes": {
+        "native": {
+          "compose": "RealityEngine_CI/docker-compose.yml",
+          "services": [
+            {
+              "service": "promtail",
+              "image": "grafana/promtail:3.5.10"
+            }
+          ]
+        },
+        "docker": {
+          "compose": "RealityEngine_CI/docker-compose.yml",
+          "services": [
+            {
+              "service": "promtail",
+              "image": "grafana/promtail:3.5.10"
+            }
+          ]
+        },
+        "release": {
+          "compose": "RealityEngine_CI/release/compose.yml",
+          "services": [
+            {
+              "service": "promtail",
+              "image": "grafana/promtail:3.5.10@sha256:6c4e4dc1ecf78e1e0099507509dd7b420a06a0e2ca5792dc452d4938a052e8e3"
+            }
+          ]
+        }
+      }
+    },
+    {
+      "id": "prometheus",
+      "name": "Prometheus",
+      "kind": "observability",
+      "links": [
+        "prometheus-scrape",
+        "grafana-to-sources",
+        "prometheus-front-to-prometheus"
+      ],
+      "lanes": {
+        "native": {
+          "compose": "RealityEngine_CI/docker-compose.yml",
+          "services": [
+            {
+              "service": "prometheus",
+              "image": "prom/prometheus:v3.15.1"
+            }
+          ]
+        },
+        "docker": {
+          "compose": "RealityEngine_CI/docker-compose.yml",
+          "services": [
+            {
+              "service": "prometheus",
+              "image": "prom/prometheus:v3.15.1"
+            }
+          ]
+        },
+        "release": {
+          "compose": "RealityEngine_CI/release/compose.yml",
+          "services": [
+            {
+              "service": "prometheus",
+              "image": "prom/prometheus:v3.15.1@sha256:fa3302279710be2f21a8301ec17a8b4f2301fd829bd113839b3b6b02b6f191a2"
+            }
+          ]
+        }
+      }
+    },
+    {
+      "id": "grafana",
+      "name": "Grafana",
+      "kind": "observability",
+      "links": [
+        "browser-to-grafana",
+        "browser-to-grafana-native",
+        "tls-proxy-to-grafana",
+        "grafana-to-sources",
+        "grafana-front-to-grafana"
+      ],
+      "lanes": {
+        "native": {
+          "compose": "RealityEngine_CI/docker-compose.yml",
+          "services": [
+            {
+              "service": "grafana",
+              "image": "grafana/grafana:11.6.1"
+            }
+          ]
+        },
+        "docker": {
+          "compose": "RealityEngine_CI/docker-compose.yml",
+          "services": [
+            {
+              "service": "grafana",
+              "image": "grafana/grafana:11.6.1"
+            }
+          ]
+        },
+        "release": {
+          "compose": "RealityEngine_CI/release/compose.yml",
+          "services": [
+            {
+              "service": "grafana",
+              "image": "grafana/grafana:11.6.1@sha256:52c3e20686b860c6dc1f623811565773cf51eefa378817a4896dfc863c3c82c8"
+            }
+          ]
+        }
+      }
+    },
+    {
+      "id": "obs-fronts",
+      "name": "OpenSSL fronts of Loki, Prometheus and Grafana (nginx)",
+      "kind": "proxy",
+      "links": [
+        "loki-front-to-loki",
+        "prometheus-front-to-prometheus",
+        "grafana-front-to-grafana",
+        "promtail-to-loki",
+        "grafana-to-sources",
+        "prometheus-scrape",
+        "tls-proxy-to-grafana",
+        "browser-to-grafana-native"
+      ],
+      "lanes": {
+        "native": {
+          "compose": "RealityEngine_CI/docker-compose.observability-tls.yml",
+          "services": [
+            {
+              "service": "loki-front",
+              "image": "nginx:1.29-alpine@sha256:5616878291a2eed594aee8db4dade5878cf7edcb475e59193904b198d9b830de"
+            },
+            {
+              "service": "prometheus-front",
+              "image": "nginx:1.29-alpine@sha256:5616878291a2eed594aee8db4dade5878cf7edcb475e59193904b198d9b830de"
+            },
+            {
+              "service": "grafana-front",
+              "image": "nginx:1.29-alpine@sha256:5616878291a2eed594aee8db4dade5878cf7edcb475e59193904b198d9b830de"
+            }
+          ]
+        },
+        "docker": {
+          "compose": "RealityEngine_CI/docker-compose.observability-tls.yml",
+          "services": [
+            {
+              "service": "loki-front",
+              "image": "nginx:1.29-alpine@sha256:5616878291a2eed594aee8db4dade5878cf7edcb475e59193904b198d9b830de"
+            },
+            {
+              "service": "prometheus-front",
+              "image": "nginx:1.29-alpine@sha256:5616878291a2eed594aee8db4dade5878cf7edcb475e59193904b198d9b830de"
+            },
+            {
+              "service": "grafana-front",
+              "image": "nginx:1.29-alpine@sha256:5616878291a2eed594aee8db4dade5878cf7edcb475e59193904b198d9b830de"
+            }
+          ]
+        },
+        "release": {
+          "source": "RealityEngine_CI",
+          "artifacts": [
+            "release/init/reinit.py observability_tls_services (tls-proxy's image)"
+          ]
+        }
+      }
+    },
+    {
+      "id": "bridge-metrics",
+      "name": "AI bridge metrics exporter",
+      "kind": "service",
+      "repo": "RealityEngine_CI",
+      "links": [
+        "bridge-metrics-to-services",
+        "prometheus-scrape"
+      ],
+      "lanes": {
+        "native": {
+          "source": "RealityEngine_CI",
+          "artifacts": [
+            "scripts/bridge-metrics-exporter.mjs"
+          ]
+        },
+        "docker": {
+          "source": "RealityEngine_CI",
+          "artifacts": [
+            "scripts/bridge-metrics-exporter.mjs"
+          ]
+        },
+        "release": {
+          "releaseImages": [
+            {
+              "name": "re-init",
+              "image": "ghcr.io/jateeter/re-init:<release>",
+              "repo": "RealityEngine_CI",
+              "dockerfile": "RealityEngine_CI/release/init/Dockerfile"
+            }
+          ]
+        }
+      }
+    },
+    {
+      "id": "installer",
+      "name": "install.sh and the realityengine CLI",
+      "kind": "installer",
+      "repo": "RealityEngine_CI",
+      "links": [
+        "release-downloads",
+        "openclaw-version-check"
+      ],
+      "lanes": {
+        "native": {
+          "none": "development lanes are not installed"
+        },
+        "docker": {
+          "none": "development lanes are not installed"
+        },
+        "release": {
+          "source": "RealityEngine_CI",
+          "artifacts": [
+            "install.sh",
+            "release/realityengine"
+          ]
+        }
+      }
+    },
+    {
+      "id": "external-parties",
+      "name": "External parties (OpenAI, Epic, Yuma, download hosts, npm)",
+      "kind": "external",
+      "links": [
+        "pe-to-openai",
+        "pim-to-epic",
+        "mqtt-yuma",
+        "release-downloads",
+        "openclaw-version-check"
+      ],
+      "lanes": {
+        "native": {
+          "external": "inventory probeTargets"
+        },
+        "docker": {
+          "external": "inventory probeTargets"
+        },
+        "release": {
+          "external": "inventory probeTargets"
+        }
+      }
+    },
+    {
+      "id": "user-agents",
+      "name": "People's browsers and devices",
+      "kind": "user",
+      "links": [
+        "browser-to-manager-frontend",
+        "browser-to-openapi-portal",
+        "browser-to-openwebui",
+        "browser-to-assets-dokieli",
+        "browser-to-assets-css",
+        "iphone-to-pe",
+        "browser-to-grafana",
+        "browser-to-grafana-native",
+        "healthkit-to-pim"
+      ],
+      "lanes": {
+        "native": {
+          "user": "browser, iPhone"
+        },
+        "docker": {
+          "user": "browser, iPhone"
+        },
+        "release": {
+          "user": "browser, iPhone"
+        }
+      }
+    }
+  ],
+  "linksServed": {
+    "cpp-pe-to-re": [
+      "cpp-engine"
+    ],
+    "clients-to-cpp-re": [
+      "cpp-engine"
+    ],
+    "clients-to-cpp-pe": [
+      "cpp-engine"
+    ],
+    "lsp-pe-to-re": [
+      "lsp-engine"
+    ],
+    "clients-to-lsp-re": [
+      "lsp-engine"
+    ],
+    "clients-to-lsp-pe": [
+      "lsp-engine"
+    ],
+    "scala-pe-to-re": [
+      "scala-engine"
+    ],
+    "clients-to-scala-re": [
+      "scala-engine"
+    ],
+    "clients-to-scala-pe": [
+      "scala-engine"
+    ],
+    "rust-re-pe": [
+      "rust-engine"
+    ],
+    "manager-ts-pe": [
+      "manager-ts-pe",
+      "tls-proxy"
+    ],
+    "browser-to-manager-frontend": [
+      "manager-visualizer",
+      "tls-proxy",
+      "user-agents"
+    ],
+    "manager-frontend-to-backend": [
+      "manager-visualizer",
+      "tls-proxy"
+    ],
+    "manager-backend-to-engines": [
+      "cpp-engine",
+      "lsp-engine",
+      "scala-engine",
+      "manager-visualizer"
+    ],
+    "tls-proxy-to-grafana": [
+      "tls-proxy",
+      "grafana",
+      "obs-fronts"
+    ],
+    "instance-registry": [
+      "instance-registry"
+    ],
+    "mcp": [
+      "cpp-engine",
+      "lsp-engine",
+      "scala-engine",
+      "re-mcp"
+    ],
+    "browser-to-openapi-portal": [
+      "openapi-portal",
+      "user-agents"
+    ],
+    "localai-to-engines": [
+      "cpp-engine",
+      "lsp-engine",
+      "scala-engine",
+      "localai-api"
+    ],
+    "engines-to-localai": [
+      "cpp-engine",
+      "lsp-engine",
+      "scala-engine",
+      "localai-api"
+    ],
+    "localai-to-qdrant": [
+      "localai-api",
+      "qdrant"
+    ],
+    "localai-to-redis": [
+      "localai-api",
+      "redis"
+    ],
+    "to-ollama": [
+      "cpp-engine",
+      "lsp-engine",
+      "scala-engine",
+      "localai-api",
+      "ollama",
+      "ollama-tls-front"
+    ],
+    "release-to-ollama": [
+      "cpp-engine",
+      "lsp-engine",
+      "scala-engine",
+      "localai-api",
+      "ollama"
+    ],
+    "pe-to-openclaw": [
+      "cpp-engine",
+      "lsp-engine",
+      "scala-engine",
+      "openclaw-gateway"
+    ],
+    "openclaw-webui": [
+      "openclaw-gateway",
+      "open-webui"
+    ],
+    "browser-to-openwebui": [
+      "open-webui",
+      "user-agents"
+    ],
+    "openclaw-to-browser-cdp": [
+      "openclaw-gateway",
+      "openclaw-browser"
+    ],
+    "browser-cdp-proxy-to-chromium": [
+      "openclaw-browser"
+    ],
+    "openclaw-agents-to-lifecycle": [
+      "openclaw-gateway",
+      "lifecycle"
+    ],
+    "pim-to-css": [
+      "pim",
+      "pim-css"
+    ],
+    "browser-to-assets-dokieli": [
+      "assets-dokieli",
+      "user-agents"
+    ],
+    "browser-to-assets-css": [
+      "assets-css",
+      "assets-dokieli",
+      "user-agents"
+    ],
+    "lifecycle-to-assets-css": [
+      "assets-css",
+      "lifecycle"
+    ],
+    "clients-to-lifecycle": [
+      "manager-visualizer",
+      "lifecycle"
+    ],
+    "lifecycle-to-pe": [
+      "cpp-engine",
+      "lsp-engine",
+      "scala-engine",
+      "lifecycle"
+    ],
+    "iphone-to-pe": [
+      "cpp-engine",
+      "lsp-engine",
+      "scala-engine",
+      "healthkit-bridge",
+      "user-agents"
+    ],
+    "mqtt-yuma": [
+      "cpp-engine",
+      "lsp-engine",
+      "scala-engine",
+      "external-parties"
+    ],
+    "promtail-to-loki": [
+      "loki",
+      "promtail",
+      "obs-fronts"
+    ],
+    "prometheus-scrape": [
+      "manager-visualizer",
+      "lifecycle",
+      "prometheus",
+      "obs-fronts",
+      "bridge-metrics"
+    ],
+    "bridge-metrics-to-services": [
+      "localai-api",
+      "qdrant",
+      "openclaw-gateway",
+      "bridge-metrics"
+    ],
+    "grafana-to-sources": [
+      "loki",
+      "prometheus",
+      "grafana",
+      "obs-fronts"
+    ],
+    "release-downloads": [
+      "installer",
+      "external-parties"
+    ],
+    "openclaw-version-check": [
+      "openclaw-gateway",
+      "installer",
+      "external-parties"
+    ],
+    "pe-trigger-dispatch": [
+      "cpp-engine",
+      "lsp-engine",
+      "scala-engine",
+      "manager-ts-pe",
+      "localai-api"
+    ],
+    "healthkit-to-pim": [
+      "pim",
+      "healthkit-bridge",
+      "user-agents"
+    ],
+    "browser-to-grafana": [
+      "tls-proxy",
+      "grafana",
+      "user-agents"
+    ],
+    "browser-to-grafana-native": [
+      "grafana",
+      "obs-fronts",
+      "user-agents"
+    ],
+    "pe-to-openai": [
+      "cpp-engine",
+      "lsp-engine",
+      "scala-engine",
+      "external-parties"
+    ],
+    "ollama-front-to-ollama": [
+      "ollama",
+      "ollama-tls-front"
+    ],
+    "pim-to-pe-scope": [
+      "cpp-engine",
+      "lsp-engine",
+      "scala-engine",
+      "pim"
+    ],
+    "pim-to-epic": [
+      "pim",
+      "external-parties"
+    ],
+    "loki-front-to-loki": [
+      "loki",
+      "obs-fronts"
+    ],
+    "prometheus-front-to-prometheus": [
+      "prometheus",
+      "obs-fronts"
+    ],
+    "grafana-front-to-grafana": [
+      "grafana",
+      "obs-fronts"
+    ]
+  },
+  "unpinned": [
+    "${BROWSER_IMAGE:-coollabsio/openclaw-browser:0.3.0}",
+    "${OPEN_WEBUI_IMAGE:-ghcr.io/open-webui/open-webui:v0.11.3}",
+    "grafana/grafana:11.6.1",
+    "grafana/loki:3.5.10",
+    "grafana/promtail:3.5.10",
+    "nginx:alpine",
+    "opencommons-health-css:7.1.8-local",
+    "prom/prometheus:v3.15.1",
+    "qdrant/qdrant:v1.20.0",
+    "redis:7.4-alpine",
+    "solidproject/community-server:7.3.0"
+  ],
+  "planned": [
+    "assets-css (docker): --assets in the docker lane (RealityEngine_CI#729)",
+    "assets-css (release): asset storage in the release (RealityEngine_CI#715, #729)",
+    "assets-dokieli (docker): --assets in the docker lane (RealityEngine_CI#729)",
+    "lifecycle (docker): --assets in the docker lane (RealityEngine_CI#729)",
+    "manager-ts-pe (release): no release image yet",
+    "rust-engine (docker): the re-rust image in the docker lane (RealityEngine_CI#729)"
+  ],
+  "unresolved": []
+}

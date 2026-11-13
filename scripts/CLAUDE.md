@@ -507,6 +507,20 @@ The rule is in `docs/ENGINEERING_CONTRACT.md`; the design in
   (`lib/release_probe_endpoints.py`) and from a container on the install's
   network; the PIM mirror leg probes PIM and its CSS while they are up
   (`transport-probe-pim.json`).
+- `transport-bom.py`: the transport inventory's bill of materials. Resolves
+  `config/transport-bom-components.json` (the component behind every link, and
+  each lane's artifact) into `config/transport-bom.json` and
+  `docs/TRANSPORT_BOM.md`; `--check` fails a stale BOM, a link no component
+  serves, or a component naming an unknown link. Commits are a release's
+  (its manifest), never the BOM's.
+- `lib/obs_front_conf.py` (#729): the OpenSSL (nginx) fronts of Loki,
+  Prometheus and Grafana, from the profile. On the lane each Go service listens
+  on its container's loopback and its front serves the public port with mTLS
+  (Grafana's 3000 is the browser's; tls-proxy reaches it on 3443).
+- `rust-conformance.sh` runs on the lane with `RE_TLS=on`: rust-1 serves TLS 1.3
+  with an instance certificate from the lane PKI, every call presents the
+  harness certificate, and rust-1's listeners are probed
+  (`transport-probe-rust.json`).
 - `check-insecure-transport.py`: fails a new `http://`, `ws://`, `curl -k`,
   `rejectUnauthorized: false`, `verify=False` or similar, across the focus
   set. The baseline only shrinks; `--write --ref origin/main` records it from

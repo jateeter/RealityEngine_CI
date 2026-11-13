@@ -380,6 +380,12 @@ case "$FOLLOWER" in
     REPOS+=(RealityEngine_Rust) ;;
   *) echo "error: --follower takes rust (got '$FOLLOWER')" >&2; exit 2 ;;
 esac
+# The release ships Rust's image (re-rust, owner 2026-11-12), so the
+# containerized lane pins RealityEngine_Rust to build it; it is still a follower
+# there and never votes.
+if [ "$PROFILE" = local-containerized ] && [[ " ${REPOS[*]} " != *" RealityEngine_Rust "* ]]; then
+  REPOS+=(RealityEngine_Rust)
+fi
 
 LOCAL_LANE=false
 CONTAINERIZED=false
@@ -2386,36 +2392,25 @@ run_transport_probe() {
     reg="$(cat "$ci/.universe-registry-url" 2>/dev/null || true)"
   fi
   [ -n "$reg" ] || { log "transport-probe: no instance registry URL for the $lane lane"; return 1; }
+  local rc=0 image pki cert
   if [ "$CONTAINERIZED" != true ]; then
-    local rc=0 browser image ca="${RE_HARNESS_TLS_CA:-$HOME/.reality-engine/pki/$lane/ca/ca.crt}"
+    pki="${RE_HARNESS_TLS_CA:-$HOME/.reality-engine/pki/$lane/ca/ca.crt}"; pki="${pki%/ca/ca.crt}"; cert=chain.pem
     run_cmd "transport-probe" env RE_REGISTRY_URL="$reg" RE_RUN_ID="$RUN_ID" \
       python3 "$ci/scripts/transport-probe.py" --lane "$lane" \
         --integrations "$integrations" --report "$REPORT_DIR/transport-probe.json" || rc=$?
-    # The OpenClaw browser sidecar's CDP proxy reaches Chromium on the
-    # container's own loopback: probed from inside that network namespace,
-    # with localAI's image (OpenSSL 3.5+).
-    browser="$(docker ps -q --filter label=com.docker.compose.project=localopenclawstack \
-      --filter label=com.docker.compose.service=browser 2>/dev/null | head -1)"
     image="$(docker inspect localai_api --format '{{.Config.Image}}' 2>/dev/null || true)"
-    if [ -n "$browser" ] && [ -n "$image" ]; then
-      printf '{"browser-cdp-proxy-to-chromium": [{"url": "https://127.0.0.1:9222", "path": "/json/version"}]}\n' \
-        > "$RUN_DIR/transport-probe-browser.json"
-      run_cmd "transport-probe-browser" docker run --rm --network "container:$browser" --user "$(id -u):$(id -g)" \
-        --entrypoint python3 -v "$ci:/ci:ro" -v "${ca%/ca/ca.crt}:/pki:ro" \
-        -v "$RUN_DIR/transport-probe-browser.json:/eps.json:ro" -v "$REPORT_DIR:/reports" \
-        -e RE_HARNESS_TLS_CA=/pki/ca/ca.crt -e RE_HARNESS_TLS_CERT=/pki/issued/harness/chain.pem \
-        -e RE_HARNESS_TLS_KEY=/pki/issued/harness/key.pem -e RE_RUN_ID="$RUN_ID" \
-        "$image" /ci/scripts/transport-probe.py --lane "$lane" --only-endpoints \
-          --endpoints /eps.json --report /reports/transport-probe-browser.json || rc=$?
-    fi
+    probe_namespaces "$ci" "$lane" "$pki" "$cert" "$image" \
+      "$(docker ps -q --filter label=com.docker.compose.project=localopenclawstack \
+           --filter label=com.docker.compose.service=browser 2>/dev/null | head -1)" \
+      reality-engine-loki reality-engine-prometheus reality-engine-grafana || rc=$?
     return "$rc"
   fi
   # The release lane: the install names its other listeners; those only on its
   # compose network are probed from a container on that network, with the
-  # install's localai-api image (OpenSSL 3.5+). Two reports, both recorded with
+  # install's localai-api image (OpenSSL 3.5+). Every report is recorded with
   # transport-probe.py --apply.
-  local eps="$RUN_DIR/transport-probe-endpoints" network image rc=0
-  local pki="${RE_HARNESS_TLS_CA%/ca/ca.crt}"  # the install's PKI (containerized_start)
+  local eps="$RUN_DIR/transport-probe-endpoints" network
+  pki="${RE_HARNESS_TLS_CA%/ca/ca.crt}"; cert=cert.pem  # the install's PKI (containerized_start)
   { read -r network; read -r image; } < <(python3 "$ci/scripts/lib/release_probe_endpoints.py" \
       "$RUN_DIR/install" "$eps") || { log "transport-probe: the install's endpoints could not be read"; return 1; }
   run_cmd "transport-probe" env RE_REGISTRY_URL="$reg" RE_RUN_ID="$RUN_ID" \
@@ -2424,10 +2419,48 @@ run_transport_probe() {
       --report "$REPORT_DIR/transport-probe.json" || rc=$?
   run_cmd "transport-probe-network" docker run --rm --network "$network" --user "$(id -u):$(id -g)" \
     --entrypoint python3 -v "$ci:/ci:ro" -v "$pki:/pki:ro" -v "$eps:/eps:ro" -v "$REPORT_DIR:/reports" \
-    -e RE_HARNESS_TLS_CA=/pki/ca/ca.crt -e RE_HARNESS_TLS_CERT=/pki/issued/harness/cert.pem \
+    -e RE_HARNESS_TLS_CA=/pki/ca/ca.crt -e RE_HARNESS_TLS_CERT=/pki/issued/harness/$cert \
     -e RE_HARNESS_TLS_KEY=/pki/issued/harness/key.pem -e RE_RUN_ID="$RUN_ID" \
     "$image" /ci/scripts/transport-probe.py --lane release --only-endpoints \
       --endpoints /eps/network.json --report /reports/transport-probe-network.json || rc=$?
+  local svc ids=()
+  for svc in browser loki prometheus grafana; do
+    ids+=("$(docker ps -q --filter "label=com.docker.compose.project=$network" \
+      --filter "label=com.docker.compose.service=$svc" 2>/dev/null | head -1)")
+  done
+  probe_namespaces "$ci" release "$pki" "$cert" "$image" "${ids[@]}" || rc=$?
+  return "$rc"
+}
+
+# probe_namespaces CI LANE PKI CERT IMAGE BROWSER LOKI PROMETHEUS GRAFANA: the
+# hops that live on a container's own loopback, probed from inside that
+# container's network namespace with IMAGE (localAI's, OpenSSL 3.5+): the CDP
+# proxy to Chromium, and each Go service behind its OpenSSL front (#729), with
+# Grafana's mTLS port as tls-proxy reaches it. A container that is not running
+# is skipped; a link the lane does not list is left alone by the probe.
+probe_namespaces() {
+  local ci="$1" lane="$2" pki="$3" cert="$4" image="$5"; shift 5
+  local -a names=(browser loki prometheus grafana)
+  local -A eps=(
+    [browser]='{"browser-cdp-proxy-to-chromium": [{"url": "https://127.0.0.1:9222", "path": "/json/version"}]}'
+    [loki]='{"loki-front-to-loki": [{"url": "https://127.0.0.1:3101", "path": "/ready"}]}'
+    [prometheus]='{"prometheus-front-to-prometheus": [{"url": "https://127.0.0.1:9091", "path": "/-/ready"}]}'
+    [grafana]='{"grafana-front-to-grafana": [{"url": "https://127.0.0.1:3001", "path": "/api/health"}], "tls-proxy-to-grafana": [{"url": "https://127.0.0.1:3443", "path": "/api/health"}]}'
+  )
+  local i rc=0 name container
+  [ -n "$image" ] || { log "transport-probe: no localAI image to probe the container namespaces with"; return 0; }
+  for i in 0 1 2 3; do
+    name="${names[$i]}"; container="${1:-}"; shift || true
+    [ -n "$container" ] || continue
+    printf '%s\n' "${eps[$name]}" > "$RUN_DIR/transport-probe-$name.json"
+    run_cmd "transport-probe-$name" docker run --rm --network "container:$container" --user "$(id -u):$(id -g)" \
+      --entrypoint python3 -v "$ci:/ci:ro" -v "$pki:/pki:ro" \
+      -v "$RUN_DIR/transport-probe-$name.json:/eps.json:ro" -v "$REPORT_DIR:/reports" \
+      -e RE_HARNESS_TLS_CA=/pki/ca/ca.crt -e RE_HARNESS_TLS_CERT="/pki/issued/harness/$cert" \
+      -e RE_HARNESS_TLS_KEY=/pki/issued/harness/key.pem -e RE_RUN_ID="$RUN_ID" \
+      "$image" /ci/scripts/transport-probe.py --lane "$lane" --only-endpoints \
+        --endpoints /eps.json --report "/reports/transport-probe-$name.json" || rc=$?
+  done
   return "$rc"
 }
 

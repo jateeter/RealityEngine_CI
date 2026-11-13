@@ -115,6 +115,34 @@
       ]
     },
     {
+      "name": "re-rust",
+      "repo": "RealityEngine_Rust",
+      "context": "RealityEngine_Rust",
+      "dockerfile": "RealityEngine_CI/docker/rust/Dockerfile",
+      "roles": [
+        "reality-engine",
+        "perception-engine"
+      ]
+    },
+    {
+      "name": "re-dokieli",
+      "repo": "localAssetStorageStack",
+      "context": "localAssetStorageStack/dokieli",
+      "dockerfile": "localAssetStorageStack/dokieli/Dockerfile",
+      "roles": [
+        "asset-authoring"
+      ]
+    },
+    {
+      "name": "re-lifecycle",
+      "repo": "localAssetStorageStack",
+      "context": "localAssetStorageStack/lifecycle",
+      "dockerfile": "localAssetStorageStack/lifecycle/Dockerfile",
+      "roles": [
+        "asset-lifecycle"
+      ]
+    },
+    {
       "name": "re-init",
       "repo": "RealityEngine_CI",
       "context": "RealityEngine_CI",

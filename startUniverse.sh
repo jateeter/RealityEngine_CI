@@ -722,7 +722,9 @@ start_observability_stack() {
     start_bridge_metrics_exporter
 
     info "Starting Prometheus + Grafana + Promtail..."
+    # shellcheck disable=SC2046  # obs_fronts prints service names, split on purpose
     (cd "$CI_DIR" && obs_compose up -d --remove-orphans --force-recreate prometheus grafana promtail \
+        $(obs_fronts prometheus grafana) \
         2>/tmp/observability_start_err.log) > /dev/null || {
         add_warn "Prometheus/Grafana/Promtail startup failed — $(tail -5 /tmp/observability_start_err.log 2>/dev/null)"
         return 0
@@ -887,6 +889,14 @@ obs_compose() {
     else
         docker compose "$@"
     fi
+}
+
+# obs_fronts SERVICE...: the OpenSSL fronts of these Go services when the lane
+# is on (docker-compose.observability-tls.yml, #729); nothing otherwise.
+obs_fronts() {
+    lane_tls_enabled || return 0
+    local s
+    for s in "$@"; do printf '%s-front ' "$s"; done
 }
 
 # obs_get URL [curl args...]: GET a lane surface (an engine's metrics,
@@ -2176,7 +2186,8 @@ if [ "$FRESH_START" = true ]; then
 fi
 
 info "Starting Loki (CI) + Qdrant + Redis..."
-(cd "$CI_DIR" && obs_compose up -d --remove-orphans loki \
+# shellcheck disable=SC2046  # obs_fronts prints service names, split on purpose
+(cd "$CI_DIR" && obs_compose up -d --remove-orphans loki $(obs_fronts loki) \
     2>/tmp/infra_start_err.log) > /dev/null || \
     die "docker compose up failed for Loki\n$(tail -5 /tmp/infra_start_err.log 2>/dev/null)"
 (cd "$LAS_DIR" && las_compose up -d --remove-orphans qdrant redis \

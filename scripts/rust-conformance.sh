@@ -79,6 +79,22 @@ done
 OUT="${OUT:-$CI_DIR/test-results/rust-conformance/$(date -u +%Y%m%dT%H%M%SZ)}"
 mkdir -p "$OUT"
 LIB="$CI_DIR/scripts/lib"
+# Its inline Python reaches the engines through re_tls's opener.
+export PYTHONPATH="$LIB${PYTHONPATH:+:$PYTHONPATH}"
+
+# --- the lane's TLS ----------------------------------------------------------
+# With RE_TLS=on (the universe's lane, #668, #729) every call verifies against
+# the lane CA and presents the harness certificate, and rust-1 serves TLS 1.3
+# with an instance certificate from the lane PKI, as the voters do.
+# shellcheck source=lib/lane-tls.sh
+source "$LIB/lane-tls.sh"
+SCHEME=http
+CURL=(curl)
+if lane_tls_enabled; then
+  lane_tls_init native || { echo "rust-conformance: RE_TLS=on but the lane PKI is unusable" >&2; exit 1; }
+  CURL=("$(lane_curl)" --tlsv1.3 --cacert "$RE_HARNESS_TLS_CA" --cert "$RE_HARNESS_TLS_CERT" --key "$RE_HARNESS_TLS_KEY")
+  SCHEME=https
+fi
 say() { printf '\n== %s\n' "$*"; }
 unavailable() { echo "rust-conformance: unavailable: $*" >&2; exit 3; }
 
@@ -90,7 +106,7 @@ if [ -z "$REGISTRY" ]; then
 fi
 case "$REGISTRY" in
   http://*|https://*)
-    curl -sf --max-time 10 "$REGISTRY" > "$OUT/universe-registry.json" ||
+    "${CURL[@]}" -sf --max-time 10 "$REGISTRY" > "$OUT/universe-registry.json" ||
       unavailable "no instance registry at $REGISTRY; start a universe first" ;;
   *) [ -f "$REGISTRY" ] || unavailable "no instance registry file $REGISTRY"
      cp "$REGISTRY" "$OUT/universe-registry.json" ;;
@@ -119,7 +135,7 @@ fi
 # The width the voters run at. Rust seeds at it, as startUniverse.sh seeds them.
 WIDTH=""
 for url in $VOTER_URLS; do
-  WIDTH="$(curl -sf --max-time 10 "$url/api/config" |
+  WIDTH="$("${CURL[@]}" -sf --max-time 10 "$url/api/config" |
     python3 -c 'import json,sys; print(json.load(sys.stdin).get("eventDimension",""))' 2>/dev/null)" || WIDTH=""
   [ -n "$WIDTH" ] && break
 done
@@ -140,25 +156,36 @@ fi
 
 # --- start Rust as rust-1 ----------------------------------------------------
 say "start rust-1 on :$PORT (RE) and :$PE_PORT (PE), corpus $CORPUS, eventDimension $WIDTH"
-if curl -s --max-time 2 -o /dev/null "http://127.0.0.1:$PORT/"; then
+listening() { python3 -c 'import socket,sys; socket.create_connection(("127.0.0.1", int(sys.argv[1])), 2).close()' "$1" 2>/dev/null; }
+if listening "$PORT"; then
   unavailable "port $PORT is already serving; stop it or pass --port"
 fi
-if curl -s --max-time 2 -o /dev/null "http://127.0.0.1:$PE_PORT/"; then
+if listening "$PE_PORT"; then
   unavailable "port $PE_PORT is already serving; stop it or pass --pe-port"
 fi
 UUID="$(python3 "$LIB/instance_uuids.py" allocate native rust-1 $$)"
 CLOCK_DIR="$(python3 "$LIB/instance_uuids.py" clock-dir)"
-INSTANCE_UUID="$UUID" INSTANCE_CLOCK_DIR="$CLOCK_DIR" MACHINES_DIR="$CORPUS" \
+# The voters' host address: rust-1's certificate names it, so localAI's
+# containers can reach rust-1 by it and verify the name.
+HOST_IP="$(python3 -c 'import json,sys,urllib.parse
+i=[x for x in json.load(open(sys.argv[1]))["instances"] if x.get("role")!="follower"][0]
+print(urllib.parse.urlsplit(i["re_url"]).hostname)' "$OUT/universe-registry.json")"
+TLS_ENV=()
+if lane_tls_enabled; then
+  lane_tls_issue_instance rust-1 "$UUID" "$HOST_IP" || { echo "rust-conformance: rust-1's certificate could not be issued" >&2; exit 1; }
+  TLS_ENV=(RE_TLS_CERT="$INST_TLS_CERT" RE_TLS_KEY="$INST_TLS_KEY" RE_TLS_CA="$INST_TLS_CA" RE_TLS_CRL="$INST_TLS_CRL")
+fi
+env ${TLS_ENV[@]+"${TLS_ENV[@]}"} INSTANCE_UUID="$UUID" INSTANCE_CLOCK_DIR="$CLOCK_DIR" MACHINES_DIR="$CORPUS" \
   VECTOR_DIMENSION="$WIDTH" REALITY_ENGINE_PORT="$PORT" \
   "$RUST_REPO/target/release/reality-engine" > "$OUT/rust-1.log" 2>&1 &
 RUST_PID=$!
 PE_PID=""
 trap 'kill "$RUST_PID" ${PE_PID:+"$PE_PID"} 2>/dev/null || true; wait "$RUST_PID" ${PE_PID:+"$PE_PID"} 2>/dev/null || true' EXIT
-RUST_URL="http://127.0.0.1:$PORT"
+RUST_URL="$SCHEME://127.0.0.1:$PORT"
 started=false
 for _ in $(seq 1 600); do
   kill -0 "$RUST_PID" 2>/dev/null || break
-  if curl -sf --max-time 2 -o /dev/null "$RUST_URL/api/health"; then started=true; break; fi
+  if "${CURL[@]}" -sf --max-time 2 -o /dev/null "$RUST_URL/api/health"; then started=true; break; fi
   sleep 0.5
 done
 if ! $started; then
@@ -182,20 +209,20 @@ HK_TOKEN="$(healthkit_token_read "$CI_DIR" 2>/dev/null || true)"
 (
   pe_env_defaults "$CI_DIR/config/integrations.json"
   [ -n "$HK_TOKEN" ] && export HEALTHKIT_BRIDGE_TOKEN="$HK_TOKEN"
-  export LOCAL_AI_API_URL="${LOCAL_AI_API_URL:-http://localhost:4000}"
+  export LOCAL_AI_API_URL="${LOCAL_AI_API_URL:-$SCHEME://localhost:4000}"
   export LOCAL_AI_MACHINES_DIR="${LOCAL_AI_MACHINES_DIR:-$CI_DIR/../localAIStack/data/machines}"
   export MQTT_CLIENT_ID; MQTT_CLIENT_ID="$(mqtt_client_id rust-1 "$UUID")"
   export MQTT_BROKER_HOST=""
-  PERCEPTION_ENGINE_PORT="$PE_PORT" RE_URL="$RUST_URL" MACHINES_DIR="$CORPUS" \
+  exec env ${TLS_ENV[@]+"${TLS_ENV[@]}"} PERCEPTION_ENGINE_PORT="$PE_PORT" RE_URL="$RUST_URL" MACHINES_DIR="$CORPUS" \
     VECTOR_DIMENSION="$WIDTH" \
-    exec "$RUST_REPO/target/release/perception-engine"
+    "$RUST_REPO/target/release/perception-engine"
 ) > "$OUT/rust-1-pe.log" 2>&1 &
 PE_PID=$!
-RUST_PE_URL="http://127.0.0.1:$PE_PORT"
+RUST_PE_URL="$SCHEME://127.0.0.1:$PE_PORT"
 started=false
 for _ in $(seq 1 600); do
   kill -0 "$PE_PID" 2>/dev/null || break
-  if curl -sf --max-time 2 -o /dev/null "$RUST_PE_URL/api/health"; then started=true; break; fi
+  if "${CURL[@]}" -sf --max-time 2 -o /dev/null "$RUST_PE_URL/api/health"; then started=true; break; fi
   sleep 0.5
 done
 if ! $started; then
@@ -204,6 +231,20 @@ if ! $started; then
   exit 1
 fi
 grep -m2 'perception-engine:' "$OUT/rust-1-pe.log" || true
+
+# On the lane, probe rust-1's listeners against the transport profile while
+# they are up (rust-re-pe; recorded with transport-probe.py --apply).
+if lane_tls_enabled; then
+  printf '{"rust-re-pe": [{"url": "%s", "path": "/api/health"}, {"url": "%s", "path": "/api/state"}]}\n' \
+    "$RUST_URL" "$RUST_PE_URL" > "$OUT/transport-probe-endpoints.json"
+  if ! python3 "$CI_DIR/scripts/transport-probe.py" --lane native --only-endpoints \
+      --endpoints "$OUT/transport-probe-endpoints.json" --report "$OUT/transport-probe-rust.json" \
+      > "$OUT/transport-probe.log" 2>&1; then
+    echo "rust-conformance: rust-1's listeners failed the transport probe; see $OUT/transport-probe.log" >&2
+    exit 1
+  fi
+  tail -2 "$OUT/transport-probe.log"
+fi
 
 # --- the localAI slice -------------------------------------------------------
 # localAIStack declares its machines and sensors (`localai/*`) in every engine
@@ -215,10 +256,11 @@ grep -m2 'perception-engine:' "$OUT/rust-1-pe.log" || true
 LOCALAI_CONTAINER="${LOCALAI_CONTAINER:-localai_api}"
 if docker ps --format '{{.Names}}' 2>/dev/null | grep -qx "$LOCALAI_CONTAINER"; then
   say "localAI slice: registering localAIStack's machines and sensors in rust-1"
-  python3 - "$OUT/localai-follower-registry.json" "$PORT" "$PE_PORT" "$UUID" <<'PY'
+  python3 - "$OUT/localai-follower-registry.json" "$PORT" "$PE_PORT" "$UUID" "$SCHEME" "$HOST_IP" <<'PY'
 import json, sys
-dst, port, pe_port, uuid = sys.argv[1:]
-host = "http://host.docker.internal"
+dst, port, pe_port, uuid, scheme, host_ip = sys.argv[1:]
+# On the lane localAI verifies rust-1 by name: its certificate names the host IP.
+host = f"https://{host_ip}" if scheme == "https" else "http://host.docker.internal"
 json.dump({"instances": [{"id": "rust-1", "runtime": "rust", "role": "follower",
                           "re_url": f"{host}:{port}", "pe_url": f"{host}:{pe_port}",
                           "instance_uuid": uuid, "status": "running"}]},
@@ -246,18 +288,20 @@ print(json.dumps(steps))
   # localai/* test sources.
   if python3 - "$OUT/universe-registry.json" <<'PY'
 import json, sys, urllib.request
+import re_tls; re_tls.install_lane_opener()
 voter = next(i for i in json.load(open(sys.argv[1]))["instances"] if i.get("role") != "follower")
 sources = json.load(urllib.request.urlopen(voter["pe_url"] + "/api/sources", timeout=30))["sources"]
 sys.exit(0 if any(s.get("type") == "test" and str(s.get("name", "")).startswith("localai/")
                   for s in sources) else 1)
 PY
   then
-    curl -sf --max-time 120 -X POST "$RUST_PE_URL/api/sources/bootstrap-from-machines" \
+    "${CURL[@]}" -sf --max-time 120 -X POST "$RUST_PE_URL/api/sources/bootstrap-from-machines" \
       -H 'Content-Type: application/json' -d '{}' > "$OUT/localai-bootstrap.json" ||
       echo "rust-conformance: rust-1's PE bootstrap failed" >&2
   fi
   python3 - "$OUT/universe-registry.json" "$RUST_URL" "$RUST_PE_URL" "$OUT/localai-slice.json" <<'PY'
 import json, sys, urllib.request
+import re_tls; re_tls.install_lane_opener()
 registry, re_url, pe_url, steps = sys.argv[1:]
 def slice_of(re, pe):
     get = lambda u: json.load(urllib.request.urlopen(u, timeout=30))

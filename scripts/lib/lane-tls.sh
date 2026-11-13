@@ -266,6 +266,8 @@ lane_tls_observability() {
         _lane_tls_link "$(dirname "$(_lane_tls_path "obs-$svc" chain)")" "$dir/$svc" || return 1
     done
     _lane_tls_link "$LANE_TLS_CA" "$dir/ca.crt" && _lane_tls_link "$LANE_TLS_CRL" "$dir/ca.crl" || return 1
+    # The OpenSSL fronts' configuration, from the profile (#729).
+    python3 "$(dirname "$LANE_TLS_PKI")/obs_front_conf.py" "$dir/fronts" || return 1
     LANE_TLS_OBS_DIR="$dir"
 }
 

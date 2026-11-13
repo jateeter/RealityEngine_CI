@@ -83,10 +83,10 @@ fi
 mutate issuespace inventory 'i["links"][0]["issue"]="Some Repo#86"'
 expect_fail issuespace 'issue must be written'
 
-mutate claim inventory 'next(l for l in i["links"] if "probe" not in l)["status"]="compliant"'
+mutate claim inventory 'l=i["links"][0]; l.pop("probe", None); l["status"]="compliant"'
 expect_fail claim 'without a probe record'
 
-mutate mtlsclaim inventory 'next(l for l in i["links"] if "probe" not in l)["mtls"]=True'
+mutate mtlsclaim inventory 'l=i["links"][0]; l.pop("probe", None); l["mtls"]=True'
 expect_fail mtlsclaim 'without a probe record'
 
 # A probe on one lane does not back a claim for the link's other lanes.

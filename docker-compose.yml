@@ -784,6 +784,7 @@ services:
       - ./certs:/etc/nginx/certs:ro
       - ${RE_INSTANCE_STATE_DIR:-${HOME}/.reality-engine}/docker/tls/manager:/etc/nginx/lane/instance:ro
       - ${RE_INSTANCE_STATE_DIR:-${HOME}/.reality-engine}/docker/tls/ca.crt:/etc/nginx/lane/ca.crt:ro
+      - ${RE_INSTANCE_STATE_DIR:-${HOME}/.reality-engine}/docker/tls/ca.crl:/etc/nginx/lane/ca.crl:ro
     depends_on:
       reality-engine:
         condition: service_healthy

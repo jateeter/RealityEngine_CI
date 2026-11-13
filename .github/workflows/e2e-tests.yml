@@ -543,6 +543,12 @@ jobs:
       - name: Lane TLS tests (lane-tls.sh, #732)
         working-directory: RealityEngine_CI
         run: bash scripts/tests/test-lane-tls.sh
+      - name: tls-proxy lane config tests (#732, #729)
+        working-directory: RealityEngine_CI
+        run: bash scripts/tests/test-tls-proxy-lane-conf.sh
+      - name: Observability OpenSSL fronts (#729)
+        working-directory: RealityEngine_CI
+        run: bash scripts/tests/test-obs-front-conf.sh
       - name: Instance registry over TLS and re_tls.py's lane path (#732)
         working-directory: RealityEngine_CI
         run: bash scripts/tests/test-registry-tls.sh
@@ -552,6 +558,12 @@ jobs:
       - name: Insecure-transport checker tests
         working-directory: RealityEngine_CI
         run: bash scripts/tests/test-insecure-transport.sh
+      - name: Transport inventory BOM is current (needs the siblings)
+        working-directory: RealityEngine_CI
+        run: python3 scripts/transport-bom.py --check
+      - name: Transport inventory BOM tests
+        working-directory: RealityEngine_CI
+        run: bash scripts/tests/test-transport-bom.sh
 
       - name: Run local-AI probe unit tests
         working-directory: RealityEngine_CI

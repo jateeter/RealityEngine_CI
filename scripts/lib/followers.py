@@ -36,6 +36,10 @@ from pathlib import Path
 from typing import Any, Iterable
 from urllib import error, request
 
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+import re_tls  # noqa: E402
+re_tls.install_lane_opener()  # the lane CA and harness certificate when RE_TLS=on (#729)
+
 FOLLOWER = "follower"
 
 # The closed set a follower's result for one stage can take.

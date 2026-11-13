@@ -39,7 +39,7 @@ RELEASE_REPOS = {
     "RealityEngine_Scala", "RealityEngine_Machines", "RealityEngine_Manager",
     "localAIStack", "localOpenClawStack",
     "OpenCommons-Health---Personal-Information-Management", "localHealthkitBridge",
-    "localAssetStorageStack",
+    "localAssetStorageStack", "RealityEngine_Rust",
 }
 REGISTRY = "ghcr.io/jateeter"
 PLATFORM = "linux/arm64"

@@ -150,7 +150,11 @@ import json, sys
 i = json.load(open(sys.argv[1]))
 for l in i["links"]:
     if l["id"] == "prometheus-scrape":
-        l["deficiency"]["probeAccepts"] = ["TLS 1.2 accepted", "a suite outside the profile accepted"]
+        l["deficiency"] = {"accepted": "owner (test)", "what": "w", "compensation": "c", "remedy": "r",
+                           "allows": {"status": "tls"},
+                           "probeAccepts": ["TLS 1.2 accepted", "a suite outside the profile accepted"]}
+    if l["id"] == "grafana-to-sources":
+        l.pop("deficiency", None)
 json.dump(i, open(sys.argv[2], "w"))
 PY
 printf '{"prometheus_url":"https://127.0.0.1:%s","prometheus_started":true}\n' "$PC" > prom-manifest.json

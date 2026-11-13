@@ -468,7 +468,7 @@ stop_ai_stack() {
       # Same default as the start path, so the two cannot drift apart.
       # Errors are no longer sent to /dev/null: the `2>/dev/null` is what
       # reduced a specific interpolation error to a bare "returned non-zero".
-      if (cd "$CI_DIR" && MACHINES_DIR="${MACHINES_DIR:-$CI_DIR/../RealityEngine_Machines}" docker compose down 2>&1); then
+      if (cd "$CI_DIR" && MACHINES_DIR="${MACHINES_DIR:-$CI_DIR/../RealityEngine_Machines}" docker compose down --remove-orphans 2>&1); then
         ok "CI compose down complete"
       else
         fail "CI compose down failed — containers may still be running"
