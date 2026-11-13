@@ -1,4 +1,4 @@
-import { createHash } from 'node:crypto';
+import { createHash, randomUUID } from 'node:crypto';
 
 // ── The synthetic action answer ──────────────────────────────────────────────
 //
@@ -397,7 +397,8 @@ export async function executeOpenClawAdapter(options) {
       dispatchId: dispatchId || null,
       envelopeId: handoff.envelopeId || null,
       correlationId: handoff.correlationId || null,
-      completionId: gateway?.body?.id || `openclaw-${isSynthetic ? 'synthetic' : 'completion'}-${Date.now()}`,
+      // Unique per completion, as the Python action path mints it (uuid4).
+      completionId: gateway?.body?.id || `openclaw-${isSynthetic ? 'synthetic' : 'completion'}-${randomUUID()}`,
       metadata: {
         adapter: 'openclaw-acp-adapter',
         model: isSynthetic ? null : model,
