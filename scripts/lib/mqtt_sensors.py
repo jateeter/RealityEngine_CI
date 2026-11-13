@@ -11,8 +11,13 @@ A PE that does not answer is reported and skipped; this is cleanup, never a
 verdict.
 """
 import json
+from pathlib import Path
 import sys
 import urllib.request
+
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+import re_tls  # noqa: E402
+re_tls.install_lane_opener()  # the lane CA and harness certificate when RE_TLS=on (#729)
 
 
 def call(method, url):

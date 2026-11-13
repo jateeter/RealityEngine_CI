@@ -192,8 +192,6 @@ def resolve(ctx: ssl.SSLContext, manifest_path: Path, integrations_path: Path,
         ("bridge-metrics-to-services", "bridge_metrics_url", "/"),
         ("mcp", "mcp_http_url", "/"),
         ("browser-to-openapi-portal", "openapi_swagger_url", "/"),
-        # Grafana's own listener, behind tls-proxy on the docker lane.
-        ("tls-proxy-to-grafana", "grafana_url", "/api/health"),
         ("grafana-to-sources", "prometheus_url", "/-/ready"),
         ("grafana-to-sources", "loki_url", "/ready"),
         ("promtail-to-loki", "loki_url", "/ready"),

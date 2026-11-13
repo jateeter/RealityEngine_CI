@@ -19,8 +19,15 @@
 # - Grafana: serves the browser over TLS 1.3 (server TLS: a user-facing port)
 #   and reaches Loki and Prometheus with its certificate.
 #
-# These are Go programs: TLS 1.3 suites cannot be restricted, so AES-128-GCM
-# stays negotiable, an accepted deficiency (owner, 2026-11-08).
+# These are Go programs, and Go's crypto/tls cannot restrict a server's TLS 1.3
+# suites. So each listens on its own container's loopback (Loki 3101, Prometheus
+# 9091, Grafana 3001), and an nginx (OpenSSL) front in the same network
+# namespace serves its public port at the profile, with a lane client
+# certificate required (Grafana's browser port 3000 aside; tls-proxy reaches
+# Grafana on 3443 with its certificate). The front reaches the service over
+# TLS 1.3 offering only the profile's suites (owner, 2026-11-12; RealityEngine_CI#729).
+# Its configuration is generated from the profile by scripts/lib/obs_front_conf.py
+# into OBS_TLS_DIR/fronts.
 
 services:
   loki:
@@ -29,8 +36,10 @@ services:
     environment:
       LOKI_TLS_CERT: /run/re-tls/service/chain.pem
       LOKI_TLS_KEY: /run/re-tls/service/key.pem
-      LOKI_TLS_CLIENT_AUTH: RequireAndVerifyClientCert
-      LOKI_TLS_CLIENT_CA: /run/re-tls/ca.crt
+      # Behind its front: loopback only; the front requires the client certificate.
+      LOKI_HTTP_ADDRESS: 127.0.0.1
+      LOKI_HTTP_PORT: "3101"
+      LOKI_TLS_CLIENT_AUTH: NoClientCert
       LOKI_TLS_MIN_VERSION: VersionTLS13
     volumes:
       - ${OBS_TLS_DIR:?set OBS_TLS_DIR to the lane TLS directory}/loki:/run/re-tls/service:ro
@@ -53,7 +62,7 @@ services:
       - --config.file=/etc/prometheus/prometheus.yml
       - --web.config.file=/etc/prometheus/web.yml
       - --storage.tsdb.retention.time=7d
-      - --web.listen-address=:9090
+      - --web.listen-address=127.0.0.1:9091
     volumes:
       - ./config/prometheus.lane.yml:/etc/prometheus/prometheus.yml:ro
       - ./config/prometheus-web.lane.yml:/etc/prometheus/web.yml:ro
@@ -70,9 +79,47 @@ services:
       GF_SERVER_CERT_KEY: /run/re-tls/service/key.pem
       GF_SERVER_MIN_TLS_VERSION: TLS1.3
       GF_SERVER_ROOT_URL: ${GRAFANA_ROOT_URL:-https://localhost:3002}
+      GF_SERVER_HTTP_ADDR: 127.0.0.1
+      GF_SERVER_HTTP_PORT: "3001"
     volumes:
       - ./config/grafana-datasources.lane.yml:/etc/grafana/provisioning/datasources/datasources.yml
       - ${OBS_TLS_DIR}/grafana:/run/re-tls/service:ro
       - ${OBS_TLS_DIR}/ca.crt:/run/re-tls/ca.crt:ro
     healthcheck:
       test: ["CMD", "curl", "-fsS", "--cacert", "/run/re-tls/ca.crt", "-o", "/dev/null", "https://localhost:3000/api/health"]
+
+  loki-front:
+    image: nginx:1.29-alpine@sha256:5616878291a2eed594aee8db4dade5878cf7edcb475e59193904b198d9b830de
+    network_mode: "service:loki"
+    depends_on:
+      - loki
+    volumes:
+      - ${OBS_TLS_DIR}/fronts/loki.conf:/etc/nginx/nginx.conf:ro
+      - ${OBS_TLS_DIR}/loki:/run/re-tls/service:ro
+      - ${OBS_TLS_DIR}/ca.crt:/run/re-tls/ca.crt:ro
+      - ${OBS_TLS_DIR}/ca.crl:/run/re-tls/ca.crl:ro
+    restart: unless-stopped
+
+  prometheus-front:
+    image: nginx:1.29-alpine@sha256:5616878291a2eed594aee8db4dade5878cf7edcb475e59193904b198d9b830de
+    network_mode: "service:prometheus"
+    depends_on:
+      - prometheus
+    volumes:
+      - ${OBS_TLS_DIR}/fronts/prometheus.conf:/etc/nginx/nginx.conf:ro
+      - ${OBS_TLS_DIR}/prometheus:/run/re-tls/service:ro
+      - ${OBS_TLS_DIR}/ca.crt:/run/re-tls/ca.crt:ro
+      - ${OBS_TLS_DIR}/ca.crl:/run/re-tls/ca.crl:ro
+    restart: unless-stopped
+
+  grafana-front:
+    image: nginx:1.29-alpine@sha256:5616878291a2eed594aee8db4dade5878cf7edcb475e59193904b198d9b830de
+    network_mode: "service:grafana"
+    depends_on:
+      - grafana
+    volumes:
+      - ${OBS_TLS_DIR}/fronts/grafana.conf:/etc/nginx/nginx.conf:ro
+      - ${OBS_TLS_DIR}/grafana:/run/re-tls/service:ro
+      - ${OBS_TLS_DIR}/ca.crt:/run/re-tls/ca.crt:ro
+      - ${OBS_TLS_DIR}/ca.crl:/run/re-tls/ca.crl:ro
+    restart: unless-stopped
