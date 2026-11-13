@@ -226,10 +226,10 @@ def resolve(ctx: ssl.SSLContext, manifest_path: Path, integrations_path: Path,
     # The asset storage stack's own service file (localAssetStorageStack
     # scripts/up.js): its CSS and dokieli serve certificates from the stack's CA,
     # named in the file, which the probe verifies them against.
-    # Only the native lane runs the stack from the workspace (startUniverse.sh
-    # --assets); a release install names its own (release_probe_endpoints.py).
+    # The dev lanes run the stack from the workspace (startUniverse.sh --assets);
+    # a release install names its own (release_probe_endpoints.py).
     assets = CI_DIR.parent / "localAssetStorageStack" / "runtime" / "registry.json"
-    if lane == "native" and assets.is_file():
+    if lane in ("native", "docker") and assets.is_file():
         stack = json.loads(assets.read_text())
         services, stack_ca = stack.get("services", {}), stack.get("ca")
 

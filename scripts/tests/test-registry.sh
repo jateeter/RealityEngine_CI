@@ -216,6 +216,11 @@ assert_eq "$(registry_live_engines)" "" "R2: nothing once it has exited"
 rm -f "$RE_REGISTRY_FILE"
 assert_eq "$(registry_live_engines)" "" "R3: nothing without an instance registry"
 
+# T-role: a follower carries role follower; a voter carries no role (owner, 2026-11-12).
+registry_add "follower-1" "rust" "http://127.0.0.1:6901" "http://127.0.0.1:6900" "" "" "" follower
+registry_add "voter-9" "cpp" "http://127.0.0.1:6391" "http://127.0.0.1:6390"
+assert_eq "$(python3 -c "import json; d={i['id']: i for i in json.load(open('$RE_REGISTRY_FILE'))['instances']}; print(d['follower-1'].get('role'), d['voter-9'].get('role'))")" "follower None" "T-role: follower role recorded, none for a voter"
+
 # ── Summary ───────────────────────────────────────────────────────────────────
 echo ""
 echo "registry: $PASS passed, $FAIL failed"

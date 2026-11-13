@@ -191,11 +191,12 @@ instance_clock_dir() {
 # in this registry already holds is refused (exit 1), never overwritten: two
 # instances sharing one would share a Lamport clock.
 registry_add() {
-    local id="$1" runtime="$2" re_url="$3" pe_url="$4" pid_re="${5:-}" pid_pe="${6:-}" instance_uuid="${7:-}"
+    # role: empty for a voter; `follower` for a conformance follower (Rust), which never votes.
+    local id="$1" runtime="$2" re_url="$3" pe_url="$4" pid_re="${5:-}" pid_pe="${6:-}" instance_uuid="${7:-}" role="${8:-}"
     _registry_init
-    python3 - "$REGISTRY_FILE" "$id" "$runtime" "$re_url" "$pe_url" "$pid_re" "$pid_pe" "$instance_uuid" <<'EOF'
+    python3 - "$REGISTRY_FILE" "$id" "$runtime" "$re_url" "$pe_url" "$pid_re" "$pid_pe" "$instance_uuid" "$role" <<'EOF'
 import json, sys, datetime
-path, iid, runtime, re_url, pe_url, pid_re, pid_pe, instance_uuid = sys.argv[1:]
+path, iid, runtime, re_url, pe_url, pid_re, pid_pe, instance_uuid, role = sys.argv[1:]
 with open(path) as f:
     reg = json.load(f)
 reg['instances'] = [i for i in reg['instances'] if i['id'] != iid]
@@ -217,6 +218,8 @@ entry = {
     'started_at': datetime.datetime.utcnow().strftime('%Y-%m-%dT%H:%M:%SZ'),
     'status': 'running'
 }
+if role:
+    entry['role'] = role
 reg['instances'].append(entry)
 with open(path, 'w') as f:
     json.dump(reg, f, indent=2)

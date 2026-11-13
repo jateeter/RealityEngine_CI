@@ -500,6 +500,90 @@ services:
       retries: 18
       start_period: 30s
 
+  engine-rust-re:
+    <<: *engine-common
+    build:
+      context: ../RealityEngine_Rust
+      dockerfile: ../RealityEngine_CI/docker/rust/Dockerfile
+    container_name: re-engine-rust-re
+    # The Rust engine, a conformance follower: registered with role follower,
+    # never a vote (owner, 2026-11-12; RealityEngine_CI#607).
+    environment:
+      <<: *engine-re-env
+      REALITY_ENGINE_PORT: "3000"
+    command: ["/app/bin/reality-engine"]
+    env_file:
+      - path: ${RE_INSTANCE_STATE_DIR:-${HOME}/.reality-engine}/docker/rust-1.env
+        required: false
+      - path: ${RE_INSTANCE_STATE_DIR:-${HOME}/.reality-engine}/docker/rust-1.tls.env
+        required: false
+    volumes:
+      - ${MACHINE_CORPUS_DIR:-${MACHINES_DIR:?MACHINES_DIR must be set — run via startUniverse.sh}}/machines:/app/machines:ro
+      - ${MACHINE_CORPUS_DIR:-${MACHINES_DIR:?MACHINES_DIR must be set — run via startUniverse.sh}}/semantics:/app/semantics:ro
+      - ${RE_INSTANCE_STATE_DIR:-${HOME}/.reality-engine}/clock-docker:/var/lib/reality-engine/clock
+      - ${RE_INSTANCE_STATE_DIR:-${HOME}/.reality-engine}/docker/tls/rust-1:/run/re-tls/instance:ro
+      - ${RE_INSTANCE_STATE_DIR:-${HOME}/.reality-engine}/docker/tls/ca.crt:/run/re-tls/ca.crt:ro
+      - ${RE_INSTANCE_STATE_DIR:-${HOME}/.reality-engine}/docker/tls/ca.crl:/run/re-tls/ca.crl:ro
+    ports:
+      - "6901:3000"
+    healthcheck:
+      test: ["CMD-SHELL", "if [ -n \"$$RE_TLS_CERT\" ]; then wget -qO- --ca-certificate=\"$$RE_TLS_CA\" --certificate=\"$$RE_TLS_CERT\" --private-key=\"$$RE_TLS_KEY\" https://127.0.0.1:3000/api/health; else wget -qO- http://127.0.0.1:3000/api/health; fi"]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+      start_period: 10s
+
+  engine-rust-pe:
+    <<: *engine-common
+    build:
+      context: ../RealityEngine_Rust
+      dockerfile: ../RealityEngine_CI/docker/rust/Dockerfile
+    container_name: re-engine-rust-pe
+    environment:
+      - MQTT_CLIENT_ID=re-pe-docker-rust-1
+      - MACHINES_DIR=/app/machines
+      - VECTOR_DIMENSION=${VECTOR_DIMENSION:-7680}
+      - PERCEPTION_ENGINE_PORT=3004
+      - RE_URL=${RE_LANE_SCHEME:-http}://engine-rust-re:3000
+      - LOCAL_AI_API_URL=${RE_LANE_SCHEME:-http}://host.docker.internal:4000
+      - LOCAL_AI_MACHINES_DIR=/app/localai-machines
+      - INTEGRATIONS_CONFIG=/app/config/integrations.json
+      - ACP_ENABLED
+      - ACP_PLATFORM
+      - ACP_SURFACE
+      - ACP_GATEWAY_URL
+      - OPENCLAW_GATEWAY_URL
+      - ACP_SESSION_KEY
+      - OPENCLAW_ACP_SESSION
+      - ACP_TARGET_AGENT
+      - ACP_COMPLETION_SOURCE_MAPPING_ID
+      - HEALTHKIT_BRIDGE_TOKEN
+      - TRIGGERS_ENABLED
+      - TRIGGER_DISPATCH_MODE
+      - TRIGGER_GRAPHQL_URL
+    command: ["/app/bin/perception-engine"]
+    env_file:
+      - path: ${RE_INSTANCE_STATE_DIR:-${HOME}/.reality-engine}/docker/rust-1.tls.env
+        required: false
+    volumes:
+      - ${MACHINE_CORPUS_DIR:-${MACHINES_DIR:?MACHINES_DIR must be set — run via startUniverse.sh}}/machines:/app/machines:ro
+      - ./config:/app/config:ro
+      - ../localAIStack/data/machines:/app/localai-machines:ro
+      - ${RE_INSTANCE_STATE_DIR:-${HOME}/.reality-engine}/docker/tls/rust-1:/run/re-tls/instance:ro
+      - ${RE_INSTANCE_STATE_DIR:-${HOME}/.reality-engine}/docker/tls/ca.crt:/run/re-tls/ca.crt:ro
+      - ${RE_INSTANCE_STATE_DIR:-${HOME}/.reality-engine}/docker/tls/ca.crl:/run/re-tls/ca.crl:ro
+    ports:
+      - "6900:3004"
+    depends_on:
+      engine-rust-re:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "if [ -n \"$$RE_TLS_CERT\" ]; then wget -qO- --ca-certificate=\"$$RE_TLS_CA\" --certificate=\"$$RE_TLS_CERT\" --private-key=\"$$RE_TLS_KEY\" https://127.0.0.1:3004/api/health; else wget -qO- http://127.0.0.1:3004/api/health; fi"]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+      start_period: 10s
+
   # Visualizer Backend (Node.js/Express) - accessed via TLS proxy at https://localhost:3001
   # Source: ../RealityEngine_Manager/visualizer/backend
   visualizer-backend:
@@ -551,6 +635,11 @@ services:
       # legacy certs/ pair (lane_tls_docker_manager).
       - path: ${RE_INSTANCE_STATE_DIR:-${HOME}/.reality-engine}/docker/manager.tls.env
         required: false
+      # --assets (owner, 2026-11-12): workflow instantiation against the asset
+      # stack's lifecycle; startUniverse.sh writes it, and joins this container
+      # to the stack's network so `lifecycle` resolves. Absent otherwise.
+      - path: ${RE_INSTANCE_STATE_DIR:-${HOME}/.reality-engine}/docker/manager.assets.env
+        required: false
     depends_on:
       reality-engine:
         condition: service_healthy
@@ -561,6 +650,7 @@ services:
       - reality-network
     volumes:
       - ./certs:/etc/certs:ro
+      - ${RE_INSTANCE_STATE_DIR:-${HOME}/.reality-engine}/docker/assets:/run/assets:ro
       - ${FULL_MACHINES_DIR:-${MACHINES_DIR:?MACHINES_DIR must be set — run via startUniverse.sh}}/machines:/app/corpus/machines:ro
       # localAIStack's own machines, which bounded corpora list as an extra
       # source root; offered in the catalog's corpus/ branch.
