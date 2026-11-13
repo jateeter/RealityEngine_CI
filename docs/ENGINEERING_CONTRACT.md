@@ -272,8 +272,9 @@ here, on purpose, and this section will say so.
 ### The one exception: RealityEngine_Rust validates itself (owner decision, 2026-10-30)
 
 `RealityEngine_Rust` is the one repository that carries its own self-contained
-validation workflow, and the full regression suite runs on it **much less
-often** than on the three voting engines. It is not in the focus set above. The
+validation workflow. Since release-v0.0.2 ships Rust (owner, 2026-11-13), the
+full regression suite also runs it, as a non-voting follower, in every native
+local run (R3). It is not in the focus set above. The
 tiers, their cadence and what each one proves are
 [`RUST_VALIDATION_WORKFLOW.md`](RUST_VALIDATION_WORKFLOW.md); the exception is
 bounded here so it cannot drift into the general case:
