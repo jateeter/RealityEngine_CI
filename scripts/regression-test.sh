@@ -2101,7 +2101,10 @@ run_mcp() {
   step "MCP open service"
   local ci
   ci="$(repo_root RealityEngine_CI)"
-  run_cmd "mcp-smoke" node "$ci/scripts/regression-mcp-smoke.mjs" \
+  # Under RE_TLS=on the smoke presents the harness certificate (laneFetch).
+  local lane_env=()
+  [ "${RE_TLS:-off}" = on ] && lane_env=(RE_TLS_CERT="$RE_HARNESS_TLS_CERT" RE_TLS_KEY="$RE_HARNESS_TLS_KEY" RE_TLS_CA="$RE_HARNESS_TLS_CA")
+  run_cmd "mcp-smoke" env ${lane_env[@]+"${lane_env[@]}"} node "$ci/scripts/regression-mcp-smoke.mjs" \
     --mcp-url "$MCP_URL" \
     --registry "$REGISTRY_FILE" \
     --manifest "$ci/mcp/manifest.json" \

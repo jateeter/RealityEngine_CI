@@ -3,6 +3,10 @@
 
 import { readFile, writeFile, mkdir } from 'node:fs/promises';
 import { dirname } from 'node:path';
+// The lane's TLS (#668): with RE_TLS_CERT set, calls to the MCP gateway and the
+// PEs go over the lane's mTLS with that certificate, trusting the lane CA alone;
+// off the lane laneFetch is the global fetch.
+import { laneFetch } from '../mcp/src/lane-tls.js';
 
 const DEFAULT_MANIFEST = 'mcp/manifest.json';
 const DEFAULT_OPENAI_PROFILE = 'mcp/openai-mcp-profile.json';
@@ -144,7 +148,7 @@ async function fetchWithTimeout(url, options, timeoutMs) {
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), timeoutMs);
   try {
-    const response = await fetch(url, { ...options, signal: controller.signal });
+    const response = await laneFetch(url, { ...options, signal: controller.signal });
     const text = await response.text();
     return {
       ok: response.ok,
