@@ -324,7 +324,7 @@
           "services": [
             {
               "service": "tls-proxy",
-              "image": "ghcr.io/jateeter/mirror/library/nginx:1.29-alpine@sha256:5616878291a2eed594aee8db4dade5878cf7edcb475e59193904b198d9b830de"
+              "image": "ghcr.io/jateeter/mirror/nginx:1.29-alpine@sha256:5616878291a2eed594aee8db4dade5878cf7edcb475e59193904b198d9b830de"
             }
           ]
         }
@@ -534,7 +534,7 @@
           "services": [
             {
               "service": "redis",
-              "image": "ghcr.io/jateeter/mirror/library/redis:7.4-alpine@sha256:858f009f9709ce576febc734aa78b8f6d624b82571f9ddb6bda4377c833b3499"
+              "image": "ghcr.io/jateeter/mirror/redis:7.4-alpine@sha256:858f009f9709ce576febc734aa78b8f6d624b82571f9ddb6bda4377c833b3499"
             }
           ]
         }
