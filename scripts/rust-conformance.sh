@@ -307,6 +307,7 @@ PY
   # (no route creates a test source with its interned sequence) and is named.
   python3 - "$OUT/universe-registry.json" "$RUST_PE_URL" "$OUT/localai-reconcile.json" <<'PY' ||
 import json, sys, urllib.request
+import re_tls; re_tls.install_lane_opener()
 registry, pe_url, report = sys.argv[1:]
 def localai(pe):
     sources = json.load(urllib.request.urlopen(pe + "/api/sources", timeout=30))["sources"]
