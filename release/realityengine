@@ -809,7 +809,7 @@ status() {
   say "Installed: $(sed -n 's/.*"version": *"\([^"]*\)".*/\1/p' "$DIR/release.json" | head -1), engines $(sed -n 's/.*"engines": *"\([^"]*\)".*/\1/p' "$DIR/release.json" | head -1)"
   compose ps -a --format 'table {{.Service}}\t{{.Status}}\t{{.Ports}}'
   if pid="$(gateway_pid)"; then
-    s=http; [ "${RE_TLS:-off}" = on ] && s=https
+    s=http; [ "$(sed -n 's/^RE_TLS=//p' "$DIR/.env" 2>/dev/null | tail -1)" = on ] && s=https
     ok "OpenClaw gateway: LaunchAgent $GATEWAY_LABEL, pid $pid, $s://127.0.0.1:${RE_PORT_OPENCLAW:-18789} (log $DIR/openclaw/logs/gateway.log)"
   else
     warn "OpenClaw gateway: LaunchAgent $GATEWAY_LABEL is not running. Start it with: $PROG up"

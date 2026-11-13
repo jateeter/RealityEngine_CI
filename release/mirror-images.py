@@ -60,7 +60,13 @@ def push() -> int:
     for i in catalog():
         target = i["mirror"].split("@")[0]
         want = i["mirror"].split("@")[1]
-        subprocess.run(["docker", "buildx", "imagetools", "create", "--tag", target, i["source"]], check=True)
+        # GHCR has refused a blob commit transiently ("denied"); a retry copies it.
+        for attempt in range(3):
+            if subprocess.run(["docker", "buildx", "imagetools", "create", "--tag", target, i["source"]]).returncode == 0:
+                break
+            print(f"retrying {target} ({attempt + 1})", file=sys.stderr)
+        else:
+            raise SystemExit(f"could not copy {i['source']} to {target}")
         out = subprocess.run(["docker", "buildx", "imagetools", "inspect", target], check=True,
                              capture_output=True, text=True).stdout
         got = re.search(r"^Digest:\s+(\S+)", out, flags=re.M)
