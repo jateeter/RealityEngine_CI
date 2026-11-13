@@ -60,12 +60,16 @@ import sys
 OPT = pathlib.Path(os.environ.get("REINIT_OPT", "/opt"))
 RELEASE = OPT / "release"          # compose.yml and release config templates
 CI = OPT / "ci"                    # RealityEngine_CI files the install needs
+ASSETS = OPT / "assets"            # localAssetStorageStack: its provisioning scripts and CSS config
 OCS = OPT / "ocs"                  # localOpenClawStack at the release commit
 
-RUNTIMES = ("scala", "cpp", "lsp")
+RUNTIMES = ("scala", "cpp", "lsp", "rust")
+# Conformance followers (RealityEngine_CI#607): in the install and its instance
+# registry with `role: follower`, never a vote (owner, 2026-11-12).
+FOLLOWERS = {"rust"}
 # Host port bands, PE then RE, a stride of 10 per instance: up to 20 instances of
 # a type without overlap, and nothing near what macOS holds (5000, 7000).
-BAND = {"scala": 6100, "cpp": 6300, "lsp": 6600}
+BAND = {"scala": 6100, "cpp": 6300, "lsp": 6600, "rust": 6900}
 STRIDE = 10
 MAX_PER_RUNTIME = 20
 RE_PORT, PE_PORT = 3000, 3004          # inside every engine container
@@ -81,7 +85,14 @@ HOST_PORTS = {
     "GRAFANA": 3002, "PROMETHEUS": 9090, "QDRANT": 4333,
     # The browser sidecar's CDP, for the native gateway: loopback only (#592).
     "BROWSER_CDP": 9222,
+    # The asset storage stack's lifecycle API (localAssetStorageStack). Its CSS
+    # and dokieli are on ASSETS_FIXED_PORTS, never moved: a pod's URL holds it.
+    "LIFECYCLE": 13445,
 }
+# localAssetStorageStack ROADMAP D7: https://assets-css.localhost:13443/ and
+# https://assets-dokieli.localhost:13444/, the same inside and outside.
+ASSETS_FIXED_PORTS = {"assets-css": 13443, "assets-dokieli": 13444}
+ASSETS_CSS_IMAGE = "solidproject/community-server:7.3.0@sha256:58073541889f0cd113dc482b4ddbb834bcd39463dc077d49fd1cf9f55337c4b6"
 # The OpenClaw gateway runs on the Mac (#592); containers reach it here.
 GATEWAY_HOST = "host.docker.internal"
 
@@ -89,7 +100,7 @@ GATEWAY_HOST = "host.docker.internal"
 def gateway_port() -> int:
     return int(os.environ.get("RE_PORT_OPENCLAW", HOST_PORTS["OPENCLAW"]))
 
-SPEC_RE = re.compile(r"^(scala|cpp|lsp):([0-9]+)$")
+SPEC_RE = re.compile(r"^(scala|cpp|lsp|rust):([0-9]+)$")
 
 
 # ── helpers ──────────────────────────────────────────────────────────────────
@@ -117,15 +128,15 @@ def parse_spec(spec: str) -> list[tuple[str, int]]:
     for part in [p.strip() for p in spec.split(",") if p.strip()]:
         m = SPEC_RE.match(part)
         if not m:
-            raise SystemExit(f"bad engine spec {part!r}: expected <scala|cpp|lsp>:<count>")
+            raise SystemExit(f"bad engine spec {part!r}: expected <scala|cpp|lsp|rust>:<count>")
         rt, n = m.group(1), int(m.group(2))
         if rt in counts:
             raise SystemExit(f"{rt} is listed twice in {spec!r}")
         if not 0 <= n <= MAX_PER_RUNTIME:
             raise SystemExit(f"{rt}:{n}: between 0 and {MAX_PER_RUNTIME} instances per engine type")
         counts[rt] = n
-    if not any(counts.values()):
-        raise SystemExit("the engine spec starts no instance")
+    if not any(n for rt, n in counts.items() if rt not in FOLLOWERS):
+        raise SystemExit("the engine spec starts no voting instance")
     return [(rt, counts.get(rt, 0)) for rt in RUNTIMES if counts.get(rt, 0)]
 
 
@@ -266,6 +277,12 @@ def engine_services(insts: list[dict], tls: bool = False) -> dict:
             pe_svc_def["command"] = ["perception"]
             pe_env["PERCEPTION_ENGINE_PORT"] = str(PE_PORT)
             pe_env["REALITY_ENGINE_URL"] = re_url
+        elif rt == "rust":
+            # One image, both binaries (RealityEngine_CI docker/rust/Dockerfile).
+            re_svc_def["command"] = ["/app/bin/reality-engine"]
+            re_svc_def["environment"]["REALITY_ENGINE_PORT"] = str(RE_PORT)
+            pe_svc_def["command"] = ["/app/bin/perception-engine"]
+            pe_env.update({"PERCEPTION_ENGINE_PORT": str(PE_PORT), "RE_URL": re_url})
         else:  # scala
             re_svc_def["environment"]["PORT"] = str(RE_PORT)
             re_svc_def["environment"]["JAVA_TOOL_OPTIONS"] = "${ENGINE_SCALA_RE_JAVA_OPTS:--Xmx3g}"
@@ -330,7 +347,8 @@ def registries(insts: list[dict], ip: str, ports: dict[str, int], tls: bool = Fa
         # native instance registry reads this one unchanged.
         return {"id": inst["id"], "runtime": inst["runtime"], "re_url": re_url, "pe_url": pe_url,
                 "re_port": re_port, "pe_port": pe_port, "pid_re": None, "pid_pe": None,
-                "instance_uuid": inst["instance_uuid"], "started_at": started, "status": "running"}
+                "instance_uuid": inst["instance_uuid"], "started_at": started, "status": "running",
+                **({"role": "follower"} if inst["runtime"] in FOLLOWERS else {})}
 
     # The `services` block is the native instance registry's contract
     # (scripts/registry.sh registry_set_service; startUniverse.sh publishes
@@ -458,6 +476,11 @@ def pki(install: pathlib.Path, insts: list[dict], ip: str) -> None:
             (oc / link).unlink()
         (oc / link).symlink_to(target)
     run("issue", "re-mcp", "--kind", "both", "--dns", "localhost", "--dns", "mcp", "--dns", GATEWAY_HOST, *ip_args)
+    # The asset storage stack, named as its scripts/up.js issues them.
+    run("issue", "assets-css", "--kind", "both", "--dns", "assets-css.localhost", "--dns", "assets-css", "--ip", "127.0.0.1")
+    run("issue", "assets-dokieli", "--kind", "server", "--dns", "assets-dokieli.localhost", "--dns", "assets-dokieli",
+        "--ip", "127.0.0.1")
+    run("issue", "lifecycle", "--kind", "both", "--dns", "lifecycle", "--dns", "localhost", "--ip", "127.0.0.1")
     run("crl")
     log("issued the install's lane certificates (pki/)")
 
@@ -695,6 +718,10 @@ def secrets_env(install: pathlib.Path) -> dict[str, str]:
         "GRAFANA_ADMIN_PASSWORD": lambda: secrets.token_urlsafe(18),
         "CSS_ACCOUNT_EMAIL": lambda: "owner@realityengine.local",
         "CSS_ACCOUNT_PASSWORD": lambda: secrets.token_urlsafe(18),
+        # The lifecycle API's service tokens (localAssetStorageStack: 32 bytes or more).
+        "ASSETS_ADMIN_TOKEN": lambda: secrets.token_urlsafe(33),
+        "ASSETS_REGISTRAR_TOKEN": lambda: secrets.token_urlsafe(33),
+        "ASSETS_ENGINE_TOKEN": lambda: secrets.token_urlsafe(33),
     }
     changed = False
     for k, make in want.items():
@@ -843,6 +870,102 @@ def configure_openclaw(install: pathlib.Path, sec: dict[str, str], tls: bool = F
         f"home {host_home}")
 
 
+def assets_files(install: pathlib.Path, ports: dict[str, int]) -> None:
+    """localAssetStorageStack's provisioning scripts, the lifecycle sources they
+    import, and CSS's config, into <install>/assets; and the stack's own service
+    file, runtime/registry.json, as its scripts/up.js writes it."""
+    root = install / "assets"
+    for sub in ("scripts", "lifecycle/src", "css"):
+        (root / sub).mkdir(parents=True, exist_ok=True)
+    for name in ("accounts.js", "grant-assets.js"):
+        shutil.copyfile(ASSETS / "scripts" / name, root / "scripts" / name)
+    for f in (ASSETS / "lifecycle" / "src").glob("*.js"):
+        shutil.copyfile(f, root / "lifecycle" / "src" / f.name)
+    shutil.copyfile(ASSETS / "css" / "config.json", root / "css" / "config.json")
+    write(root / "package.json", '{"type": "module"}\n')
+    write_json(root / "runtime" / "registry.json", {
+        "schemaVersion": 2,
+        "updatedAt": datetime.datetime.now(datetime.timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ"),
+        "ca": "/pki/ca.crt",
+        "services": {
+            "assets-css": {"internalUrl": "https://assets-css.localhost:13443/", "externalUrl": "https://assets-css.localhost:13443/"},
+            "assets-dokieli": {"internalUrl": "https://assets-dokieli.localhost:13444/",
+                               "externalUrl": "https://assets-dokieli.localhost:13444/"},
+            "lifecycle": {"internalUrl": "https://lifecycle:8443/", "externalUrl": f"https://localhost:{ports['LIFECYCLE']}/"},
+        }})
+
+
+def assets_services(ports: dict[str, int]) -> dict:
+    """The asset storage stack (localAssetStorageStack's docker-compose.yml) in
+    the install (owner, 2026-11-12): assets-css (Solid Community Server, its
+    pinned upstream image), assets-dokieli and the lifecycle API (release images
+    re-dokieli and re-lifecycle), each on the install's PKI, TLS 1.3 only.
+    Accounts are provisioned before `up` by the CLI (accounts.js, as up.js
+    does); assets-grant gives the lifecycle service access to each person's
+    assets/ container once CSS is up (grant-assets.js)."""
+    hardening = {"cap_drop": ["ALL"], "security_opt": ["no-new-privileges:true"], "restart": "unless-stopped"}
+    labels = {"org.realityengine.stack": "localassetstoragestack"}
+    pki = lambda name: [f"./pki/issued/{name}:/pki/self:ro", "./pki/ca/ca.crt:/pki/ca.crt:ro"]
+    css_health = ("require('https').get({host:'127.0.0.1',port:13443,path:'/',servername:'assets-css.localhost',"
+                  "minVersion:'TLSv1.3'},r=>process.exit(r.statusCode<500?0:1)).on('error',()=>process.exit(1))")
+    return {
+        "assets-css": {
+            **hardening, "labels": labels, "image": ASSETS_CSS_IMAGE,
+            "command": ["-c", "/config/config.json", "-f", "/data", "-b", "https://assets-css.localhost:13443/",
+                        "-p", "13443", "--httpsKey", "/pki/self/key.pem", "--httpsCert", "/pki/self/chain.pem",
+                        "--seedConfig", "/run/secrets/assets-css-seed"],
+            "environment": {"NODE_OPTIONS": "--tls-min-v1.3 --tls-cipher-list=TLS_AES_256_GCM_SHA384:TLS_CHACHA20_POLY1305_SHA256",
+                            "NODE_EXTRA_CA_CERTS": "/pki/ca.crt"},
+            "volumes": ["assets-css-data:/data", "./assets/css/config.json:/config/config.json:ro", *pki("assets-css")],
+            "secrets": ["assets-css-seed"],
+            "ports": [f"127.0.0.1:{ASSETS_FIXED_PORTS['assets-css']}:13443"],
+            "networks": {"realityengine": {"aliases": ["assets-css.localhost"]}},
+            "healthcheck": {"test": ["CMD", "node", "-e", css_health], "interval": "10s", "timeout": "5s",
+                            "retries": 12, "start_period": "20s"}},
+        "assets-dokieli": {
+            **hardening, "labels": labels, "image": "${RE_IMAGE_DOKIELI}", "read_only": True, "tmpfs": ["/tmp"],
+            "volumes": pki("assets-dokieli"),
+            "ports": [f"127.0.0.1:{ASSETS_FIXED_PORTS['assets-dokieli']}:13444"],
+            "networks": {"realityengine": {"aliases": ["assets-dokieli.localhost"]}}},
+        "lifecycle": {
+            **hardening, "labels": labels, "image": "${RE_IMAGE_LIFECYCLE}", "read_only": True,
+            "environment": {
+                "ADMIN_TOKEN": "${ASSETS_ADMIN_TOKEN}", "REGISTRAR_TOKEN": "${ASSETS_REGISTRAR_TOKEN}",
+                "ENGINE_TOKEN": "${ASSETS_ENGINE_TOKEN}", "CSS_ORIGIN": "https://assets-css.localhost:13443",
+                "REGISTRY_FILE": "/registry/registry.json", "ROLES_FILE": "/registry/roles.json",
+                # The install's instance registry, for continuation rule 7; the
+                # lifecycle presents its certificate to it and to the PEs.
+                "RE_REGISTRY_URL": "https://registry:8000/re-registry.internal.json",
+                "SERVICE_ACCOUNT_FILE": "/run/secrets/assets-lifecycle-account",
+                "TLS_KEY_FILE": "/pki/self/key.pem", "TLS_CERT_FILE": "/pki/self/chain.pem",
+                "NODE_EXTRA_CA_CERTS": "/pki/ca.crt"},
+            "volumes": ["assets-lifecycle-data:/data", "./assets/runtime:/registry:ro", *pki("lifecycle")],
+            "secrets": ["assets-lifecycle-account"],
+            "ports": [f"127.0.0.1:{ports['LIFECYCLE']}:8443"],
+            "networks": ["realityengine"],
+            "depends_on": {"assets-css": {"condition": "service_healthy"}}},
+        # One-shot: each person's assets/ container and inbox ACLs, the profile's
+        # pim:storage (grant-assets.js; idempotent, so every `up` runs it).
+        "assets-grant": {
+            "image": "${RE_IMAGE_LIFECYCLE}", "restart": "no", "user": "0:0",
+            "working_dir": "/opt/lass",
+            "command": ["node", "--dns-result-order=ipv4first", "/opt/lass/scripts/grant-assets.js"],
+            "environment": {"NODE_EXTRA_CA_CERTS": "/pki/ca.crt"},
+            # .secrets read-write: grant-assets.js keeps each person's client
+            # credentials there (lifecycle/src/identity.js provision).
+            "volumes": ["./assets:/opt/lass:ro", "./assets/.secrets:/opt/lass/.secrets",
+                        "./pki/ca/ca.crt:/pki/ca.crt:ro"],
+            "networks": ["realityengine"],
+            "depends_on": {"assets-css": {"condition": "service_healthy"}}},
+        # Manager's workflow instantiation runs each step against the lifecycle.
+        "visualizer-backend": {
+            "environment": {"INSTANTIATION_ENABLED": "true", "LIFECYCLE_URL": "https://lifecycle:8443/",
+                            "LIFECYCLE_ENGINE_TOKEN_FILE": "/run/assets/engine-token"},
+            "volumes": ["./state/lifecycle-engine-token:/run/assets/engine-token:ro"],
+            "depends_on": {"lifecycle": {"condition": "service_healthy"}}},
+    }
+
+
 def copy_config(install: pathlib.Path) -> None:
     cfg = install / "config"
     (cfg / "grafana").mkdir(parents=True, exist_ok=True)
@@ -881,7 +1004,14 @@ def cmd_configure(args) -> int:
           "# Generated by re-init from the engine spec " + args.engines + ". Do not edit:\n"
           "# `realityengine up --engines=...` regenerates it.\n"
           + yaml_dump({"services": engine_services(insts, tls)}) + "\n")
-    compose_files = ["compose.yml", "compose.engines.yml"]
+    compose_files = ["compose.yml", "compose.engines.yml", "compose.assets.yml"]
+    assets_files(install, ports)
+    write(install / "compose.assets.yml",
+          "# Generated by re-init: the asset storage stack (localAssetStorageStack). Do not edit.\n"
+          + yaml_dump({"services": assets_services(ports),
+                       "secrets": {"assets-css-seed": {"file": "./assets/.secrets/css-seed.json"},
+                                   "assets-lifecycle-account": {"file": "./assets/.secrets/lifecycle-account.json"}},
+                       "volumes": {"assets-css-data": {}, "assets-lifecycle-data": {}}}) + "\n")
     tls_overlay = install / "compose.tls.yml"
     if tls:
         # The services this release has on the lane so far (#729): the instance
@@ -942,10 +1072,15 @@ def cmd_configure(args) -> int:
     re_t, pe_t = file_sd(insts)
     write_json(install / "config" / "file_sd" / "reality-engine-targets.json", re_t)
     write_json(install / "config" / "file_sd" / "perception-engine-targets.json", pe_t)
-    write_json(install / "config" / "integrations.json", integrations(tls))
+    write_json(install / "config" / "integrations.json", {
+        **integrations(tls),
+        "assetStorage": {"lifecycleUrl": "https://lifecycle:8443/", "cssUrl": "https://assets-css.localhost:13443/",
+                         "dokieliUrl": "https://assets-dokieli.localhost:13444/"}})
     certificates(install, ip)
 
     sec = secrets_env(install)
+    # Manager's copy of the lifecycle's engine token, mounted read-only.
+    write(install / "state" / "lifecycle-engine-token", sec["ASSETS_ENGINE_TOKEN"], 0o600)
     if not args.skip_openclaw:
         configure_openclaw(install, sec, tls)
 

@@ -145,7 +145,7 @@ def endpoint(url: str, path: str = "/") -> dict[str, Any] | None:
 
 
 def resolve(ctx: ssl.SSLContext, manifest_path: Path, integrations_path: Path,
-            manager: tuple[str, ...]) -> dict[str, list[dict[str, Any]]]:
+            manager: tuple[str, ...], lane: str = "native") -> dict[str, list[dict[str, Any]]]:
     """Link id -> the listeners that serve it on this lane."""
     targets: dict[str, list[dict[str, Any]]] = {}
 
@@ -226,8 +226,10 @@ def resolve(ctx: ssl.SSLContext, manifest_path: Path, integrations_path: Path,
     # The asset storage stack's own service file (localAssetStorageStack
     # scripts/up.js): its CSS and dokieli serve certificates from the stack's CA,
     # named in the file, which the probe verifies them against.
+    # Only the native lane runs the stack from the workspace (startUniverse.sh
+    # --assets); a release install names its own (release_probe_endpoints.py).
     assets = CI_DIR.parent / "localAssetStorageStack" / "runtime" / "registry.json"
-    if assets.is_file():
+    if lane == "native" and assets.is_file():
         stack = json.loads(assets.read_text())
         services, stack_ca = stack.get("services", {}), stack.get("ca")
 
@@ -534,7 +536,8 @@ def main() -> int:
     targets: dict[str, list[dict[str, Any]]] = {}
     if not (args.only_endpoints or args.external_only):
         targets = resolve(tls_context(material), Path(args.manifest), Path(args.integrations),
-                          (args.manager_backend, args.manager_frontend, args.manager_ts_pe, args.proxy_grafana))
+                          (args.manager_backend, args.manager_frontend, args.manager_ts_pe, args.proxy_grafana),
+                          args.lane)
     if args.endpoints:
         for lid, eps in json.loads(Path(args.endpoints).read_text()).items():
             for e in eps:

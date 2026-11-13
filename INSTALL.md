@@ -18,12 +18,21 @@ from source instead, see `QUICKSTART.md` and `DOCKER_QUICKSTART.md`.
 One command starts the whole suite. Most of it runs in Docker:
 
 - **Engines:** C++, Common Lisp and Scala Reality Engines and Perception
-  Engines, as many instances of each as you choose.
+  Engines, as many instances of each as you choose, and the Rust engine
+  (`rust-1`), a conformance follower: it runs beside the others and never
+  votes. Leave it out with `--engines cpp:1,lsp:1,scala:1`.
 - **Manager:** the Visualizer.
 - **The instance registry:** which engines are running and where.
 - **localAIStack:** local AI and RAG, with Qdrant and Redis.
 - **Open WebUI**, and OpenClaw's browser sidecar.
 - **PIM and a Solid server:** the authoritative store of your health data.
+- **Asset storage:** dokieli for authoring and annotating documents
+  (https://assets-dokieli.localhost:13444/), their Solid pods
+  (https://assets-css.localhost:13443/) and the lifecycle API that runs their
+  approval workflows with Manager. Two accounts are made at install,
+  `author` and `reviewer` (set `ASSETS_PEOPLE` to choose others); their
+  passwords are in `~/.realityengine/assets/.secrets/accounts.json`. Ports
+  13443 and 13444 are fixed: a pod's address includes its port.
 - **MCP.**
 - **Monitoring:** Prometheus, Loki and Grafana, with an exporter for the OpenClaw gateway, localAI, Qdrant and Ollama health.
 

@@ -156,7 +156,8 @@
         "localOpenClawStack"
       ],
       "build_contexts": {
-        "ocs": "localOpenClawStack"
+        "ocs": "localOpenClawStack",
+        "assets": "localAssetStorageStack"
       }
     },
     {

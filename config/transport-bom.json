@@ -717,7 +717,13 @@
           "planned": "--assets in the docker lane (RealityEngine_CI#729)"
         },
         "release": {
-          "planned": "asset storage in the release (RealityEngine_CI#715, #729)"
+          "services": [
+            {
+              "service": "ASSETS_CSS_IMAGE",
+              "image": "solidproject/community-server:7.3.0@sha256:58073541889f0cd113dc482b4ddbb834bcd39463dc077d49fd1cf9f55337c4b6"
+            }
+          ],
+          "from": "RealityEngine_CI/release/init/reinit.py ASSETS_CSS_IMAGE"
         }
       }
     },
@@ -1488,7 +1494,6 @@
   ],
   "planned": [
     "assets-css (docker): --assets in the docker lane (RealityEngine_CI#729)",
-    "assets-css (release): asset storage in the release (RealityEngine_CI#715, #729)",
     "assets-dokieli (docker): --assets in the docker lane (RealityEngine_CI#729)",
     "lifecycle (docker): --assets in the docker lane (RealityEngine_CI#729)",
     "manager-ts-pe (release): no release image yet",

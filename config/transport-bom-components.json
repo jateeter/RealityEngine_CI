@@ -576,7 +576,7 @@
           "planned": "--assets in the docker lane (RealityEngine_CI#729)"
         },
         "release": {
-          "planned": "asset storage in the release (RealityEngine_CI#715, #729)"
+          "constant": "RealityEngine_CI/release/init/reinit.py ASSETS_CSS_IMAGE"
         }
       },
       "links": [

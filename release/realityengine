@@ -1,7 +1,7 @@
 #!/bin/bash
 # realityengine — install and run the RealityEngine suite from its release images.
 #
-#   realityengine install [--version release-v0.0.1] [--engines cpp:1,lsp:1,scala:1]
+#   realityengine install [--version release-v0.0.1] [--engines cpp:1,lsp:1,scala:1,rust:1]
 #   realityengine up      [--engines SPEC]     re-configure for a spec and start
 #   realityengine down                         stop (data is kept)
 #   realityengine status                       what is installed and running
@@ -99,7 +99,7 @@ if [ -f "$CONF" ]; then
   [ "$LOCAL" = true ] || LOCAL="${CONF_LOCAL:-false}"
   REGISTRY="${CONF_REGISTRY:-$REGISTRY}"
 fi
-ENGINES="${ENGINES:-cpp:1,lsp:1,scala:1}"
+ENGINES="${ENGINES:-cpp:1,lsp:1,scala:1,rust:1}"
 
 # From the install directory: COMPOSE_FILE in its .env is relative, and compose
 # resolves it against the working directory.
@@ -552,7 +552,7 @@ check_ports() {
            "${RE_PORT_OPENCLAW:-18789}" "${RE_PORT_WEBUI:-8080}" "${RE_PORT_PIM:-8090}" \
            "${RE_PORT_CSS:-13000}" "${RE_PORT_MCP:-7331}" "${RE_PORT_REGISTRY:-5999}" \
            "${RE_PORT_GRAFANA:-3002}" "${RE_PORT_PROMETHEUS:-9090}" "${RE_PORT_QDRANT:-4333}" \
-           "${RE_PORT_BROWSER_CDP:-9222}"; do
+           "${RE_PORT_BROWSER_CDP:-9222}" 13443 13444 "${RE_PORT_LIFECYCLE:-13445}"; do
     # The gateway's port is held by its own LaunchAgent between an `up` and the next.
     if [ "$p" = "${RE_PORT_OPENCLAW:-18789}" ] && gateway_pid >/dev/null; then
       [ "$(lsof -nP -tiTCP:"$p" -sTCP:LISTEN 2>/dev/null | head -1)" = "$(gateway_pid)" ] && continue
@@ -641,7 +641,25 @@ configure() {
   [ -z "$tls" ] && [ -f "$DIR/.env" ] && tls="$(sed -n 's/^RE_TLS=//p' "$DIR/.env" | tail -1)"
   set -- "$@" --tls "${tls:-on}"
   "$@"
+  provision_assets
   save_conf
+}
+
+provision_assets() {
+  # The asset storage stack's accounts (localAssetStorageStack scripts/accounts.js,
+  # as its up.js runs it): the lifecycle service and ASSETS_PEOPLE, each with a
+  # pod, generated once and kept in assets/.secrets (0600). Before `up`, because
+  # compose reads the CSS seed and the service account as secrets.
+  local img
+  img="$(sed -n 's/^RE_IMAGE_LIFECYCLE=//p' "$DIR/.env")"
+  [ -n "$img" ] || die "The install names no RE_IMAGE_LIFECYCLE."
+  docker run --rm --user "$(id -u):$(id -g)" -v "$DIR/assets:/opt/lass" -e "ASSETS_PEOPLE=${ASSETS_PEOPLE:-}" \
+    --entrypoint node "$img" -e "import('/opt/lass/scripts/accounts.js').then((m) => {
+      const r = m.provisionAccounts({ secretsDir: '/opt/lass/.secrets', runtimeDir: '/opt/lass/runtime',
+        peopleSpec: process.env.ASSETS_PEOPLE });
+      console.log('asset storage accounts: ' + ['lifecycle', ...Object.keys(r.people)].join(', ')
+        + (r.added.length ? ' (new: ' + r.added.join(', ') + ')' : ''));
+    })" || die "Provisioning the asset storage accounts failed."
 }
 
 pull_images() {
@@ -722,6 +740,8 @@ urls() {
   PIM                    $s://localhost:${RE_PORT_PIM}
   Grafana                $s://localhost:${RE_PORT_GRAFANA}  (admin)
   MCP                    $s://localhost:${RE_PORT_MCP}
+  Asset storage          https://assets-dokieli.localhost:13444/  (pods https://assets-css.localhost:13443/,
+                         accounts in $DIR/assets/.secrets/accounts.json)
 
   Engines ($RE_ENGINES): see '$PROG status'. Passwords: $DIR/state/secrets.json
   Trust the local CA so browsers accept https://localhost: $PROG trust-ca
@@ -733,7 +753,8 @@ status() {
   say "Installed: $(sed -n 's/.*"version": *"\([^"]*\)".*/\1/p' "$DIR/release.json" | head -1), engines $(sed -n 's/.*"engines": *"\([^"]*\)".*/\1/p' "$DIR/release.json" | head -1)"
   compose ps -a --format 'table {{.Service}}\t{{.Status}}\t{{.Ports}}'
   if pid="$(gateway_pid)"; then
-    ok "OpenClaw gateway: LaunchAgent $GATEWAY_LABEL, pid $pid, http://127.0.0.1:${RE_PORT_OPENCLAW:-18789} (log $DIR/openclaw/logs/gateway.log)"
+    s=http; [ "${RE_TLS:-off}" = on ] && s=https
+    ok "OpenClaw gateway: LaunchAgent $GATEWAY_LABEL, pid $pid, $s://127.0.0.1:${RE_PORT_OPENCLAW:-18789} (log $DIR/openclaw/logs/gateway.log)"
   else
     warn "OpenClaw gateway: LaunchAgent $GATEWAY_LABEL is not running. Start it with: $PROG up"
   fi
