@@ -46,8 +46,10 @@ echo "transport inventory"
 
 if python3 "$CHECK" >/dev/null 2>&1; then ok "committed profile and inventory pass"; else bad "committed profile and inventory pass"; fi
 
+# Every link compliant since 2026-11-13 (gaps 1-7 of #770): the committed
+# inventory passes the gate. The mutations below keep it from passing anything.
 out=$(python3 "$CHECK" --require-compliant 2>&1)
-if [[ $? -ne 0 && "$out" == *"release gate FAILS"* ]]; then ok "release gate fails while links are not compliant"; else bad "release gate: $out"; fi
+if [[ $? -eq 0 && "$out" == *"release gate passes"* ]]; then ok "the committed inventory passes the release gate"; else bad "release gate: $out"; fi
 
 mutate tls12 profile 'd["tls"]["versions"]=["TLSv1.2","TLSv1.3"]'
 expect_fail tls12 'tls.versions must be exactly'

@@ -245,6 +245,8 @@ def engine_services(insts: list[dict], tls: bool = False) -> dict:
             "ACP_COMPLETION_SOURCE_MAPPING_ID": "acp-openclaw-completion",
             "OPENCLAW_GATEWAY_TOKEN": "${OPENCLAW_GATEWAY_TOKEN}",
             "HEALTHKIT_BRIDGE_TOKEN": "${HEALTHKIT_BRIDGE_TOKEN}",
+            # The device-route sources that must present a lane certificate (owner, 2026-11-12).
+            "HEALTHKIT_CLIENT_CERTIFICATE_REQUIRED": "${HEALTHKIT_CLIENT_CERTIFICATE_REQUIRED-pim}",
             "TRIGGERS_ENABLED": "true", "TRIGGER_DISPATCH_MODE": "dry-run",
             # Ollama runs natively, for the Apple GPU (A6); every PE runtime
             # defaults to localhost, which inside a container is the container.
@@ -908,6 +910,7 @@ def ts_pe_services(tls: bool) -> dict:
                         "INTEGRATIONS_CONFIG": "/app/config/integrations.json",
                         "SEMANTICS_MANIFEST": "/app/corpus/semantics/abox-manifest.json",
                         "HEALTHKIT_BRIDGE_TOKEN": "${HEALTHKIT_BRIDGE_TOKEN}",
+                        "HEALTHKIT_CLIENT_CERTIFICATE_REQUIRED": "${HEALTHKIT_CLIENT_CERTIFICATE_REQUIRED-pim}",
                         "TRIGGERS_ENABLED": "true", "TRIGGER_DISPATCH_MODE": "dry-run"},
         "volumes": ["corpus-boot:/app/corpus:ro", "./config/integrations.json:/app/config/integrations.json:ro"],
         "depends_on": {"ts-pe-re": {"condition": "service_healthy", "restart": True}}}

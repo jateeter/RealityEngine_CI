@@ -21,8 +21,8 @@
       "probe": {
         "native": {
           "profileId": "re-transport-2026.11",
-          "at": "2026-11-13T04:57:02Z",
-          "run": "probe-native-20261112c",
+          "at": "2026-11-13T17:23:02Z",
+          "run": "gap5-native-20261113",
           "verdict": "compliant",
           "mtls": true,
           "endpoints": [
@@ -40,8 +40,8 @@
         },
         "docker": {
           "profileId": "re-transport-2026.11",
-          "at": "2026-11-13T16:48:30Z",
-          "run": "docker-rust-assets-20261113",
+          "at": "2026-11-13T17:17:58Z",
+          "run": "gap5-docker-20261113",
           "verdict": "compliant",
           "mtls": true,
           "endpoints": [
@@ -96,8 +96,8 @@
       "probe": {
         "native": {
           "profileId": "re-transport-2026.11",
-          "at": "2026-11-13T04:57:02Z",
-          "run": "probe-native-20261112c",
+          "at": "2026-11-13T17:23:02Z",
+          "run": "gap5-native-20261113",
           "verdict": "compliant",
           "mtls": true,
           "endpoints": [
@@ -115,8 +115,8 @@
         },
         "docker": {
           "profileId": "re-transport-2026.11",
-          "at": "2026-11-13T16:48:30Z",
-          "run": "docker-rust-assets-20261113",
+          "at": "2026-11-13T17:17:58Z",
+          "run": "gap5-docker-20261113",
           "verdict": "compliant",
           "mtls": true,
           "endpoints": [
@@ -170,8 +170,8 @@
       "probe": {
         "native": {
           "profileId": "re-transport-2026.11",
-          "at": "2026-11-13T04:57:02Z",
-          "run": "probe-native-20261112c",
+          "at": "2026-11-13T17:23:02Z",
+          "run": "gap5-native-20261113",
           "verdict": "compliant",
           "mtls": true,
           "endpoints": [
@@ -189,8 +189,8 @@
         },
         "docker": {
           "profileId": "re-transport-2026.11",
-          "at": "2026-11-13T16:48:30Z",
-          "run": "docker-rust-assets-20261113",
+          "at": "2026-11-13T17:17:58Z",
+          "run": "gap5-docker-20261113",
           "verdict": "compliant",
           "mtls": true,
           "endpoints": [
@@ -245,8 +245,8 @@
       "probe": {
         "native": {
           "profileId": "re-transport-2026.11",
-          "at": "2026-11-13T04:57:02Z",
-          "run": "probe-native-20261112c",
+          "at": "2026-11-13T17:23:02Z",
+          "run": "gap5-native-20261113",
           "verdict": "compliant",
           "mtls": true,
           "endpoints": [
@@ -264,8 +264,8 @@
         },
         "docker": {
           "profileId": "re-transport-2026.11",
-          "at": "2026-11-13T16:48:30Z",
-          "run": "docker-rust-assets-20261113",
+          "at": "2026-11-13T17:17:58Z",
+          "run": "gap5-docker-20261113",
           "verdict": "compliant",
           "mtls": true,
           "endpoints": [
@@ -320,8 +320,8 @@
       "probe": {
         "native": {
           "profileId": "re-transport-2026.11",
-          "at": "2026-11-13T04:57:02Z",
-          "run": "probe-native-20261112c",
+          "at": "2026-11-13T17:23:02Z",
+          "run": "gap5-native-20261113",
           "verdict": "compliant",
           "mtls": true,
           "endpoints": [
@@ -339,8 +339,8 @@
         },
         "docker": {
           "profileId": "re-transport-2026.11",
-          "at": "2026-11-13T16:48:30Z",
-          "run": "docker-rust-assets-20261113",
+          "at": "2026-11-13T17:17:58Z",
+          "run": "gap5-docker-20261113",
           "verdict": "compliant",
           "mtls": true,
           "endpoints": [
@@ -394,8 +394,8 @@
       "probe": {
         "native": {
           "profileId": "re-transport-2026.11",
-          "at": "2026-11-13T04:57:02Z",
-          "run": "probe-native-20261112c",
+          "at": "2026-11-13T17:23:02Z",
+          "run": "gap5-native-20261113",
           "verdict": "compliant",
           "mtls": true,
           "endpoints": [
@@ -413,8 +413,8 @@
         },
         "docker": {
           "profileId": "re-transport-2026.11",
-          "at": "2026-11-13T16:48:30Z",
-          "run": "docker-rust-assets-20261113",
+          "at": "2026-11-13T17:17:58Z",
+          "run": "gap5-docker-20261113",
           "verdict": "compliant",
           "mtls": true,
           "endpoints": [
@@ -469,8 +469,8 @@
       "probe": {
         "native": {
           "profileId": "re-transport-2026.11",
-          "at": "2026-11-13T04:57:02Z",
-          "run": "probe-native-20261112c",
+          "at": "2026-11-13T17:23:02Z",
+          "run": "gap5-native-20261113",
           "verdict": "compliant",
           "mtls": true,
           "endpoints": [
@@ -488,8 +488,8 @@
         },
         "docker": {
           "profileId": "re-transport-2026.11",
-          "at": "2026-11-13T16:48:30Z",
-          "run": "docker-rust-assets-20261113",
+          "at": "2026-11-13T17:17:58Z",
+          "run": "gap5-docker-20261113",
           "verdict": "compliant",
           "mtls": true,
           "endpoints": [
@@ -544,8 +544,8 @@
       "probe": {
         "native": {
           "profileId": "re-transport-2026.11",
-          "at": "2026-11-13T04:57:02Z",
-          "run": "probe-native-20261112c",
+          "at": "2026-11-13T17:23:02Z",
+          "run": "gap5-native-20261113",
           "verdict": "compliant",
           "mtls": true,
           "endpoints": [
@@ -563,8 +563,8 @@
         },
         "docker": {
           "profileId": "re-transport-2026.11",
-          "at": "2026-11-13T16:48:30Z",
-          "run": "docker-rust-assets-20261113",
+          "at": "2026-11-13T17:17:58Z",
+          "run": "gap5-docker-20261113",
           "verdict": "compliant",
           "mtls": true,
           "endpoints": [
@@ -618,8 +618,8 @@
       "probe": {
         "native": {
           "profileId": "re-transport-2026.11",
-          "at": "2026-11-13T04:57:02Z",
-          "run": "probe-native-20261112c",
+          "at": "2026-11-13T17:23:02Z",
+          "run": "gap5-native-20261113",
           "verdict": "compliant",
           "mtls": true,
           "endpoints": [
@@ -637,8 +637,8 @@
         },
         "docker": {
           "profileId": "re-transport-2026.11",
-          "at": "2026-11-13T16:48:30Z",
-          "run": "docker-rust-assets-20261113",
+          "at": "2026-11-13T17:17:58Z",
+          "run": "gap5-docker-20261113",
           "verdict": "compliant",
           "mtls": true,
           "endpoints": [
@@ -751,8 +751,8 @@
         },
         "docker": {
           "profileId": "re-transport-2026.11",
-          "at": "2026-11-13T16:48:30Z",
-          "run": "docker-rust-assets-20261113",
+          "at": "2026-11-13T17:17:58Z",
+          "run": "gap5-docker-20261113",
           "verdict": "compliant",
           "mtls": true,
           "endpoints": [
@@ -797,8 +797,8 @@
       "probe": {
         "docker": {
           "profileId": "re-transport-2026.11",
-          "at": "2026-11-13T16:48:30Z",
-          "run": "docker-rust-assets-20261113",
+          "at": "2026-11-13T17:17:58Z",
+          "run": "gap5-docker-20261113",
           "verdict": "compliant",
           "mtls": true,
           "endpoints": [
@@ -854,8 +854,8 @@
       "probe": {
         "native": {
           "profileId": "re-transport-2026.11",
-          "at": "2026-11-13T04:57:02Z",
-          "run": "probe-native-20261112c",
+          "at": "2026-11-13T17:23:02Z",
+          "run": "gap5-native-20261113",
           "verdict": "compliant",
           "mtls": false,
           "endpoints": [
@@ -873,8 +873,8 @@
         },
         "docker": {
           "profileId": "re-transport-2026.11",
-          "at": "2026-11-13T16:48:30Z",
-          "run": "docker-rust-assets-20261113",
+          "at": "2026-11-13T17:17:58Z",
+          "run": "gap5-docker-20261113",
           "verdict": "compliant",
           "mtls": false,
           "endpoints": [
@@ -929,8 +929,8 @@
       "probe": {
         "native": {
           "profileId": "re-transport-2026.11",
-          "at": "2026-11-13T04:57:02Z",
-          "run": "probe-native-20261112c",
+          "at": "2026-11-13T17:23:02Z",
+          "run": "gap5-native-20261113",
           "verdict": "compliant",
           "mtls": false,
           "endpoints": [
@@ -948,8 +948,8 @@
         },
         "docker": {
           "profileId": "re-transport-2026.11",
-          "at": "2026-11-13T16:48:30Z",
-          "run": "docker-rust-assets-20261113",
+          "at": "2026-11-13T17:17:58Z",
+          "run": "gap5-docker-20261113",
           "verdict": "compliant",
           "mtls": false,
           "endpoints": [
@@ -1074,8 +1074,8 @@
         },
         "native": {
           "profileId": "re-transport-2026.11",
-          "at": "2026-11-13T04:57:02Z",
-          "run": "probe-native-20261112c",
+          "at": "2026-11-13T17:23:02Z",
+          "run": "gap5-native-20261113",
           "verdict": "compliant",
           "mtls": true,
           "endpoints": [
@@ -1143,8 +1143,8 @@
         },
         "docker": {
           "profileId": "re-transport-2026.11",
-          "at": "2026-11-13T16:48:30Z",
-          "run": "docker-rust-assets-20261113",
+          "at": "2026-11-13T17:17:58Z",
+          "run": "gap5-docker-20261113",
           "verdict": "compliant",
           "mtls": true,
           "endpoints": [
@@ -1285,8 +1285,8 @@
       "probe": {
         "native": {
           "profileId": "re-transport-2026.11",
-          "at": "2026-11-13T04:57:02Z",
-          "run": "probe-native-20261112c",
+          "at": "2026-11-13T17:23:02Z",
+          "run": "gap5-native-20261113",
           "verdict": "compliant",
           "mtls": true,
           "endpoints": [
@@ -1304,8 +1304,8 @@
         },
         "docker": {
           "profileId": "re-transport-2026.11",
-          "at": "2026-11-13T16:48:30Z",
-          "run": "docker-rust-assets-20261113",
+          "at": "2026-11-13T17:17:58Z",
+          "run": "gap5-docker-20261113",
           "verdict": "compliant",
           "mtls": true,
           "endpoints": [
@@ -1360,8 +1360,8 @@
       "probe": {
         "native": {
           "profileId": "re-transport-2026.11",
-          "at": "2026-11-13T04:57:02Z",
-          "run": "probe-native-20261112c",
+          "at": "2026-11-13T17:23:02Z",
+          "run": "gap5-native-20261113",
           "verdict": "compliant",
           "mtls": true,
           "endpoints": [
@@ -1379,8 +1379,8 @@
         },
         "docker": {
           "profileId": "re-transport-2026.11",
-          "at": "2026-11-13T16:48:30Z",
-          "run": "docker-rust-assets-20261113",
+          "at": "2026-11-13T17:17:58Z",
+          "run": "gap5-docker-20261113",
           "verdict": "compliant",
           "mtls": true,
           "endpoints": [
@@ -1434,8 +1434,8 @@
       "probe": {
         "native": {
           "profileId": "re-transport-2026.11",
-          "at": "2026-11-13T04:57:02Z",
-          "run": "probe-native-20261112c",
+          "at": "2026-11-13T17:23:02Z",
+          "run": "gap5-native-20261113",
           "verdict": "compliant",
           "mtls": false,
           "endpoints": [
@@ -1540,8 +1540,8 @@
         },
         "native": {
           "profileId": "re-transport-2026.11",
-          "at": "2026-11-13T04:57:02Z",
-          "run": "probe-native-20261112c",
+          "at": "2026-11-13T17:23:02Z",
+          "run": "gap5-native-20261113",
           "verdict": "compliant",
           "mtls": true,
           "endpoints": [
@@ -1609,8 +1609,8 @@
         },
         "docker": {
           "profileId": "re-transport-2026.11",
-          "at": "2026-11-13T16:48:30Z",
-          "run": "docker-rust-assets-20261113",
+          "at": "2026-11-13T17:17:58Z",
+          "run": "gap5-docker-20261113",
           "verdict": "compliant",
           "mtls": true,
           "endpoints": [
@@ -1715,8 +1715,8 @@
         },
         "native": {
           "profileId": "re-transport-2026.11",
-          "at": "2026-11-13T04:57:02Z",
-          "run": "probe-native-20261112c",
+          "at": "2026-11-13T17:23:02Z",
+          "run": "gap5-native-20261113",
           "verdict": "compliant",
           "mtls": true,
           "endpoints": [
@@ -1734,8 +1734,8 @@
         },
         "docker": {
           "profileId": "re-transport-2026.11",
-          "at": "2026-11-13T16:48:30Z",
-          "run": "docker-rust-assets-20261113",
+          "at": "2026-11-13T17:17:58Z",
+          "run": "gap5-docker-20261113",
           "verdict": "compliant",
           "mtls": true,
           "endpoints": [
@@ -1803,8 +1803,8 @@
         },
         "native": {
           "profileId": "re-transport-2026.11",
-          "at": "2026-11-13T04:57:02Z",
-          "run": "probe-native-20261112c",
+          "at": "2026-11-13T17:23:02Z",
+          "run": "gap5-native-20261113",
           "verdict": "tls",
           "mtls": true,
           "endpoints": [
@@ -1822,8 +1822,8 @@
         },
         "docker": {
           "profileId": "re-transport-2026.11",
-          "at": "2026-11-13T16:48:30Z",
-          "run": "docker-rust-assets-20261113",
+          "at": "2026-11-13T17:17:58Z",
+          "run": "gap5-docker-20261113",
           "verdict": "tls",
           "mtls": true,
           "endpoints": [
@@ -1878,8 +1878,8 @@
         },
         "native": {
           "profileId": "re-transport-2026.11",
-          "at": "2026-11-13T04:57:02Z",
-          "run": "probe-native-20261112c",
+          "at": "2026-11-13T17:23:02Z",
+          "run": "gap5-native-20261113",
           "verdict": "compliant",
           "mtls": true,
           "endpoints": [
@@ -1897,8 +1897,8 @@
         },
         "docker": {
           "profileId": "re-transport-2026.11",
-          "at": "2026-11-13T16:48:30Z",
-          "run": "docker-rust-assets-20261113",
+          "at": "2026-11-13T17:17:58Z",
+          "run": "gap5-docker-20261113",
           "verdict": "compliant",
           "mtls": true,
           "endpoints": [
@@ -1934,8 +1934,8 @@
       "probe": {
         "native": {
           "profileId": "re-transport-2026.11",
-          "at": "2026-11-13T04:57:02Z",
-          "run": "probe-native-20261112c",
+          "at": "2026-11-13T17:23:02Z",
+          "run": "gap5-native-20261113",
           "verdict": "compliant",
           "mtls": true,
           "endpoints": [
@@ -1953,8 +1953,8 @@
         },
         "docker": {
           "profileId": "re-transport-2026.11",
-          "at": "2026-11-13T16:48:30Z",
-          "run": "docker-rust-assets-20261113",
+          "at": "2026-11-13T17:17:58Z",
+          "run": "gap5-docker-20261113",
           "verdict": "compliant",
           "mtls": true,
           "endpoints": [
@@ -2082,8 +2082,8 @@
         },
         "native": {
           "profileId": "re-transport-2026.11",
-          "at": "2026-11-13T04:57:02Z",
-          "run": "probe-native-20261112c",
+          "at": "2026-11-13T17:23:02Z",
+          "run": "gap5-native-20261113",
           "verdict": "compliant",
           "mtls": false,
           "endpoints": [
@@ -2101,8 +2101,8 @@
         },
         "docker": {
           "profileId": "re-transport-2026.11",
-          "at": "2026-11-13T16:48:30Z",
-          "run": "docker-rust-assets-20261113",
+          "at": "2026-11-13T17:17:58Z",
+          "run": "gap5-docker-20261113",
           "verdict": "compliant",
           "mtls": false,
           "endpoints": [
@@ -2166,8 +2166,8 @@
         },
         "native": {
           "profileId": "re-transport-2026.11",
-          "at": "2026-11-13T04:57:02Z",
-          "run": "probe-native-20261112c",
+          "at": "2026-11-13T17:23:02Z",
+          "run": "gap5-native-20261113",
           "verdict": "compliant",
           "mtls": false,
           "endpoints": [
@@ -2185,8 +2185,8 @@
         },
         "docker": {
           "profileId": "re-transport-2026.11",
-          "at": "2026-11-13T16:48:30Z",
-          "run": "docker-rust-assets-20261113",
+          "at": "2026-11-13T17:17:58Z",
+          "run": "gap5-docker-20261113",
           "verdict": "compliant",
           "mtls": false,
           "endpoints": [
@@ -2269,8 +2269,8 @@
       "probe": {
         "native": {
           "profileId": "re-transport-2026.11",
-          "at": "2026-11-13T04:57:02Z",
-          "run": "probe-native-20261112c",
+          "at": "2026-11-13T17:23:02Z",
+          "run": "gap5-native-20261113",
           "verdict": "compliant",
           "mtls": true,
           "endpoints": [
@@ -2402,8 +2402,8 @@
       "probe": {
         "native": {
           "profileId": "re-transport-2026.11",
-          "at": "2026-11-13T04:57:02Z",
-          "run": "probe-native-20261112c",
+          "at": "2026-11-13T17:23:02Z",
+          "run": "gap5-native-20261113",
           "verdict": "compliant",
           "mtls": false,
           "endpoints": [
@@ -2440,8 +2440,8 @@
         },
         "docker": {
           "profileId": "re-transport-2026.11",
-          "at": "2026-11-13T16:48:30Z",
-          "run": "docker-rust-assets-20261113",
+          "at": "2026-11-13T17:17:58Z",
+          "run": "gap5-docker-20261113",
           "verdict": "compliant",
           "mtls": false,
           "endpoints": [
@@ -2562,8 +2562,8 @@
       "probe": {
         "native": {
           "profileId": "re-transport-2026.11",
-          "at": "2026-11-13T04:57:02Z",
-          "run": "probe-native-20261112c",
+          "at": "2026-11-13T17:23:02Z",
+          "run": "gap5-native-20261113",
           "verdict": "compliant",
           "mtls": false,
           "endpoints": [
@@ -2600,8 +2600,8 @@
         },
         "docker": {
           "profileId": "re-transport-2026.11",
-          "at": "2026-11-13T16:48:30Z",
-          "run": "docker-rust-assets-20261113",
+          "at": "2026-11-13T17:17:58Z",
+          "run": "gap5-docker-20261113",
           "verdict": "compliant",
           "mtls": false,
           "endpoints": [
@@ -2638,8 +2638,8 @@
       "probe": {
         "native": {
           "profileId": "re-transport-2026.11",
-          "at": "2026-11-13T04:57:02Z",
-          "run": "probe-native-20261112c",
+          "at": "2026-11-13T17:23:02Z",
+          "run": "gap5-native-20261113",
           "verdict": "compliant",
           "mtls": false,
           "endpoints": [
@@ -2676,8 +2676,8 @@
         },
         "docker": {
           "profileId": "re-transport-2026.11",
-          "at": "2026-11-13T16:48:30Z",
-          "run": "docker-rust-assets-20261113",
+          "at": "2026-11-13T17:17:58Z",
+          "run": "gap5-docker-20261113",
           "verdict": "compliant",
           "mtls": false,
           "endpoints": [
@@ -2722,8 +2722,8 @@
       "probe": {
         "native": {
           "profileId": "re-transport-2026.11",
-          "at": "2026-11-13T04:57:02Z",
-          "run": "probe-native-20261112c",
+          "at": "2026-11-13T17:23:02Z",
+          "run": "gap5-native-20261113",
           "verdict": "compliant",
           "mtls": false,
           "endpoints": [
@@ -2760,8 +2760,8 @@
         },
         "docker": {
           "profileId": "re-transport-2026.11",
-          "at": "2026-11-13T16:48:30Z",
-          "run": "docker-rust-assets-20261113",
+          "at": "2026-11-13T17:17:58Z",
+          "run": "gap5-docker-20261113",
           "verdict": "compliant",
           "mtls": false,
           "endpoints": [
@@ -2802,8 +2802,8 @@
       "probe": {
         "native": {
           "profileId": "re-transport-2026.11",
-          "at": "2026-11-13T04:57:02Z",
-          "run": "probe-native-20261112c",
+          "at": "2026-11-13T17:23:02Z",
+          "run": "gap5-native-20261113",
           "verdict": "compliant",
           "mtls": false,
           "endpoints": [
@@ -2840,8 +2840,8 @@
         },
         "docker": {
           "profileId": "re-transport-2026.11",
-          "at": "2026-11-13T16:48:30Z",
-          "run": "docker-rust-assets-20261113",
+          "at": "2026-11-13T17:17:58Z",
+          "run": "gap5-docker-20261113",
           "verdict": "compliant",
           "mtls": false,
           "endpoints": [
@@ -2877,8 +2877,8 @@
       "probe": {
         "native": {
           "profileId": "re-transport-2026.11",
-          "at": "2026-11-13T04:57:02Z",
-          "run": "probe-native-20261112c",
+          "at": "2026-11-13T17:23:02Z",
+          "run": "gap5-native-20261113",
           "verdict": "compliant",
           "mtls": true,
           "endpoints": [
@@ -2916,8 +2916,8 @@
         },
         "docker": {
           "profileId": "re-transport-2026.11",
-          "at": "2026-11-13T16:48:30Z",
-          "run": "docker-rust-assets-20261113",
+          "at": "2026-11-13T17:17:58Z",
+          "run": "gap5-docker-20261113",
           "verdict": "compliant",
           "mtls": true,
           "endpoints": [
@@ -3011,8 +3011,8 @@
       "probe": {
         "native": {
           "profileId": "re-transport-2026.11",
-          "at": "2026-11-13T04:57:02Z",
-          "run": "probe-native-20261112c",
+          "at": "2026-11-13T17:23:02Z",
+          "run": "gap5-native-20261113",
           "verdict": "compliant",
           "mtls": false,
           "endpoints": [
@@ -3175,8 +3175,8 @@
         },
         "native": {
           "profileId": "re-transport-2026.11",
-          "at": "2026-11-13T04:57:02Z",
-          "run": "probe-native-20261112c",
+          "at": "2026-11-13T17:23:02Z",
+          "run": "gap5-native-20261113",
           "verdict": "compliant",
           "mtls": true,
           "endpoints": [
@@ -3194,8 +3194,8 @@
         },
         "docker": {
           "profileId": "re-transport-2026.11",
-          "at": "2026-11-13T16:48:30Z",
-          "run": "docker-rust-assets-20261113",
+          "at": "2026-11-13T17:17:58Z",
+          "run": "gap5-docker-20261113",
           "verdict": "compliant",
           "mtls": true,
           "endpoints": [
@@ -3231,8 +3231,8 @@
       "probe": {
         "native": {
           "profileId": "re-transport-2026.11",
-          "at": "2026-11-13T04:57:02Z",
-          "run": "probe-native-20261112c",
+          "at": "2026-11-13T17:23:02Z",
+          "run": "gap5-native-20261113",
           "verdict": "compliant",
           "mtls": true,
           "endpoints": [
@@ -3250,8 +3250,8 @@
         },
         "docker": {
           "profileId": "re-transport-2026.11",
-          "at": "2026-11-13T16:48:30Z",
-          "run": "docker-rust-assets-20261113",
+          "at": "2026-11-13T17:17:58Z",
+          "run": "gap5-docker-20261113",
           "verdict": "compliant",
           "mtls": true,
           "endpoints": [
@@ -3304,8 +3304,8 @@
       "probe": {
         "native": {
           "profileId": "re-transport-2026.11",
-          "at": "2026-11-13T04:57:02Z",
-          "run": "probe-native-20261112c",
+          "at": "2026-11-13T17:23:02Z",
+          "run": "gap5-native-20261113",
           "verdict": "compliant",
           "mtls": true,
           "endpoints": [
@@ -3370,8 +3370,8 @@
         },
         "native": {
           "profileId": "re-transport-2026.11",
-          "at": "2026-11-13T04:57:02Z",
-          "run": "probe-native-20261112c",
+          "at": "2026-11-13T17:23:02Z",
+          "run": "gap5-native-20261113",
           "verdict": "compliant",
           "mtls": true,
           "endpoints": [
@@ -3399,8 +3399,8 @@
         },
         "docker": {
           "profileId": "re-transport-2026.11",
-          "at": "2026-11-13T16:48:30Z",
-          "run": "docker-rust-assets-20261113",
+          "at": "2026-11-13T17:17:58Z",
+          "run": "gap5-docker-20261113",
           "verdict": "compliant",
           "mtls": true,
           "endpoints": [
@@ -3667,8 +3667,8 @@
       "probe": {
         "native": {
           "profileId": "re-transport-2026.11",
-          "at": "2026-11-13T04:57:02Z",
-          "run": "probe-native-20261112c",
+          "at": "2026-11-13T17:23:02Z",
+          "run": "gap5-native-20261113",
           "verdict": "compliant",
           "mtls": true,
           "endpoints": [
@@ -3686,8 +3686,8 @@
         },
         "docker": {
           "profileId": "re-transport-2026.11",
-          "at": "2026-11-13T16:48:30Z",
-          "run": "docker-rust-assets-20261113",
+          "at": "2026-11-13T17:17:58Z",
+          "run": "gap5-docker-20261113",
           "verdict": "compliant",
           "mtls": true,
           "endpoints": [
@@ -3798,8 +3798,8 @@
       "probe": {
         "docker": {
           "profileId": "re-transport-2026.11",
-          "at": "2026-11-13T16:48:30Z",
-          "run": "docker-rust-assets-20261113",
+          "at": "2026-11-13T17:17:58Z",
+          "run": "gap5-docker-20261113",
           "verdict": "compliant",
           "mtls": false,
           "endpoints": [
@@ -3854,8 +3854,8 @@
       "probe": {
         "native": {
           "profileId": "re-transport-2026.11",
-          "at": "2026-11-13T04:57:02Z",
-          "run": "probe-native-20261112c",
+          "at": "2026-11-13T17:23:02Z",
+          "run": "gap5-native-20261113",
           "verdict": "compliant",
           "mtls": false,
           "endpoints": [
@@ -3997,8 +3997,8 @@
       "probe": {
         "native": {
           "profileId": "re-transport-2026.11",
-          "at": "2026-11-13T04:57:02Z",
-          "run": "probe-native-20261112c",
+          "at": "2026-11-13T17:23:02Z",
+          "run": "gap5-native-20261113",
           "verdict": "plaintext",
           "mtls": false,
           "endpoints": [
@@ -4016,8 +4016,8 @@
         },
         "docker": {
           "profileId": "re-transport-2026.11",
-          "at": "2026-11-13T16:48:30Z",
-          "run": "docker-rust-assets-20261113",
+          "at": "2026-11-13T17:17:58Z",
+          "run": "gap5-docker-20261113",
           "verdict": "plaintext",
           "mtls": false,
           "endpoints": [
@@ -4065,42 +4065,42 @@
       "owner": "OpenCommons-Health---Personal-Information-Management",
       "issue": "OpenCommons-Health---Personal-Information-Management#86",
       "status": "compliant",
-      "mtls": false,
-      "note": "On the lane PIM refuses a plaintext internal scope URL at startup, trusts the install CA alone and presents its lane certificate; the PE serves the scope route as a device route and verifies any certificate presented (docs/TRANSPORT_SECURITY.md), and the call carries HEALTHKIT_PE_TOKEN. mtls stays false until the probe (#728) records it.",
+      "mtls": true,
+      "note": "On the lane PIM refuses a plaintext internal scope URL at startup, trusts the install CA alone and presents its lane certificate; the PE serves the scope route as a device route and verifies any certificate presented (docs/TRANSPORT_SECURITY.md), and the call carries HEALTHKIT_PE_TOKEN. mtls stays false until the probe (#728) records it. Since 2026-11-12 (owner) the client certificate is the source's to require: every PE requires one of PIM on the device routes (HEALTHKIT_CLIENT_CERTIFICATE_REQUIRED=pim), while the iPhone's bridge keeps server TLS and its token; the probe asks as PIM.",
       "probe": {
         "native": {
           "profileId": "re-transport-2026.11",
-          "at": "2026-11-13T04:57:02Z",
-          "run": "probe-native-20261112c",
+          "at": "2026-11-13T17:23:02Z",
+          "run": "gap5-native-20261113",
           "verdict": "compliant",
-          "mtls": false,
+          "mtls": true,
           "endpoints": [
             {
-              "path": "/api/integrations/healthkit/scope",
+              "path": "/api/integrations/healthkit/status?bridgeId=pim",
               "version": "TLSv1.3",
               "cipher": "TLS_AES_256_GCM_SHA384",
               "group": "X25519MLKEM768",
-              "mtls": "none",
+              "mtls": "http",
               "tls12": "refused",
               "nonProfileSuite": "refused",
               "plaintext": "refused"
             },
             {
-              "path": "/api/integrations/healthkit/scope",
+              "path": "/api/integrations/healthkit/status?bridgeId=pim",
               "version": "TLSv1.3",
               "cipher": "TLS_AES_256_GCM_SHA384",
               "group": "X25519MLKEM768",
-              "mtls": "none",
+              "mtls": "http",
               "tls12": "refused",
               "nonProfileSuite": "refused",
               "plaintext": "refused"
             },
             {
-              "path": "/api/integrations/healthkit/scope",
+              "path": "/api/integrations/healthkit/status?bridgeId=pim",
               "version": "TLSv1.3",
               "cipher": "TLS_AES_256_GCM_SHA384",
               "group": "X25519",
-              "mtls": "none",
+              "mtls": "http",
               "tls12": "refused",
               "nonProfileSuite": "refused",
               "plaintext": "refused"

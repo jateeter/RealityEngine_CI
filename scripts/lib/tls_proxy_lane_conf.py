@@ -64,6 +64,10 @@ def ts_pe_client_certificates(text: str) -> str:
     device = (f"\n        location {DEVICE_ROUTES} {{\n"
               f"            proxy_pass         {upstream.group(1)};\n"
               "            proxy_ssl_name     perception-engine-backend;\n"
+              # The caller's own certificate, as verified here: the TypeScript
+              # PE requires one of some sources (HEALTHKIT_CLIENT_CERTIFICATE_REQUIRED),
+              # and the proxy's own certificate on this hop must not stand in for it.
+              "            proxy_set_header   X-Client-Certificate $ssl_client_verify;\n"
               "            proxy_http_version 1.1;\n"
               "            proxy_set_header   Host              $host;\n"
               "            proxy_set_header   X-Forwarded-For   $proxy_add_x_forwarded_for;\n"
