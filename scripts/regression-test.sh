@@ -91,9 +91,15 @@ MQTT_BROKER_URL="${MQTT_BROKER_URL:-}"
 # still the explicit opt-out.
 YUMA_MQTT_BROKER_URL="mqtt://yuma.lateraledge.cloud:1883"
 MQTT_MAPPINGS="${MQTT_MAPPINGS:-}"
-MCP_URL="${MCP_URL:-http://127.0.0.1:7331}"
-SWAGGER_URL="${SWAGGER_URL:-http://127.0.0.1:8088}"
-LOCAL_AI_URL="${LOCAL_AI_URL:-http://localhost:4000}"
+# The lane's services are TLS-only under RE_TLS=on (#668, #732), so the default
+# service URLs take the lane's scheme. A plaintext probe of a TLS-only service is
+# reset by the peer, and read as the service being down.
+LANE_SCHEME=http
+[ "${RE_TLS:-off}" = on ] && LANE_SCHEME=https
+MCP_URL="${MCP_URL:-$LANE_SCHEME://127.0.0.1:7331}"
+SWAGGER_URL="${SWAGGER_URL:-$LANE_SCHEME://127.0.0.1:8088}"
+LOCAL_AI_URL="${LOCAL_AI_URL:-$LANE_SCHEME://localhost:4000}"
+OPENCLAW_HEALTH_URL="$LANE_SCHEME://localhost:18789"
 
 # Node is managed, not discovered. RealityEngine_Manager pins engines.node, the
 # hosted lane reads the same .nvmrc with actions/setup-node, and the harness
@@ -177,8 +183,10 @@ Options:
                             'none'/'off'/'skip' (any case) is the explicit
                             opt-out: MQTT checks are skipped.
   --mqtt-mappings PATH      Yuma MQTT mappings file.
-  --mcp-url URL             MCP HTTP base URL. Default: http://127.0.0.1:7331
-  --swagger-url URL         OpenAPI Swagger base URL. Default: http://127.0.0.1:8088
+  --mcp-url URL             MCP base URL. Default: 127.0.0.1:7331, https under
+                            RE_TLS=on (the lane's scheme).
+  --swagger-url URL         OpenAPI Swagger base URL. Default: 127.0.0.1:8088,
+                            https under RE_TLS=on.
   --openclaw                Require OpenClaw. Default under --profile local.
   --no-openclaw             Skip OpenClaw. Forced under --profile hosted.
   --local-ai                Start Ollama and localAIStack. Default under --profile local.
@@ -287,8 +295,8 @@ esac
 # An empty service URL means the default, not "no host". Passed through as
 # given, every probe becomes a bare path (`/healthz`) and the stage crashes
 # instead of reporting. Normalised here so no caller has to know that.
-[ -n "$MCP_URL" ] || MCP_URL="http://127.0.0.1:7331"
-[ -n "$SWAGGER_URL" ] || SWAGGER_URL="http://127.0.0.1:8088"
+[ -n "$MCP_URL" ] || MCP_URL="$LANE_SCHEME://127.0.0.1:7331"
+[ -n "$SWAGGER_URL" ] || SWAGGER_URL="$LANE_SCHEME://127.0.0.1:8088"
 
 # ── Profile resolution ───────────────────────────────────────────────────────
 # An unset knob takes the profile's value; a knob the caller set is checked
@@ -1611,6 +1619,7 @@ run_service_inventory() {
     "--manifest" "$RUN_DIR/manifest.json"
     "--mcp-url" "$MCP_URL"
     "--swagger-url" "$SWAGGER_URL"
+    "--openclaw-url" "$OPENCLAW_HEALTH_URL"
   )
   [ "$OPENCLAW_FLAG" = "--openclaw" ] && args+=("--require-openclaw")
   # The release images do not include the OpenAPI Swagger UI (release/images.json).
