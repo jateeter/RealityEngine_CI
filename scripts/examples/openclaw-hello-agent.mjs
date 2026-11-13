@@ -2,6 +2,11 @@
 
 process.env.NODE_TLS_REJECT_UNAUTHORIZED = process.env.NODE_TLS_REJECT_UNAUTHORIZED || '0';
 
+// The lane's TLS (#668): with RE_TLS_CERT set, the completion goes to an
+// internal PE over the lane's mTLS, presenting that certificate and trusting the
+// lane CA alone; off the lane it is the global fetch, as before.
+import { laneFetch } from '../../mcp/src/lane-tls.js';
+
 const args = process.argv.slice(2);
 
 function arg(name, fallback = undefined) {
@@ -64,7 +69,7 @@ if (flag('--dry-run')) {
   process.exit(0);
 }
 
-const response = await fetch(`${peUrl}/api/integrations/completions`, {
+const response = await laneFetch(`${peUrl}/api/integrations/completions`, {
   method: 'POST',
   headers: { 'content-type': 'application/json' },
   body: JSON.stringify(body)

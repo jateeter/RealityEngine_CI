@@ -173,16 +173,32 @@ NODE
   printf '[pass] OpenClaw e2e report written (%s)\n' "$REPORT_JSON"
 }
 
+# Lane TLS (#668): every PE route but the device routes requires a client
+# certificate on a TLS port, so under RE_TLS=on the PE calls present the
+# harness's (RE_HARNESS_TLS_*, exported by lane_tls_init) and trust the lane CA,
+# through a curl that speaks TLS 1.3. No unverified fallback.
+PE_CURL=(curl -sk)
+NODE_LANE_ENV=()
+if [ "${RE_TLS:-off}" = on ]; then
+  # shellcheck source=lib/lane-tls.sh
+  . "$SCRIPT_DIR/lib/lane-tls.sh"
+  for v in RE_HARNESS_TLS_CA RE_HARNESS_TLS_CERT RE_HARNESS_TLS_KEY; do
+    [ -f "${!v:-}" ] || { echo "[fail] RE_TLS=on but $v is unset or not a file" >&2; exit 1; }
+  done
+  PE_CURL=("$(lane_curl)" -s --tlsv1.3 --cacert "$RE_HARNESS_TLS_CA" --cert "$RE_HARNESS_TLS_CERT" --key "$RE_HARNESS_TLS_KEY")
+  NODE_LANE_ENV=(RE_TLS_CERT="$RE_HARNESS_TLS_CERT" RE_TLS_KEY="$RE_HARNESS_TLS_KEY" RE_TLS_CA="$RE_HARNESS_TLS_CA")
+fi
+
 cleanup() {
   local exit_code=$?
   if [ "$RESULT_STATUS" != "passed" ]; then
     [ -n "$FAILURE_STAGE" ] || FAILURE_STAGE="$CURRENT_STAGE"
     write_report "failed"
   fi
-  curl -sk --max-time 5 -X DELETE "$PE_URL/api/sources/$SEED_SOURCE_ID" >/dev/null 2>&1 || true
+  "${PE_CURL[@]}" --max-time 5 -X DELETE "$PE_URL/api/sources/$SEED_SOURCE_ID" >/dev/null 2>&1 || true
   restore_lane
   if [ -n "$COMPLETION_SOURCE_ID" ]; then
-    curl -sk --max-time 5 -X DELETE "$PE_URL/api/sources/$COMPLETION_SOURCE_ID" >/dev/null 2>&1 || true
+    "${PE_CURL[@]}" --max-time 5 -X DELETE "$PE_URL/api/sources/$COMPLETION_SOURCE_ID" >/dev/null 2>&1 || true
   fi
   rm -rf "$TMP_DIR"
   return "$exit_code"
@@ -193,10 +209,10 @@ curl_json() {
   local method="$1" url="$2" body="${3:-}"
   local out="$TMP_DIR/response.json" code
   if [ -n "$body" ]; then
-    code="$(curl -sk --max-time 15 -o "$out" -w "%{http_code}" \
+    code="$("${PE_CURL[@]}" --max-time 15 -o "$out" -w "%{http_code}" \
       -X "$method" "$url" -H "content-type: application/json" --data "$body" || true)"
   else
-    code="$(curl -sk --max-time 15 -o "$out" -w "%{http_code}" -X "$method" "$url" || true)"
+    code="$("${PE_CURL[@]}" --max-time 15 -o "$out" -w "%{http_code}" -X "$method" "$url" || true)"
   fi
   printf '%s\n' "$code"
 }
@@ -278,7 +294,7 @@ NODE
 restore_lane() {
   local id
   for id in "${QUIESCED_IDS[@]+"${QUIESCED_IDS[@]}"}"; do
-    curl -sk --max-time 5 -o /dev/null -X PATCH "$PE_URL/api/sources/$id" \
+    "${PE_CURL[@]}" --max-time 5 -o /dev/null -X PATCH "$PE_URL/api/sources/$id" \
       -H "content-type: application/json" --data '{"active":true}' || true
   done
   QUIESCED_IDS=()
@@ -401,7 +417,7 @@ console.log('[pass] dispatch ledger records the accepted OpenClaw handoff');
 NODE
 
 CURRENT_STAGE="OpenClaw hello agent completion"
-node "$CI_DIR/scripts/examples/openclaw-hello-agent.mjs" \
+env ${NODE_LANE_ENV[@]+"${NODE_LANE_ENV[@]}"} node "$CI_DIR/scripts/examples/openclaw-hello-agent.mjs" \
   --pe-url "$PE_URL" \
   --agent "$AGENT_ID" \
   --source-mapping-id "$SOURCE_MAPPING_ID" \
