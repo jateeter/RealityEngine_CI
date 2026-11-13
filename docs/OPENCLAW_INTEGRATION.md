@@ -142,6 +142,54 @@ npm run openclaw:adapter -- \
 
 The adapter consumes the PE ACP handoff receipt returned from `POST /api/integrations/acp/dispatch`, calls the local OpenClaw gateway at `/v1/chat/completions`, extracts a numeric `values` array from the agent response, posts the completion to the PE, and patches `/api/dispatch/records/{dispatchId}` to `running` and then `completed` when that route is available.
 
+### The synthetic action answer
+
+An action agent reports on the shared completion lane, `acp-openclaw-completion`
+at `[4210:4214]`: `[completed, failed, confidence, actionClass]`. When its real
+turn cannot report (the gateway is unreachable, the model times out, or the
+answer does not resolve), nothing lands and the action loop stays open. The
+adapter's synthetic body answers in its place on that same lane, with an answer
+the action contract admits, labelled synthetic. Synthetic responses use the
+actions' completion path, never a machine's input regions (owner direction,
+2026-11-01). It is the CI side of localOpenClawStack's
+`machine-behaviors/synthetic_body.py` (localOpenClawStack#88).
+
+- **What it may answer** depends on the dispatch's autonomy mode and RAG status:
+
+  | Dispatch | Answer | Lane values |
+  |---|---|---|
+  | advise | `advised`, completed yes, failed no | `[1, 0, c, 0.5]` |
+  | supervised-act | `staged`, review required | `[1, 0, c, 0.75]` |
+  | automated-act | `executed`, rollback ok | `[1, 0, c, 1.0]` |
+  | RAG in the mode's `blockedWhenRag` (supervised RED; automated AMBER and RED) | `blocked`, completed no, failed yes | `[0, 1, c, 0]` |
+  | observe | none: observe writes no vector, and the run fails | |
+
+  Each at every confidence anchor, `c` = 0.3, 0.6 or 0.9, so three answers are
+  admissible.
+- **Which one** is chosen by `--synthetic-strategy`: `seeded-random` (default;
+  SHA-256(agent | correlationId) mod 3, the same on every host, so every engine
+  in parity receives the same completion) or `round-robin` (`--step` mod 3).
+- **When** is `--synthetic-mode`: `off` (default; the adapter is unchanged),
+  `fallback` (only when the real turn fails or does not resolve) or `always`
+  (the model is never called). `OC_SYNTHETIC_MODE` and `OC_SYNTHETIC_STRATEGY`
+  override the flags, as they override the config in the Python body.
+- **The context** (autonomy mode, RAG status, risk controls) comes from the
+  handoff's envelope, else from `GET /api/dispatch/records/{dispatchId}`. It is
+  read only when a synthetic answer is needed; without it nothing is
+  substituted and the dispatch is patched `failed`.
+- **A real answer** resolves when it is a 4-value array in `[0, 1]` or the
+  action contract's form (`verdict`, `completed`, `failed`, `confidence`). A
+  real `blocked` answer is kept, with `actionClass` 0.
+- **Labelled:** a synthetic completion carries `metadata.synthetic: true` and
+  `metadata.syntheticBody` (strategy, ordinality, answer index, seed key, the
+  autonomy mode and RAG status, and what it replaced). The `completed` dispatch
+  patch carries `synthetic: true`.
+
+`scripts/tests/openclaw-synthetic-action.test.mjs` pins the selection, the
+admissible set and the override order to vectors computed by the Python body
+(`scripts/tests/fixtures/synthetic-action-vectors.json`); regenerate them when
+`synthetic_body.py` changes.
+
 ## Operational Metrics
 
 `startUniverse.sh` starts the CI-owned bridge metrics exporter at:
