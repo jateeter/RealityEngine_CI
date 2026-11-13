@@ -549,6 +549,9 @@ jobs:
       - name: Observability OpenSSL fronts (#729)
         working-directory: RealityEngine_CI
         run: bash scripts/tests/test-obs-front-conf.sh
+      - name: Release mirrors cover every third-party image
+        working-directory: RealityEngine_CI
+        run: python3 release/mirror-images.py --check
       - name: Instance registry over TLS and re_tls.py's lane path (#732)
         working-directory: RealityEngine_CI
         run: bash scripts/tests/test-registry-tls.sh

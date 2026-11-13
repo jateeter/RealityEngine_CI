@@ -89,6 +89,12 @@ def resolve(entry: dict[str, Any], images: dict[str, dict[str, Any]]) -> dict[st
         return {"releaseImages": out}
     if "host" in entry:
         return {"host": entry["host"], **floor(entry["floor"])}
+    if "constant" in entry:
+        rel, _, name = entry["constant"].partition(" ")
+        path = workspace_file(rel)
+        m = re.search(rf'^{re.escape(name)}\s*=\s*"([^"]+)"', path.read_text(), flags=re.M) if path.is_file() else None
+        return {"services": [{"service": name, "image": m.group(1)} if m else
+                             {"service": name, "unresolved": f"{name} not found in {rel}"}], "from": entry["constant"]}
     return dict(entry)
 
 

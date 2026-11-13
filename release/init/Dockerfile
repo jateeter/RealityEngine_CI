@@ -17,7 +17,7 @@ RUN apt-get update \
 # What a release install is made of.
 COPY release/compose.yml release/images.json /opt/release/
 COPY release/config/ /opt/release/config/
-COPY release/realityengine /opt/release/realityengine
+COPY release/realityengine release/ollama-tls-front.mjs /opt/release/
 
 # The RealityEngine_CI files an install needs, unchanged: the instance UUID
 # allocator (#296), the integration registry template, and the monitoring
@@ -42,6 +42,15 @@ COPY --from=ocs machine-behaviors/ /opt/ocs/machine-behaviors/
 # The sandbox image's Dockerfile, copied with the scripts into the install for
 # the native gateway on the Mac (RealityEngine_CI#592).
 COPY --from=ocs docker/ /opt/ocs/docker/
+
+# localAssetStorageStack at the release commit: the provisioning scripts the
+# install runs, the lifecycle sources they import, and CSS's config.
+# hadolint ignore=DL3022
+COPY --from=assets scripts/accounts.js scripts/grant-assets.js /opt/assets/scripts/
+# hadolint ignore=DL3022
+COPY --from=assets lifecycle/src/ /opt/assets/lifecycle/src/
+# hadolint ignore=DL3022
+COPY --from=assets css/config.json /opt/assets/css/config.json
 
 COPY release/init/reinit.py /usr/local/bin/reinit
 RUN chmod 755 /usr/local/bin/reinit /opt/release/realityengine

@@ -18,9 +18,9 @@ RUN cargo build --release --locked --bins
 # ── Stage 2: Runtime ────────────────────────────────────────────────────────
 FROM debian:bookworm-slim
 # ca-certificates: the system roots for external parties (rustls-native-certs);
-# curl for the compose healthcheck.
+# GNU wget for the install's healthcheck, which presents the instance certificate.
 RUN apt-get update && \
-    apt-get install -y --no-install-recommends ca-certificates curl && \
+    apt-get install -y --no-install-recommends ca-certificates wget && \
     rm -rf /var/lib/apt/lists/* && \
     mkdir -p /app/bin /app/machines && \
     groupadd -r -g 1001 appuser && \

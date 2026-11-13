@@ -24,7 +24,7 @@ trap 'rm -rf "$TMP"' EXIT
 # The image's /opt, from this checkout (release/init/Dockerfile).
 OPT="$TMP/opt"
 mkdir -p "$OPT/release/config" "$OPT/ci/scripts/lib" "$OPT/ci/config"
-cp "$CI_DIR/release/compose.yml" "$CI_DIR/release/images.json" "$OPT/release/"
+cp "$CI_DIR/release/compose.yml" "$CI_DIR/release/images.json" "$CI_DIR/release/ollama-tls-front.mjs" "$OPT/release/"
 cp "$CI_DIR"/release/config/* "$OPT/release/config/"
 cp "$CI_DIR/scripts/lib/instance_uuids.py" "$CI_DIR/scripts/lib/re_pki.py" "$CI_DIR/scripts/lib/re_tls_server.py" \
    "$CI_DIR/scripts/lib/tls_proxy_lane_conf.py" "$CI_DIR/scripts/lib/obs_front_conf.py" "$OPT/ci/scripts/lib/"
@@ -33,6 +33,12 @@ mkdir -p "$OPT/ci/mcp/src" && cp "$CI_DIR/mcp/src/lane-tls.js" "$OPT/ci/mcp/src/
 cp "$CI_DIR/scripts/bridge-metrics-exporter.mjs" "$OPT/ci/scripts/"
 cp "$CI_DIR"/config/{integrations.example.json,loki-config.yml,grafana-datasources.yml,grafana-dashboards.yml} "$OPT/ci/config/"
 cp -R "$CI_DIR/config/dashboards" "$OPT/ci/config/dashboards"
+# localAssetStorageStack's files (the init image's `assets` build context).
+LASS="$CI_DIR/../localAssetStorageStack"
+mkdir -p "$OPT/assets/scripts" "$OPT/assets/lifecycle" "$OPT/assets/css"
+cp "$LASS/scripts/accounts.js" "$LASS/scripts/grant-assets.js" "$OPT/assets/scripts/"
+cp -R "$LASS/lifecycle/src" "$OPT/assets/lifecycle/src"
+cp "$LASS/css/config.json" "$OPT/assets/css/"
 
 INSTALL="$TMP/install"
 reinit() {
@@ -95,8 +101,9 @@ done
 assert_contains "$ENG" '"https://engine-cpp-2-re:3000"' "a PE is paired with its own RE"
 assert_contains "$ENG" '"6310:3004"' "and published on its band port"
 assert_contains "$ENG" '${RE_IMAGE_SCALA_PE}' "the Scala PE uses its own image"
-assert_eq "$(grep -c 'OLLAMA_BASE_URL.*host.docker.internal:11434' "$INSTALL/compose.engines.yml")" 4 \
-  "every PE reaches native Ollama on the host, not its own localhost"
+assert_eq "$(grep -c 'OLLAMA_BASE_URL.*https://host.docker.internal:11443' "$INSTALL/compose.engines.yml")" 4 \
+  "every PE reaches native Ollama on the host through its TLS front (TLS on by default)"
+assert_contains "$(cat "$INSTALL/ollama-front/profile.env" 2>/dev/null)" "RE_TLS_GROUPS=X25519MLKEM768" "the front serves the profile's groups"
 python3 - "$INSTALL/compose.engines.yml" <<'PY' && { echo "  PASS: compose.engines.yml parses as YAML"; PASS=$((PASS+1)); } || { echo "  FAIL: compose.engines.yml is not valid YAML"; FAIL=$((FAIL+1)); }
 import sys
 try:
@@ -104,7 +111,9 @@ try:
 except ImportError:
     sys.exit(0)
 d = yaml.safe_load(open(sys.argv[1]))
-assert len(d["services"]) == 9, d["services"].keys()
+# Four instances' RE and PE, localAI, and Manager's TypeScript PE with its own RE.
+assert len(d["services"]) == 11, d["services"].keys()
+assert {"ts-pe-re", "perception-engine-backend"} <= set(d["services"])
 assert set(d["services"]["localai-api"]["depends_on"]) == {s for s in d["services"] if s.endswith("-pe")}
 PY
 
@@ -115,7 +124,7 @@ assert_eq "$(json "$INSTALL/config/file_sd/reality-engine-targets.json" "d[1]['l
 
 echo ".env, secrets and certificates"
 ENV="$(cat "$INSTALL/.env")"
-assert_contains "$ENV" "COMPOSE_FILE=compose.yml:compose.engines.yml:compose.tls.yml" "COMPOSE_FILE joins the files, the TLS overlay by default"
+assert_contains "$ENV" "COMPOSE_FILE=compose.yml:compose.engines.yml:compose.assets.yml:compose.tls.yml" "COMPOSE_FILE joins the files, the TLS overlay by default"
 assert_contains "$ENV" "RE_IMAGE_CPP=ghcr.io/jateeter/re-cpp:dev" "without an images file, images are by tag"
 assert_contains "$ENV" "HEALTHKIT_PE_SCOPE_URLS=https://engine-scala-1-pe:3004,https://engine-cpp-1-pe:3004" "PIM reaches every PE"
 # GNU stat first: on Linux, BSD `stat -f` is a filesystem query that succeeds.
@@ -191,9 +200,28 @@ assert_contains "$(cat "$INSTALL/compose.engines.yml")" "./pki/issued/cpp-2:/run
 assert_eq "$(grep -c 'pki/ca/ca.key' "$INSTALL/compose.engines.yml" "$INSTALL/compose.tls.yml" | awk -F: '{s+=$2} END {print s}')" 0 "the CA key is mounted nowhere"
 assert_contains "$(cat "$INSTALL/compose.engines.yml")" "https://engine-cpp-2-re:3000" "a PE reaches its RE over https"
 assert_contains "$(cat "$INSTALL/compose.engines.yml")" "--certificate=/run/re-tls/instance/chain.pem" "health checks present the certificate"
-assert_contains "$(cat "$INSTALL/.env")" "COMPOSE_FILE=compose.yml:compose.engines.yml:compose.tls.yml" "the TLS overlay is in COMPOSE_FILE"
+assert_contains "$(cat "$INSTALL/.env")" "COMPOSE_FILE=compose.yml:compose.engines.yml:compose.assets.yml:compose.tls.yml" "the TLS overlay is in COMPOSE_FILE"
 assert_contains "$(cat "$INSTALL/.env")" "RE_TLS=on" ".env records the switch"
 assert_contains "$(cat "$INSTALL/compose.tls.yml")" "registry" "the instance registry serves TLS"
+# Rust, a follower (owner, 2026-11-12): in the instance registry with
+# role follower, on its own band; a spec of followers alone starts no vote.
+reinit configure --install "$TMP/rust" --engines cpp:1,lsp:1,scala:1,rust:1 --version dev --skip-openclaw
+assert_eq "$RC" 0 "a spec with rust:1 configures"
+assert_eq "$(python3 -c "import json; print([(i['id'], i.get('role', 'voter'), i['pe_port']) for i in json.load(open('$TMP/rust/registry/re-registry.json'))['instances'] if i['runtime']=='rust'])")" "[('rust-1', 'follower', 6900)]" "rust-1 is a follower on 6900"
+assert_contains "$(cat "$TMP/rust/compose.engines.yml")" "/app/bin/perception-engine" "rust-1's PE runs from re-rust"
+reinit configure --install "$TMP/rustonly" --engines rust:1 --version dev --skip-openclaw
+assert_eq "$RC" 1 "a spec of followers alone is refused"
+
+# The asset storage stack and Rust (owner, 2026-11-12).
+ASSETSY="$(cat "$INSTALL/compose.assets.yml" 2>/dev/null)"
+assert_contains "$ASSETSY" "solidproject/community-server:7.3.0@sha256:" "assets-css runs the pinned upstream CSS"
+assert_contains "$ASSETSY" "RE_IMAGE_DOKIELI" "assets-dokieli runs the release image"
+assert_contains "$ASSETSY" "RE_IMAGE_LIFECYCLE" "the lifecycle runs the release image"
+assert_contains "$ASSETSY" "assets-grant" "a one-shot grants the lifecycle its access"
+assert_contains "$ASSETSY" "LIFECYCLE_URL" "Manager's instantiation reaches the lifecycle"
+assert_contains "$(cat "$INSTALL/.env")" "COMPOSE_FILE=compose.yml:compose.engines.yml:compose.assets.yml" "the asset stack is in COMPOSE_FILE"
+assert_contains "$(cat "$INSTALL/assets/runtime/registry.json" 2>/dev/null)" "https://lifecycle:8443/" "the stack's service file names the lifecycle"
+assert_eq "$([ -f "$INSTALL/assets/scripts/grant-assets.js" ] && echo yes)" yes "the provisioning scripts are in the install"
 # The Go observability services behind OpenSSL fronts (#729).
 TLSY="$(cat "$INSTALL/compose.tls.yml")"
 assert_contains "$TLSY" "service:loki" "Loki's front shares its network namespace"

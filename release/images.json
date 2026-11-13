@@ -79,6 +79,15 @@
       ]
     },
     {
+      "name": "re-ts-pe",
+      "repo": "RealityEngine_Manager",
+      "context": "RealityEngine_Manager/perception-engine/backend",
+      "dockerfile": "RealityEngine_Manager/perception-engine/backend/Dockerfile",
+      "roles": [
+        "perception-engine"
+      ]
+    },
+    {
       "name": "re-localai-api",
       "repo": "localAIStack",
       "context": "localAIStack",
@@ -156,7 +165,8 @@
         "localOpenClawStack"
       ],
       "build_contexts": {
-        "ocs": "localOpenClawStack"
+        "ocs": "localOpenClawStack",
+        "assets": "localAssetStorageStack"
       }
     },
     {

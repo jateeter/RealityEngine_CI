@@ -18,7 +18,7 @@
 # (Docker Desktop, Node) and when the local certificate is trusted.
 #
 #   bash install.sh [--engines SPEC] [--dir DIR] [--check]
-#     --engines SPEC  engine instances, default cpp:1,lsp:1,scala:1
+#     --engines SPEC  engine instances, default cpp:1,lsp:1,scala:1,rust:1 (rust: a follower)
 #     --dir DIR       install directory, default ~/.realityengine
 #     --check         report what would be done, change nothing
 #

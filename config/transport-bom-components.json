@@ -215,7 +215,9 @@
           ]
         },
         "release": {
-          "planned": "no release image yet"
+          "releaseImages": [
+            "re-ts-pe"
+          ]
         }
       },
       "links": [
@@ -466,7 +468,10 @@
           ]
         },
         "release": {
-          "none": "a release install has no TLS front (release-to-ollama)"
+          "source": "RealityEngine_CI",
+          "artifacts": [
+            "release/ollama-tls-front.mjs (LaunchAgent org.realityengine.ollama-tls-front)"
+          ]
         }
       },
       "links": [
@@ -576,7 +581,7 @@
           "planned": "--assets in the docker lane (RealityEngine_CI#729)"
         },
         "release": {
-          "planned": "asset storage in the release (RealityEngine_CI#715, #729)"
+          "constant": "RealityEngine_CI/release/init/reinit.py ASSETS_CSS_IMAGE"
         }
       },
       "links": [

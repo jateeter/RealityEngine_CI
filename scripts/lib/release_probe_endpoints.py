@@ -58,8 +58,18 @@ def main() -> int:
         "openclaw-to-browser-cdp": host("RE_PORT_BROWSER_CDP", "9222", "/json/version"),
         "pim-to-css": host("RE_PORT_CSS", "13000", "/"),
         "healthkit-to-pim": host("RE_PORT_PIM", "8090", "/api/integrations/healthkit/metrics"),
-        # The host's Ollama, which a release install reaches with no TLS front.
+        # The asset storage stack (owner, 2026-11-12): CSS and dokieli on their
+        # fixed ports, the lifecycle on its own.
+        "browser-to-assets-css": [{"url": "https://127.0.0.1:13443", "path": "/"}],
+        "lifecycle-to-assets-css": [{"url": "https://127.0.0.1:13443", "path": "/"}],
+        "browser-to-assets-dokieli": [{"url": "https://127.0.0.1:13444", "path": "/"}],
+        "clients-to-lifecycle": host("RE_PORT_LIFECYCLE", "13445", "/health"),
+        "openclaw-agents-to-lifecycle": host("RE_PORT_LIFECYCLE", "13445", "/health"),
+        # Ollama: through its TLS front (to-ollama), and directly, as Open WebUI
+        # reaches it (release-to-ollama) and the front does (ollama-front-to-ollama).
+        "to-ollama": [{"url": "https://127.0.0.1:11443", "path": "/"}],
         "release-to-ollama": [{"url": "https://127.0.0.1:11434", "path": "/"}],
+        "ollama-front-to-ollama": [{"url": "https://127.0.0.1:11434", "path": "/"}],
     }
     network_eps = {
         "localai-to-redis": [{"url": "https://redis:6379", "path": "/", "protocol": "redis"}],
