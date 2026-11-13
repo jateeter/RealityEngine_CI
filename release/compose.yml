@@ -74,7 +74,7 @@ services:
 
   qdrant:
     <<: *common
-    image: qdrant/qdrant:v1.20.0@sha256:9bfc89f9914fc14876a88c05270685921a55b8877b254a98bcc1cc2f0a424cd2
+    image: ghcr.io/jateeter/mirror/qdrant/qdrant:v1.20.0@sha256:9bfc89f9914fc14876a88c05270685921a55b8877b254a98bcc1cc2f0a424cd2
     volumes:
       - qdrant-data:/qdrant/storage
     # On the host as in the native lane (4333), for tools and the RAG specs.
@@ -88,7 +88,7 @@ services:
 
   redis:
     <<: *common
-    image: redis:7.4-alpine@sha256:858f009f9709ce576febc734aa78b8f6d624b82571f9ddb6bda4377c833b3499
+    image: ghcr.io/jateeter/mirror/library/redis:7.4-alpine@sha256:858f009f9709ce576febc734aa78b8f6d624b82571f9ddb6bda4377c833b3499
     volumes:
       - redis-data:/data
     healthcheck:
@@ -142,7 +142,7 @@ services:
 
   browser:
     <<: *common
-    image: coollabsio/openclaw-browser:0.3.0@sha256:c5f8a9d812992429be2c5a0b6b8f5d70d63e81cc1b381c5475e067a91e0d3179
+    image: ghcr.io/jateeter/mirror/coollabsio/openclaw-browser:0.3.0@sha256:c5f8a9d812992429be2c5a0b6b8f5d70d63e81cc1b381c5475e067a91e0d3179
     environment:
       # The image starts Chromium as `wrapped-chromium ${CHROME_CLI}` and proxies
       # its debugging port through nginx on 9223; without this the proxy answers
@@ -321,13 +321,16 @@ services:
 
   tls-proxy:
     <<: *common
-    image: nginx:1.29-alpine@sha256:5616878291a2eed594aee8db4dade5878cf7edcb475e59193904b198d9b830de
+    image: ghcr.io/jateeter/mirror/library/nginx:1.29-alpine@sha256:5616878291a2eed594aee8db4dade5878cf7edcb475e59193904b198d9b830de
     volumes:
       - ./config/nginx.conf:/etc/nginx/nginx.conf:ro
       - ./certs:/etc/nginx/certs:ro
     ports:
       - "${RE_PORT_MANAGER_UI:-5173}:5173"
       - "${RE_PORT_MANAGER_API:-3001}:3001"
+      # Manager's TypeScript PE and Grafana, through the proxy (owner, 2026-11-12).
+      - "${RE_PORT_TS_PE:-3004}:3004"
+      - "127.0.0.1:${RE_PORT_GRAFANA_PROXY:-3000}:3000"
     depends_on:
       visualizer-backend: {condition: service_healthy}
       visualizer-frontend: {condition: service_healthy}
@@ -341,7 +344,7 @@ services:
 
   loki:
     <<: *common
-    image: grafana/loki:3.5.10@sha256:38f083d60b5fe84d79af9521ff5ee6ef0ab7bba429faddf6ad13bafd01fb43b8
+    image: ghcr.io/jateeter/mirror/grafana/loki:3.5.10@sha256:38f083d60b5fe84d79af9521ff5ee6ef0ab7bba429faddf6ad13bafd01fb43b8
     command: ["-config.file=/etc/loki/local-config.yaml", "-config.expand-env=true"]
     volumes:
       - ./config/loki.yml:/etc/loki/local-config.yaml:ro
@@ -382,7 +385,7 @@ services:
   # plugin is needed on the Mac.
   promtail:
     <<: *common
-    image: grafana/promtail:3.5.10@sha256:6c4e4dc1ecf78e1e0099507509dd7b420a06a0e2ca5792dc452d4938a052e8e3
+    image: ghcr.io/jateeter/mirror/grafana/promtail:3.5.10@sha256:6c4e4dc1ecf78e1e0099507509dd7b420a06a0e2ca5792dc452d4938a052e8e3
     command: ["-config.file=/etc/promtail/promtail.yml", "-config.expand-env=true"]
     environment:
       COMPOSE_PROJECT_NAME: ${COMPOSE_PROJECT_NAME:-realityengine}
@@ -394,7 +397,7 @@ services:
 
   prometheus:
     <<: *common
-    image: prom/prometheus:v3.15.1@sha256:fa3302279710be2f21a8301ec17a8b4f2301fd829bd113839b3b6b02b6f191a2
+    image: ghcr.io/jateeter/mirror/prom/prometheus:v3.15.1@sha256:fa3302279710be2f21a8301ec17a8b4f2301fd829bd113839b3b6b02b6f191a2
     command:
       - --config.file=/etc/prometheus/prometheus.yml
       - --storage.tsdb.retention.time=7d
@@ -413,7 +416,7 @@ services:
 
   grafana:
     <<: *common
-    image: grafana/grafana:11.6.1@sha256:52c3e20686b860c6dc1f623811565773cf51eefa378817a4896dfc863c3c82c8
+    image: ghcr.io/jateeter/mirror/grafana/grafana:11.6.1@sha256:52c3e20686b860c6dc1f623811565773cf51eefa378817a4896dfc863c3c82c8
     environment:
       GF_SECURITY_ADMIN_USER: admin
       GF_SECURITY_ADMIN_PASSWORD: ${GRAFANA_ADMIN_PASSWORD}

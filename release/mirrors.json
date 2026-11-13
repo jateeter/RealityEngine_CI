@@ -1,0 +1,48 @@
+{
+  "$comment": [
+    "Third-party runtime images a release installs, copied by digest to ghcr.io (owner, 2026-11-12):",
+    "Docker Hub serves image layers from production.cloudflare.docker.com on TLS 1.2 only, so a release",
+    "pulls nothing from Docker Hub. The copy keeps the source's manifest list unchanged, so the mirror's",
+    "digest is the source's. release/mirror-images.py copies (--push) and checks (--check) that every",
+    "third-party image in release/compose.yml and re-init is one of these mirrors."
+  ],
+  "registry": "ghcr.io/jateeter/mirror",
+  "images": [
+    {
+      "source": "coollabsio/openclaw-browser:0.3.0@sha256:c5f8a9d812992429be2c5a0b6b8f5d70d63e81cc1b381c5475e067a91e0d3179",
+      "mirror": "ghcr.io/jateeter/mirror/coollabsio/openclaw-browser:0.3.0@sha256:c5f8a9d812992429be2c5a0b6b8f5d70d63e81cc1b381c5475e067a91e0d3179"
+    },
+    {
+      "source": "grafana/grafana:11.6.1@sha256:52c3e20686b860c6dc1f623811565773cf51eefa378817a4896dfc863c3c82c8",
+      "mirror": "ghcr.io/jateeter/mirror/grafana/grafana:11.6.1@sha256:52c3e20686b860c6dc1f623811565773cf51eefa378817a4896dfc863c3c82c8"
+    },
+    {
+      "source": "grafana/loki:3.5.10@sha256:38f083d60b5fe84d79af9521ff5ee6ef0ab7bba429faddf6ad13bafd01fb43b8",
+      "mirror": "ghcr.io/jateeter/mirror/grafana/loki:3.5.10@sha256:38f083d60b5fe84d79af9521ff5ee6ef0ab7bba429faddf6ad13bafd01fb43b8"
+    },
+    {
+      "source": "grafana/promtail:3.5.10@sha256:6c4e4dc1ecf78e1e0099507509dd7b420a06a0e2ca5792dc452d4938a052e8e3",
+      "mirror": "ghcr.io/jateeter/mirror/grafana/promtail:3.5.10@sha256:6c4e4dc1ecf78e1e0099507509dd7b420a06a0e2ca5792dc452d4938a052e8e3"
+    },
+    {
+      "source": "nginx:1.29-alpine@sha256:5616878291a2eed594aee8db4dade5878cf7edcb475e59193904b198d9b830de",
+      "mirror": "ghcr.io/jateeter/mirror/library/nginx:1.29-alpine@sha256:5616878291a2eed594aee8db4dade5878cf7edcb475e59193904b198d9b830de"
+    },
+    {
+      "source": "prom/prometheus:v3.15.1@sha256:fa3302279710be2f21a8301ec17a8b4f2301fd829bd113839b3b6b02b6f191a2",
+      "mirror": "ghcr.io/jateeter/mirror/prom/prometheus:v3.15.1@sha256:fa3302279710be2f21a8301ec17a8b4f2301fd829bd113839b3b6b02b6f191a2"
+    },
+    {
+      "source": "qdrant/qdrant:v1.20.0@sha256:9bfc89f9914fc14876a88c05270685921a55b8877b254a98bcc1cc2f0a424cd2",
+      "mirror": "ghcr.io/jateeter/mirror/qdrant/qdrant:v1.20.0@sha256:9bfc89f9914fc14876a88c05270685921a55b8877b254a98bcc1cc2f0a424cd2"
+    },
+    {
+      "source": "redis:7.4-alpine@sha256:858f009f9709ce576febc734aa78b8f6d624b82571f9ddb6bda4377c833b3499",
+      "mirror": "ghcr.io/jateeter/mirror/library/redis:7.4-alpine@sha256:858f009f9709ce576febc734aa78b8f6d624b82571f9ddb6bda4377c833b3499"
+    },
+    {
+      "source": "solidproject/community-server:7.3.0@sha256:58073541889f0cd113dc482b4ddbb834bcd39463dc077d49fd1cf9f55337c4b6",
+      "mirror": "ghcr.io/jateeter/mirror/solidproject/community-server:7.3.0@sha256:58073541889f0cd113dc482b4ddbb834bcd39463dc077d49fd1cf9f55337c4b6"
+    }
+  ]
+}

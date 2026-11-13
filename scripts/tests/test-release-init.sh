@@ -24,7 +24,7 @@ trap 'rm -rf "$TMP"' EXIT
 # The image's /opt, from this checkout (release/init/Dockerfile).
 OPT="$TMP/opt"
 mkdir -p "$OPT/release/config" "$OPT/ci/scripts/lib" "$OPT/ci/config"
-cp "$CI_DIR/release/compose.yml" "$CI_DIR/release/images.json" "$OPT/release/"
+cp "$CI_DIR/release/compose.yml" "$CI_DIR/release/images.json" "$CI_DIR/release/ollama-tls-front.mjs" "$OPT/release/"
 cp "$CI_DIR"/release/config/* "$OPT/release/config/"
 cp "$CI_DIR/scripts/lib/instance_uuids.py" "$CI_DIR/scripts/lib/re_pki.py" "$CI_DIR/scripts/lib/re_tls_server.py" \
    "$CI_DIR/scripts/lib/tls_proxy_lane_conf.py" "$CI_DIR/scripts/lib/obs_front_conf.py" "$OPT/ci/scripts/lib/"
@@ -101,8 +101,9 @@ done
 assert_contains "$ENG" '"https://engine-cpp-2-re:3000"' "a PE is paired with its own RE"
 assert_contains "$ENG" '"6310:3004"' "and published on its band port"
 assert_contains "$ENG" '${RE_IMAGE_SCALA_PE}' "the Scala PE uses its own image"
-assert_eq "$(grep -c 'OLLAMA_BASE_URL.*host.docker.internal:11434' "$INSTALL/compose.engines.yml")" 4 \
-  "every PE reaches native Ollama on the host, not its own localhost"
+assert_eq "$(grep -c 'OLLAMA_BASE_URL.*https://host.docker.internal:11443' "$INSTALL/compose.engines.yml")" 4 \
+  "every PE reaches native Ollama on the host through its TLS front (TLS on by default)"
+assert_contains "$(cat "$INSTALL/ollama-front/profile.env" 2>/dev/null)" "RE_TLS_GROUPS=X25519MLKEM768" "the front serves the profile's groups"
 python3 - "$INSTALL/compose.engines.yml" <<'PY' && { echo "  PASS: compose.engines.yml parses as YAML"; PASS=$((PASS+1)); } || { echo "  FAIL: compose.engines.yml is not valid YAML"; FAIL=$((FAIL+1)); }
 import sys
 try:

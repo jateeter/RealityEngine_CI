@@ -216,6 +216,15 @@ if $gateway; then
   else ok "gateway stopped and its LaunchAgent removed"; fi
 fi
 
+# Ollama's TLS front (owner, 2026-11-12): the realityengine CLI's LaunchAgent.
+FRONT_LABEL="org.realityengine.ollama-tls-front"
+if launchctl print "gui/$(id -u)/$FRONT_LABEL" >/dev/null 2>&1 || [ -f "$HOME/Library/LaunchAgents/$FRONT_LABEL.plist" ]; then
+  step "Ollama's TLS front"
+  launchctl bootout "gui/$(id -u)/$FRONT_LABEL" >> "$LOG" 2>&1 || true
+  rm -f "$HOME/Library/LaunchAgents/$FRONT_LABEL.plist"
+  ok "Ollama's TLS front stopped and its LaunchAgent removed"
+fi
+
 if $DOCKER && [ -n "$containers$volumes$networks$sandboxes" ]; then
   step "Containers and data ($PROJECT)"
   # shellcheck disable=SC2086  # the ids and names, split on purpose

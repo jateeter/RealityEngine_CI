@@ -552,7 +552,8 @@ check_ports() {
            "${RE_PORT_OPENCLAW:-18789}" "${RE_PORT_WEBUI:-8080}" "${RE_PORT_PIM:-8090}" \
            "${RE_PORT_CSS:-13000}" "${RE_PORT_MCP:-7331}" "${RE_PORT_REGISTRY:-5999}" \
            "${RE_PORT_GRAFANA:-3002}" "${RE_PORT_PROMETHEUS:-9090}" "${RE_PORT_QDRANT:-4333}" \
-           "${RE_PORT_BROWSER_CDP:-9222}" 13443 13444 "${RE_PORT_LIFECYCLE:-13445}"; do
+           "${RE_PORT_BROWSER_CDP:-9222}" 13443 13444 "${RE_PORT_LIFECYCLE:-13445}" \
+           "${RE_PORT_TS_PE:-3004}" "${RE_PORT_GRAFANA_PROXY:-3000}"; do
     # The gateway's port is held by its own LaunchAgent between an `up` and the next.
     if [ "$p" = "${RE_PORT_OPENCLAW:-18789}" ] && gateway_pid >/dev/null; then
       [ "$(lsof -nP -tiTCP:"$p" -sTCP:LISTEN 2>/dev/null | head -1)" = "$(gateway_pid)" ] && continue
@@ -608,6 +609,60 @@ gateway_up() {
 gateway_down() {
   [ -x "$DIR/ocs/scripts/native-gateway.sh" ] || return 0
   gateway_env bash "$DIR/ocs/scripts/native-gateway.sh" down >/dev/null 2>&1 || true
+}
+
+# Ollama's TLS front (release/ollama-tls-front.mjs, owner 2026-11-12): with the
+# install's TLS on, every Ollama client but Open WebUI reaches Ollama through it,
+# on TLS 1.3 with mTLS; it runs on the Mac, under the Node the suite installs.
+FRONT_LABEL="org.realityengine.ollama-tls-front"
+front_plist() { printf '%s' "$HOME/Library/LaunchAgents/$FRONT_LABEL.plist"; }
+front_down() {
+  launchctl bootout "gui/$(id -u)/$FRONT_LABEL" >/dev/null 2>&1 || true
+}
+front_up() {
+  # shellcheck disable=SC1091
+  . "$DIR/.env"
+  [ "${RE_TLS:-off}" = on ] || { front_down; rm -f "$(front_plist)"; return 0; }
+  [ -f "$DIR/ollama-front/ollama-tls-front.mjs" ] || die "Ollama's TLS front is missing from $DIR/ollama-front; run: $PROG up"
+  local node pki="$DIR/pki" suites groups port
+  node="$(command -v node)" || die "Node is not on PATH; Ollama's TLS front runs on it."
+  suites="$(sed -n 's/^RE_TLS_SUITES=//p' "$DIR/ollama-front/profile.env")"
+  groups="$(sed -n 's/^RE_TLS_GROUPS=//p' "$DIR/ollama-front/profile.env")"
+  port="$(sed -n 's/^OLLAMA_FRONT_PORT=//p' "$DIR/ollama-front/profile.env")"
+  front_down
+  mkdir -p "$HOME/Library/LaunchAgents"
+  cat > "$(front_plist)" <<PLIST
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+  <key>Label</key><string>$FRONT_LABEL</string>
+  <key>ProgramArguments</key>
+  <array><string>$node</string><string>$DIR/ollama-front/ollama-tls-front.mjs</string>
+    <string>--port</string><string>$port</string></array>
+  <key>EnvironmentVariables</key>
+  <dict>
+    <key>RE_TLS_CERT</key><string>$pki/issued/ollama-front/chain.pem</string>
+    <key>RE_TLS_KEY</key><string>$pki/issued/ollama-front/key.pem</string>
+    <key>RE_TLS_CA</key><string>$pki/ca/ca.crt</string>
+    <key>RE_TLS_CRL</key><string>$pki/ca/ca.crl</string>
+    <key>RE_TLS_SUITES</key><string>$suites</string>
+    <key>RE_TLS_GROUPS</key><string>$groups</string>
+  </dict>
+  <key>RunAtLoad</key><true/>
+  <key>KeepAlive</key><true/>
+  <key>StandardOutPath</key><string>$DIR/ollama-front/front.log</string>
+  <key>StandardErrorPath</key><string>$DIR/ollama-front/front.log</string>
+</dict>
+</plist>
+PLIST
+  launchctl bootstrap "gui/$(id -u)" "$(front_plist)" || die "Ollama's TLS front did not load (LaunchAgent $FRONT_LABEL)."
+  local n=0
+  until port_in_use "$port"; do
+    n=$((n + 1)); [ "$n" -lt 20 ] || die "Ollama's TLS front is not listening on $port. Its log: $DIR/ollama-front/front.log"
+    sleep 1
+  done
+  ok "Ollama's TLS front: https://127.0.0.1:$port -> Ollama (TLS 1.3, mTLS; LaunchAgent $FRONT_LABEL)"
 }
 
 configure() {
@@ -670,6 +725,7 @@ pull_images() {
 
 start() {
   say "Starting"
+  front_up
   compose up -d --remove-orphans
   wait_healthy
   # Engines boot the shipped corpus; machines loaded since are reloaded.
@@ -779,7 +835,7 @@ case "$CMD" in
     # The gateway stops first: an OpenClaw update replaces the package it runs.
     HOST_UPDATE=true; gateway_down; host_gate strict; check_ports; configure; pull_images; start; urls ;;
   down)
-    gateway_down; compose down; ok "Stopped. Data is kept; '$PROG up' starts it again." ;;
+    gateway_down; front_down; compose down; ok "Stopped. Data is kept; '$PROG up' starts it again." ;;
   status) status ;;
   logs)
     # shellcheck disable=SC2086  # the service names, split on purpose
@@ -788,8 +844,8 @@ case "$CMD" in
     [ -n "$TO" ] || die "Pass --to VERSION."
     VERSION="$TO"; HOST_UPDATE=true; gateway_down; host_gate strict; check_ollama; check_ports; configure; pull_images; start; urls ;;
   uninstall)
-    gateway_down
-    rm -f "$HOME/Library/LaunchAgents/$GATEWAY_LABEL.plist"
+    gateway_down; front_down
+    rm -f "$HOME/Library/LaunchAgents/$GATEWAY_LABEL.plist" "$(front_plist)"
     if [ "$PURGE" = true ]; then
       compose down -v --remove-orphans || true
       rm -rf "$DIR"; ok "Removed the install and all its data."

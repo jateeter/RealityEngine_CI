@@ -17,7 +17,7 @@ RUN apt-get update \
 # What a release install is made of.
 COPY release/compose.yml release/images.json /opt/release/
 COPY release/config/ /opt/release/config/
-COPY release/realityengine /opt/release/realityengine
+COPY release/realityengine release/ollama-tls-front.mjs /opt/release/
 
 # The RealityEngine_CI files an install needs, unchanged: the instance UUID
 # allocator (#296), the integration registry template, and the monitoring

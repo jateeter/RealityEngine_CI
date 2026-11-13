@@ -88,13 +88,19 @@ HOST_PORTS = {
     # The asset storage stack's lifecycle API (localAssetStorageStack). Its CSS
     # and dokieli are on ASSETS_FIXED_PORTS, never moved: a pod's URL holds it.
     "LIFECYCLE": 13445,
+    # Manager's TypeScript PE and Grafana through tls-proxy (owner, 2026-11-12).
+    "TS_PE": 3004, "GRAFANA_PROXY": 3000,
 }
 # localAssetStorageStack ROADMAP D7: https://assets-css.localhost:13443/ and
 # https://assets-dokieli.localhost:13444/, the same inside and outside.
 ASSETS_FIXED_PORTS = {"assets-css": 13443, "assets-dokieli": 13444}
-ASSETS_CSS_IMAGE = "solidproject/community-server:7.3.0@sha256:58073541889f0cd113dc482b4ddbb834bcd39463dc077d49fd1cf9f55337c4b6"
+ASSETS_CSS_IMAGE = "ghcr.io/jateeter/mirror/solidproject/community-server:7.3.0@sha256:58073541889f0cd113dc482b4ddbb834bcd39463dc077d49fd1cf9f55337c4b6"
 # The OpenClaw gateway runs on the Mac (#592); containers reach it here.
 GATEWAY_HOST = "host.docker.internal"
+# Ollama's TLS front on the Mac (release/ollama-tls-front.mjs, owner 2026-11-12):
+# TLS 1.3 with mTLS on 127.0.0.1, relaying to Ollama on 127.0.0.1:11434.
+OLLAMA_FRONT_PORT = 11443
+OLLAMA_FRONT_DOCKER = f"https://{GATEWAY_HOST}:{OLLAMA_FRONT_PORT}"
 
 
 def gateway_port() -> int:
@@ -242,7 +248,7 @@ def engine_services(insts: list[dict], tls: bool = False) -> dict:
             "TRIGGERS_ENABLED": "true", "TRIGGER_DISPATCH_MODE": "dry-run",
             # Ollama runs natively, for the Apple GPU (A6); every PE runtime
             # defaults to localhost, which inside a container is the container.
-            "OLLAMA_BASE_URL": "http://host.docker.internal:11434",
+            "OLLAMA_BASE_URL": OLLAMA_FRONT_DOCKER if tls else "http://host.docker.internal:11434",
             "OLLAMA_MODEL": "${OLLAMA_MODEL:-nemotron-3-nano:4b-mlx}",
         }
         pe_svc_def = {
@@ -481,6 +487,11 @@ def pki(install: pathlib.Path, insts: list[dict], ip: str) -> None:
     run("issue", "assets-dokieli", "--kind", "server", "--dns", "assets-dokieli.localhost", "--dns", "assets-dokieli",
         "--ip", "127.0.0.1")
     run("issue", "lifecycle", "--kind", "both", "--dns", "lifecycle", "--dns", "localhost", "--ip", "127.0.0.1")
+    # Ollama's TLS front, as the Mac and the containers reach it.
+    run("issue", "ollama-front", "--kind", "server", "--dns", "localhost", "--dns", GATEWAY_HOST, "--ip", "127.0.0.1")
+    # Manager's TypeScript PE and its own Scala RE.
+    run("issue", "ts-pe", "--kind", "both", "--dns", "perception-engine-backend", "--dns", "ts-pe-re",
+        "--dns", "localhost", "--ip", "127.0.0.1")
     run("crl")
     log("issued the install's lane certificates (pki/)")
 
@@ -571,6 +582,7 @@ def observability_tls_services(install: pathlib.Path) -> dict:
                                      "https://localhost:3000/api/health"]}},
         "bridge-metrics": {
             "environment": {**TLS_ENV, "LOCALAI_API_URL": "https://localai-api:8000", "QDRANT_URL": "https://qdrant:6333",
+                            "OLLAMA_BASE_URL": OLLAMA_FRONT_DOCKER,
                             "OPENCLAW_GATEWAY_URL": "https://host.docker.internal:${RE_PORT_OPENCLAW:-18789}"},
             "volumes": tls_mounts("bridge-metrics")},
     }
@@ -615,9 +627,8 @@ def pim_tls_services() -> dict:
 def localai_tls_services() -> dict:
     """localAIStack on the lane, as its docker-compose.tls.yml puts it (#729):
     Qdrant and Redis serve TLS 1.3 with client certificates required, and the
-    API serves and calls on the lane. Ollama stays plain http in this release:
-    owner decision 2026-11-12, an accepted v0.0.2 deficiency (there is no host
-    front for it on a release Mac)."""
+    API serves and calls on the lane, reaching Ollama through its TLS front on
+    the Mac (release/ollama-tls-front.mjs, owner 2026-11-12)."""
     svc_tls = lambda name: [f"./pki/issued/{name}:{TLS_DIR}/service:ro", f"./pki/ca/ca.crt:{TLS_DIR}/ca.crt:ro"]
     return {
         "qdrant": {
@@ -641,7 +652,7 @@ def localai_tls_services() -> dict:
         "localai-api": {
             "environment": {**TLS_ENV, "REDIS_URL": "rediss://redis:6379",
                             "RE_REGISTRY_URL": "https://registry:8000/re-registry.internal.json",
-                            "RE_SSL_VERIFY": "true"},
+                            "RE_SSL_VERIFY": "true", "OLLAMA_BASE_URL": OLLAMA_FRONT_DOCKER},
             "volumes": tls_mounts("localai-api")},
     }
 
@@ -801,12 +812,12 @@ def configure_openclaw(install: pathlib.Path, sec: dict[str, str], tls: bool = F
     env = {**os.environ, "OPENCLAW_AGENT_PROFILE": profile, "OPENCLAW_SCHEMA": "entries",
            "OPENCLAW_STATE_DIR": str(home), "OPENCLAW_HOME_DIR": host_home,
            "OPENCLAW_GATEWAY_BIND": "loopback", "OPENCLAW_GATEWAY_PORT": str(ports["OPENCLAW"]),
-           "OLLAMA_BASE_URL": "http://127.0.0.1:11434",
+           "OLLAMA_BASE_URL": f"https://localhost:{OLLAMA_FRONT_PORT}" if tls else "http://127.0.0.1:11434",
            "OPENCLAW_BROWSER_CDP_URL": f"{'https' if tls else 'http'}://127.0.0.1:{ports['BROWSER_CDP']}"}
     if tls:
         # On the lane (#729): harden-config.sh writes gateway.tls from the TLS
         # directory, checked here at re-init's path and rewritten below to the
-        # Mac's, where the gateway runs. Ollama stays plain http (owner, 2026-11-12).
+        # Mac's, where the gateway runs. Ollama through its TLS front (owner, 2026-11-12).
         env["OPENCLAW_TLS_DIR"] = str(install / "pki" / "openclaw")
     if profile.startswith("manifest:"):
         # Loaded machines resolve against the catalog the installer synced.
@@ -868,6 +879,45 @@ def configure_openclaw(install: pathlib.Path, sec: dict[str, str], tls: bool = F
         os.chmod(top, 0o700)
     log(f"OpenClaw configured with profile {profile.split('/')[-1]} ({total} machine agents), "
         f"home {host_home}")
+
+
+def ts_pe_services(tls: bool) -> dict:
+    """Manager's TypeScript PE (a non-voting follower, PE only) and the Scala RE
+    it drives, as the docker lane pairs them (owner, 2026-11-12). Not an engine
+    instance: never in the instance registry, never a vote. tls-proxy serves it
+    on 3004 (release/config/nginx.conf); with TLS on, the proxy asks callers for
+    the lane certificate, the HealthKit device routes aside."""
+    scheme = "https" if tls else "http"
+    common = {"restart": "unless-stopped", "networks": ["realityengine"],
+              "extra_hosts": ["host.docker.internal:host-gateway"],
+              "logging": {"driver": "json-file", "options": {"max-size": "10m", "max-file": "3"}}}
+    re_def = {
+        **common, "image": "${RE_IMAGE_SCALA}",
+        "environment": {"MACHINES_DIR": "/app/corpus/machines", "SEMANTICS_MANIFEST": "/app/corpus/semantics/abox-manifest.json",
+                        "VECTOR_DIMENSION": "${VECTOR_DIMENSION:-7680}", "QDRANT_URL": f"{scheme}://qdrant:6333",
+                        "PORT": str(RE_PORT), "JAVA_TOOL_OPTIONS": "${TS_PE_RE_JAVA_OPTS:--Xmx2g}"},
+        "volumes": ["corpus-boot:/app/corpus:ro"],
+        "depends_on": {"corpus": {"condition": "service_completed_successfully"},
+                       "qdrant": {"condition": "service_healthy"}},
+        "healthcheck": {"test": health(RE_PORT, tls), "interval": "10s", "timeout": "5s", "retries": 18,
+                        "start_period": "30s"}}
+    pe_def = {
+        **common, "image": "${RE_IMAGE_TS_PE}",
+        "environment": {"PORT": "3004", "REALITY_ENGINE_URL": f"{scheme}://ts-pe-re:{RE_PORT}", "DATA_PATH": "/app/data",
+                        "VECTOR_SIZE": "${VECTOR_DIMENSION:-7680}", "LOCAL_AI_BASE_URL": f"{scheme}://localai-api:8000",
+                        "INTEGRATIONS_CONFIG": "/app/config/integrations.json",
+                        "SEMANTICS_MANIFEST": "/app/corpus/semantics/abox-manifest.json",
+                        "HEALTHKIT_BRIDGE_TOKEN": "${HEALTHKIT_BRIDGE_TOKEN}",
+                        "TRIGGERS_ENABLED": "true", "TRIGGER_DISPATCH_MODE": "dry-run"},
+        "volumes": ["corpus-boot:/app/corpus:ro", "./config/integrations.json:/app/config/integrations.json:ro"],
+        "depends_on": {"ts-pe-re": {"condition": "service_healthy", "restart": True}}}
+    if tls:
+        for d in (re_def, pe_def):
+            d["environment"].update(TLS_ENV)
+            d["volumes"] = d["volumes"] + tls_mounts("ts-pe")
+        pe_def["healthcheck"] = {"test": ["CMD", "node", "-e", node_tls_health(3004, "/api/health")],
+                                 "interval": "10s", "timeout": "5s", "retries": 18, "start_period": "30s"}
+    return {"ts-pe-re": re_def, "perception-engine-backend": pe_def}
 
 
 def assets_files(install: pathlib.Path, ports: dict[str, int]) -> None:
@@ -966,6 +1016,17 @@ def assets_services(ports: dict[str, int]) -> dict:
     }
 
 
+def ollama_front_files(install: pathlib.Path) -> None:
+    """The front's script and the profile it serves, for the CLI's LaunchAgent."""
+    front = install / "ollama-front"
+    front.mkdir(parents=True, exist_ok=True)
+    shutil.copyfile(RELEASE / "ollama-tls-front.mjs", front / "ollama-tls-front.mjs")
+    tls = json.loads((CI / "config" / "transport-profile.json").read_text())["tls"]
+    groups = tls["keyExchangeGroups"]["preferred"] + tls["keyExchangeGroups"]["fallback"]
+    write(front / "profile.env", f"RE_TLS_SUITES={':'.join(tls['cipherSuites'])}\nRE_TLS_GROUPS={':'.join(groups)}\n"
+          f"OLLAMA_FRONT_PORT={OLLAMA_FRONT_PORT}\n")
+
+
 def copy_config(install: pathlib.Path) -> None:
     cfg = install / "config"
     (cfg / "grafana").mkdir(parents=True, exist_ok=True)
@@ -1003,7 +1064,7 @@ def cmd_configure(args) -> int:
     write(install / "compose.engines.yml",
           "# Generated by re-init from the engine spec " + args.engines + ". Do not edit:\n"
           "# `realityengine up --engines=...` regenerates it.\n"
-          + yaml_dump({"services": engine_services(insts, tls)}) + "\n")
+          + yaml_dump({"services": {**engine_services(insts, tls), **ts_pe_services(tls)}}) + "\n")
     compose_files = ["compose.yml", "compose.engines.yml", "compose.assets.yml"]
     assets_files(install, ports)
     write(install / "compose.assets.yml",
@@ -1036,7 +1097,8 @@ def cmd_configure(args) -> int:
                   "tls-proxy": {
                       "volumes": ["./config/nginx.lane.conf:/etc/nginx/nginx.conf:ro",
                                   "./pki/issued/manager:/etc/nginx/lane/instance:ro",
-                                  "./pki/ca/ca.crt:/etc/nginx/lane/ca.crt:ro"]},
+                                  "./pki/ca/ca.crt:/etc/nginx/lane/ca.crt:ro",
+                                  "./pki/ca/ca.crl:/etc/nginx/lane/ca.crl:ro"]},
                   **localai_tls_services(),
                   **pim_tls_services(),
                   # The gateway's browser sidecar: CDP behind nginx with TLS 1.3 and
@@ -1069,6 +1131,7 @@ def cmd_configure(args) -> int:
     write_json(install / "registry" / "re-registry.internal.json", internal_reg)
 
     copy_config(install)
+    ollama_front_files(install)
     re_t, pe_t = file_sd(insts)
     write_json(install / "config" / "file_sd" / "reality-engine-targets.json", re_t)
     write_json(install / "config" / "file_sd" / "perception-engine-targets.json", pe_t)
