@@ -92,7 +92,8 @@ jobs:
           pins = json.loads(os.environ["PINS"] or "{}")
           repos = ["RealityEngine_CI", "RealityEngine_CPP", "RealityEngine_LSP", "RealityEngine_Scala",
                    "RealityEngine_Machines", "RealityEngine_Manager", "localAIStack", "localOpenClawStack",
-                   "OpenCommons-Health---Personal-Information-Management"]
+                   "OpenCommons-Health---Personal-Information-Management", "RealityEngine_Rust",
+                   "localAssetStorageStack"]
           unknown = set(pins) - set(repos)
           if unknown:
               raise SystemExit(f"pins for unknown repos: {sorted(unknown)}")
@@ -118,6 +119,8 @@ jobs:
           P_LOCALAI: ${{ steps.pins.outputs.localAIStack }}
           P_OPENCLAW: ${{ steps.pins.outputs.localOpenClawStack }}
           P_PIM: ${{ steps.pins.outputs.OpenCommons_Health___Personal_Information_Management }}
+          P_RUST: ${{ steps.pins.outputs.RealityEngine_Rust }}
+          P_ASSETS: ${{ steps.pins.outputs.localAssetStorageStack }}
         run: |
           set -euo pipefail
           clone() {   # repo, commit-or-empty
@@ -133,6 +136,9 @@ jobs:
           clone localAIStack "$P_LOCALAI"
           clone localOpenClawStack "$P_OPENCLAW"
           clone OpenCommons-Health---Personal-Information-Management "$P_PIM"
+          # re-rust, re-dokieli and re-lifecycle (owner, 2026-11-12).
+          clone RealityEngine_Rust "$P_RUST"
+          clone localAssetStorageStack "$P_ASSETS"
 
       - name: Check the image catalog
         working-directory: RealityEngine_CI
