@@ -33,6 +33,13 @@ npm run test:deployment
 - IFRS candidate connector verification is `scripts/verify-ifrs-workflows.py`: real local embedding/RAG services, transactional document sidecar, optional private OpenClaw gateway/model tool use, and explicit synthetic accounting cases. It uses isolated ports/state and stops only its child processes. Its connector receipt does not establish native parity or domain admission; those remain separate canonical gates.
 
 - Prefer `RE_REGISTRY_URL` for Manager, Machines, and CI e2e tests.
+- **Secrets have one home** (owner, 2026-11-14): `$RE_SECRETS_DIR/<repo>/`, default
+  `~/.reality-engine/secrets/<repo>/` (`scripts/lib/secrets-home.sh`), outside every
+  repository and shared by every checkout. `regression-test.sh` resolves and exports
+  `RE_SECRETS_DIR`, and `startUniverse.sh` and the repositories it starts read the
+  same directory, so cold-start worktrees, the operator's checkout and ad hoc
+  worktrees agree. A secret never goes into a checkout. An old in-checkout copy is
+  copied there once, verified, and kept for the operator to delete.
 - **The universe model is `nemotron-3-nano:4b`**, NVIDIA Nemotron 3 Nano 4B
   from the Ollama library (`ollama pull nemotron-3-nano:4b`; the stack needs
   Ollama 0.40.13+). Ollama runs it on MLX where MLX is available, so the
@@ -105,7 +112,7 @@ npm run test:deployment
   through its own `scripts/up.js`, before Manager:
   - with `RE_TLS=on` it passes the instance registry, so the lifecycle reaches the
     engines (continuation rule 7, frame lanes);
-  - it writes the lifecycle's engine token to `~/.reality-engine/assets/` (0600)
+  - it writes the lifecycle's engine token to the secrets home (`$RE_SECRETS_DIR/RealityEngine_CI/`, 0600)
     and gives Manager `INSTANTIATION_ENABLED`, `LIFECYCLE_URL` and
     `LIFECYCLE_ENGINE_TOKEN_FILE`;
   - it records the stack's addresses as `assetStorage` in `config/integrations.json`;
