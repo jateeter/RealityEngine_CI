@@ -154,5 +154,30 @@ if (prepare_docker); then STATUS=0; else STATUS=$?; fi
 check "$STATUS" 1 "runtime lane still enforces its Docker prerequisite"
 check "$(cat "$TMP/docker-called")" called "runtime lane still enters preflight"
 
+echo ""
+echo "a per-instance stage fails when any instance fails"
+# run_openclaw and run_mqtt_yuma ran one command per instance in a loop and
+# returned the loop's status, so a failing instance read as a passed stage
+# (run 20261113T230047Z: all three openclaw-integration and mqtt-yuma reports
+# failed, both stages passed).
+eval "$(sed -n '/^run_openclaw() {/,/^}/p' "$CI_DIR/scripts/regression-test.sh")"
+eval "$(sed -n '/^run_mqtt_yuma() {/,/^}/p' "$CI_DIR/scripts/regression-test.sh")"
+repo_root() { echo "$TMP/ci"; }
+registry_instance_lines() { printf '%s\n' 'cpp-1|cpp|https://pe-1' 'lsp-1|lsp|https://pe-2' 'scala-1|scala|https://pe-3'; }
+mqtt_bridges() { :; }
+write_mqtt_skip_report() { :; }
+REPORT_DIR="$TMP/stage-status"; RUN_ID=t; OPENCLAW_FLAG=--openclaw
+MQTT_SKIP_REASON=""; MQTT_BROKER_URL="mqtt://broker.test:1883"; MQTT_MAPPINGS=""
+run_cmd() { case "$1" in *-lsp-1) return 1 ;; *) return 0 ;; esac; }
+if run_openclaw; then STATUS=0; else STATUS=$?; fi
+check "$STATUS" 1 "openclaw fails when one instance fails"
+if run_mqtt_yuma; then STATUS=0; else STATUS=$?; fi
+check "$STATUS" 1 "mqtt-yuma fails when one instance fails"
+run_cmd() { return 0; }
+if run_openclaw; then STATUS=0; else STATUS=$?; fi
+check "$STATUS" 0 "openclaw passes when every instance passes"
+if run_mqtt_yuma; then STATUS=0; else STATUS=$?; fi
+check "$STATUS" 0 "mqtt-yuma passes when every instance passes"
+
 echo "  $PASS passed, $FAIL failed"
 [ "$FAIL" -eq 0 ]

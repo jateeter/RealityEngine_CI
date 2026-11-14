@@ -91,9 +91,11 @@ MQTT_BROKER_URL="${MQTT_BROKER_URL:-}"
 # still the explicit opt-out.
 YUMA_MQTT_BROKER_URL="mqtt://yuma.lateraledge.cloud:1883"
 MQTT_MAPPINGS="${MQTT_MAPPINGS:-}"
-MCP_URL="${MCP_URL:-http://127.0.0.1:7331}"
-SWAGGER_URL="${SWAGGER_URL:-http://127.0.0.1:8088}"
-LOCAL_AI_URL="${LOCAL_AI_URL:-http://localhost:4000}"
+# Service URLs the caller names. The defaults take the lane's scheme and are set
+# once the profile has decided RE_TLS (after profile resolution, below).
+MCP_URL="${MCP_URL:-}"
+SWAGGER_URL="${SWAGGER_URL:-}"
+LOCAL_AI_URL="${LOCAL_AI_URL:-}"
 
 # Node is managed, not discovered. RealityEngine_Manager pins engines.node, the
 # hosted lane reads the same .nvmrc with actions/setup-node, and the harness
@@ -178,8 +180,10 @@ Options:
                             'none'/'off'/'skip' (any case) is the explicit
                             opt-out: MQTT checks are skipped.
   --mqtt-mappings PATH      Yuma MQTT mappings file.
-  --mcp-url URL             MCP HTTP base URL. Default: http://127.0.0.1:7331
-  --swagger-url URL         OpenAPI Swagger base URL. Default: http://127.0.0.1:8088
+  --mcp-url URL             MCP base URL. Default: 127.0.0.1:7331, https under
+                            RE_TLS=on (the lane's scheme).
+  --swagger-url URL         OpenAPI Swagger base URL. Default: 127.0.0.1:8088,
+                            https under RE_TLS=on.
   --openclaw                Require OpenClaw. Default under --profile local.
   --no-openclaw             Skip OpenClaw. Forced under --profile hosted.
   --local-ai                Start Ollama and localAIStack. Default under --profile local.
@@ -289,12 +293,6 @@ case "$(printf '%s' "$MQTT_BROKER_URL" | tr '[:upper:]' '[:lower:]')" in
     ;;
 esac
 
-# An empty service URL means the default, not "no host". Passed through as
-# given, every probe becomes a bare path (`/healthz`) and the stage crashes
-# instead of reporting. Normalised here so no caller has to know that.
-[ -n "$MCP_URL" ] || MCP_URL="http://127.0.0.1:7331"
-[ -n "$SWAGGER_URL" ] || SWAGGER_URL="http://127.0.0.1:8088"
-
 # ── Profile resolution ───────────────────────────────────────────────────────
 # An unset knob takes the profile's value; a knob the caller set is checked
 # against the profile and, on the hosted lane, refused. Six independent
@@ -367,12 +365,27 @@ case "$PROFILE" in
     # with inherited environment, so one export reaches all three.
     OLLAMA_MODEL="${OLLAMA_MODEL:-nemotron-3-nano:4b-mlx}"
     export OLLAMA_MODEL
+    # The native local lane runs on TLS (owner, 2026-11-13): every link is TLS 1.3
+    # (#668), so a local regression measures the lane the release ships. RE_TLS=off
+    # still opts out. local-containerized brings its install's own CA (#729).
+    if [ "$PROFILE" = local ]; then RE_TLS="${RE_TLS:-on}"; export RE_TLS; fi
     ;;
   *)
     echo "Unsupported --profile: $PROFILE (hosted|local|local-containerized)" >&2
     exit 2
     ;;
 esac
+
+# The lane's services are TLS-only under RE_TLS=on (#668, #732), so the default
+# service URLs take the lane's scheme. A plaintext probe of a TLS-only service is
+# reset by the peer, and read as the service being down. An empty URL means the
+# default, not "no host" (a bare path would crash the stage instead of reporting).
+LANE_SCHEME=http
+[ "${RE_TLS:-off}" = on ] && LANE_SCHEME=https
+[ -n "$MCP_URL" ] || MCP_URL="$LANE_SCHEME://127.0.0.1:7331"
+[ -n "$SWAGGER_URL" ] || SWAGGER_URL="$LANE_SCHEME://127.0.0.1:8088"
+[ -n "$LOCAL_AI_URL" ] || LOCAL_AI_URL="$LANE_SCHEME://localhost:4000"
+OPENCLAW_HEALTH_URL="$LANE_SCHEME://localhost:18789"
 
 # LOCAL_LANE: operator hardware (Docker, Xcode, a phone), true on both local
 # profiles. CONTAINERIZED: the engines, Manager, localAI and OpenClaw come from
@@ -730,6 +743,7 @@ plan() {
   [ "$LOCAL_AI" = true ] && log "ollama model: ${OLLAMA_MODEL:-<engine default>}"
   log "corpus:       $MACHINE_CORPUS"
   log "mqtt broker:  ${MQTT_BROKER_URL:-<not configured>}"
+  log "lane tls:     ${RE_TLS:-off}"
   log "mcp url:      $MCP_URL"
   log "swagger url:  $SWAGGER_URL"
   log "compare:      ${COMPARE_RUN:-<latest completed>}"
@@ -1621,6 +1635,7 @@ run_service_inventory() {
     "--manifest" "$RUN_DIR/manifest.json"
     "--mcp-url" "$MCP_URL"
     "--swagger-url" "$SWAGGER_URL"
+    "--openclaw-url" "$OPENCLAW_HEALTH_URL"
   )
   [ "$OPENCLAW_FLAG" = "--openclaw" ] && args+=("--require-openclaw")
   # The release images do not include the OpenAPI Swagger UI (release/images.json).
@@ -1987,20 +2002,22 @@ run_mqtt_yuma() {
   # path covered rather than assumed to have succeeded at boot.
   local mqtt_args=(--broker-url "$MQTT_BROKER_URL")
   [ -n "$MQTT_MAPPINGS" ] && mqtt_args+=(--mappings "$MQTT_MAPPINGS")
-  local found=false
+  local found=false status=0
+  # Every instance runs, and any that fails fails the stage (see run_openclaw).
   while IFS='|' read -r instance_id runtime pe_url; do
     [ -n "$instance_id" ] || continue
     found=true
     run_cmd "mqtt-yuma-$instance_id" bash "$ci/scripts/test-mqtt-yuma.sh" \
       --pe-url "$pe_url" \
       --report-json "$REPORT_DIR/mqtt-yuma-$instance_id.json" \
-      "${mqtt_args[@]}"
+      "${mqtt_args[@]}" || status=1
   done < <(registry_instance_lines)
 
   # Hand exclusivity back to the stages that follow. Without this the bridge this
   # stage enabled would push into arbiter, engine-process-parity and the rest.
   mqtt_bridges mute
   [ "$found" = true ] || { log "SKIP MQTT: no running PE instances in registry"; write_mqtt_skip_report "no running PE instances in registry"; return 0; }
+  return "$status"
 }
 
 # Arbiter conformance (ARBITER_CONTRACT.md 9). Runs only when the lane booted a
@@ -2100,7 +2117,10 @@ run_mcp() {
   step "MCP open service"
   local ci
   ci="$(repo_root RealityEngine_CI)"
-  run_cmd "mcp-smoke" node "$ci/scripts/regression-mcp-smoke.mjs" \
+  # Under RE_TLS=on the smoke presents the harness certificate (laneFetch).
+  local lane_env=()
+  [ "${RE_TLS:-off}" = on ] && lane_env=(RE_TLS_CERT="$RE_HARNESS_TLS_CERT" RE_TLS_KEY="$RE_HARNESS_TLS_KEY" RE_TLS_CA="$RE_HARNESS_TLS_CA")
+  run_cmd "mcp-smoke" env ${lane_env[@]+"${lane_env[@]}"} node "$ci/scripts/regression-mcp-smoke.mjs" \
     --mcp-url "$MCP_URL" \
     --registry "$REGISTRY_FILE" \
     --manifest "$ci/mcp/manifest.json" \
@@ -2532,7 +2552,9 @@ PYEOF
   fi
   local ci
   ci="$(repo_root RealityEngine_CI)"
-  local found=false
+  local found=false status=0
+  # Every instance runs, and any that fails fails the stage. The loop alone
+  # returned the last statement's status, so a failing instance read as passed.
   while IFS='|' read -r instance_id runtime pe_url; do
     [ -n "$instance_id" ] || continue
     found=true
@@ -2540,7 +2562,7 @@ PYEOF
       PE_URL="$pe_url" \
       OPENCLAW_E2E_RUN_ID="$RUN_ID-$instance_id" \
       bash "$ci/scripts/test-openclaw-integration.sh" \
-      --report-json "$REPORT_DIR/openclaw-integration-$instance_id.json"
+      --report-json "$REPORT_DIR/openclaw-integration-$instance_id.json" || status=1
   done < <(registry_instance_lines)
   if [ "$found" != true ]; then
     log "SKIP OpenClaw: no running PE instances in registry"
@@ -2553,6 +2575,7 @@ Path(sys.argv[1]).write_text(json.dumps({"status": "skipped", "reason": "no runn
 PYEOF
     return 0
   fi
+  return "$status"
 }
 
 generate_regression_report() {

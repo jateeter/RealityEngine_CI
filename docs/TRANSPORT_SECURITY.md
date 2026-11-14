@@ -151,8 +151,9 @@ repository's TLS issue implements the same thing.
   Scala alike, RealityEngine_CPP#193, LSP#186, Scala#210). A difference shows up
   as an engine divergence, so a change lands in all three together.
 
-**The lane switch.** `RE_TLS=on|off` (default `off`), read by
-`scripts/lib/lane-tls.sh`. The native lane issues every instance's certificate
+**The lane switch.** `RE_TLS=on|off`, read by `scripts/lib/lane-tls.sh`. Its
+default is `off`, except in `regression-test.sh --profile local`, which runs
+the native lane on TLS unless the caller sets `RE_TLS=off` (owner, 2026-11-13). The native lane issues every instance's certificate
 either way, but hands over `RE_TLS_*` and registers `https` URLs only when it is
 on.
 With the lane on:

@@ -178,8 +178,20 @@ PYEOF
 
 die()  { echo -e "\n${RED}✗  FATAL:${NC} $*\n"; FAIL=$((FAIL+1)); ERRORS+=("$*"); [ -z "$FAILURE_STAGE" ] && FAILURE_STAGE="$*"; write_report "failed"; exit 1; }
 
-# curl wrapper — handles TLS (self-signed certs) and optionally logs bodies
-_curl() { curl -sk --max-time 10 "$@"; }
+# curl wrapper. Lane TLS (#668): under RE_TLS=on every PE route but the device
+# routes requires a client certificate, so the PE calls present the harness's
+# (RE_HARNESS_TLS_*, exported by lane_tls_init) and trust the lane CA through the
+# lane's TLS 1.3 curl. No unverified fallback. Off the lane, as before.
+PE_CURL=(curl -sk)
+if [ "${RE_TLS:-off}" = on ]; then
+  # shellcheck source=lib/lane-tls.sh
+  . "$CI_DIR/scripts/lib/lane-tls.sh"
+  for v in RE_HARNESS_TLS_CA RE_HARNESS_TLS_CERT RE_HARNESS_TLS_KEY; do
+    [ -f "${!v:-}" ] || { echo "RE_TLS=on but $v is unset or not a file" >&2; exit 1; }
+  done
+  PE_CURL=("$(lane_curl)" -s --tlsv1.3 --cacert "$RE_HARNESS_TLS_CA" --cert "$RE_HARNESS_TLS_CERT" --key "$RE_HARNESS_TLS_KEY")
+fi
+_curl() { "${PE_CURL[@]}" --max-time 10 "$@"; }
 
 # ── 1 · PE health ─────────────────────────────────────────────────────────────
 hdr "1 · PE health  $PE_URL"

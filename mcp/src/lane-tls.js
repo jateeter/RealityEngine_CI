@@ -104,7 +104,7 @@ function laneAgent(s) {
 }
 
 /**
- * fetch-shaped request: { status, ok, text(), json() }. With the lane on an
+ * fetch-shaped request: { status, ok, headers, text(), json() }. With the lane on an
  * https URL to an internal peer goes over the lane's mTLS; anything else is
  * the global fetch, as before. Plain http to an internal peer is refused on the
  * lane: the lane has no plaintext links.
@@ -123,9 +123,14 @@ export async function laneFetch(url, { method = 'GET', headers = {}, body, signa
       res.on('data', (c) => chunks.push(c));
       res.on('end', () => {
         const text = Buffer.concat(chunks).toString('utf8');
+        const headers = new Headers();
+        for (const [k, v] of Object.entries(res.headers)) {
+          for (const one of Array.isArray(v) ? v : [v]) if (one !== undefined) headers.append(k, String(one));
+        }
         resolve({
           status: res.statusCode,
           ok: res.statusCode >= 200 && res.statusCode < 300,
+          headers,
           text: async () => text,
           json: async () => JSON.parse(text),
         });
