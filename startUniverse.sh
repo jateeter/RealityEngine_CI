@@ -393,6 +393,14 @@ source "$CI_DIR/scripts/lib/pe-env.sh"
 source "$CI_DIR/scripts/lib/secrets-home.sh"
 RE_SECRETS_DIR="$(re_secrets_dir)"
 export RE_SECRETS_DIR
+# localOpenClawStack's gateway token: its secrets home, else its .env for a
+# checkout not yet migrated (localOpenClawStack scripts/lib/secrets-home.sh).
+ocs_gateway_token() {
+    local t
+    t=$(grep -E '^OPENCLAW_GATEWAY_TOKEN=' "$RE_SECRETS_DIR/localOpenClawStack/secrets.env" 2>/dev/null | tail -1 | cut -d= -f2- | tr -d "\"'" || true)
+    [ -n "$t" ] || t=$(grep -E '^OPENCLAW_GATEWAY_TOKEN=' "$OCS_DIR/.env" 2>/dev/null | tail -1 | cut -d= -f2- | tr -d "\"'" || true)
+    printf '%s' "$t"
+}
 configure_openclaw_acp_defaults() {
     pe_env_defaults "$CI_INTEGRATIONS_CONFIG"
 }
@@ -2664,10 +2672,7 @@ except Exception:
             # localOpenClawStack's clone-agents CLI. Otherwise the simulated
             # agent runs the steps.
             _oc_cli="$OCS_DIR/scripts/clone-agents.mjs"
-            # The gateway token: localOpenClawStack's secrets home, else its .env
-            # for a checkout not yet migrated (its scripts/lib/secrets-home.sh).
-            _oc_tok=$(grep -E '^OPENCLAW_GATEWAY_TOKEN=' "$RE_SECRETS_DIR/localOpenClawStack/secrets.env" 2>/dev/null | tail -1 | cut -d= -f2- | tr -d "\"'" || true)
-            [ -n "$_oc_tok" ] || _oc_tok=$(grep -E '^OPENCLAW_GATEWAY_TOKEN=' "$OCS_DIR/.env" 2>/dev/null | tail -1 | cut -d= -f2- | tr -d "\"'" || true)
+            _oc_tok=$(ocs_gateway_token)
             if [ "$OPENCLAW" = yes ] && [ -f "$_oc_cli" ] && [ -n "$_oc_tok" ]; then
                 _oc_port=$(grep -E '^OPENCLAW_GATEWAY_PORT=' "$OCS_DIR/.env" 2>/dev/null | tail -1 | cut -d= -f2- || true)
                 _oc_tok_file="$(re_secrets_repo_dir RealityEngine_CI)/openclaw-gateway-token"
@@ -3110,11 +3115,10 @@ else
             die "OpenClaw .env missing — copy $OCS_DIR/.env.example and set OPENCLAW_GATEWAY_TOKEN" || \
             info "OpenClaw: .env not configured — skipping"
     else
-        _ocs_token=$(grep -E '^OPENCLAW_GATEWAY_TOKEN=' "$OCS_DIR/.env" 2>/dev/null \
-            | tail -1 | cut -d= -f2- || true)
+        _ocs_token=$(ocs_gateway_token)
         if [ -z "$_ocs_token" ] || [ "$_ocs_token" = "change-me-to-a-random-secret" ]; then
             [ "$OPENCLAW" = "yes" ] && \
-                die "OPENCLAW_GATEWAY_TOKEN not set in $OCS_DIR/.env" || \
+                die "OPENCLAW_GATEWAY_TOKEN not set in $RE_SECRETS_DIR/localOpenClawStack/secrets.env or $OCS_DIR/.env (run its scripts/init-secrets.sh)" || \
                 info "OpenClaw: OPENCLAW_GATEWAY_TOKEN not configured — skipping"
         else
             _ocs_ok=true
