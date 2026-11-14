@@ -40,10 +40,11 @@ npm run test:deployment
   same directory, so cold-start worktrees, the operator's checkout and ad hoc
   worktrees agree. A secret never goes into a checkout. An old in-checkout copy is
   copied there once, verified, and kept for the operator to delete.
-- **The universe model is `nemotron-3-nano:4b`**, NVIDIA Nemotron 3 Nano 4B
-  from the Ollama library (`ollama pull nemotron-3-nano:4b`; the stack needs
-  Ollama 0.40.13+). Ollama runs it on MLX where MLX is available, so the
-  separate `:4b-mlx` tag is not used, loaded or tested (owner, 2026-11-13). The local
+- **The universe model is `nemotron-3-nano:4b-mlx`**, the MLX build of NVIDIA
+  Nemotron 3 Nano 4B from the Ollama library (`ollama pull
+  nemotron-3-nano:4b-mlx`; the stack needs Ollama 0.40.13+). The plain `:4b` tag is the GGUF
+  build and runs on llama.cpp, so it breaks the MLX owner rule (#593); on 2026-11-13/14 it
+  slowed every agent turn until the `-mlx` tag was restored (owner, 2026-11-14). The local
   lane pins it through `OLLAMA_MODEL`, and `localAIStack`, the native OpenClaw
   gateway and the release bundle default to it. It calls tools and has a 256K
   context that holds an OpenClaw agent prompt. The PEs omit `format` (JSON or

@@ -108,7 +108,7 @@ services:
       QDRANT_HOST: qdrant
       QDRANT_PORT: "6333"
       REDIS_URL: redis://redis:6379
-      LLM_MODEL: ${LLM_MODEL:-nemotron-3-nano:4b}
+      LLM_MODEL: ${LLM_MODEL:-nemotron-3-nano:4b-mlx}
       # localAIStack's model registry default (config/models.registry.json): it
       # runs on MLX, 768-dim (RealityEngine_CI#593; each role's default must run
       # on MLX). Vectors from another embedder do not mix, so changing it means
