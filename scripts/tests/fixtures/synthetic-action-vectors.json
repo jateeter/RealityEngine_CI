@@ -1,0 +1,1112 @@
+{
+ "_source": "localOpenClawStack machine-behaviors/synthetic_body.py at b86aed7 (localOpenClawStack#88); regenerate when that body changes",
+ "admissible": {
+  "advise|": [
+   {
+    "answer": {
+     "completed": "yes",
+     "confidence": "low",
+     "failed": "no",
+     "verdict": "advised"
+    },
+    "values": [
+     1.0,
+     0.0,
+     0.3,
+     0.5
+    ]
+   },
+   {
+    "answer": {
+     "completed": "yes",
+     "confidence": "moderate",
+     "failed": "no",
+     "verdict": "advised"
+    },
+    "values": [
+     1.0,
+     0.0,
+     0.6,
+     0.5
+    ]
+   },
+   {
+    "answer": {
+     "completed": "yes",
+     "confidence": "high",
+     "failed": "no",
+     "verdict": "advised"
+    },
+    "values": [
+     1.0,
+     0.0,
+     0.9,
+     0.5
+    ]
+   }
+  ],
+  "advise|AMBER": [
+   {
+    "answer": {
+     "completed": "yes",
+     "confidence": "low",
+     "failed": "no",
+     "verdict": "advised"
+    },
+    "values": [
+     1.0,
+     0.0,
+     0.3,
+     0.5
+    ]
+   },
+   {
+    "answer": {
+     "completed": "yes",
+     "confidence": "moderate",
+     "failed": "no",
+     "verdict": "advised"
+    },
+    "values": [
+     1.0,
+     0.0,
+     0.6,
+     0.5
+    ]
+   },
+   {
+    "answer": {
+     "completed": "yes",
+     "confidence": "high",
+     "failed": "no",
+     "verdict": "advised"
+    },
+    "values": [
+     1.0,
+     0.0,
+     0.9,
+     0.5
+    ]
+   }
+  ],
+  "advise|GREEN": [
+   {
+    "answer": {
+     "completed": "yes",
+     "confidence": "low",
+     "failed": "no",
+     "verdict": "advised"
+    },
+    "values": [
+     1.0,
+     0.0,
+     0.3,
+     0.5
+    ]
+   },
+   {
+    "answer": {
+     "completed": "yes",
+     "confidence": "moderate",
+     "failed": "no",
+     "verdict": "advised"
+    },
+    "values": [
+     1.0,
+     0.0,
+     0.6,
+     0.5
+    ]
+   },
+   {
+    "answer": {
+     "completed": "yes",
+     "confidence": "high",
+     "failed": "no",
+     "verdict": "advised"
+    },
+    "values": [
+     1.0,
+     0.0,
+     0.9,
+     0.5
+    ]
+   }
+  ],
+  "advise|GREEN|riskControls": [
+   {
+    "answer": {
+     "completed": "no",
+     "confidence": "low",
+     "failed": "yes",
+     "verdict": "blocked"
+    },
+    "values": [
+     0.0,
+     1.0,
+     0.3,
+     0.0
+    ]
+   },
+   {
+    "answer": {
+     "completed": "no",
+     "confidence": "moderate",
+     "failed": "yes",
+     "verdict": "blocked"
+    },
+    "values": [
+     0.0,
+     1.0,
+     0.6,
+     0.0
+    ]
+   },
+   {
+    "answer": {
+     "completed": "no",
+     "confidence": "high",
+     "failed": "yes",
+     "verdict": "blocked"
+    },
+    "values": [
+     0.0,
+     1.0,
+     0.9,
+     0.0
+    ]
+   }
+  ],
+  "advise|RED": [
+   {
+    "answer": {
+     "completed": "yes",
+     "confidence": "low",
+     "failed": "no",
+     "verdict": "advised"
+    },
+    "values": [
+     1.0,
+     0.0,
+     0.3,
+     0.5
+    ]
+   },
+   {
+    "answer": {
+     "completed": "yes",
+     "confidence": "moderate",
+     "failed": "no",
+     "verdict": "advised"
+    },
+    "values": [
+     1.0,
+     0.0,
+     0.6,
+     0.5
+    ]
+   },
+   {
+    "answer": {
+     "completed": "yes",
+     "confidence": "high",
+     "failed": "no",
+     "verdict": "advised"
+    },
+    "values": [
+     1.0,
+     0.0,
+     0.9,
+     0.5
+    ]
+   }
+  ],
+  "automated-act|": [
+   {
+    "answer": {
+     "completed": "yes",
+     "confidence": "low",
+     "executed": "yes",
+     "failed": "no",
+     "rollback_ok": "yes",
+     "verdict": "executed"
+    },
+    "values": [
+     1.0,
+     0.0,
+     0.3,
+     1.0
+    ]
+   },
+   {
+    "answer": {
+     "completed": "yes",
+     "confidence": "moderate",
+     "executed": "yes",
+     "failed": "no",
+     "rollback_ok": "yes",
+     "verdict": "executed"
+    },
+    "values": [
+     1.0,
+     0.0,
+     0.6,
+     1.0
+    ]
+   },
+   {
+    "answer": {
+     "completed": "yes",
+     "confidence": "high",
+     "executed": "yes",
+     "failed": "no",
+     "rollback_ok": "yes",
+     "verdict": "executed"
+    },
+    "values": [
+     1.0,
+     0.0,
+     0.9,
+     1.0
+    ]
+   }
+  ],
+  "automated-act|AMBER": [
+   {
+    "answer": {
+     "completed": "no",
+     "confidence": "low",
+     "failed": "yes",
+     "review_required": "yes",
+     "verdict": "blocked"
+    },
+    "values": [
+     0.0,
+     1.0,
+     0.3,
+     0.0
+    ]
+   },
+   {
+    "answer": {
+     "completed": "no",
+     "confidence": "moderate",
+     "failed": "yes",
+     "review_required": "yes",
+     "verdict": "blocked"
+    },
+    "values": [
+     0.0,
+     1.0,
+     0.6,
+     0.0
+    ]
+   },
+   {
+    "answer": {
+     "completed": "no",
+     "confidence": "high",
+     "failed": "yes",
+     "review_required": "yes",
+     "verdict": "blocked"
+    },
+    "values": [
+     0.0,
+     1.0,
+     0.9,
+     0.0
+    ]
+   }
+  ],
+  "automated-act|GREEN": [
+   {
+    "answer": {
+     "completed": "yes",
+     "confidence": "low",
+     "executed": "yes",
+     "failed": "no",
+     "rollback_ok": "yes",
+     "verdict": "executed"
+    },
+    "values": [
+     1.0,
+     0.0,
+     0.3,
+     1.0
+    ]
+   },
+   {
+    "answer": {
+     "completed": "yes",
+     "confidence": "moderate",
+     "executed": "yes",
+     "failed": "no",
+     "rollback_ok": "yes",
+     "verdict": "executed"
+    },
+    "values": [
+     1.0,
+     0.0,
+     0.6,
+     1.0
+    ]
+   },
+   {
+    "answer": {
+     "completed": "yes",
+     "confidence": "high",
+     "executed": "yes",
+     "failed": "no",
+     "rollback_ok": "yes",
+     "verdict": "executed"
+    },
+    "values": [
+     1.0,
+     0.0,
+     0.9,
+     1.0
+    ]
+   }
+  ],
+  "automated-act|RED": [
+   {
+    "answer": {
+     "completed": "no",
+     "confidence": "low",
+     "failed": "yes",
+     "review_required": "yes",
+     "verdict": "blocked"
+    },
+    "values": [
+     0.0,
+     1.0,
+     0.3,
+     0.0
+    ]
+   },
+   {
+    "answer": {
+     "completed": "no",
+     "confidence": "moderate",
+     "failed": "yes",
+     "review_required": "yes",
+     "verdict": "blocked"
+    },
+    "values": [
+     0.0,
+     1.0,
+     0.6,
+     0.0
+    ]
+   },
+   {
+    "answer": {
+     "completed": "no",
+     "confidence": "high",
+     "failed": "yes",
+     "review_required": "yes",
+     "verdict": "blocked"
+    },
+    "values": [
+     0.0,
+     1.0,
+     0.9,
+     0.0
+    ]
+   }
+  ],
+  "observe|": [],
+  "observe|AMBER": [],
+  "observe|GREEN": [],
+  "observe|RED": [],
+  "supervised-act|": [
+   {
+    "answer": {
+     "completed": "yes",
+     "confidence": "low",
+     "failed": "no",
+     "review_required": "yes",
+     "verdict": "staged"
+    },
+    "values": [
+     1.0,
+     0.0,
+     0.3,
+     0.75
+    ]
+   },
+   {
+    "answer": {
+     "completed": "yes",
+     "confidence": "moderate",
+     "failed": "no",
+     "review_required": "yes",
+     "verdict": "staged"
+    },
+    "values": [
+     1.0,
+     0.0,
+     0.6,
+     0.75
+    ]
+   },
+   {
+    "answer": {
+     "completed": "yes",
+     "confidence": "high",
+     "failed": "no",
+     "review_required": "yes",
+     "verdict": "staged"
+    },
+    "values": [
+     1.0,
+     0.0,
+     0.9,
+     0.75
+    ]
+   }
+  ],
+  "supervised-act|AMBER": [
+   {
+    "answer": {
+     "completed": "yes",
+     "confidence": "low",
+     "failed": "no",
+     "review_required": "yes",
+     "verdict": "staged"
+    },
+    "values": [
+     1.0,
+     0.0,
+     0.3,
+     0.75
+    ]
+   },
+   {
+    "answer": {
+     "completed": "yes",
+     "confidence": "moderate",
+     "failed": "no",
+     "review_required": "yes",
+     "verdict": "staged"
+    },
+    "values": [
+     1.0,
+     0.0,
+     0.6,
+     0.75
+    ]
+   },
+   {
+    "answer": {
+     "completed": "yes",
+     "confidence": "high",
+     "failed": "no",
+     "review_required": "yes",
+     "verdict": "staged"
+    },
+    "values": [
+     1.0,
+     0.0,
+     0.9,
+     0.75
+    ]
+   }
+  ],
+  "supervised-act|GREEN": [
+   {
+    "answer": {
+     "completed": "yes",
+     "confidence": "low",
+     "failed": "no",
+     "review_required": "yes",
+     "verdict": "staged"
+    },
+    "values": [
+     1.0,
+     0.0,
+     0.3,
+     0.75
+    ]
+   },
+   {
+    "answer": {
+     "completed": "yes",
+     "confidence": "moderate",
+     "failed": "no",
+     "review_required": "yes",
+     "verdict": "staged"
+    },
+    "values": [
+     1.0,
+     0.0,
+     0.6,
+     0.75
+    ]
+   },
+   {
+    "answer": {
+     "completed": "yes",
+     "confidence": "high",
+     "failed": "no",
+     "review_required": "yes",
+     "verdict": "staged"
+    },
+    "values": [
+     1.0,
+     0.0,
+     0.9,
+     0.75
+    ]
+   }
+  ],
+  "supervised-act|RED": [
+   {
+    "answer": {
+     "completed": "no",
+     "confidence": "low",
+     "failed": "yes",
+     "review_required": "yes",
+     "verdict": "blocked"
+    },
+    "values": [
+     0.0,
+     1.0,
+     0.3,
+     0.0
+    ]
+   },
+   {
+    "answer": {
+     "completed": "no",
+     "confidence": "moderate",
+     "failed": "yes",
+     "review_required": "yes",
+     "verdict": "blocked"
+    },
+    "values": [
+     0.0,
+     1.0,
+     0.6,
+     0.0
+    ]
+   },
+   {
+    "answer": {
+     "completed": "no",
+     "confidence": "high",
+     "failed": "yes",
+     "review_required": "yes",
+     "verdict": "blocked"
+    },
+    "values": [
+     0.0,
+     1.0,
+     0.9,
+     0.0
+    ]
+   }
+  ]
+ },
+ "resolve": [
+  {
+   "config": {},
+   "domain": "",
+   "env": {},
+   "result": {
+    "mode": "off",
+    "strategy": "seeded-random"
+   }
+  },
+  {
+   "config": {
+    "syntheticBody": {
+     "mode": "fallback"
+    }
+   },
+   "domain": "",
+   "env": {},
+   "result": {
+    "mode": "fallback",
+    "strategy": "seeded-random"
+   }
+  },
+  {
+   "config": {
+    "syntheticBody": {
+     "domains": {
+      "health": {
+       "mode": "always",
+       "strategy": "round-robin"
+      }
+     },
+     "mode": "fallback"
+    }
+   },
+   "domain": "health",
+   "env": {},
+   "result": {
+    "mode": "always",
+    "strategy": "round-robin"
+   }
+  },
+  {
+   "config": {
+    "syntheticBody": {
+     "domains": {
+      "health": {
+       "mode": "always"
+      }
+     },
+     "mode": "fallback"
+    }
+   },
+   "domain": "health",
+   "env": {
+    "OC_SYNTHETIC_MODE": "off"
+   },
+   "result": {
+    "mode": "off",
+    "strategy": "seeded-random"
+   }
+  },
+  {
+   "config": {
+    "syntheticBody": {
+     "mode": "fallback"
+    }
+   },
+   "domain": "other",
+   "env": {
+    "OC_SYNTHETIC_STRATEGY": "round-robin"
+   },
+   "result": {
+    "mode": "fallback",
+    "strategy": "round-robin"
+   }
+  }
+ ],
+ "roundRobin": [
+  {
+   "index": 0,
+   "provenance": {
+    "agent": "a",
+    "answerIndex": 0,
+    "ordinality": 3,
+    "seedKey": null,
+    "source": "action-contract",
+    "step": 0,
+    "strategy": "round-robin",
+    "synthetic": true
+   },
+   "step": 0
+  },
+  {
+   "index": 1,
+   "provenance": {
+    "agent": "a",
+    "answerIndex": 1,
+    "ordinality": 3,
+    "seedKey": null,
+    "source": "action-contract",
+    "step": 1,
+    "strategy": "round-robin",
+    "synthetic": true
+   },
+   "step": 1
+  },
+  {
+   "index": 2,
+   "provenance": {
+    "agent": "a",
+    "answerIndex": 2,
+    "ordinality": 3,
+    "seedKey": null,
+    "source": "action-contract",
+    "step": 2,
+    "strategy": "round-robin",
+    "synthetic": true
+   },
+   "step": 2
+  },
+  {
+   "index": 0,
+   "provenance": {
+    "agent": "a",
+    "answerIndex": 0,
+    "ordinality": 3,
+    "seedKey": null,
+    "source": "action-contract",
+    "step": 3,
+    "strategy": "round-robin",
+    "synthetic": true
+   },
+   "step": 3
+  },
+  {
+   "index": 1,
+   "provenance": {
+    "agent": "a",
+    "answerIndex": 1,
+    "ordinality": 3,
+    "seedKey": null,
+    "source": "action-contract",
+    "step": 4,
+    "strategy": "round-robin",
+    "synthetic": true
+   },
+   "step": 4
+  }
+ ],
+ "seeded": [
+  {
+   "agent": "openclaw",
+   "index": 2,
+   "provenance": {
+    "agent": "openclaw",
+    "answerIndex": 2,
+    "ordinality": 3,
+    "seedKey": "corr-1",
+    "source": "action-contract",
+    "step": 7,
+    "strategy": "seeded-random",
+    "synthetic": true
+   },
+   "seedKey": "corr-1",
+   "step": 7
+  },
+  {
+   "agent": "openclaw",
+   "index": 2,
+   "provenance": {
+    "agent": "openclaw",
+    "answerIndex": 2,
+    "ordinality": 3,
+    "seedKey": "corr-2",
+    "source": "action-contract",
+    "step": 7,
+    "strategy": "seeded-random",
+    "synthetic": true
+   },
+   "seedKey": "corr-2",
+   "step": 7
+  },
+  {
+   "agent": "openclaw",
+   "index": 1,
+   "provenance": {
+    "agent": "openclaw",
+    "answerIndex": 1,
+    "ordinality": 3,
+    "seedKey": "corr-3",
+    "source": "action-contract",
+    "step": 7,
+    "strategy": "seeded-random",
+    "synthetic": true
+   },
+   "seedKey": "corr-3",
+   "step": 7
+  },
+  {
+   "agent": "openclaw",
+   "index": 1,
+   "provenance": {
+    "agent": "openclaw",
+    "answerIndex": 1,
+    "ordinality": 3,
+    "seedKey": "corr-4",
+    "source": "action-contract",
+    "step": 7,
+    "strategy": "seeded-random",
+    "synthetic": true
+   },
+   "seedKey": "corr-4",
+   "step": 7
+  },
+  {
+   "agent": "openclaw",
+   "index": 0,
+   "provenance": {
+    "agent": "openclaw",
+    "answerIndex": 0,
+    "ordinality": 3,
+    "seedKey": "corr-5",
+    "source": "action-contract",
+    "step": 7,
+    "strategy": "seeded-random",
+    "synthetic": true
+   },
+   "seedKey": "corr-5",
+   "step": 7
+  },
+  {
+   "agent": "openclaw",
+   "index": 0,
+   "provenance": {
+    "agent": "openclaw",
+    "answerIndex": 0,
+    "ordinality": 3,
+    "seedKey": "c0ffee",
+    "source": "action-contract",
+    "step": 7,
+    "strategy": "seeded-random",
+    "synthetic": true
+   },
+   "seedKey": "c0ffee",
+   "step": 7
+  },
+  {
+   "agent": "openclaw",
+   "index": 1,
+   "provenance": {
+    "agent": "openclaw",
+    "answerIndex": 1,
+    "ordinality": 3,
+    "seedKey": "7",
+    "source": "action-contract",
+    "step": 7,
+    "strategy": "seeded-random",
+    "synthetic": true
+   },
+   "seedKey": "",
+   "step": 7
+  },
+  {
+   "agent": "home-chronic-pain-monitor.action",
+   "index": 1,
+   "provenance": {
+    "agent": "home-chronic-pain-monitor.action",
+    "answerIndex": 1,
+    "ordinality": 3,
+    "seedKey": "corr-1",
+    "source": "action-contract",
+    "step": 7,
+    "strategy": "seeded-random",
+    "synthetic": true
+   },
+   "seedKey": "corr-1",
+   "step": 7
+  },
+  {
+   "agent": "home-chronic-pain-monitor.action",
+   "index": 1,
+   "provenance": {
+    "agent": "home-chronic-pain-monitor.action",
+    "answerIndex": 1,
+    "ordinality": 3,
+    "seedKey": "corr-2",
+    "source": "action-contract",
+    "step": 7,
+    "strategy": "seeded-random",
+    "synthetic": true
+   },
+   "seedKey": "corr-2",
+   "step": 7
+  },
+  {
+   "agent": "home-chronic-pain-monitor.action",
+   "index": 1,
+   "provenance": {
+    "agent": "home-chronic-pain-monitor.action",
+    "answerIndex": 1,
+    "ordinality": 3,
+    "seedKey": "corr-3",
+    "source": "action-contract",
+    "step": 7,
+    "strategy": "seeded-random",
+    "synthetic": true
+   },
+   "seedKey": "corr-3",
+   "step": 7
+  },
+  {
+   "agent": "home-chronic-pain-monitor.action",
+   "index": 0,
+   "provenance": {
+    "agent": "home-chronic-pain-monitor.action",
+    "answerIndex": 0,
+    "ordinality": 3,
+    "seedKey": "corr-4",
+    "source": "action-contract",
+    "step": 7,
+    "strategy": "seeded-random",
+    "synthetic": true
+   },
+   "seedKey": "corr-4",
+   "step": 7
+  },
+  {
+   "agent": "home-chronic-pain-monitor.action",
+   "index": 1,
+   "provenance": {
+    "agent": "home-chronic-pain-monitor.action",
+    "answerIndex": 1,
+    "ordinality": 3,
+    "seedKey": "corr-5",
+    "source": "action-contract",
+    "step": 7,
+    "strategy": "seeded-random",
+    "synthetic": true
+   },
+   "seedKey": "corr-5",
+   "step": 7
+  },
+  {
+   "agent": "home-chronic-pain-monitor.action",
+   "index": 1,
+   "provenance": {
+    "agent": "home-chronic-pain-monitor.action",
+    "answerIndex": 1,
+    "ordinality": 3,
+    "seedKey": "c0ffee",
+    "source": "action-contract",
+    "step": 7,
+    "strategy": "seeded-random",
+    "synthetic": true
+   },
+   "seedKey": "c0ffee",
+   "step": 7
+  },
+  {
+   "agent": "home-chronic-pain-monitor.action",
+   "index": 1,
+   "provenance": {
+    "agent": "home-chronic-pain-monitor.action",
+    "answerIndex": 1,
+    "ordinality": 3,
+    "seedKey": "7",
+    "source": "action-contract",
+    "step": 7,
+    "strategy": "seeded-random",
+    "synthetic": true
+   },
+   "seedKey": "",
+   "step": 7
+  },
+  {
+   "agent": "ifrs-sec01-action",
+   "index": 0,
+   "provenance": {
+    "agent": "ifrs-sec01-action",
+    "answerIndex": 0,
+    "ordinality": 3,
+    "seedKey": "corr-1",
+    "source": "action-contract",
+    "step": 7,
+    "strategy": "seeded-random",
+    "synthetic": true
+   },
+   "seedKey": "corr-1",
+   "step": 7
+  },
+  {
+   "agent": "ifrs-sec01-action",
+   "index": 1,
+   "provenance": {
+    "agent": "ifrs-sec01-action",
+    "answerIndex": 1,
+    "ordinality": 3,
+    "seedKey": "corr-2",
+    "source": "action-contract",
+    "step": 7,
+    "strategy": "seeded-random",
+    "synthetic": true
+   },
+   "seedKey": "corr-2",
+   "step": 7
+  },
+  {
+   "agent": "ifrs-sec01-action",
+   "index": 1,
+   "provenance": {
+    "agent": "ifrs-sec01-action",
+    "answerIndex": 1,
+    "ordinality": 3,
+    "seedKey": "corr-3",
+    "source": "action-contract",
+    "step": 7,
+    "strategy": "seeded-random",
+    "synthetic": true
+   },
+   "seedKey": "corr-3",
+   "step": 7
+  },
+  {
+   "agent": "ifrs-sec01-action",
+   "index": 2,
+   "provenance": {
+    "agent": "ifrs-sec01-action",
+    "answerIndex": 2,
+    "ordinality": 3,
+    "seedKey": "corr-4",
+    "source": "action-contract",
+    "step": 7,
+    "strategy": "seeded-random",
+    "synthetic": true
+   },
+   "seedKey": "corr-4",
+   "step": 7
+  },
+  {
+   "agent": "ifrs-sec01-action",
+   "index": 2,
+   "provenance": {
+    "agent": "ifrs-sec01-action",
+    "answerIndex": 2,
+    "ordinality": 3,
+    "seedKey": "corr-5",
+    "source": "action-contract",
+    "step": 7,
+    "strategy": "seeded-random",
+    "synthetic": true
+   },
+   "seedKey": "corr-5",
+   "step": 7
+  },
+  {
+   "agent": "ifrs-sec01-action",
+   "index": 1,
+   "provenance": {
+    "agent": "ifrs-sec01-action",
+    "answerIndex": 1,
+    "ordinality": 3,
+    "seedKey": "c0ffee",
+    "source": "action-contract",
+    "step": 7,
+    "strategy": "seeded-random",
+    "synthetic": true
+   },
+   "seedKey": "c0ffee",
+   "step": 7
+  },
+  {
+   "agent": "ifrs-sec01-action",
+   "index": 0,
+   "provenance": {
+    "agent": "ifrs-sec01-action",
+    "answerIndex": 0,
+    "ordinality": 3,
+    "seedKey": "7",
+    "source": "action-contract",
+    "step": 7,
+    "strategy": "seeded-random",
+    "synthetic": true
+   },
+   "seedKey": "",
+   "step": 7
+  }
+ ],
+ "single": {
+  "index": 0,
+  "provenance": {
+   "agent": "a",
+   "answerIndex": 0,
+   "ordinality": 1,
+   "seedKey": "x",
+   "source": "action-contract",
+   "step": 0,
+   "strategy": "only-admissible",
+   "synthetic": true
+  }
+ }
+}

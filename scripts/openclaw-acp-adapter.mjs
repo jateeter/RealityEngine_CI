@@ -7,7 +7,8 @@ import {
   buildChatBody,
   executeOpenClawAdapter,
   httpGatewayUrl,
-  parseValues
+  parseValues,
+  resolveSynthetic
 } from './lib/openclaw-adapter.mjs';
 
 const args = process.argv.slice(2);
@@ -41,6 +42,20 @@ Options:
   --timeout-ms MS            Per-request timeout. Defaults to 30000.
   --dry-run                  Print planned gateway/completion calls only.
   --skip-dispatch-patch      Do not PATCH /api/dispatch/records/:id.
+  --synthetic-mode MODE      off (default) | fallback | always.
+  --synthetic-strategy NAME  seeded-random (default) | round-robin.
+  --step N                   Turn counter for round-robin. Defaults to
+                             handoff.step, then 0.
+
+  OC_SYNTHETIC_MODE and OC_SYNTHETIC_STRATEGY override the two flags, in the
+  order localOpenClawStack's machine-behaviors/synthetic_body.py resolves them.
+
+The synthetic action answer: when the mode is not off, the adapter reads the
+dispatch's autonomy mode and RAG status (from the handoff envelope, else
+GET /api/dispatch/records/:id) and, when the agent's real turn fails or does not
+resolve (fallback) or instead of calling it (always), posts an answer the action
+contract admits for them on the same completion lane, labelled
+metadata.synthetic=true. With the mode off the adapter is unchanged.
 
 The adapter consumes the PE ACP handoff receipt returned by
 POST /api/integrations/acp/dispatch, calls the local OpenClaw OpenAI-compatible
@@ -97,6 +112,16 @@ const sourceMappingId = handoff.completionSourceMappingId
   || 'acp-openclaw-completion';
 const normalizedHandoff = { ...handoff, targetAgent, completionSourceMappingId: sourceMappingId };
 const metricsLedger = process.env.BRIDGE_METRICS_LEDGER || '/tmp/realityengine-openclaw-adapter-metrics.jsonl';
+// The flags are the configured layer; OC_SYNTHETIC_* override them.
+const synthetic = resolveSynthetic({
+  syntheticBody: {
+    ...(arg('--synthetic-mode') ? { mode: arg('--synthetic-mode') } : {}),
+    ...(arg('--synthetic-strategy') ? { strategy: arg('--synthetic-strategy') } : {})
+  }
+});
+const stepArg = arg('--step');
+const step = stepArg === undefined ? undefined : Number(stepArg);
+if (step !== undefined && !(Number.isInteger(step) && step >= 0)) throw new Error('--step must be a non-negative integer');
 
 async function appendMetricsEvent(event) {
   try {
@@ -122,8 +147,9 @@ if (flag('--dry-run')) {
     gatewayEndpoint: `${gatewayUrl}/v1/chat/completions`,
     completionEndpoint: absoluteCompletionEndpoint(peUrl, handoff.completionEndpoint),
     dispatchId: handoff.dispatchId || handoff.id,
-    chatRequest: buildChatBody(normalizedHandoff, targetAgent, model),
-    fallbackCompletion: {
+    chatRequest: synthetic.mode === 'always' ? null : buildChatBody(normalizedHandoff, targetAgent, model),
+    synthetic: { ...synthetic, step: step ?? (Number.isInteger(handoff.step) ? handoff.step : 0) },
+    fallbackCompletion: synthetic.mode !== 'off' ? null : {
       provider: 'openclaw',
       agent: targetAgent,
       sourceMappingId,
@@ -145,14 +171,17 @@ try {
     requireResponseValues: flag('--strict-values'),
     requireDispatchPatch: flag('--require-dispatch-patch'),
     skipDispatchPatch: flag('--skip-dispatch-patch'),
-    timeoutMs
+    timeoutMs,
+    synthetic,
+    ...(step !== undefined ? { step } : {})
   });
 
   await appendMetricsEvent({
     status: 'ok',
     durationMs: Date.now() - startedAt,
     completionStatus: result.completion?.status || null,
-    gatewayStatus: result.gateway?.status || null
+    gatewayStatus: result.gateway?.status || null,
+    synthetic: Boolean(result.synthetic)
   });
   console.log(JSON.stringify(result, null, 2));
   process.exit(0);
