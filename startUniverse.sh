@@ -2664,7 +2664,10 @@ except Exception:
             # localOpenClawStack's clone-agents CLI. Otherwise the simulated
             # agent runs the steps.
             _oc_cli="$OCS_DIR/scripts/clone-agents.mjs"
-            _oc_tok=$(grep -E '^OPENCLAW_GATEWAY_TOKEN=' "$OCS_DIR/.env" 2>/dev/null | tail -1 | cut -d= -f2- | tr -d "\"'" || true)
+            # The gateway token: localOpenClawStack's secrets home, else its .env
+            # for a checkout not yet migrated (its scripts/lib/secrets-home.sh).
+            _oc_tok=$(grep -E '^OPENCLAW_GATEWAY_TOKEN=' "$RE_SECRETS_DIR/localOpenClawStack/secrets.env" 2>/dev/null | tail -1 | cut -d= -f2- | tr -d "\"'" || true)
+            [ -n "$_oc_tok" ] || _oc_tok=$(grep -E '^OPENCLAW_GATEWAY_TOKEN=' "$OCS_DIR/.env" 2>/dev/null | tail -1 | cut -d= -f2- | tr -d "\"'" || true)
             if [ "$OPENCLAW" = yes ] && [ -f "$_oc_cli" ] && [ -n "$_oc_tok" ]; then
                 _oc_port=$(grep -E '^OPENCLAW_GATEWAY_PORT=' "$OCS_DIR/.env" 2>/dev/null | tail -1 | cut -d= -f2- || true)
                 _oc_tok_file="$(re_secrets_repo_dir RealityEngine_CI)/openclaw-gateway-token"
