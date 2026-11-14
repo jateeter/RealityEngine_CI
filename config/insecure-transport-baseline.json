@@ -214,7 +214,7 @@
       "plaintext-url": 1
     },
     "RealityEngine_CI/docker-compose.yml": {
-      "plaintext-url": 25,
+      "plaintext-url": 13,
       "wget-no-check": 4
     },
     "RealityEngine_CI/docker/scala/Dockerfile": {
@@ -240,7 +240,7 @@
     },
     "RealityEngine_CI/mcp/src/http-server.js": {
       "node-reject-unauthorized": 1,
-      "plaintext-url": 2
+      "plaintext-url": 1
     },
     "RealityEngine_CI/mcp/test/mcp-e2e.test.js": {
       "plaintext-url": 8
@@ -256,14 +256,13 @@
       "plaintext-url": 1
     },
     "RealityEngine_CI/release/init/reinit.py": {
-      "plaintext-url": 29,
-      "plaintext-ws": 3
+      "plaintext-url": 15
     },
     "RealityEngine_CI/release/soak.py": {
       "plaintext-url": 1
     },
     "RealityEngine_CI/scripts/bridge-metrics-exporter.mjs": {
-      "plaintext-url": 6
+      "plaintext-url": 5
     },
     "RealityEngine_CI/scripts/check-localai-operations.py": {
       "plaintext-url": 1
@@ -289,17 +288,11 @@
     "RealityEngine_CI/scripts/health-check.sh": {
       "plaintext-url": 5
     },
-    "RealityEngine_CI/scripts/install-deploy-validate-agent.sh": {
-      "plaintext-url": 1
-    },
     "RealityEngine_CI/scripts/lib/containerized-lane.sh": {
       "plaintext-url": 1
     },
     "RealityEngine_CI/scripts/lib/openclaw-adapter.mjs": {
       "plaintext-url": 2,
-      "plaintext-ws": 1
-    },
-    "RealityEngine_CI/scripts/lib/pe-env.sh": {
       "plaintext-ws": 1
     },
     "RealityEngine_CI/scripts/lib/re_tls.py": {
@@ -312,9 +305,6 @@
       "plaintext-url": 2
     },
     "RealityEngine_CI/scripts/openclaw-acp-adapter.mjs": {
-      "plaintext-url": 1
-    },
-    "RealityEngine_CI/scripts/pim-mirror-leg.sh": {
       "plaintext-url": 1
     },
     "RealityEngine_CI/scripts/quick-start.sh": {
@@ -345,9 +335,6 @@
       "plaintext-url": 8,
       "python-verify-off": 1
     },
-    "RealityEngine_CI/scripts/regression-test.sh": {
-      "plaintext-url": 7
-    },
     "RealityEngine_CI/scripts/restart-local.sh": {
       "plaintext-url": 1
     },
@@ -355,13 +342,10 @@
       "plaintext-url": 9
     },
     "RealityEngine_CI/scripts/rust-conformance.sh": {
-      "plaintext-url": 7
+      "plaintext-url": 2
     },
     "RealityEngine_CI/scripts/serve-openapi.sh": {
-      "plaintext-url": 6
-    },
-    "RealityEngine_CI/scripts/serve_openapi.py": {
-      "plaintext-url": 4
+      "plaintext-url": 2
     },
     "RealityEngine_CI/scripts/setup-loki-driver.sh": {
       "plaintext-url": 1
@@ -433,8 +417,7 @@
       "plaintext-url": 16
     },
     "RealityEngine_CI/scripts/tests/test-release-init.sh": {
-      "plaintext-url": 7,
-      "plaintext-ws": 1
+      "plaintext-url": 2
     },
     "RealityEngine_CI/scripts/tests/test-reset-contract.sh": {
       "plaintext-url": 25
@@ -468,7 +451,7 @@
       "plaintext-url": 3
     },
     "RealityEngine_CI/startUniverse.sh": {
-      "plaintext-url": 69,
+      "plaintext-url": 19,
       "plaintext-ws": 1
     },
     "RealityEngine_CI/statusUniverse.sh": {
@@ -492,7 +475,7 @@
       "plaintext-url": 1
     },
     "RealityEngine_CPP/start.sh": {
-      "plaintext-url": 11,
+      "plaintext-url": 5,
       "plaintext-ws": 1
     },
     "RealityEngine_CPP/tests/e2e_healthkit_spezi.sh": {
@@ -525,7 +508,7 @@
       "plaintext-url": 1
     },
     "RealityEngine_LSP/start.sh": {
-      "plaintext-url": 5,
+      "plaintext-url": 3,
       "plaintext-ws": 1
     },
     "RealityEngine_LSP/tests/core-tests.lisp": {
@@ -558,9 +541,6 @@
     "RealityEngine_Machines/scripts/project-lanes.py": {
       "plaintext-url": 1
     },
-    "RealityEngine_Machines/scripts/registry_url.py": {
-      "plaintext-url": 2
-    },
     "RealityEngine_Machines/tests/contracts/domain_approval_test.py": {
       "plaintext-url": 1
     },
@@ -572,9 +552,6 @@
     },
     "RealityEngine_Machines/tests/support/deployed-endpoints.ts": {
       "plaintext-url": 1
-    },
-    "RealityEngine_Machines/tests/support/registry-url.ts": {
-      "plaintext-url": 2
     },
     "RealityEngine_Machines/triggers/graphql_trigger_template.py": {
       "plaintext-url": 1
@@ -734,14 +711,14 @@
       "plaintext-url": 1
     },
     "RealityEngine_Scala/start.sh": {
-      "plaintext-url": 7,
+      "plaintext-url": 2,
       "plaintext-ws": 1
     },
     "localAIStack/.env.example": {
       "plaintext-url": 2
     },
     "localAIStack/.github/workflows/e2e.yml": {
-      "plaintext-url": 2
+      "plaintext-url": 1
     },
     "localAIStack/Makefile": {
       "plaintext-url": 5
@@ -756,7 +733,7 @@
       "plaintext-url": 3
     },
     "localAIStack/docker-compose.yml": {
-      "plaintext-url": 14
+      "plaintext-url": 13
     },
     "localAIStack/scripts/examples/openclaw-hello-agent.mjs": {
       "node-reject-unauthorized": 1,
@@ -788,9 +765,6 @@
     },
     "localAIStack/scripts/start.sh": {
       "plaintext-url": 16
-    },
-    "localAIStack/services/api/Dockerfile": {
-      "plaintext-url": 1
     },
     "localAIStack/services/api/config.py": {
       "plaintext-url": 5
@@ -837,9 +811,6 @@
     },
     "localAIStack/services/api/tests/test_source_observations.py": {
       "plaintext-url": 5
-    },
-    "localAssetStorageStack/lifecycle/src/app.js": {
-      "plaintext-url": 1
     },
     "localAssetStorageStack/lifecycle/test/api.test.js": {
       "plaintext-url": 1
@@ -932,13 +903,13 @@
       "plaintext-url": 1
     },
     "localOpenClawStack/scripts/harden-config.sh": {
-      "plaintext-url": 3
+      "plaintext-url": 1
     },
     "localOpenClawStack/scripts/native-gateway.sh": {
-      "plaintext-url": 9
+      "plaintext-url": 1
     },
     "localOpenClawStack/scripts/start.sh": {
-      "plaintext-url": 11
+      "plaintext-url": 9
     },
     "localOpenClawStack/scripts/test-agents-follow-corpus.sh": {
       "plaintext-url": 2
@@ -950,7 +921,7 @@
       "python-verify-off": 2
     },
     "localOpenClawStack/scripts/verify-deployment.sh": {
-      "plaintext-url": 4
+      "plaintext-url": 2
     }
   }
 }

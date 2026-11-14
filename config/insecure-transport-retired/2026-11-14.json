@@ -1,0 +1,235 @@
+{
+  "schemaVersion": "1.0.0",
+  "purpose": "Archive of insecure-transport occurrences retired from config/insecure-transport-baseline.json by the 2026-11-14 shrink (scripts/check-insecure-transport.py --ref origin/main --write), after the 2026-11-13/14 merges. Each entry is a file and pattern whose recorded count fell, with the count before and after. Nothing here is checked; the baseline alone is the gate. RealityEngine_CI#668, #727; supersedes #753's 2026-11-09 shrink, which was never merged.",
+  "date": "2026-11-14",
+  "scannedAt": {
+    "siblings": "origin/main",
+    "commits": {
+      "RealityEngine_CI": "8536d83c5368d3f14d15c85d98110898ba2fc6a7",
+      "RealityEngine_Manager": "6e5fcaca59fc85b64c1a15d11a72f0efd5efb3a4",
+      "RealityEngine_Machines": "d595a7b78c2173768ab97610a1080cea5c8cfe05",
+      "RealityEngine_CPP": "8f024e0a3078337421a46d4aa4efe1eb22880935",
+      "RealityEngine_LSP": "e8fb8806dc756f8c5d9141c6bed1e8c899d1f3a7",
+      "RealityEngine_Scala": "33147bf00a0d7a113ca1784b2fbcd5b13c5a8a58",
+      "RealityEngine_Rust": "fa6ab6cf43920ee23e86605f9dc14e1c93828dbb",
+      "localAIStack": "5d10a40b355288072d322121fa92789a508eaf44",
+      "localOpenClawStack": "8e5b91996db226e8195db8526fa0ebec3bda0725",
+      "localHealthkitBridge": "5006a9505e21989bca0f6af06f4a9c8d96c798db",
+      "localAssetStorageStack": "bb01321b837d32e99b450b1ff66fe9a5e5fd8906",
+      "OpenCommons-Health---Personal-Information-Management": "6f273882a0fc37538a10524c25681fdc918de65e"
+    }
+  },
+  "totals": {
+    "files": 26,
+    "occurrences": 145,
+    "filesRemovedFromBaseline": [
+      "RealityEngine_CI/scripts/install-deploy-validate-agent.sh",
+      "RealityEngine_CI/scripts/lib/pe-env.sh",
+      "RealityEngine_CI/scripts/pim-mirror-leg.sh",
+      "RealityEngine_CI/scripts/regression-test.sh",
+      "RealityEngine_CI/scripts/serve_openapi.py",
+      "RealityEngine_Machines/scripts/registry_url.py",
+      "RealityEngine_Machines/tests/support/registry-url.ts",
+      "localAIStack/services/api/Dockerfile",
+      "localAssetStorageStack/lifecycle/src/app.js"
+    ]
+  },
+  "retired": [
+    {
+      "file": "RealityEngine_CI/docker-compose.yml",
+      "pattern": "plaintext-url",
+      "before": 25,
+      "after": 13,
+      "retired": 12
+    },
+    {
+      "file": "RealityEngine_CI/mcp/src/http-server.js",
+      "pattern": "plaintext-url",
+      "before": 2,
+      "after": 1,
+      "retired": 1
+    },
+    {
+      "file": "RealityEngine_CI/release/init/reinit.py",
+      "pattern": "plaintext-url",
+      "before": 29,
+      "after": 15,
+      "retired": 14
+    },
+    {
+      "file": "RealityEngine_CI/release/init/reinit.py",
+      "pattern": "plaintext-ws",
+      "before": 3,
+      "after": 0,
+      "retired": 3
+    },
+    {
+      "file": "RealityEngine_CI/scripts/bridge-metrics-exporter.mjs",
+      "pattern": "plaintext-url",
+      "before": 6,
+      "after": 5,
+      "retired": 1
+    },
+    {
+      "file": "RealityEngine_CI/scripts/install-deploy-validate-agent.sh",
+      "pattern": "plaintext-url",
+      "before": 1,
+      "after": 0,
+      "retired": 1
+    },
+    {
+      "file": "RealityEngine_CI/scripts/lib/pe-env.sh",
+      "pattern": "plaintext-ws",
+      "before": 1,
+      "after": 0,
+      "retired": 1
+    },
+    {
+      "file": "RealityEngine_CI/scripts/pim-mirror-leg.sh",
+      "pattern": "plaintext-url",
+      "before": 1,
+      "after": 0,
+      "retired": 1
+    },
+    {
+      "file": "RealityEngine_CI/scripts/regression-test.sh",
+      "pattern": "plaintext-url",
+      "before": 7,
+      "after": 0,
+      "retired": 7
+    },
+    {
+      "file": "RealityEngine_CI/scripts/rust-conformance.sh",
+      "pattern": "plaintext-url",
+      "before": 7,
+      "after": 2,
+      "retired": 5
+    },
+    {
+      "file": "RealityEngine_CI/scripts/serve-openapi.sh",
+      "pattern": "plaintext-url",
+      "before": 6,
+      "after": 2,
+      "retired": 4
+    },
+    {
+      "file": "RealityEngine_CI/scripts/serve_openapi.py",
+      "pattern": "plaintext-url",
+      "before": 4,
+      "after": 0,
+      "retired": 4
+    },
+    {
+      "file": "RealityEngine_CI/scripts/tests/test-release-init.sh",
+      "pattern": "plaintext-url",
+      "before": 7,
+      "after": 2,
+      "retired": 5
+    },
+    {
+      "file": "RealityEngine_CI/scripts/tests/test-release-init.sh",
+      "pattern": "plaintext-ws",
+      "before": 1,
+      "after": 0,
+      "retired": 1
+    },
+    {
+      "file": "RealityEngine_CI/startUniverse.sh",
+      "pattern": "plaintext-url",
+      "before": 69,
+      "after": 19,
+      "retired": 50
+    },
+    {
+      "file": "RealityEngine_CPP/start.sh",
+      "pattern": "plaintext-url",
+      "before": 11,
+      "after": 5,
+      "retired": 6
+    },
+    {
+      "file": "RealityEngine_LSP/start.sh",
+      "pattern": "plaintext-url",
+      "before": 5,
+      "after": 3,
+      "retired": 2
+    },
+    {
+      "file": "RealityEngine_Machines/scripts/registry_url.py",
+      "pattern": "plaintext-url",
+      "before": 2,
+      "after": 0,
+      "retired": 2
+    },
+    {
+      "file": "RealityEngine_Machines/tests/support/registry-url.ts",
+      "pattern": "plaintext-url",
+      "before": 2,
+      "after": 0,
+      "retired": 2
+    },
+    {
+      "file": "RealityEngine_Scala/start.sh",
+      "pattern": "plaintext-url",
+      "before": 7,
+      "after": 2,
+      "retired": 5
+    },
+    {
+      "file": "localAIStack/.github/workflows/e2e.yml",
+      "pattern": "plaintext-url",
+      "before": 2,
+      "after": 1,
+      "retired": 1
+    },
+    {
+      "file": "localAIStack/docker-compose.yml",
+      "pattern": "plaintext-url",
+      "before": 14,
+      "after": 13,
+      "retired": 1
+    },
+    {
+      "file": "localAIStack/services/api/Dockerfile",
+      "pattern": "plaintext-url",
+      "before": 1,
+      "after": 0,
+      "retired": 1
+    },
+    {
+      "file": "localAssetStorageStack/lifecycle/src/app.js",
+      "pattern": "plaintext-url",
+      "before": 1,
+      "after": 0,
+      "retired": 1
+    },
+    {
+      "file": "localOpenClawStack/scripts/harden-config.sh",
+      "pattern": "plaintext-url",
+      "before": 3,
+      "after": 1,
+      "retired": 2
+    },
+    {
+      "file": "localOpenClawStack/scripts/native-gateway.sh",
+      "pattern": "plaintext-url",
+      "before": 9,
+      "after": 1,
+      "retired": 8
+    },
+    {
+      "file": "localOpenClawStack/scripts/start.sh",
+      "pattern": "plaintext-url",
+      "before": 11,
+      "after": 9,
+      "retired": 2
+    },
+    {
+      "file": "localOpenClawStack/scripts/verify-deployment.sh",
+      "pattern": "plaintext-url",
+      "before": 4,
+      "after": 2,
+      "retired": 2
+    }
+  ]
+}

@@ -4531,15 +4531,15 @@
   "scope": "corpus:regression",
   "stimulus": {
     "armed": {
-      "cpp-1": 28,
-      "lsp-1": 28,
-      "scala-1": 28
+      "cpp-1": 44,
+      "lsp-1": 44,
+      "scala-1": 44
     },
     "completionPoint": "GET /api/engine/steps/:n/pair (RealityEngine_CI#375)",
     "internedSources": {
-      "cpp-1": 28,
-      "lsp-1": 28,
-      "scala-1": 28
+      "cpp-1": 44,
+      "lsp-1": 44,
+      "scala-1": 44
     },
     "isolated": true,
     "model": "corpus-interned test sources (composed ISRESeed)",
