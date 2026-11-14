@@ -8,7 +8,7 @@
 # a Scala PE beside the C++ and LSP ones.
 #
 # ── Stage 1: Build ──────────────────────────────────────────────────────────
-FROM sbtscala/scala-sbt:eclipse-temurin-17.0.15_6_1.12.8_2.13.18 AS build
+FROM sbtscala/scala-sbt:eclipse-temurin-25.0.1_8_1.12.8_2.13.18 AS build
 
 WORKDIR /build
 
