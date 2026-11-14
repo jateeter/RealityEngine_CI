@@ -95,6 +95,7 @@
       "targets": [
         { "expr": "sum by (status, agent, model) (rate(re_openclaw_adapter_runs_total[5m]))", "legendFormat": "{{status}} {{agent}} {{model}}", "refId": "A" }
       ],
+      "description": "Fed only by scripts/openclaw-acp-adapter.mjs's ledger. No regression stage runs the adapter, so a regression's agent turns are in the OpenClaw Agent Turns panels below (RealityEngine_CI#785).",
       "title": "OpenClaw Adapter Run Rate",
       "type": "timeseries"
     },
@@ -107,6 +108,7 @@
       "targets": [
         { "expr": "sum by (status, agent, model) (rate(re_openclaw_adapter_duration_seconds_sum[5m])) / clamp_min(sum by (status, agent, model) (rate(re_openclaw_adapter_duration_seconds_count[5m])), 0.001)", "legendFormat": "{{status}} {{agent}} {{model}}", "refId": "A" }
       ],
+      "description": "Fed only by scripts/openclaw-acp-adapter.mjs's ledger. No regression stage runs the adapter, so a regression's agent turns are in the OpenClaw Agent Turns panels below (RealityEngine_CI#785).",
       "title": "OpenClaw Adapter Average Duration",
       "type": "timeseries"
     },
@@ -121,6 +123,151 @@
       ],
       "title": "localAIStack Service Health",
       "type": "bargauge"
+    },
+    {
+      "collapsed": false,
+      "gridPos": { "h": 1, "w": 24, "x": 0, "y": 20 },
+      "id": 8,
+      "panels": [],
+      "title": "OpenClaw agent turns (gateway log)",
+      "type": "row"
+    },
+    {
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "fieldConfig": { "defaults": { "noValue": "0", "thresholds": { "mode": "absolute", "steps": [{ "color": "green", "value": null }] } }, "overrides": [] },
+      "gridPos": { "h": 5, "w": 6, "x": 0, "y": 21 },
+      "id": 9,
+      "options": { "colorMode": "value", "graphMode": "none", "justifyMode": "auto", "orientation": "auto", "reduceOptions": { "calcs": ["lastNotNull"], "fields": "", "values": false }, "textMode": "auto" },
+      "targets": [{ "expr": "sum(increase(re_openclaw_agent_turns_total[$__range]))", "refId": "A" }],
+      "title": "Agent Turns in Range",
+      "type": "stat",
+      "description": "Read from the native gateway's log by the bridge exporter (re_openclaw_agent_turns_total). 'failed' carries the error name, e.g. FailoverError for a model that ended without a visible reply (localOpenClawStack#100)."
+    },
+    {
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "fieldConfig": { "defaults": { "noValue": "0", "thresholds": { "mode": "absolute", "steps": [{ "color": "green", "value": null }] } }, "overrides": [] },
+      "gridPos": { "h": 5, "w": 6, "x": 6, "y": 21 },
+      "id": 10,
+      "options": { "colorMode": "value", "graphMode": "none", "justifyMode": "auto", "orientation": "auto", "reduceOptions": { "calcs": ["lastNotNull"], "fields": "", "values": false }, "textMode": "auto" },
+      "targets": [{ "expr": "sum(increase(re_openclaw_agent_turns_total{outcome=\"failed\"}[$__range]))", "refId": "A" }],
+      "title": "Failed Turns in Range",
+      "type": "stat",
+      "description": "Read from the native gateway's log by the bridge exporter (re_openclaw_agent_turns_total). 'failed' carries the error name, e.g. FailoverError for a model that ended without a visible reply (localOpenClawStack#100)."
+    },
+    {
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "fieldConfig": { "defaults": { "noValue": "0", "thresholds": { "mode": "absolute", "steps": [{ "color": "green", "value": null }] } }, "overrides": [] },
+      "gridPos": { "h": 5, "w": 6, "x": 12, "y": 21 },
+      "id": 11,
+      "options": { "colorMode": "value", "graphMode": "none", "justifyMode": "auto", "orientation": "auto", "reduceOptions": { "calcs": ["lastNotNull"], "fields": "", "values": false }, "textMode": "auto" },
+      "targets": [{ "expr": "sum(increase(re_openclaw_model_fallback_decisions_total[$__range]))", "refId": "A" }],
+      "title": "Fallback Decisions in Range",
+      "type": "stat"
+    },
+    {
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "fieldConfig": { "defaults": { "noValue": "never", "thresholds": { "mode": "absolute", "steps": [{ "color": "green", "value": null }] }, "unit": "dateTimeFromNow" }, "overrides": [] },
+      "gridPos": { "h": 5, "w": 6, "x": 18, "y": 21 },
+      "id": 12,
+      "options": { "colorMode": "value", "graphMode": "none", "justifyMode": "auto", "orientation": "auto", "reduceOptions": { "calcs": ["lastNotNull"], "fields": "", "values": false }, "textMode": "auto" },
+      "targets": [{ "expr": "max(re_openclaw_last_agent_turn_timestamp_seconds) * 1000", "refId": "A" }],
+      "title": "Last Agent Turn",
+      "type": "stat"
+    },
+    {
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "fieldConfig": { "defaults": { "custom": { "drawStyle": "bars", "lineInterpolation": "linear", "lineWidth": 1, "pointSize": 5, "showPoints": "auto", "fillOpacity": 60, "stacking": { "mode": "normal", "group": "A" } }, "noValue": "No activity in range", "thresholds": { "mode": "absolute", "steps": [{ "color": "green", "value": null }] } }, "overrides": [] },
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 26 },
+      "id": 13,
+      "options": { "legend": { "calcs": ["sum"], "displayMode": "table", "placement": "bottom" }, "tooltip": { "mode": "multi", "sort": "none" } },
+      "targets": [{ "expr": "sum by (outcome, error) (increase(re_openclaw_agent_turns_total[5m]))", "legendFormat": "{{outcome}} {{error}}", "refId": "A" }],
+      "title": "Agent Turns by Outcome",
+      "type": "timeseries",
+      "description": "Read from the native gateway's log by the bridge exporter (re_openclaw_agent_turns_total). 'failed' carries the error name, e.g. FailoverError for a model that ended without a visible reply (localOpenClawStack#100)."
+    },
+    {
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "fieldConfig": { "defaults": { "custom": { "drawStyle": "bars", "lineInterpolation": "linear", "lineWidth": 1, "pointSize": 5, "showPoints": "auto", "fillOpacity": 60, "stacking": { "mode": "normal", "group": "A" } }, "noValue": "No activity in range", "thresholds": { "mode": "absolute", "steps": [{ "color": "green", "value": null }] } }, "overrides": [] },
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 26 },
+      "id": 14,
+      "options": { "legend": { "calcs": ["sum"], "displayMode": "table", "placement": "bottom" }, "tooltip": { "mode": "multi", "sort": "none" } },
+      "targets": [{ "expr": "sum by (decision, reason) (increase(re_openclaw_model_fallback_decisions_total[5m]))", "legendFormat": "{{decision}} {{reason}}", "refId": "A" }],
+      "title": "Model Fallback Decisions",
+      "type": "timeseries"
+    },
+    {
+      "collapsed": false,
+      "gridPos": { "h": 1, "w": 24, "x": 0, "y": 34 },
+      "id": 15,
+      "panels": [],
+      "title": "localAIStack activity (/metrics)",
+      "type": "row"
+    },
+    {
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "fieldConfig": { "defaults": { "custom": { "drawStyle": "line", "lineInterpolation": "linear", "lineWidth": 1, "pointSize": 5, "showPoints": "auto", "fillOpacity": 0, "stacking": { "mode": "none", "group": "A" } }, "noValue": "No activity in range", "thresholds": { "mode": "absolute", "steps": [{ "color": "green", "value": null }] }, "unit": "reqps" }, "overrides": [] },
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 35 },
+      "id": 16,
+      "options": { "legend": { "calcs": ["lastNotNull"], "displayMode": "table", "placement": "bottom" }, "tooltip": { "mode": "multi", "sort": "none" } },
+      "targets": [{ "expr": "sum by (route) (rate(localai_requests_total[5m]))", "legendFormat": "{{route}}", "refId": "A" }],
+      "title": "localAI Request Rate by Route",
+      "type": "timeseries",
+      "description": "localAIStack's own /metrics (localAIStack#180), scraped on the lane by the localai-api job."
+    },
+    {
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "fieldConfig": { "defaults": { "custom": { "drawStyle": "line", "lineInterpolation": "linear", "lineWidth": 1, "pointSize": 5, "showPoints": "auto", "fillOpacity": 0, "stacking": { "mode": "none", "group": "A" } }, "noValue": "No activity in range", "thresholds": { "mode": "absolute", "steps": [{ "color": "green", "value": null }] }, "unit": "s" }, "overrides": [] },
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 35 },
+      "id": 17,
+      "options": { "legend": { "calcs": ["lastNotNull"], "displayMode": "table", "placement": "bottom" }, "tooltip": { "mode": "multi", "sort": "none" } },
+      "targets": [{ "expr": "histogram_quantile(0.95, sum by (route, le) (rate(localai_request_duration_seconds_bucket[5m])))", "legendFormat": "{{route}}", "refId": "A" }],
+      "title": "localAI Request p95 by Route",
+      "type": "timeseries",
+      "description": "localAIStack's own /metrics (localAIStack#180), scraped on the lane by the localai-api job."
+    },
+    {
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "fieldConfig": { "defaults": { "custom": { "drawStyle": "bars", "lineInterpolation": "linear", "lineWidth": 1, "pointSize": 5, "showPoints": "auto", "fillOpacity": 60, "stacking": { "mode": "normal", "group": "A" } }, "noValue": "No activity in range", "thresholds": { "mode": "absolute", "steps": [{ "color": "green", "value": null }] } }, "overrides": [] },
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 43 },
+      "id": 18,
+      "options": { "legend": { "calcs": ["sum"], "displayMode": "table", "placement": "bottom" }, "tooltip": { "mode": "multi", "sort": "none" } },
+      "targets": [{ "expr": "sum by (route, outcome) (increase(localai_rag_queries_total[5m]))", "legendFormat": "rag {{route}} {{outcome}}", "refId": "A" }, { "expr": "sum by (outcome) (increase(localai_agent_turns_total[5m]))", "legendFormat": "agent {{outcome}}", "refId": "B" }],
+      "title": "RAG Queries and Agent Turns",
+      "type": "timeseries",
+      "description": "localAIStack's own /metrics (localAIStack#180), scraped on the lane by the localai-api job."
+    },
+    {
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "fieldConfig": { "defaults": { "custom": { "drawStyle": "bars", "lineInterpolation": "linear", "lineWidth": 1, "pointSize": 5, "showPoints": "auto", "fillOpacity": 60, "stacking": { "mode": "normal", "group": "A" } }, "noValue": "No activity in range", "thresholds": { "mode": "absolute", "steps": [{ "color": "green", "value": null }] } }, "overrides": [] },
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 43 },
+      "id": 19,
+      "options": { "legend": { "calcs": ["sum"], "displayMode": "table", "placement": "bottom" }, "tooltip": { "mode": "multi", "sort": "none" } },
+      "targets": [{ "expr": "sum by (instance, outcome) (increase(localai_engine_calls_total[5m]))", "legendFormat": "{{instance}} {{outcome}}", "refId": "A" }],
+      "title": "Engine Fan-out Calls by Instance",
+      "type": "timeseries",
+      "description": "Each per-engine call of a localAI interaction no engine initiated, written identically to every engine (engine_fanout.py)."
+    },
+    {
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "fieldConfig": { "defaults": { "custom": { "drawStyle": "bars", "lineInterpolation": "linear", "lineWidth": 1, "pointSize": 5, "showPoints": "auto", "fillOpacity": 60, "stacking": { "mode": "normal", "group": "A" } }, "noValue": "No activity in range", "thresholds": { "mode": "absolute", "steps": [{ "color": "green", "value": null }] } }, "overrides": [] },
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 51 },
+      "id": 20,
+      "options": { "legend": { "calcs": ["sum"], "displayMode": "table", "placement": "bottom" }, "tooltip": { "mode": "multi", "sort": "none" } },
+      "targets": [{ "expr": "sum by (result) (increase(localai_engine_interactions_total[5m]))", "legendFormat": "{{result}}", "refId": "A" }],
+      "title": "Engine Interactions: Agreed / Diverged",
+      "type": "timeseries",
+      "description": "Whether the engines answered a fanned-out interaction alike. Diverged interactions are also reported on localAI /health as engine_parity."
+    },
+    {
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "fieldConfig": { "defaults": { "custom": { "drawStyle": "bars", "lineInterpolation": "linear", "lineWidth": 1, "pointSize": 5, "showPoints": "auto", "fillOpacity": 60, "stacking": { "mode": "normal", "group": "A" } }, "noValue": "No activity in range", "thresholds": { "mode": "absolute", "steps": [{ "color": "green", "value": null }] } }, "overrides": [] },
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 51 },
+      "id": 21,
+      "options": { "legend": { "calcs": ["sum"], "displayMode": "table", "placement": "bottom" }, "tooltip": { "mode": "multi", "sort": "none" } },
+      "targets": [{ "expr": "sum by (event) (increase(localai_llm_drift_records_total[5m]))", "legendFormat": "{{event}}", "refId": "A" }],
+      "title": "LLM Drift Records",
+      "type": "timeseries",
+      "description": "Records appended to llm-drift.jsonl: engine-initiated answers compared across engines. Collected for future difference-net learning; not an evaluation (CI#562)."
     }
   ],
   "refresh": "10s",
@@ -133,6 +280,6 @@
   "timezone": "browser",
   "title": "AI Bridge Operations",
   "uid": "ai-bridge-operations",
-  "version": 1,
+  "version": 2,
   "weekStart": ""
 }

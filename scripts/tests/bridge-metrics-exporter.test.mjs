@@ -7,11 +7,13 @@
 //   - localAIStack /health reports pe/re as {status:'ok'} and embedding as
 //     {ok:true}; only the string 'ok' counted as up, so three healthy services
 //     read down.
+// And the agent-turn series (RealityEngine_CI#785), read from the gateway log
+// because the adapter ledger is written by nothing a regression runs.
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import http from 'node:http';
 import { spawn } from 'node:child_process';
-import { mkdtemp, writeFile, rm } from 'node:fs/promises';
+import { appendFile, mkdtemp, writeFile, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -40,23 +42,33 @@ async function freePort() {
   return port;
 }
 
-async function scrape(env) {
-  const port = await freePort();
-  const child = spawn(process.execPath, [EXPORTER], {
-    env: { PATH: process.env.PATH, BRIDGE_METRICS_HOST: '127.0.0.1', BRIDGE_METRICS_PORT: String(port), ...env },
-    stdio: 'ignore'
-  });
-  try {
-    for (let i = 0; i < 50; i++) {
-      try {
-        const r = await fetch(`http://127.0.0.1:${port}/metrics`);
-        if (r.ok) return await r.text();
-      } catch {
-        // not listening yet
-      }
-      await new Promise((r) => setTimeout(r, 100));
+function startExporter(env) {
+  return freePort().then((port) => ({
+    port,
+    child: spawn(process.execPath, [EXPORTER], {
+      env: { PATH: process.env.PATH, BRIDGE_METRICS_HOST: '127.0.0.1', BRIDGE_METRICS_PORT: String(port), ...env },
+      stdio: 'ignore'
+    })
+  }));
+}
+
+async function poll(port) {
+  for (let i = 0; i < 50; i++) {
+    try {
+      const r = await fetch(`http://127.0.0.1:${port}/metrics`);
+      if (r.ok) return await r.text();
+    } catch {
+      // not listening yet
     }
-    throw new Error('exporter never answered /metrics');
+    await new Promise((r) => setTimeout(r, 100));
+  }
+  throw new Error('exporter never answered /metrics');
+}
+
+async function scrape(env) {
+  const { port, child } = await startExporter(env);
+  try {
+    return await poll(port);
   } finally {
     child.kill();
   }
@@ -99,6 +111,7 @@ test('bridge metrics exporter', async (t) => {
     QDRANT_URL: 'http://127.0.0.1:9',
     OLLAMA_BASE_URL: 'http://127.0.0.1:9',
     BRIDGE_METRICS_LEDGER: path.join(dir, 'ledger.jsonl'),
+    BRIDGE_METRICS_GATEWAY_LOG: path.join(dir, 'gateway.log'),
     BRIDGE_METRICS_TIMEOUT_MS: '2000'
   };
 
@@ -135,5 +148,46 @@ test('bridge metrics exporter', async (t) => {
     assert.equal(up('embedding'), 1, 'embedding {ok:true}');
     assert.equal(up('qdrant_collections'), undefined, 'lists are not services');
     assert.equal(sample(text, 're_localaistack_ollama_models_total{'), 1);
+  });
+
+  await t.test('agent turns and fallback decisions come from the gateway log', async () => {
+    const absent = await scrape(base);
+    assert.equal(sample(absent, 're_openclaw_gateway_log_readable{'), 0);
+    assert.equal(sample(absent, 're_openclaw_agent_turns_total{'), undefined);
+
+    const log = base.BRIDGE_METRICS_GATEWAY_LOG;
+    await writeFile(log, [
+      '[gateway] startup phase: cli.main.gateway-run-imports starting total=1.0ms',
+      '2026-11-14T14:57:07.012-08:00 [agents/agent-command] [agent] run chatcmpl_a ended with stopReason=stop',
+      '2026-11-14T14:57:40.420-08:00 [agents/agent-command] [agent] run chatcmpl_b ended with stopReason=stop',
+      '2026-11-14T14:58:25.039-08:00 [model-fallback/decision] model fallback decision: decision=candidate_failed requested=ollama/m candidate=ollama/m reason=format next=none detail=ollama/m ended without a visible assistant reply',
+      '2026-11-14T14:58:25.260-08:00 [openai-compat] chat completion failed: FailoverError: ollama/m ended without a visible assistant reply',
+      '2026-11-14T08:16:50.525-08:00 [model-fallback/decision] model fallback chain stopped: reason=caller_signal_aborted candidate=ollama/m errorName=ClientDisconnectError',
+      // a partial last line is not counted
+      '2026-11-14T14:59:00.000-08:00 [agents/agent-command] [agent] run chatcmpl_c ended with stopRea'
+    ].join('\n'));
+    const text = await scrape(base);
+    assert.equal(sample(text, 're_openclaw_gateway_log_readable{'), 1);
+    assert.equal(sample(text, 're_openclaw_agent_turns_total{outcome="stop",provider="openclaw"}'), 2);
+    assert.equal(sample(text, 're_openclaw_agent_turns_total{error="FailoverError",outcome="failed",provider="openclaw"}'), 1);
+    assert.equal(sample(text, 're_openclaw_model_fallback_decisions_total{decision="candidate_failed",provider="openclaw",reason="format"}'), 1);
+    assert.equal(sample(text, 're_openclaw_model_fallback_decisions_total{decision="chain_stopped",provider="openclaw",reason="caller_signal_aborted"}'), 1);
+    assert.equal(sample(text, 're_openclaw_last_agent_turn_timestamp_seconds{'), Date.parse('2026-11-14T14:58:25.260-08:00') / 1000);
+  });
+
+  await t.test('the gateway log is read incrementally across scrapes', async () => {
+    const log = path.join(dir, 'incremental.log');
+    await writeFile(log, '2026-11-14T14:57:07.012-08:00 [agents/agent-command] [agent] run chatcmpl_a ended with stopReason=stop\n2026-11-14T14:57:08.000-08:00 [agents/agent-command] [agent] run chatcmpl_b ended with stop');
+    const { port, child } = await startExporter({ ...base, BRIDGE_METRICS_GATEWAY_LOG: log });
+    const get = () => poll(port);
+    const stop = 're_openclaw_agent_turns_total{outcome="stop",provider="openclaw"}';
+    try {
+      assert.equal(sample(await get(), stop), 1);
+      await appendFile(log, 'Reason=stop\n');
+      assert.equal(sample(await get(), stop), 2, 'the completed partial line counts once');
+      assert.equal(sample(await get(), stop), 2, 'nothing is counted twice');
+    } finally {
+      child.kill();
+    }
   });
 });

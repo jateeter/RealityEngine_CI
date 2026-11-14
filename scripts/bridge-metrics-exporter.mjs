@@ -1,6 +1,8 @@
 #!/usr/bin/env node
 
-import { readFile } from 'node:fs/promises';
+import { open, readFile } from 'node:fs/promises';
+import { homedir } from 'node:os';
+import path from 'node:path';
 
 // The lane's TLS (RealityEngine_CI#730): with RE_TLS_CERT set the exporter
 // serves /metrics over TLS 1.3 requiring a lane client certificate (Prometheus
@@ -15,6 +17,13 @@ const host = process.env.BRIDGE_METRICS_HOST || '127.0.0.1';
 // shorter timeout reported a healthy API as down.
 const timeoutMs = Number(process.env.BRIDGE_METRICS_TIMEOUT_MS || '10000');
 const ledgerPath = process.env.BRIDGE_METRICS_LEDGER || '/tmp/realityengine-openclaw-adapter-metrics.jsonl';
+
+// The native OpenClaw gateway's log (RealityEngine_CI#785): the only record of
+// the agent turns a regression runs (the asset workflow's clone agents, PE ACP
+// completions). The ledger above is written only by
+// scripts/openclaw-acp-adapter.mjs, which no regression runs.
+const gatewayLogPath = process.env.BRIDGE_METRICS_GATEWAY_LOG
+  || path.join(process.env.OPENCLAW_HOME || path.join(homedir(), '.realityengine', 'openclaw'), 'logs', 'gateway.log');
 
 const openclawUrl = trim(process.env.OPENCLAW_GATEWAY_URL || process.env.ACP_GATEWAY_URL || 'http://127.0.0.1:18789');
 const openclawToken = process.env.OPENCLAW_GATEWAY_TOKEN || '';
@@ -124,6 +133,72 @@ function summarizeLedger(events) {
   return { runs };
 }
 
+// Agent turns and model fallback decisions, read incrementally from the
+// gateway log. The counts live in this process and only grow: a rotated or
+// truncated log is read again from its start, and on start the whole log is
+// read once, so a counter's rate is the activity and its value is the total
+// since the log began. A partial last line waits for the next scrape.
+const gatewayLog = { offset: 0, ino: undefined, rest: '', turns: new Map(), fallbacks: new Map(), lastTurn: 0 };
+const TURN = /\[agent\] run \S+ ended with stopReason=(\w+)/;
+const FAILED = /\[openai-compat\] chat completion failed: (\w+)/;
+const FALLBACK = /\[model-fallback\/decision\] model fallback (?:decision: decision=(\w+)|chain (stopped):).*? reason=(\w+)/;
+
+function bump(map, key) {
+  map.set(key, (map.get(key) || 0) + 1);
+}
+
+function stampOf(line) {
+  const t = Date.parse(line.slice(0, 29));
+  return Number.isFinite(t) ? t / 1000 : 0;
+}
+
+function readGatewayLine(state, line) {
+  let m = TURN.exec(line);
+  if (m) {
+    bump(state.turns, JSON.stringify({ outcome: m[1], error: '' }));
+    state.lastTurn = Math.max(state.lastTurn, stampOf(line));
+    return;
+  }
+  if ((m = FAILED.exec(line))) {
+    bump(state.turns, JSON.stringify({ outcome: 'failed', error: m[1] }));
+    state.lastTurn = Math.max(state.lastTurn, stampOf(line));
+    return;
+  }
+  if ((m = FALLBACK.exec(line))) {
+    bump(state.fallbacks, JSON.stringify({ decision: m[1] || 'chain_stopped', reason: m[3] }));
+  }
+}
+
+async function readGatewayLog(state = gatewayLog) {
+  let handle;
+  try {
+    handle = await open(gatewayLogPath, 'r');
+  } catch {
+    return false;
+  }
+  try {
+    const st = await handle.stat();
+    if (st.ino !== state.ino || st.size < state.offset) {
+      state.ino = st.ino;
+      state.offset = 0;
+      state.rest = '';
+    }
+    while (state.offset < st.size) {
+      const length = Math.min(1 << 20, st.size - state.offset);
+      const buf = Buffer.alloc(length);
+      const { bytesRead } = await handle.read(buf, 0, length, state.offset);
+      if (!bytesRead) break;
+      state.offset += bytesRead;
+      const lines = (state.rest + buf.toString('utf8', 0, bytesRead)).split('\n');
+      state.rest = lines.pop();
+      for (const line of lines) readGatewayLine(state, line);
+    }
+    return true;
+  } finally {
+    await handle.close();
+  }
+}
+
 function emit(lines, name, help, type) {
   lines.push(`# HELP ${name} ${help}`);
   lines.push(`# TYPE ${name} ${type}`);
@@ -143,7 +218,7 @@ async function collectMetrics() {
   const settle = (promise) => promise.then((value) => ({ value }), (error) => ({ error }));
   const token = await resolveOpenclawToken();
   const openclawHeaders = token ? { authorization: `Bearer ${token}` } : {};
-  const [openclawHealth, openclawModelList, localAiHealth, qdrantCollections, ollamaTags, ollamaVersion, ollamaPs, ledger] = await Promise.all([
+  const [openclawHealth, openclawModelList, localAiHealth, qdrantCollections, ollamaTags, ollamaVersion, ollamaPs, ledger, gatewayLogRead] = await Promise.all([
     settle(fetchJson(`${openclawUrl}/healthz`)),
     settle(fetchJson(`${openclawUrl}/v1/models`, { headers: openclawHeaders })),
     settle(fetchJson(`${localAiUrl}/health`)),
@@ -151,7 +226,8 @@ async function collectMetrics() {
     settle(fetchJson(`${ollamaUrl}/api/tags`)),
     settle(fetchJson(`${ollamaUrl}/api/version`)),
     settle(fetchJson(`${ollamaUrl}/api/ps`)),
-    readLedger()
+    readLedger(),
+    readGatewayLog()
   ]);
 
   emit(lines, 're_openclaw_gateway_up', 'OpenClaw gateway health probe result.', 'gauge');
@@ -215,6 +291,19 @@ async function collectMetrics() {
     lines.push(`re_openclaw_adapter_duration_seconds_count${labels(item)} ${value.count}`);
     lines.push(`re_openclaw_adapter_duration_seconds_sum${labels(item)} ${(value.durationMs / 1000).toFixed(6)}`);
   }
+
+  emit(lines, 're_openclaw_gateway_log_readable', 'The exporter can read the OpenClaw gateway log the agent-turn series come from.', 'gauge');
+  lines.push(`re_openclaw_gateway_log_readable${labels({ provider: 'openclaw' })} ${gatewayLogRead ? 1 : 0}`);
+  emit(lines, 're_openclaw_agent_turns_total', 'OpenClaw agent turns from the gateway log, by stop reason, or failed with the error name.', 'counter');
+  for (const [key, count] of gatewayLog.turns.entries()) {
+    lines.push(`re_openclaw_agent_turns_total${labels({ provider: 'openclaw', ...JSON.parse(key) })} ${count}`);
+  }
+  emit(lines, 're_openclaw_model_fallback_decisions_total', 'OpenClaw model fallback decisions from the gateway log, by decision and reason.', 'counter');
+  for (const [key, count] of gatewayLog.fallbacks.entries()) {
+    lines.push(`re_openclaw_model_fallback_decisions_total${labels({ provider: 'openclaw', ...JSON.parse(key) })} ${count}`);
+  }
+  emit(lines, 're_openclaw_last_agent_turn_timestamp_seconds', 'Time of the last agent turn the gateway log records.', 'gauge');
+  lines.push(`re_openclaw_last_agent_turn_timestamp_seconds${labels({ provider: 'openclaw' })} ${gatewayLog.lastTurn}`);
 
   emit(lines, 're_ai_bridge_metrics_scrape_duration_seconds', 'AI bridge metrics exporter scrape duration.', 'gauge');
   lines.push(`re_ai_bridge_metrics_scrape_duration_seconds ${(Date.now() - started) / 1000}`);

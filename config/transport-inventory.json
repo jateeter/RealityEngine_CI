@@ -3216,7 +3216,7 @@
     {
       "id": "prometheus-scrape",
       "from": "Prometheus",
-      "to": "scrape targets (bridge metrics, lifecycle and Manager metrics)",
+      "to": "scrape targets (bridge metrics, localai-api, lifecycle and Manager metrics)",
       "protocol": "HTTP",
       "lanes": [
         "docker",
