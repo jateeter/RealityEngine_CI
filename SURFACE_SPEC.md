@@ -2661,7 +2661,7 @@ the native Ollama every engine shares.
 
 - **Default base URL `http://localhost:11434/v1`**: localAIStack's Ollama, which
   serves the OpenAI-compatible `/v1/responses` and `/v1/models`. **Default model:**
-  the universe model, `nemotron-3-nano:4b-mlx`.
+  the universe model, `nemotron-3-nano:4b`.
 - **The overrides are unchanged:** `OPENAI_BASE_URL` and `OPENAI_MODEL`, and the
   `openai` integration's `baseUrl` and `model` in `INTEGRATIONS_CONFIG`.
   `config/integrations.example.json` names the same local endpoint.
