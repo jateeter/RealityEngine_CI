@@ -91,15 +91,11 @@ MQTT_BROKER_URL="${MQTT_BROKER_URL:-}"
 # still the explicit opt-out.
 YUMA_MQTT_BROKER_URL="mqtt://yuma.lateraledge.cloud:1883"
 MQTT_MAPPINGS="${MQTT_MAPPINGS:-}"
-# The lane's services are TLS-only under RE_TLS=on (#668, #732), so the default
-# service URLs take the lane's scheme. A plaintext probe of a TLS-only service is
-# reset by the peer, and read as the service being down.
-LANE_SCHEME=http
-[ "${RE_TLS:-off}" = on ] && LANE_SCHEME=https
-MCP_URL="${MCP_URL:-$LANE_SCHEME://127.0.0.1:7331}"
-SWAGGER_URL="${SWAGGER_URL:-$LANE_SCHEME://127.0.0.1:8088}"
-LOCAL_AI_URL="${LOCAL_AI_URL:-$LANE_SCHEME://localhost:4000}"
-OPENCLAW_HEALTH_URL="$LANE_SCHEME://localhost:18789"
+# Service URLs the caller names. The defaults take the lane's scheme and are set
+# once the profile has decided RE_TLS (after profile resolution, below).
+MCP_URL="${MCP_URL:-}"
+SWAGGER_URL="${SWAGGER_URL:-}"
+LOCAL_AI_URL="${LOCAL_AI_URL:-}"
 
 # Node is managed, not discovered. RealityEngine_Manager pins engines.node, the
 # hosted lane reads the same .nvmrc with actions/setup-node, and the harness
@@ -292,12 +288,6 @@ case "$(printf '%s' "$MQTT_BROKER_URL" | tr '[:upper:]' '[:lower:]')" in
     ;;
 esac
 
-# An empty service URL means the default, not "no host". Passed through as
-# given, every probe becomes a bare path (`/healthz`) and the stage crashes
-# instead of reporting. Normalised here so no caller has to know that.
-[ -n "$MCP_URL" ] || MCP_URL="$LANE_SCHEME://127.0.0.1:7331"
-[ -n "$SWAGGER_URL" ] || SWAGGER_URL="$LANE_SCHEME://127.0.0.1:8088"
-
 # ── Profile resolution ───────────────────────────────────────────────────────
 # An unset knob takes the profile's value; a knob the caller set is checked
 # against the profile and, on the hosted lane, refused. Six independent
@@ -365,12 +355,27 @@ case "$PROFILE" in
     # with inherited environment, so one export reaches all three.
     OLLAMA_MODEL="${OLLAMA_MODEL:-nemotron-3-nano:4b-mlx}"
     export OLLAMA_MODEL
+    # The native local lane runs on TLS (owner, 2026-11-13): every link is TLS 1.3
+    # (#668), so a local regression measures the lane the release ships. RE_TLS=off
+    # still opts out. local-containerized brings its install's own CA (#729).
+    if [ "$PROFILE" = local ]; then RE_TLS="${RE_TLS:-on}"; export RE_TLS; fi
     ;;
   *)
     echo "Unsupported --profile: $PROFILE (hosted|local|local-containerized)" >&2
     exit 2
     ;;
 esac
+
+# The lane's services are TLS-only under RE_TLS=on (#668, #732), so the default
+# service URLs take the lane's scheme. A plaintext probe of a TLS-only service is
+# reset by the peer, and read as the service being down. An empty URL means the
+# default, not "no host" (a bare path would crash the stage instead of reporting).
+LANE_SCHEME=http
+[ "${RE_TLS:-off}" = on ] && LANE_SCHEME=https
+[ -n "$MCP_URL" ] || MCP_URL="$LANE_SCHEME://127.0.0.1:7331"
+[ -n "$SWAGGER_URL" ] || SWAGGER_URL="$LANE_SCHEME://127.0.0.1:8088"
+[ -n "$LOCAL_AI_URL" ] || LOCAL_AI_URL="$LANE_SCHEME://localhost:4000"
+OPENCLAW_HEALTH_URL="$LANE_SCHEME://localhost:18789"
 
 # LOCAL_LANE: operator hardware (Docker, Xcode, a phone), true on both local
 # profiles. CONTAINERIZED: the engines, Manager, localAI and OpenClaw come from
@@ -728,6 +733,7 @@ plan() {
   [ "$LOCAL_AI" = true ] && log "ollama model: ${OLLAMA_MODEL:-<engine default>}"
   log "corpus:       $MACHINE_CORPUS"
   log "mqtt broker:  ${MQTT_BROKER_URL:-<not configured>}"
+  log "lane tls:     ${RE_TLS:-off}"
   log "mcp url:      $MCP_URL"
   log "swagger url:  $SWAGGER_URL"
   log "compare:      ${COMPARE_RUN:-<latest completed>}"
