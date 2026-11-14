@@ -387,6 +387,20 @@ source "$CI_DIR/scripts/allocate-ports.sh"
 
 # shellcheck source=scripts/lib/pe-env.sh
 source "$CI_DIR/scripts/lib/pe-env.sh"
+# The suite's one secrets home (scripts/lib/secrets-home.sh; owner, 2026-11-14).
+# Resolved once and exported, so every repository this universe starts reads
+# the same directory as regression-test.sh and any other build path.
+source "$CI_DIR/scripts/lib/secrets-home.sh"
+RE_SECRETS_DIR="$(re_secrets_dir)"
+export RE_SECRETS_DIR
+# localOpenClawStack's gateway token: its secrets home, else its .env for a
+# checkout not yet migrated (localOpenClawStack scripts/lib/secrets-home.sh).
+ocs_gateway_token() {
+    local t
+    t=$(grep -E '^OPENCLAW_GATEWAY_TOKEN=' "$RE_SECRETS_DIR/localOpenClawStack/secrets.env" 2>/dev/null | tail -1 | cut -d= -f2- | tr -d "\"'" || true)
+    [ -n "$t" ] || t=$(grep -E '^OPENCLAW_GATEWAY_TOKEN=' "$OCS_DIR/.env" 2>/dev/null | tail -1 | cut -d= -f2- | tr -d "\"'" || true)
+    printf '%s' "$t"
+}
 configure_openclaw_acp_defaults() {
     pe_env_defaults "$CI_INTEGRATIONS_CONFIG"
 }
@@ -394,10 +408,11 @@ configure_openclaw_acp_defaults() {
 # HealthKit ingest auth is enabled by default so the on-device iOS bridge (and
 # the M5 device leg) authenticate via `Authorization: Bearer <token>`.
 # Precedence: a preset HEALTHKIT_BRIDGE_TOKEN (shell/.env) wins; otherwise a
-# stable token is generated once and persisted to .secrets/healthkit-bridge-token
-# (0600, gitignored) so the value survives restarts — the paired device must be
-# provisioned with the same token. scripts/lib/healthkit-token.sh owns the path,
-# and moves a token still at config/.healthkit-bridge-token without changing it. `--no-healthkit-token` opts out (dev mode:
+# stable token is generated once and persisted in the secrets home,
+# $RE_SECRETS_DIR/RealityEngine_CI/healthkit-bridge-token (0600, outside every
+# repository), so the value survives restarts and every checkout shares it — the
+# paired device must be provisioned with the same token. scripts/lib/healthkit-token.sh
+# owns the path, and copies a token still in the checkout without changing it. `--no-healthkit-token` opts out (dev mode:
 # the PE accepts unauthenticated ingest and /status reports auth "none").
 configure_healthkit_bridge_token() {
     if [ "$HEALTHKIT_TOKEN_ENABLED" = false ]; then
@@ -411,7 +426,7 @@ configure_healthkit_bridge_token() {
         HEALTHKIT_BRIDGE_TOKEN="$(healthkit_token_read "$CI_DIR")"
     fi
     export HEALTHKIT_BRIDGE_TOKEN
-    ok "HealthKit ingest auth enabled (Authorization: Bearer / bridgeToken) — token in .secrets/healthkit-bridge-token"
+    ok "HealthKit ingest auth enabled (Authorization: Bearer / bridgeToken) — token in $(healthkit_token_path "$CI_DIR")"
 }
 
 ensure_ci_integrations_config() {
@@ -2537,16 +2552,12 @@ ASSETS_STAMP="$CI_DIR/.universe-assets"
 start_asset_stack() {
     [ -d "$LASS_DIR" ] || die "--assets: localAssetStorageStack not found at $LASS_DIR"
     command -v node >/dev/null 2>&1 || die "--assets needs Node"
-    # Service tokens, made once and kept: never overwritten (the .env is the
-    # stack's, gitignored).
+    # The stack's service tokens and accounts live in the secrets home
+    # ($RE_SECRETS_DIR/localAssetStorageStack/), made once by up.js and shared by
+    # every checkout as the pod store volume is. The .env keeps only operator
+    # settings; seed ASSETS_PEOPLE there when the stack has none.
     if [ ! -f "$LASS_DIR/.env" ]; then
-        info "Asset storage: writing $LASS_DIR/.env (service tokens, once)"
-        ( umask 077
-          { for k in ADMIN_TOKEN REGISTRAR_TOKEN ENGINE_TOKEN; do
-              printf '%s=%s\n' "$k" "$(openssl rand -base64 33 | tr -d '/+=')"
-            done
-            printf 'ASSETS_PEOPLE=author:author,reviewer:reviewer\n'
-          } > "$LASS_DIR/.env" )
+        ( umask 077; printf 'ASSETS_PEOPLE=author:author,reviewer:reviewer\n' > "$LASS_DIR/.env" )
     fi
     local registry_env=()
     if lane_tls_enabled; then
@@ -2575,10 +2586,12 @@ start_asset_stack() {
     done
     [ "$ready" = true ] || die "Asset storage: the lifecycle's service identity did not become ready (${ASSETS_LIFECYCLE_URL}health)"
     # Manager's engine token, readable only by this user.
-    local token_dir="$HOME/.reality-engine/assets"
-    mkdir -p "$token_dir"; chmod 700 "$token_dir"
+    # In the secrets home with every other secret (was ~/.reality-engine/assets/).
+    local token_dir
+    token_dir="$(re_secrets_repo_dir RealityEngine_CI)"
     ASSETS_ENGINE_TOKEN_FILE="$token_dir/lifecycle-engine-token"
-    ( umask 077; grep '^ENGINE_TOKEN=' "$LASS_DIR/.env" | cut -d= -f2- | tr -d '\n' > "$ASSETS_ENGINE_TOKEN_FILE" )
+    ( umask 077; grep '^ENGINE_TOKEN=' "$RE_SECRETS_DIR/localAssetStorageStack/service.env" | cut -d= -f2- | tr -d '\n' > "$ASSETS_ENGINE_TOKEN_FILE" )
+    [ -s "$ASSETS_ENGINE_TOKEN_FILE" ] || die "Asset storage: no ENGINE_TOKEN in $RE_SECRETS_DIR/localAssetStorageStack/service.env (up.js makes it)"
     echo "$LASS_DIR" > "$ASSETS_STAMP"
     # The stack's addresses, for the PE integrations config.
     python3 - "$CI_INTEGRATIONS_CONFIG" "$LASS_DIR/runtime/registry.json" <<'PYEOF'
@@ -2659,10 +2672,10 @@ except Exception:
             # localOpenClawStack's clone-agents CLI. Otherwise the simulated
             # agent runs the steps.
             _oc_cli="$OCS_DIR/scripts/clone-agents.mjs"
-            _oc_tok=$(grep -E '^OPENCLAW_GATEWAY_TOKEN=' "$OCS_DIR/.env" 2>/dev/null | tail -1 | cut -d= -f2- | tr -d "\"'" || true)
+            _oc_tok=$(ocs_gateway_token)
             if [ "$OPENCLAW" = yes ] && [ -f "$_oc_cli" ] && [ -n "$_oc_tok" ]; then
                 _oc_port=$(grep -E '^OPENCLAW_GATEWAY_PORT=' "$OCS_DIR/.env" 2>/dev/null | tail -1 | cut -d= -f2- || true)
-                _oc_tok_file="$HOME/.reality-engine/assets/openclaw-gateway-token"
+                _oc_tok_file="$(re_secrets_repo_dir RealityEngine_CI)/openclaw-gateway-token"
                 ( umask 077; printf '%s' "$_oc_tok" > "$_oc_tok_file" )
                 if [ "$OPENCLAW_RUNTIME" = container ]; then
                     _oc_state="$OCS_DIR/openclaw"; _oc_home=/home/node/.openclaw
@@ -3102,11 +3115,10 @@ else
             die "OpenClaw .env missing — copy $OCS_DIR/.env.example and set OPENCLAW_GATEWAY_TOKEN" || \
             info "OpenClaw: .env not configured — skipping"
     else
-        _ocs_token=$(grep -E '^OPENCLAW_GATEWAY_TOKEN=' "$OCS_DIR/.env" 2>/dev/null \
-            | tail -1 | cut -d= -f2- || true)
+        _ocs_token=$(ocs_gateway_token)
         if [ -z "$_ocs_token" ] || [ "$_ocs_token" = "change-me-to-a-random-secret" ]; then
             [ "$OPENCLAW" = "yes" ] && \
-                die "OPENCLAW_GATEWAY_TOKEN not set in $OCS_DIR/.env" || \
+                die "OPENCLAW_GATEWAY_TOKEN not set in $RE_SECRETS_DIR/localOpenClawStack/secrets.env or $OCS_DIR/.env (run its scripts/init-secrets.sh)" || \
                 info "OpenClaw: OPENCLAW_GATEWAY_TOKEN not configured — skipping"
         else
             _ocs_ok=true

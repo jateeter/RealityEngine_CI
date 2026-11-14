@@ -109,6 +109,15 @@ ENGINES_SPEC="cpp:1,lsp:1,scala:1"
 # The instance registry file the stages read. startUniverse.sh writes it here;
 # the local-containerized lane points it at its install (scripts/lib/containerized-lane.sh).
 REGISTRY_FILE="/tmp/re-registry/re-registry.json"
+# The suite's one secrets home (scripts/lib/secrets-home.sh; owner, 2026-11-14).
+# This run is the reference path: it resolves the home once and exports it, so
+# startUniverse.sh, every repository it starts and every stage read the same
+# directory, whichever worktree they run from. A cold-start worktree has no
+# secrets of its own and needs none.
+# shellcheck source=lib/secrets-home.sh
+. "$CI_DIR/scripts/lib/secrets-home.sh"
+RE_SECRETS_DIR="$(re_secrets_dir)"
+export RE_SECRETS_DIR
 FOLLOWER=""
 FOLLOWER_SET=false
 # What startUniverse.sh / stopUniverse.sh may replace although it runs from
@@ -745,6 +754,7 @@ plan() {
   log "corpus:       $MACHINE_CORPUS"
   log "mqtt broker:  ${MQTT_BROKER_URL:-<not configured>}"
   log "lane tls:     ${RE_TLS:-off}"
+  log "secrets home: $RE_SECRETS_DIR"
   log "mcp url:      $MCP_URL"
   log "swagger url:  $SWAGGER_URL"
   log "compare:      ${COMPARE_RUN:-<latest completed>}"
