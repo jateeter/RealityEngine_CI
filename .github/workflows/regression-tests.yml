@@ -239,6 +239,18 @@ jobs:
           fetch-depth: 0
           token: ${{ secrets.REPO_ACCESS_TOKEN || github.token }}
 
+      # The non-voting Rust follower runs in the daily run too (owner,
+      # 2026-11-14; regression-test.sh defaults --follower rust on this profile).
+      # The runner's rustup builds it with the toolchain its rust-toolchain.toml
+      # pins.
+      - name: Checkout RealityEngine_Rust
+        uses: actions/checkout@v7
+        with:
+          repository: ${{ github.repository_owner }}/RealityEngine_Rust
+          path: RealityEngine_Rust
+          fetch-depth: 0
+          token: ${{ secrets.REPO_ACCESS_TOKEN || github.token }}
+
       # ── Native toolchains ──────────────────────────────────────────────────
       # This workflow had no provisioning at all: it was written for a
       # self-hosted runner where these were already present. The first hosted
