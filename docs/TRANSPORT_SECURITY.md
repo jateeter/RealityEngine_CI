@@ -114,6 +114,19 @@ repository's TLS issue implements the same thing.
   `GET …/healthkit/status` and `POST …/healthkit/scope`
   (localHealthkitBridge `docs/INGEST_CONTRACT.md`), which carry its bearer
   token. `…/healthkit/resync` is called by a service and is not one of them.
+- **Per source on the device routes** (owner, 2026-11-12). Every source is on
+  https; whether it must also present a lane certificate is the source's.
+  `HEALTHKIT_CLIENT_CERTIFICATE_REQUIRED` (comma-separated source ids) names
+  the sources that must; the others keep server TLS and their token. A device
+  request's source is the `bridgeId` query parameter (`GET …/status`), else
+  the body's `source`, else its `bridgeId` (`…/scope`, `…/ingest`), else the
+  PE's configured bridge (`HEALTHKIT_BRIDGE_ID`). A listed source without a
+  verified certificate gets the same `403 {"error":"client certificate
+  required"}`, before the token is checked. Over plaintext there are no
+  certificates to ask for, and the rule does not apply. All five PEs read it
+  (C++, LSP, Scala, Rust, the TypeScript PE); every lane and the release set it
+  to `pim`, so PIM's scope pushes are mTLS and the iPhone's bridge is not
+  (`scripts/lib/pe-env.sh`, `docker-compose.yml`, `release/init/reinit.py`).
 - **A configuration that cannot be loaded stops the service.** With
   `RE_TLS_CERT` set, a missing or unreadable key, CA or CRL is a startup
   failure, never a plaintext start.

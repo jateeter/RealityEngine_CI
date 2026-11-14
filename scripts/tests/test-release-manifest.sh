@@ -524,10 +524,20 @@ assert_contains "$OUT" "not checked out" "names the missing repo"
 
 echo
 echo "the transport gate (#729)"
-# The committed inventory, not the compliant copy: a green run's manifest is
-# refused while any link falls short, and the reason names the gate.
+# An inventory with one link short of the profile: a green run's manifest is
+# refused, and the reason names the gate. (The committed inventory is
+# compliant since 2026-11-13, so a broken copy stands in for it.)
+NONCOMPLIANT_INVENTORY="$TMP/transport-inventory.noncompliant.json"
+python3 - "$COMPLIANT_INVENTORY" "$NONCOMPLIANT_INVENTORY" <<'EOF2'
+import json, sys
+inv = json.load(open(sys.argv[1]))
+link = inv["links"][0]
+link["status"], link["mtls"] = "tls", False
+link["probe"] = {lane: {"verdict": "tls", "mtls": False} for lane in link["lanes"]}
+json.dump(inv, open(sys.argv[2], "w"))
+EOF2
 set +e
-OUT="$(env -u RELEASE_TRANSPORT_INVENTORY python3 "$CI_DIR/scripts/release-manifest.py" generate --run-dir "$TMP/green" \
+OUT="$(RELEASE_TRANSPORT_INVENTORY="$NONCOMPLIANT_INVENTORY" python3 "$CI_DIR/scripts/release-manifest.py" generate --run-dir "$TMP/green" \
   --images "$TMP/images.json" "${HK[@]}" --version release-v9.9.9-rc1 --out "$TMP/transport.json" 2>&1)"; CODE=$?
 set -e
 assert_eq "$([ "$CODE" -ne 0 ] && echo refused)" "refused" "a non-compliant inventory makes the release ineligible"

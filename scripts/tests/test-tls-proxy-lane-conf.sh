@@ -37,7 +37,12 @@ fi
 denies=$(grep -c 'if ($ssl_client_verify != SUCCESS) { return 403; }' "$TMP/ts-pe.conf")
 if [ "$denies" -eq 2 ]; then ok "3004's / and /ws answer 403 without it"; else bad "expected 2 denials in 3004, found $denies"; fi
 device="$(sed -n '/location \/api\/integrations\/healthkit\/ {/,/}/p' "$TMP/ts-pe.conf")"
-if [ -n "$device" ] && [[ "$device" != *"ssl_client_verify"* ]]; then ok "the HealthKit device routes take no client certificate"; else bad "device routes: $device"; fi
+if [ -n "$device" ] && [[ "$device" != *"return 403"* ]]; then ok "the HealthKit device routes take no client certificate"; else bad "device routes: $device"; fi
+if [[ "$device" == *"proxy_set_header   X-Client-Certificate \$ssl_client_verify;"* ]]; then
+  ok "the device routes tell the TypeScript PE what the proxy verified of the caller"
+else
+  bad "device routes do not forward X-Client-Certificate: $device"
+fi
 if [ "$(grep -c 'ssl_verify_client' "$TMP/lane.conf")" -eq 1 ]; then ok "no other server asks for a client certificate"; else bad "ssl_verify_client outside 3004"; fi
 
 if grep -q 'proxy_pass         https://grafana:3443;' "$TMP/lane.conf"; then ok "Grafana is reached on its front's mTLS port"; else bad "Grafana upstream"; fi

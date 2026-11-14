@@ -26,6 +26,10 @@ pe_env_defaults() {
     export ACP_COMPLETION_SOURCE_MAPPING_ID="${ACP_COMPLETION_SOURCE_MAPPING_ID:-acp-openclaw-completion}"
     export TRIGGERS_ENABLED="${TRIGGERS_ENABLED:-true}"
     export TRIGGER_DISPATCH_MODE="${TRIGGER_DISPATCH_MODE:-dry-run}"
+    # The device-route sources that must present a lane certificate (owner,
+    # 2026-11-12; docs/TRANSPORT_SECURITY.md): PIM's scope pushes. Set empty to
+    # require none.
+    export HEALTHKIT_CLIENT_CERTIFICATE_REQUIRED="${HEALTHKIT_CLIENT_CERTIFICATE_REQUIRED-pim}"
     export INTEGRATIONS_CONFIG="$1"
 }
 

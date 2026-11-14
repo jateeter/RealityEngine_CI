@@ -181,7 +181,9 @@ def resolve(ctx: ssl.SSLContext, manifest_path: Path, integrations_path: Path,
         add("lifecycle-to-pe", pe_ep)
         # The device routes (HealthKit ingest, /status, /scope) take no client certificate.
         add("iphone-to-pe", endpoint(inst.get("pe_url", ""), "/api/integrations/healthkit/status"))
-        add("pim-to-pe-scope", endpoint(inst.get("pe_url", ""), "/api/integrations/healthkit/scope"))
+        # As PIM: a device request naming its source, which must present a
+        # certificate (HEALTHKIT_CLIENT_CERTIFICATE_REQUIRED=pim, owner 2026-11-12).
+        add("pim-to-pe-scope", endpoint(inst.get("pe_url", ""), "/api/integrations/healthkit/status?bridgeId=pim"))
 
     manifest: dict[str, Any] = {}
     if manifest_path.is_file():
