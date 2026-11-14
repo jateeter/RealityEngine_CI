@@ -215,10 +215,11 @@ Options:
                             follower lane, scripts/rust-conformance.sh. Reported
                             in its own section and reports/follower-rust/; never
                             part of this run's verdict or exit status.
-                            Default under --profile local: the release ships
-                            Rust from release-v0.0.2 (owner, 2026-11-13).
-                            Refused under --profile hosted and
-                            local-containerized.
+                            Default under --profile local and hosted, so the
+                            daily run includes it: the release ships Rust from
+                            release-v0.0.2 (owner, 2026-11-13/14). Without
+                            localAI (hosted) the lane skips its localAI slice.
+                            Refused under --profile local-containerized.
   --no-follower             Run without the follower.
   --retain N                Keep latest N local run histories. Default: 20
   --compare RUN_ID          Compare against a previous run id. Default: latest completed run.
@@ -325,7 +326,10 @@ case "$PROFILE" in
     [ "$MACHINE_CORPUS_SET" = true ] || MACHINE_CORPUS="regression"
     [ "$OPENCLAW_FLAG" = "--no-openclaw" ] || profile_refuse "run OpenClaw (--openclaw)"
     [ "$LOCAL_AI" = false ] || profile_refuse "run localAI/Ollama (--local-ai)"
-    [ -z "$FOLLOWER" ] || profile_refuse "run a follower (--follower)"
+    # The daily hosted run includes the Rust follower (owner, 2026-11-14). The
+    # follower lane needs no localAI: its localAI slice runs only when the
+    # localai_api container is up, and the hosted lane starts none.
+    [ "$FOLLOWER_SET" = true ] || FOLLOWER=rust
     # What the hosted lane refuses is the *full* corpus, because full-corpus
     # load behaviour belongs to dedicated scaling tests rather than to a lane
     # default. A manifest-backed corpus is a named, bounded subset — the arbiter
@@ -406,8 +410,8 @@ OPENCLAW_HEALTH_URL="$LANE_SCHEME://localhost:18789"
 case "$FOLLOWER" in
   "") ;;
   rust)
-    if [ "$PROFILE" != local ]; then
-      echo "error: --follower runs only under --profile local (this is $PROFILE)" >&2
+    if [ "$PROFILE" = local-containerized ]; then
+      echo "error: --follower runs beside native engines (--profile local or hosted; this is $PROFILE)" >&2
       exit 2
     fi
     REPOS+=(RealityEngine_Rust) ;;

@@ -155,9 +155,10 @@ npm run test:deployment
 - **RealityEngine_Rust validates itself (owner decision, 2026-10-30).** It is a
   non-voting follower with its own self-contained lane (R0 static, R1 corpus
   replay). R2 runs it beside a universe. R3, the follower lane inside
-  `regression-test.sh`, is the default of every native local run since
-  release-v0.0.2 ships Rust (owner, 2026-11-13; `--no-follower` opts out). It
-  never votes, and the hosted daily run does not include it yet. Tiers and cadence: `docs/RUST_VALIDATION_WORKFLOW.md`;
+  `regression-test.sh`, is the default of every regression run on native
+  engines, local and the hosted daily run, since release-v0.0.2 ships Rust
+  (owner, 2026-11-13/14; `--no-follower` opts out). It never votes; without
+  localAI (hosted) its localAI slice is skipped. Tiers and cadence: `docs/RUST_VALIDATION_WORKFLOW.md`;
   the bounded exception: `docs/ENGINEERING_CONTRACT.md`.
 - **No parity or proof run against engines that are not built from current source.**
   `scripts/verify-build-provenance.py` gates this, and both `startUniverse.sh`

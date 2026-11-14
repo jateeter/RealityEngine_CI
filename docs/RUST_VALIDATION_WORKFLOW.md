@@ -12,9 +12,12 @@ non-voting conformance follower, is CI#607.
 **Amended 2026-11-13 (owner):** release-v0.0.2 ships Rust, so the regression
 suite includes it. R3 is the default of every native local regression run
 (`--profile local`); `--no-follower` opts out. Rust still never votes: its
-result stays out of the run's verdict and exit status. The hosted lane does not
-run it yet, because the follower lane needs localAI, which the hosted lane does
-not start.
+result stays out of the run's verdict and exit status.
+
+**Amended 2026-11-14 (owner):** the 09:17 daily hosted run includes it too
+(`--profile hosted` defaults `--follower rust`). It needs no localAI: the follower
+lane's localAI slice runs only when the `localai_api` container is up, and the
+hosted lane starts none, so it is skipped there.
 
 ## The four tiers
 
@@ -35,12 +38,11 @@ as the e2e rules require. A tier that could not run reports **unavailable**
 |---|---|---|
 | R0 + R1 | every push and pull request on `RealityEngine_Rust` | ~2 min hosted; R1 itself is under a second |
 | R2 | each phase exit of the repair plan (Rust#2), any Rust change to engine-visible behaviour before it is relied on, and weekly while Rust is under active development | a universe boot plus the follower lane's twelve stages |
-| R3 | every native local regression run (`--profile local`, the default since 2026-11-13), and so every release candidate | the follower lane's twelve stages inside the full run |
+| R3 | every regression run on native engines: `--profile local` (since 2026-11-13) and the 09:17 daily `--profile hosted` run (since 2026-11-14), and so every release candidate | the follower lane's twelve stages inside the full run |
 
 R3 cannot turn a run red: the follower never votes, so the voters'
-certification is unchanged. The 09:17 daily cron runs `--profile hosted`, which
-refuses a follower (the follower lane needs localAI), so the daily hosted run
-does not include Rust yet.
+certification is unchanged. On the hosted lane, which starts no localAI, the
+lane's localAI slice is skipped; every other stage runs as on the local lane.
 
 These cadences are the starting point; changing them is an edit to this table.
 
@@ -307,9 +309,9 @@ Still to build:
 ## R3 in detail
 
 Built 2026-11-02: `scripts/regression-test.sh --execute --follower rust`.
-Since 2026-11-13 it is the default under `--profile local` (`--no-follower`
-opts out); hosted and local-containerized refuse `--follower`, and
-local-containerized builds Rust's release image instead.
+It is the default under `--profile local` (since 2026-11-13) and `--profile
+hosted` (since 2026-11-14); `--no-follower` opts out. local-containerized
+refuses `--follower` and builds Rust's release image instead.
 
 - **Built with the run.** `RealityEngine_Rust` joins the run's repos, so it gets
   a run worktree on `origin/main`, a release build (`build-rust`), a pin in the
