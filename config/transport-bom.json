@@ -192,7 +192,17 @@
           ]
         },
         "docker": {
-          "planned": "the re-rust image in the docker lane (RealityEngine_CI#729)"
+          "compose": "RealityEngine_CI/docker-compose.yml",
+          "services": [
+            {
+              "service": "engine-rust-re",
+              "build": "context: ../RealityEngine_Rust"
+            },
+            {
+              "service": "engine-rust-pe",
+              "build": "context: ../RealityEngine_Rust"
+            }
+          ]
         },
         "release": {
           "releaseImages": [
@@ -724,7 +734,13 @@
           ]
         },
         "docker": {
-          "planned": "--assets in the docker lane (RealityEngine_CI#729)"
+          "compose": "localAssetStorageStack/docker-compose.yml",
+          "services": [
+            {
+              "service": "assets-css",
+              "image": "solidproject/community-server:7.3.0"
+            }
+          ]
         },
         "release": {
           "services": [
@@ -757,7 +773,13 @@
           ]
         },
         "docker": {
-          "planned": "--assets in the docker lane (RealityEngine_CI#729)"
+          "compose": "localAssetStorageStack/docker-compose.yml",
+          "services": [
+            {
+              "service": "assets-dokieli",
+              "build": "localAssetStorageStack/dokieli"
+            }
+          ]
         },
         "release": {
           "releaseImages": [
@@ -794,7 +816,13 @@
           ]
         },
         "docker": {
-          "planned": "--assets in the docker lane (RealityEngine_CI#729)"
+          "compose": "localAssetStorageStack/docker-compose.yml",
+          "services": [
+            {
+              "service": "lifecycle",
+              "build": "localAssetStorageStack/lifecycle"
+            }
+          ]
         },
         "release": {
           "releaseImages": [
@@ -1502,11 +1530,6 @@
     "redis:7.4-alpine",
     "solidproject/community-server:7.3.0"
   ],
-  "planned": [
-    "assets-css (docker): --assets in the docker lane (RealityEngine_CI#729)",
-    "assets-dokieli (docker): --assets in the docker lane (RealityEngine_CI#729)",
-    "lifecycle (docker): --assets in the docker lane (RealityEngine_CI#729)",
-    "rust-engine (docker): the re-rust image in the docker lane (RealityEngine_CI#729)"
-  ],
+  "planned": [],
   "unresolved": []
 }

@@ -2785,7 +2785,7 @@ ok "Using default (docker-driver) builder — images load into the engine store"
 # keeps each replacement atomic and ordered, so every image is present before
 # `up`.
 RE_BUILD_SERVICES="reality-engine visualizer-backend visualizer-frontend perception-engine-backend perception-engine-frontend
-    engine-scala-re engine-scala-pe engine-cpp-re engine-cpp-pe engine-lsp-re engine-lsp-pe"
+    engine-scala-re engine-scala-pe engine-cpp-re engine-cpp-pe engine-lsp-re engine-lsp-pe engine-rust-re engine-rust-pe"
 if [ "$FRESH_START" = true ]; then
     # Reclaim build cache first. A --fresh build is --no-cache, so accumulated
     # build cache is dead weight that fills the Docker VM disk. Under disk
@@ -2837,11 +2837,13 @@ fi
 # Each Docker RE's instance UUID, written where its compose service loads it
 # (env_file) before the containers are created (#296).
 # Plain variables, not an associative array: this runs under macOS /bin/bash 3.2.
-DOCKER_UUID_SCALA_1="" DOCKER_UUID_CPP_1="" DOCKER_UUID_LSP_1=""
+DOCKER_UUID_SCALA_1="" DOCKER_UUID_CPP_1="" DOCKER_UUID_LSP_1="" DOCKER_UUID_RUST_1=""
 if [ "$DRY_RUN" = false ]; then
     DOCKER_UUID_SCALA_1=$(instance_uuid_docker_env scala-1) || die "scala-1: instance UUID allocation failed"
     DOCKER_UUID_CPP_1=$(instance_uuid_docker_env cpp-1)     || die "cpp-1: instance UUID allocation failed"
     DOCKER_UUID_LSP_1=$(instance_uuid_docker_env lsp-1)     || die "lsp-1: instance UUID allocation failed"
+    # rust-1: the conformance follower (owner, 2026-11-12), registered with role follower.
+    DOCKER_UUID_RUST_1=$(instance_uuid_docker_env rust-1)   || die "rust-1: instance UUID allocation failed"
     # Lane TLS (#732): each instance's certificate from the docker lane's own CA,
     # linked where its compose services mount it, before they are created. The
     # RE_TLS_* reach a container only with the lane on; then each engine serves
@@ -2851,6 +2853,7 @@ if [ "$DRY_RUN" = false ]; then
     lane_tls_docker_instance scala-1 scala "$DOCKER_UUID_SCALA_1" "$HOST_IP" || die "scala-1: certificate issue failed (RE_TLS=on)"
     lane_tls_docker_instance cpp-1   cpp   "$DOCKER_UUID_CPP_1"   "$HOST_IP" || die "cpp-1: certificate issue failed (RE_TLS=on)"
     lane_tls_docker_instance lsp-1   lsp   "$DOCKER_UUID_LSP_1"   "$HOST_IP" || die "lsp-1: certificate issue failed (RE_TLS=on)"
+    lane_tls_docker_instance rust-1  rust  "$DOCKER_UUID_RUST_1"  "$HOST_IP" || die "rust-1: certificate issue failed (RE_TLS=on)"
     # Manager's docker pair (reality-engine, the TypeScript PE, the visualizer
     # backend, tls-proxy): one lane certificate, and tls-proxy's lane config,
     # derived from nginx/tls-proxy.conf (#732).
@@ -2867,10 +2870,30 @@ if [ "$DRY_RUN" = false ]; then
     fi
 fi
 
+# The asset storage stack on the docker lane (--assets; owner, 2026-11-12):
+# started before Manager's container, which gets its lifecycle wiring from
+# <state>/docker/manager.assets.env and joins the stack's network below.
+_mgr_assets_env="${RE_INSTANCE_STATE_DIR:-$HOME/.reality-engine}/docker/manager.assets.env"
+_mgr_assets_dir="${RE_INSTANCE_STATE_DIR:-$HOME/.reality-engine}/docker/assets"
+rm -f "$_mgr_assets_env"
+if [ "$ASSETS" = yes ] && [ "$DRY_RUN" = false ]; then
+    start_asset_stack
+    if lane_tls_enabled; then
+        mkdir -p "$_mgr_assets_dir"
+        cp "$ASSETS_ENGINE_TOKEN_FILE" "$_mgr_assets_dir/engine-token" && chmod 600 "$_mgr_assets_dir/engine-token"
+        printf 'INSTANTIATION_ENABLED=true\nLIFECYCLE_URL=https://lifecycle:8443/\nLIFECYCLE_ENGINE_TOKEN_FILE=/run/assets/engine-token\n' \
+            > "$_mgr_assets_env"
+    fi
+fi
+
 info "Starting RE services (waiting for all healthchecks, timeout 360s)..."
 docker compose up -d --wait --wait-timeout 360 || \
     die "RE services failed to reach healthy state\n  Check:  docker compose logs"
 ok "All RE services healthy"
+if [ -f "$_mgr_assets_env" ]; then
+    docker network connect reality-engine reality-engine-visualizer-backend 2>/dev/null || true
+    ok "Manager's workflow instantiation reaches the lifecycle (https://lifecycle:8443/, network reality-engine)"
+fi
 
 info "Confirming RE external endpoints..."
 if [ "$MANAGER_NATIVE" = true ]; then
@@ -2940,6 +2963,8 @@ if [ "$MULTI_ENGINE_MODE" != true ] && [ "$DRY_RUN" = false ]; then
         "$DOCKER_UUID_CPP_1" || die "cpp-1: not registered (see above)"
     registry_add "lsp-1"   "lsp"   "$(lane_tls_scheme)://$HOST_IP:6601" "$(lane_tls_scheme)://$HOST_IP:6600" "" "" \
         "$DOCKER_UUID_LSP_1" || die "lsp-1: not registered (see above)"
+    registry_add "rust-1"  "rust"  "$(lane_tls_scheme)://$HOST_IP:6901" "$(lane_tls_scheme)://$HOST_IP:6900" "" "" \
+        "$DOCKER_UUID_RUST_1" follower || die "rust-1: not registered (see above)"
     _publish_service "registry"         "${REGISTRY_PORT}" "/re-registry.json"
     _publish_service "manager_backend"  3001 "/health"  https
     _publish_service "manager_frontend" 5173 "/"        https
@@ -2947,7 +2972,7 @@ if [ "$MULTI_ENGINE_MODE" != true ] && [ "$DRY_RUN" = false ]; then
     [ -n "${MCP_URL:-}" ]         && registry_set_service "mcp" "$MCP_URL"
     [ -n "${SWAGGER_URL:-}" ]     && registry_set_service "swagger" "$SWAGGER_URL"
     export RE_REGISTRY_URL="${RE_REGISTRY_URL:-$(lane_tls_scheme)://$HOST_IP:${REGISTRY_PORT}/re-registry.json}"
-    ok "Instance registry: scala-1 :6101/:6100, cpp-1 :6301/:6300, lsp-1 :6601/:6600 (RE/PE) on $HOST_IP"
+    ok "Instance registry: scala-1 :6101/:6100, cpp-1 :6301/:6300, lsp-1 :6601/:6600, rust-1 :6901/:6900 (follower) (RE/PE) on $HOST_IP"
 fi
 
 # ── Corpus load phase (Docker RE) ─────────────────────────────────────────

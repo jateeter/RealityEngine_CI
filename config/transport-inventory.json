@@ -40,8 +40,8 @@
         },
         "docker": {
           "profileId": "re-transport-2026.11",
-          "at": "2026-11-13T05:03:28Z",
-          "run": "probe-docker-20261112c",
+          "at": "2026-11-13T16:48:30Z",
+          "run": "docker-rust-assets-20261113",
           "verdict": "compliant",
           "mtls": true,
           "endpoints": [
@@ -115,8 +115,8 @@
         },
         "docker": {
           "profileId": "re-transport-2026.11",
-          "at": "2026-11-13T05:03:28Z",
-          "run": "probe-docker-20261112c",
+          "at": "2026-11-13T16:48:30Z",
+          "run": "docker-rust-assets-20261113",
           "verdict": "compliant",
           "mtls": true,
           "endpoints": [
@@ -189,8 +189,8 @@
         },
         "docker": {
           "profileId": "re-transport-2026.11",
-          "at": "2026-11-13T05:03:28Z",
-          "run": "probe-docker-20261112c",
+          "at": "2026-11-13T16:48:30Z",
+          "run": "docker-rust-assets-20261113",
           "verdict": "compliant",
           "mtls": true,
           "endpoints": [
@@ -264,8 +264,8 @@
         },
         "docker": {
           "profileId": "re-transport-2026.11",
-          "at": "2026-11-13T05:03:28Z",
-          "run": "probe-docker-20261112c",
+          "at": "2026-11-13T16:48:30Z",
+          "run": "docker-rust-assets-20261113",
           "verdict": "compliant",
           "mtls": true,
           "endpoints": [
@@ -339,8 +339,8 @@
         },
         "docker": {
           "profileId": "re-transport-2026.11",
-          "at": "2026-11-13T05:03:28Z",
-          "run": "probe-docker-20261112c",
+          "at": "2026-11-13T16:48:30Z",
+          "run": "docker-rust-assets-20261113",
           "verdict": "compliant",
           "mtls": true,
           "endpoints": [
@@ -413,8 +413,8 @@
         },
         "docker": {
           "profileId": "re-transport-2026.11",
-          "at": "2026-11-13T05:03:28Z",
-          "run": "probe-docker-20261112c",
+          "at": "2026-11-13T16:48:30Z",
+          "run": "docker-rust-assets-20261113",
           "verdict": "compliant",
           "mtls": true,
           "endpoints": [
@@ -488,8 +488,8 @@
         },
         "docker": {
           "profileId": "re-transport-2026.11",
-          "at": "2026-11-13T05:03:28Z",
-          "run": "probe-docker-20261112c",
+          "at": "2026-11-13T16:48:30Z",
+          "run": "docker-rust-assets-20261113",
           "verdict": "compliant",
           "mtls": true,
           "endpoints": [
@@ -563,8 +563,8 @@
         },
         "docker": {
           "profileId": "re-transport-2026.11",
-          "at": "2026-11-13T05:03:28Z",
-          "run": "probe-docker-20261112c",
+          "at": "2026-11-13T16:48:30Z",
+          "run": "docker-rust-assets-20261113",
           "verdict": "compliant",
           "mtls": true,
           "endpoints": [
@@ -637,8 +637,8 @@
         },
         "docker": {
           "profileId": "re-transport-2026.11",
-          "at": "2026-11-13T05:03:28Z",
-          "run": "probe-docker-20261112c",
+          "at": "2026-11-13T16:48:30Z",
+          "run": "docker-rust-assets-20261113",
           "verdict": "compliant",
           "mtls": true,
           "endpoints": [
@@ -687,8 +687,8 @@
       ],
       "owner": "RealityEngine_Rust",
       "issue": "RealityEngine_Rust#72",
-      "status": "unverified",
-      "mtls": false,
+      "status": "compliant",
+      "mtls": true,
       "note": "Follower, on its own cadence. Every lane listed is in scope (owner, 2026-11-12: nothing is removed from the inventory); a lane without a probe record has the link not yet deployed or not yet probed there.",
       "probe": {
         "native": {
@@ -748,6 +748,35 @@
               "plaintext": "refused"
             }
           ]
+        },
+        "docker": {
+          "profileId": "re-transport-2026.11",
+          "at": "2026-11-13T16:48:30Z",
+          "run": "docker-rust-assets-20261113",
+          "verdict": "compliant",
+          "mtls": true,
+          "endpoints": [
+            {
+              "path": "/api/health",
+              "version": "TLSv1.3",
+              "cipher": "TLS_AES_256_GCM_SHA384",
+              "group": "X25519",
+              "mtls": "handshake",
+              "tls12": "refused",
+              "nonProfileSuite": "refused",
+              "plaintext": "refused"
+            },
+            {
+              "path": "/api/state",
+              "version": "TLSv1.3",
+              "cipher": "TLS_AES_256_GCM_SHA384",
+              "group": "X25519",
+              "mtls": "http",
+              "tls12": "refused",
+              "nonProfileSuite": "refused",
+              "plaintext": "refused"
+            }
+          ]
         }
       }
     },
@@ -768,8 +797,8 @@
       "probe": {
         "docker": {
           "profileId": "re-transport-2026.11",
-          "at": "2026-11-13T05:03:28Z",
-          "run": "probe-docker-20261112c",
+          "at": "2026-11-13T16:48:30Z",
+          "run": "docker-rust-assets-20261113",
           "verdict": "compliant",
           "mtls": true,
           "endpoints": [
@@ -844,8 +873,8 @@
         },
         "docker": {
           "profileId": "re-transport-2026.11",
-          "at": "2026-11-13T05:03:28Z",
-          "run": "probe-docker-20261112c",
+          "at": "2026-11-13T16:48:30Z",
+          "run": "docker-rust-assets-20261113",
           "verdict": "compliant",
           "mtls": false,
           "endpoints": [
@@ -919,8 +948,8 @@
         },
         "docker": {
           "profileId": "re-transport-2026.11",
-          "at": "2026-11-13T05:03:28Z",
-          "run": "probe-docker-20261112c",
+          "at": "2026-11-13T16:48:30Z",
+          "run": "docker-rust-assets-20261113",
           "verdict": "compliant",
           "mtls": false,
           "endpoints": [
@@ -1114,8 +1143,8 @@
         },
         "docker": {
           "profileId": "re-transport-2026.11",
-          "at": "2026-11-13T05:03:28Z",
-          "run": "probe-docker-20261112c",
+          "at": "2026-11-13T16:48:30Z",
+          "run": "docker-rust-assets-20261113",
           "verdict": "compliant",
           "mtls": true,
           "endpoints": [
@@ -1200,8 +1229,8 @@
       "probe": {
         "docker": {
           "profileId": "re-transport-2026.11",
-          "at": "2026-11-13T05:03:44Z",
-          "run": "probe-docker-20261112c",
+          "at": "2026-11-13T16:48:48Z",
+          "run": "docker-rust-assets-20261113",
           "verdict": "compliant",
           "mtls": true,
           "endpoints": [
@@ -1275,8 +1304,8 @@
         },
         "docker": {
           "profileId": "re-transport-2026.11",
-          "at": "2026-11-13T05:03:28Z",
-          "run": "probe-docker-20261112c",
+          "at": "2026-11-13T16:48:30Z",
+          "run": "docker-rust-assets-20261113",
           "verdict": "compliant",
           "mtls": true,
           "endpoints": [
@@ -1350,8 +1379,8 @@
         },
         "docker": {
           "profileId": "re-transport-2026.11",
-          "at": "2026-11-13T05:03:28Z",
-          "run": "probe-docker-20261112c",
+          "at": "2026-11-13T16:48:30Z",
+          "run": "docker-rust-assets-20261113",
           "verdict": "compliant",
           "mtls": true,
           "endpoints": [
@@ -1580,8 +1609,8 @@
         },
         "docker": {
           "profileId": "re-transport-2026.11",
-          "at": "2026-11-13T05:03:28Z",
-          "run": "probe-docker-20261112c",
+          "at": "2026-11-13T16:48:30Z",
+          "run": "docker-rust-assets-20261113",
           "verdict": "compliant",
           "mtls": true,
           "endpoints": [
@@ -1705,8 +1734,8 @@
         },
         "docker": {
           "profileId": "re-transport-2026.11",
-          "at": "2026-11-13T05:03:28Z",
-          "run": "probe-docker-20261112c",
+          "at": "2026-11-13T16:48:30Z",
+          "run": "docker-rust-assets-20261113",
           "verdict": "compliant",
           "mtls": true,
           "endpoints": [
@@ -1793,8 +1822,8 @@
         },
         "docker": {
           "profileId": "re-transport-2026.11",
-          "at": "2026-11-13T05:03:28Z",
-          "run": "probe-docker-20261112c",
+          "at": "2026-11-13T16:48:30Z",
+          "run": "docker-rust-assets-20261113",
           "verdict": "tls",
           "mtls": true,
           "endpoints": [
@@ -1868,8 +1897,8 @@
         },
         "docker": {
           "profileId": "re-transport-2026.11",
-          "at": "2026-11-13T05:03:28Z",
-          "run": "probe-docker-20261112c",
+          "at": "2026-11-13T16:48:30Z",
+          "run": "docker-rust-assets-20261113",
           "verdict": "compliant",
           "mtls": true,
           "endpoints": [
@@ -1924,8 +1953,8 @@
         },
         "docker": {
           "profileId": "re-transport-2026.11",
-          "at": "2026-11-13T05:03:28Z",
-          "run": "probe-docker-20261112c",
+          "at": "2026-11-13T16:48:30Z",
+          "run": "docker-rust-assets-20261113",
           "verdict": "compliant",
           "mtls": true,
           "endpoints": [
@@ -2072,8 +2101,8 @@
         },
         "docker": {
           "profileId": "re-transport-2026.11",
-          "at": "2026-11-13T05:03:28Z",
-          "run": "probe-docker-20261112c",
+          "at": "2026-11-13T16:48:30Z",
+          "run": "docker-rust-assets-20261113",
           "verdict": "compliant",
           "mtls": false,
           "endpoints": [
@@ -2156,8 +2185,8 @@
         },
         "docker": {
           "profileId": "re-transport-2026.11",
-          "at": "2026-11-13T05:03:28Z",
-          "run": "probe-docker-20261112c",
+          "at": "2026-11-13T16:48:30Z",
+          "run": "docker-rust-assets-20261113",
           "verdict": "compliant",
           "mtls": false,
           "endpoints": [
@@ -2362,7 +2391,7 @@
       ],
       "owner": "localOpenClawStack",
       "issue": "localOpenClawStack#92",
-      "status": "unverified",
+      "status": "compliant",
       "mtls": false,
       "clientAuthentication": {
         "method": "token",
@@ -2394,6 +2423,25 @@
           "profileId": "re-transport-2026.11",
           "at": "2026-11-13T16:01:37Z",
           "run": "release-package-20261113",
+          "verdict": "compliant",
+          "mtls": false,
+          "endpoints": [
+            {
+              "path": "/health",
+              "version": "TLSv1.3",
+              "cipher": "TLS_AES_256_GCM_SHA384",
+              "group": "X25519MLKEM768",
+              "mtls": "none",
+              "tls12": "refused",
+              "nonProfileSuite": "refused",
+              "plaintext": "refused"
+            }
+          ]
+        },
+        "docker": {
+          "profileId": "re-transport-2026.11",
+          "at": "2026-11-13T16:48:30Z",
+          "run": "docker-rust-assets-20261113",
           "verdict": "compliant",
           "mtls": false,
           "endpoints": [
@@ -2508,7 +2556,7 @@
       ],
       "owner": "localAssetStorageStack",
       "issue": "localAssetStorageStack#15",
-      "status": "unverified",
+      "status": "compliant",
       "mtls": false,
       "note": "Verified by hand 2026-11-07 against the running stack (localAssetStorageStack#16): TLS 1.3, TLS_AES_256_GCM_SHA384, X25519MLKEM768 negotiated, certificate verifies by name; TLS 1.2 refused; plaintext answered with 0 bytes. Not `compliant` until the probe (#728) records it.sh --assets starts the stack in multi-engine mode only. Every lane listed is in scope (owner, 2026-11-12: nothing is removed from the inventory); a lane without a probe record has the link not yet deployed or not yet probed there.",
       "probe": {
@@ -2535,6 +2583,25 @@
           "profileId": "re-transport-2026.11",
           "at": "2026-11-13T16:01:37Z",
           "run": "release-package-20261113",
+          "verdict": "compliant",
+          "mtls": false,
+          "endpoints": [
+            {
+              "path": "/",
+              "version": "TLSv1.3",
+              "cipher": "TLS_AES_256_GCM_SHA384",
+              "group": "X25519MLKEM768",
+              "mtls": "none",
+              "tls12": "refused",
+              "nonProfileSuite": "refused",
+              "plaintext": "refused"
+            }
+          ]
+        },
+        "docker": {
+          "profileId": "re-transport-2026.11",
+          "at": "2026-11-13T16:48:30Z",
+          "run": "docker-rust-assets-20261113",
           "verdict": "compliant",
           "mtls": false,
           "endpoints": [
@@ -2565,7 +2632,7 @@
       ],
       "owner": "localAssetStorageStack",
       "issue": "localAssetStorageStack#15",
-      "status": "unverified",
+      "status": "compliant",
       "mtls": false,
       "note": "Verified by hand 2026-11-07 against the running stack (localAssetStorageStack#16): TLS 1.3, TLS_AES_256_GCM_SHA384, X25519MLKEM768 negotiated, certificate verifies by name; TLS 1.2 refused; plaintext answered with 0 bytes. Not `compliant` until the probe (#728) records it.sh --assets starts the stack in multi-engine mode only. Every lane listed is in scope (owner, 2026-11-12: nothing is removed from the inventory); a lane without a probe record has the link not yet deployed or not yet probed there.",
       "probe": {
@@ -2606,6 +2673,25 @@
               "plaintext": "refused"
             }
           ]
+        },
+        "docker": {
+          "profileId": "re-transport-2026.11",
+          "at": "2026-11-13T16:48:30Z",
+          "run": "docker-rust-assets-20261113",
+          "verdict": "compliant",
+          "mtls": false,
+          "endpoints": [
+            {
+              "path": "/",
+              "version": "TLSv1.3",
+              "cipher": "TLS_AES_256_GCM_SHA384",
+              "group": "X25519MLKEM768",
+              "mtls": "none",
+              "tls12": "refused",
+              "nonProfileSuite": "refused",
+              "plaintext": "refused"
+            }
+          ]
         }
       }
     },
@@ -2621,7 +2707,7 @@
       ],
       "owner": "localAssetStorageStack",
       "issue": "localAssetStorageStack#15",
-      "status": "unverified",
+      "status": "compliant",
       "mtls": false,
       "note": "Verified by hand 2026-11-07 against the running stack (localAssetStorageStack#16): TLS 1.3, TLS_AES_256_GCM_SHA384, X25519MLKEM768 negotiated, certificate verifies by name; TLS 1.2 refused; plaintext answered with 0 bytes. Not `compliant` until the probe (#728) records it. lifecycle verifies against the install CA, and is refused without it.sh --assets starts the stack in multi-engine mode only. Every lane listed is in scope (owner, 2026-11-12: nothing is removed from the inventory); a lane without a probe record has the link not yet deployed or not yet probed there.",
       "deficiency": {
@@ -2671,6 +2757,25 @@
               "plaintext": "refused"
             }
           ]
+        },
+        "docker": {
+          "profileId": "re-transport-2026.11",
+          "at": "2026-11-13T16:48:30Z",
+          "run": "docker-rust-assets-20261113",
+          "verdict": "compliant",
+          "mtls": false,
+          "endpoints": [
+            {
+              "path": "/",
+              "version": "TLSv1.3",
+              "cipher": "TLS_AES_256_GCM_SHA384",
+              "group": "X25519MLKEM768",
+              "mtls": "none",
+              "tls12": "refused",
+              "nonProfileSuite": "refused",
+              "plaintext": "refused"
+            }
+          ]
         }
       }
     },
@@ -2686,7 +2791,7 @@
       ],
       "owner": "localAssetStorageStack",
       "issue": "localAssetStorageStack#15",
-      "status": "unverified",
+      "status": "compliant",
       "mtls": false,
       "clientAuthentication": {
         "method": "token",
@@ -2718,6 +2823,25 @@
           "profileId": "re-transport-2026.11",
           "at": "2026-11-13T16:01:37Z",
           "run": "release-package-20261113",
+          "verdict": "compliant",
+          "mtls": false,
+          "endpoints": [
+            {
+              "path": "/health",
+              "version": "TLSv1.3",
+              "cipher": "TLS_AES_256_GCM_SHA384",
+              "group": "X25519MLKEM768",
+              "mtls": "none",
+              "tls12": "refused",
+              "nonProfileSuite": "refused",
+              "plaintext": "refused"
+            }
+          ]
+        },
+        "docker": {
+          "profileId": "re-transport-2026.11",
+          "at": "2026-11-13T16:48:30Z",
+          "run": "docker-rust-assets-20261113",
           "verdict": "compliant",
           "mtls": false,
           "endpoints": [
@@ -2792,8 +2916,8 @@
         },
         "docker": {
           "profileId": "re-transport-2026.11",
-          "at": "2026-11-13T05:03:28Z",
-          "run": "probe-docker-20261112c",
+          "at": "2026-11-13T16:48:30Z",
+          "run": "docker-rust-assets-20261113",
           "verdict": "compliant",
           "mtls": true,
           "endpoints": [
@@ -3070,8 +3194,8 @@
         },
         "docker": {
           "profileId": "re-transport-2026.11",
-          "at": "2026-11-13T05:03:28Z",
-          "run": "probe-docker-20261112c",
+          "at": "2026-11-13T16:48:30Z",
+          "run": "docker-rust-assets-20261113",
           "verdict": "compliant",
           "mtls": true,
           "endpoints": [
@@ -3126,8 +3250,8 @@
         },
         "docker": {
           "profileId": "re-transport-2026.11",
-          "at": "2026-11-13T05:03:28Z",
-          "run": "probe-docker-20261112c",
+          "at": "2026-11-13T16:48:30Z",
+          "run": "docker-rust-assets-20261113",
           "verdict": "compliant",
           "mtls": true,
           "endpoints": [
@@ -3275,8 +3399,8 @@
         },
         "docker": {
           "profileId": "re-transport-2026.11",
-          "at": "2026-11-13T05:03:28Z",
-          "run": "probe-docker-20261112c",
+          "at": "2026-11-13T16:48:30Z",
+          "run": "docker-rust-assets-20261113",
           "verdict": "compliant",
           "mtls": true,
           "endpoints": [
@@ -3562,8 +3686,8 @@
         },
         "docker": {
           "profileId": "re-transport-2026.11",
-          "at": "2026-11-13T05:03:28Z",
-          "run": "probe-docker-20261112c",
+          "at": "2026-11-13T16:48:30Z",
+          "run": "docker-rust-assets-20261113",
           "verdict": "compliant",
           "mtls": true,
           "endpoints": [
@@ -3674,8 +3798,8 @@
       "probe": {
         "docker": {
           "profileId": "re-transport-2026.11",
-          "at": "2026-11-13T05:03:28Z",
-          "run": "probe-docker-20261112c",
+          "at": "2026-11-13T16:48:30Z",
+          "run": "docker-rust-assets-20261113",
           "verdict": "compliant",
           "mtls": false,
           "endpoints": [
@@ -3892,8 +4016,8 @@
         },
         "docker": {
           "profileId": "re-transport-2026.11",
-          "at": "2026-11-13T05:03:28Z",
-          "run": "probe-docker-20261112c",
+          "at": "2026-11-13T16:48:30Z",
+          "run": "docker-rust-assets-20261113",
           "verdict": "plaintext",
           "mtls": false,
           "endpoints": [
@@ -4103,8 +4227,8 @@
         },
         "docker": {
           "profileId": "re-transport-2026.11",
-          "at": "2026-11-13T05:03:43Z",
-          "run": "probe-docker-20261112c",
+          "at": "2026-11-13T16:48:46Z",
+          "run": "docker-rust-assets-20261113",
           "verdict": "tls",
           "mtls": false,
           "endpoints": [
@@ -4191,8 +4315,8 @@
         },
         "docker": {
           "profileId": "re-transport-2026.11",
-          "at": "2026-11-13T05:03:43Z",
-          "run": "probe-docker-20261112c",
+          "at": "2026-11-13T16:48:47Z",
+          "run": "docker-rust-assets-20261113",
           "verdict": "tls",
           "mtls": false,
           "endpoints": [
@@ -4279,8 +4403,8 @@
         },
         "docker": {
           "profileId": "re-transport-2026.11",
-          "at": "2026-11-13T05:03:43Z",
-          "run": "probe-docker-20261112c",
+          "at": "2026-11-13T16:48:47Z",
+          "run": "docker-rust-assets-20261113",
           "verdict": "tls",
           "mtls": false,
           "endpoints": [
