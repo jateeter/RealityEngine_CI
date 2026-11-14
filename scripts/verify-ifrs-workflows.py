@@ -259,13 +259,13 @@ def main():
             gateway_token = secrets.token_urlsafe(32)
             gateway_port = port()
             gateway_url = "http://127.0.0.1:" + str(gateway_port)
-            model = "ollama/nemotron-3-nano:4b-mlx"
+            model = "ollama/nemotron-3-nano:4b"
             private_tools = runtime / "gateway-tools.json"
             write(private_tools, {"url": doc_url, "agents": {agent_id: {"token": actor("SOURCE-REGISTER")["token"], "context": context}, reporting_agent_id: {"token": actor("DIVIDEND-REGISTER")["token"], "context": context}}}, private=True)
             workspace = runtime / "gateway-workspace"; workspace.mkdir()
             (workspace / "AGENTS.md").write_text("You verify synthetic IFRS document connectors. Use the installed ifrs_document_* and ifrs_source_retrieve tools. Never approve, post or release. Never invent a tool result. Native completion channels are outside this task.\n")
             gateway_config = {"gateway": {"mode": "local", "bind": "loopback", "port": gateway_port, "auth": {"mode": "token"}, "http": {"endpoints": {"chatCompletions": {"enabled": True}}}},
-                              "models": {"providers": {"ollama": {"api": "ollama", "baseUrl": os.environ.get("OLLAMA_BASE_URL", "http://127.0.0.1:11434"), "apiKey": "ollama-local", "params": {"num_ctx": 16384}, "models": [{"id": "nemotron-3-nano:4b-mlx", "name": "IFRS synthetic verification"}]}}},
+                              "models": {"providers": {"ollama": {"api": "ollama", "baseUrl": os.environ.get("OLLAMA_BASE_URL", "http://127.0.0.1:11434"), "apiKey": "ollama-local", "params": {"num_ctx": 16384}, "models": [{"id": "nemotron-3-nano:4b", "name": "IFRS synthetic verification"}]}}},
                               "agents": {"ownership": "explicit", "defaults": {"model": {"primary": model}, "modelPolicy": {"allow": [model]}, "systemAgent": {"agentId": "main"}, "heartbeat": {"agentId": "main"}},
                                          "entries": {"main": {"workspace": str(workspace), "model": {"primary": model}}, agent_id: {"workspace": str(workspace), "model": {"primary": model}, "sandbox": {"mode": "off"}}, reporting_agent_id: {"workspace": str(workspace), "model": {"primary": model}, "sandbox": {"mode": "off"}}}},
                               "talk": {"agentId": "main"}, "tools": {"allow": ["ifrs_document_inspect", "ifrs_document_resource", "ifrs_source_retrieve", "ifrs_document_draft", "ifrs_eligibility_draft", "ifrs_reporting_draft", "ifrs_document_tasks", "ifrs_accounting_calculate", "ifrs_document_request_review"]},

@@ -49,17 +49,17 @@ and which runtimes implement them, live in `RealityEngine_CI/SURFACE_SPEC.md`.
 
 Two defaults exist, and they answer different questions.
 
-- **The universe model: `nemotron-3-nano:4b-mlx`.** The model all RealityEngine
+- **The universe model: `nemotron-3-nano:4b`.** The model all RealityEngine
   testing and development runs against. The regression local lane pins it
   (below), `localAIStack` selects it as its LLM, and the native OpenClaw gateway
-  and the release bundle default to it. It is the MLX build of NVIDIA's
-  Nemotron 3 Nano 4B (safetensors, nvfp4, about 2.9 GB, 256K context, tools and
-  thinking), pulled from the Ollama library (`ollama pull
-  nemotron-3-nano:4b-mlx`, which needs Ollama 0.40.5 or later). The plain
-  `nemotron-3-nano:4b` tag is the GGUF build (Q4_K_M) and runs on llama.cpp,
-  not MLX. Measured on an M1 Pro with Ollama 0.40.11 on 2026-10-25: the MLX build
-  generated 36.4 tokens/s against 25.3, and held 3.8 GB of GPU memory against
-  2.8 GB.
+  and the release bundle default to it. It is NVIDIA's Nemotron 3 Nano 4B
+  (256K context, tools and thinking), pulled from the Ollama library
+  (`ollama pull nemotron-3-nano:4b`). Ollama runs the tag on MLX where MLX is
+  available, so the separate `:4b-mlx` tag is not used, loaded or tested
+  (owner, 2026-11-13). Until then the universe model was `:4b-mlx`, chosen
+  when `:4b` resolved to a GGUF build on llama.cpp: measured on an M1 Pro with
+  Ollama 0.40.11 on 2026-10-25, the MLX build generated 36.4 tokens/s against
+  25.3.
 - **The engine built-in default is the universe model too** (owner direction,
   2026-11-01). It is what each runtime (C++, LSP, Scala, Rust and the TypeScript
   PE) resolves when nothing pins a model, rank 3 below. It was `llama3.1:8b`, a
@@ -75,7 +75,7 @@ Resolution order, identical on every runtime:
 |---|---|
 | 1 | `OLLAMA_MODEL` in the engine's environment — the per-engine override |
 | 2 | `model` on the `kind: "ollama"` entry in the integration registry |
-| 3 | the engine built-in default (`nemotron-3-nano:4b-mlx`) |
+| 3 | the engine built-in default (`nemotron-3-nano:4b`) |
 
 The local lane supplies rank 1, so the universe model reaches every engine it
 starts, and an engine started outside the lane with nothing pinned resolves
@@ -105,7 +105,7 @@ here, not inferred from the model's format:
 
 | role | default | runner | other measured |
 |---|---|---|---|
-| LLM | `nemotron-3-nano:4b-mlx` | `mlx` | `nemotron-3-nano:4b` `llamacpp`, `llama3.1:8b` `ggml`, `gemma3:4b` `llamacpp` |
+| LLM | `nemotron-3-nano:4b` | `mlx` where available | `llama3.1:8b` `ggml`, `gemma3:4b` `llamacpp` |
 | embedding | `embeddinggemma-2:270m` | `mlx` | `nomic-embed-text` `ggml` |
 
 localAIStack's registry declares `runner` per model and a test fails if a role's
@@ -213,7 +213,7 @@ prompt, and it refused both tools and `format: "json"`.
   "kind": "ollama",
   "enabled": false,
   "baseUrl": "http://localhost:11434",
-  "model": "nemotron-3-nano:4b-mlx",
+  "model": "nemotron-3-nano:4b",
   "apiMode": "native",
   "completionSourceMappingId": "agent-completion-risk",
   "mcp": {
@@ -292,9 +292,9 @@ dispatch".
 python3 scripts/regression-local-ai.py
 
 # Pull the universe model once
-ollama pull nemotron-3-nano:4b-mlx
+ollama pull nemotron-3-nano:4b
 
-# The local lane pins nemotron-3-nano:4b-mlx by default; name another to override it
+# The local lane pins nemotron-3-nano:4b by default; name another to override it
 ./scripts/regression-test.sh --profile local
-OLLAMA_MODEL=nemotron-3-nano:4b ./scripts/regression-test.sh --profile local
+OLLAMA_MODEL=gemma3:4b ./scripts/regression-test.sh --profile local
 ```

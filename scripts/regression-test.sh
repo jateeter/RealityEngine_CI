@@ -340,13 +340,14 @@ case "$PROFILE" in
     [ "$MACHINE_CORPUS_SET" = true ] || MACHINE_CORPUS="regression"
     # Pin one model for every engine on this lane.
     #
-    # The universe model is nemotron-3-nano:4b-mlx (docs/OLLAMA_INTEGRATION.md),
-    # the MLX build of Nemotron 3 Nano 4B: all RealityEngine testing and
+    # The universe model is nemotron-3-nano:4b (docs/OLLAMA_INTEGRATION.md),
+    # Nemotron 3 Nano 4B, which Ollama runs on MLX where it is available (the
+    # :4b-mlx tag is not used; owner, 2026-11-13): all RealityEngine testing and
     # development runs against it. It is the engines' built-in default too
     # (owner direction, 2026-11-01); the pin is rank 1 in the resolution order,
     # so it holds whatever an engine's build says, and the local-ai stage fails
     # if the engines disagree or the resolved model is not installed.
-    # Pull it with `ollama pull nemotron-3-nano:4b-mlx` (Ollama 0.40.5+).
+    # Pull it with `ollama pull nemotron-3-nano:4b` (Ollama 0.40.13+).
     #
     # It calls tools. The PEs omit format=json and schema formats for the
     # nemotron-3-nano family, which Ollama's MLX runner refuses ("structured
@@ -355,7 +356,7 @@ case "$PROFILE" in
     #
     # Exported rather than passed as a flag: startUniverse spawns each engine
     # with inherited environment, so one export reaches all three.
-    OLLAMA_MODEL="${OLLAMA_MODEL:-nemotron-3-nano:4b-mlx}"
+    OLLAMA_MODEL="${OLLAMA_MODEL:-nemotron-3-nano:4b}"
     export OLLAMA_MODEL
     ;;
   *)

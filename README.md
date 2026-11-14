@@ -131,7 +131,7 @@ A first run takes 20–40 minutes, mostly downloading. It:
 3. Looks for Ollama first, from the app or Homebrew. One at v0.40.5 or later is
    kept as it is; a newer release is only mentioned. Otherwise it installs the
    current release. Then it pulls whichever of the two models,
-   `nemotron-3-nano:4b-mlx` and `embeddinggemma-2:270m`, Ollama doesn't
+   `nemotron-3-nano:4b` and `embeddinggemma-2:270m`, Ollama doesn't
    already have.
 4. Installs Node 26.12.1 from nodejs.org, after checking the installer's
    published sha256.
