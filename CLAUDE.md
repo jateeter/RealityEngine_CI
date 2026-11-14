@@ -147,9 +147,10 @@ npm run test:deployment
   (PE only). Quorum stays 3-of-3 among C++, LSP and Scala.
 - **RealityEngine_Rust validates itself (owner decision, 2026-10-30).** It is a
   non-voting follower with its own self-contained lane (R0 static, R1 corpus
-  replay) and runs the live tiers on a slower cadence: R2 beside a universe, R3
-  the full `regression-test.sh` per release candidate. Nothing about Rust is in
-  the daily certifying run. Tiers and cadence: `docs/RUST_VALIDATION_WORKFLOW.md`;
+  replay). R2 runs it beside a universe. R3, the follower lane inside
+  `regression-test.sh`, is the default of every native local run since
+  release-v0.0.2 ships Rust (owner, 2026-11-13; `--no-follower` opts out). It
+  never votes, and the hosted daily run does not include it yet. Tiers and cadence: `docs/RUST_VALIDATION_WORKFLOW.md`;
   the bounded exception: `docs/ENGINEERING_CONTRACT.md`.
 - **No parity or proof run against engines that are not built from current source.**
   `scripts/verify-build-provenance.py` gates this, and both `startUniverse.sh`

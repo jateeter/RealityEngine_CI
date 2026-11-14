@@ -108,6 +108,7 @@ ENGINES_SPEC="cpp:1,lsp:1,scala:1"
 # the local-containerized lane points it at its install (scripts/lib/containerized-lane.sh).
 REGISTRY_FILE="/tmp/re-registry/re-registry.json"
 FOLLOWER=""
+FOLLOWER_SET=false
 # What startUniverse.sh / stopUniverse.sh may replace although it runs from
 # another checkout: the stacks earlier runs started from their worktrees (#637).
 # Set after argument parsing, once HISTORY_DIR is final.
@@ -195,14 +196,17 @@ Options:
                             Default: regression
                             on both profiles. full is an explicit opt-in and is
                             refused under --profile hosted.
-  --follower rust           Also build RealityEngine_Rust and hold it against the
+  --follower rust           Build RealityEngine_Rust and hold it against the
                             voters as a non-voting follower (tier R3 of
                             docs/RUST_VALIDATION_WORKFLOW.md), through the
-                            follower lane, scripts/rust-conformance.sh, once
-                            every certifying stage has measured. Reported in its
-                            own section and reports/follower-rust/; never part
-                            of this run's verdict or exit status. Local profile
-                            only.
+                            follower lane, scripts/rust-conformance.sh. Reported
+                            in its own section and reports/follower-rust/; never
+                            part of this run's verdict or exit status.
+                            Default under --profile local: the release ships
+                            Rust from release-v0.0.2 (owner, 2026-11-13).
+                            Refused under --profile hosted and
+                            local-containerized.
+  --no-follower             Run without the follower.
   --retain N                Keep latest N local run histories. Default: 20
   --compare RUN_ID          Compare against a previous run id. Default: latest completed run.
   --baseline-status PATH    regression-status.json from the previous run, used as the
@@ -233,8 +237,9 @@ while [ $# -gt 0 ]; do
     --build-only) START=false; LIVE_TESTS=false; RUN_SHAPING+=("$1"); shift ;;
     --engines=*) ENGINES_SPEC="${1#*=}"; shift ;;
     --engines) ENGINES_SPEC="$2"; shift 2 ;;
-    --follower) FOLLOWER="$2"; shift 2 ;;
-    --follower=*) FOLLOWER="${1#*=}"; shift ;;
+    --follower) FOLLOWER="$2"; FOLLOWER_SET=true; shift 2 ;;
+    --follower=*) FOLLOWER="${1#*=}"; FOLLOWER_SET=true; shift ;;
+    --no-follower) FOLLOWER=""; FOLLOWER_SET=true; shift ;;
     --images=*) RELEASE_IMAGES_FILE="${1#*=}"; shift ;;
     --images) RELEASE_IMAGES_FILE="$2"; shift 2 ;;
     --mqtt-broker-url=*) MQTT_BROKER_URL="${1#*=}"; shift ;;
@@ -338,6 +343,11 @@ case "$PROFILE" in
     # Same corpus as hosted. --machine-corpus=full stays available here as an
     # explicit opt-in; it is no longer what an unflagged local run boots.
     [ "$MACHINE_CORPUS_SET" = true ] || MACHINE_CORPUS="regression"
+    # Rust is a follower in every native local regression run: the release
+    # ships its image from release-v0.0.2 (owner, 2026-11-13). It never votes,
+    # and --no-follower opts out. The containerized lane builds Rust's image
+    # instead (below).
+    if [ "$PROFILE" = local ] && [ "$FOLLOWER_SET" = false ]; then FOLLOWER=rust; fi
     # Pin one model for every engine on this lane.
     #
     # The universe model is nemotron-3-nano:4b-mlx (docs/OLLAMA_INTEGRATION.md),
@@ -2611,9 +2621,12 @@ STAGE_FAILURES=()
 # on this run's universe, corpus, broker and worktree build. Not a run_stage:
 # its result goes to reports/follower-rust/ and reports/follower-results.tsv,
 # never to STAGE_FAILURES, so a follower can neither fail nor pass this run
-# (docs/QUORUM_CONTRACT.md section 1). The lane resets every voter, so it runs
-# after every certifying stage that measures the universe, and before
-# mqtt-yuma, whose session residue differs by runtime.
+# (docs/QUORUM_CONTRACT.md section 1). It runs before mcp: the MCP smoke
+# registers sources (cell 4200) on the voters that no reset removes and rust-1,
+# started later, never receives, so after it trajectory and reset-contract
+# differ on that residue alone (run 20261104T195423Z). The lane resets every
+# voter it reads, and restores the MQTT sensors its own mqtt-yuma leaves; every
+# voting stage after it resets or registers for itself.
 run_follower() {
   [ -n "$FOLLOWER" ] || return 0
   step "Follower: rust-1 against the voters (non-voting; not part of this run's verdict)"
@@ -2715,6 +2728,8 @@ if [ "$LIVE_TESTS" = true ]; then
   run_stage "escalation-dispatch" run_escalation_dispatch
   run_stage "arbiter-sweep"     run_arbiter_rule_sweep
   run_stage "universal-vectors" run_universal_vectors
+  # The follower, before mcp (see run_follower).
+  run_follower
   run_stage "mcp"               run_mcp
   run_stage "arbiter"           run_arbiter
   # Beside the arbiter, on the same fixture: retention keyed by step, the legacy
@@ -2743,12 +2758,9 @@ if [ "$LIVE_TESTS" = true ]; then
   run_stage "localai-machines"  run_localai_machines
   run_stage "local-ai"          run_local_ai
   run_stage "openclaw"          run_openclaw
-  # The follower, after every certifying stage that measures the universe (the
-  # lane resets every voter) and before mqtt-yuma (see run_follower).
-  run_follower
-  # After the certifying stages and the follower: it makes clones, which the
-  # parity stages would see in GET /api/machines while they live, and recycles
-  # them all before it ends.
+  # After the certifying stages and the follower (before mcp): it makes clones,
+  # which the parity stages would see in GET /api/machines while they live, and
+  # recycles them all before it ends.
   run_stage "asset-workflow"    run_asset_workflow
   # With every lane service up, and before mqtt-yuma: it reads, writes nothing.
   run_stage "transport-probe"   run_transport_probe
