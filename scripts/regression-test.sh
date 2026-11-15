@@ -1725,9 +1725,18 @@ mqtt_bridges() {
   local touched=0 instance_id runtime pe_url code
   while IFS='|' read -r instance_id runtime pe_url; do
     [ -n "$instance_id" ] || continue
-    code="$(curl -s -o /dev/null -w '%{http_code}' -X POST \
-      -H 'Content-Type: application/json' -d '{}' \
-      --max-time 20 "$pe_url$endpoint" 2>/dev/null || echo 000)"
+    # The lane's curl (RE_TLS=on: TLS 1.3, the lane CA, the harness
+    # certificate). A bare curl failed every mute on the lane with 000, so the
+    # bridges stayed live through every measurement stage (LSP#197).
+    if declare -F lane_curl_get >/dev/null; then
+      code="$(lane_curl_get "$pe_url$endpoint" -s -o /dev/null -w '%{http_code}' -X POST \
+        -H 'Content-Type: application/json' -d '{}' --max-time 20 2>/dev/null)" || true
+    else
+      code="$(curl -s -o /dev/null -w '%{http_code}' -X POST \
+        -H 'Content-Type: application/json' -d '{}' \
+        --max-time 20 "$pe_url$endpoint" 2>/dev/null)" || true
+    fi
+    [ -n "$code" ] || code=000
     case "$code" in
       2*) touched=$((touched + 1)) ;;
       *)  log "  WARN $instance_id: POST $endpoint returned $code" ;;
