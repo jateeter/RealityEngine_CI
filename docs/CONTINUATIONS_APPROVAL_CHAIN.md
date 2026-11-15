@@ -96,6 +96,21 @@ IN_REVIEW → APPROVED, with STALE when an upstream changes (`draft`,
    which resumes the parked continuation. The change reaches the engines as
    every lifecycle change does: Source → ISRE → recognition → OSRE → Manager →
    the next clone.
+5. **A failed step** (RealityEngine_Manager#346): when the step's agent fails,
+   - the component retries the turn within the step, with the same clone and
+     capability: `INSTANTIATION_AGENT_RETRIES` times (default 2), after a
+     backoff that doubles from `INSTANTIATION_AGENT_RETRY_BACKOFF_MS` (default
+     5 s);
+   - when the retries are spent, it recycles the clone and reports the step
+     failed (`POST /frames/:id/continuations/:k/fail`, with the reason and the
+     attempts);
+   - the lifecycle service marks the continuation `failed` and parks a re-run
+     of the same step for the case's author, under a `step-failed` receipt.
+     The author approves to re-run it, or sends it back with rework.
+
+   A failed step never leaves the frame open and silent, and never loops on its
+   own. The escape path would: it re-enters at `onStale`, which the engine side
+   resumes by itself.
 
 The engines carry no continuation state. They run the clones. Continuations
 are frame data, held by the lifecycle service.
