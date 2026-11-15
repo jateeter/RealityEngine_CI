@@ -81,6 +81,25 @@ scrape_configs:
           component: ai-bridge-metrics
           source:    host
 
+  # localAIStack's own activity (localAIStack#180, RealityEngine_CI#785):
+  # requests by route, RAG and agent turns, per-engine fan-out calls,
+  # interaction agreement and LLM drift records. The API is TLS 1.3 with mTLS
+  # on the lane and its certificate names localhost. Off the lane there is no
+  # job: the API is plaintext there and no new plaintext scrape is added.
+  - job_name:     localai-api
+    metrics_path: /metrics
+    scrape_interval: 15s
+    scrape_timeout:  10s
+    honor_labels: true
+    scheme:       https
+    tls_config: *lane
+    static_configs:
+      - targets:
+          - host.docker.internal:4000
+        labels:
+          component: localai-api
+          source:    host
+
   - job_name:     qdrant
     metrics_path: /metrics
     honor_labels: true
