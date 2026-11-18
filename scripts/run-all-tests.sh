@@ -523,6 +523,7 @@ run_unit() {
     run_machine_set_parity_tests
     run_deploy_validate_agent_tests
     run_metrics_parity_unit_tests
+    run_service_inventory_lane_tests
     run_export_parity_tests
     run_ces_contract_drift
     run_localai_tests
@@ -583,6 +584,11 @@ run_machine_set_parity_tests() {
 run_metrics_parity_unit_tests() {
     run_suite "Metrics-parity unit tests" "$CI_DIR" \
         bash scripts/tests/test-metrics-parity.sh
+}
+
+run_service_inventory_lane_tests() {
+    run_suite "Service inventory lane URL tests" "$CI_DIR" \
+        bash scripts/tests/test-service-inventory-lane.sh
 }
 
 run_deploy_validate_agent_tests() {
