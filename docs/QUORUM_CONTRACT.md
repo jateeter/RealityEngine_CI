@@ -38,6 +38,15 @@ A follower:
   instance registry. It runs in its own lane (above).
 - A surface it does not implement is reported as its declared participation
   state (`unsupported`), never as "QUORUM NOT FORMED".
+- It is shown beside the voters (owner, 2026-11-18). Each parity result in a
+  regression's `summary.md` carries the follower's verdict on that stage
+  (`agrees`, `differs`, `unsupported`, `not-compared`) on an indented line
+  under the voters' result. A follower that differs is reported, not counted:
+  the run's verdict, exit status and issue filing stay the voters' 3-of-3.
+
+**Shipping is not voting.** RealityEngine_Rust ships in release-v0.0.2 (image
+`re-rust`, owner 2026-11-13) as a follower. A released follower is held to the
+same rules above; only promotion makes it a voter.
 
 **Promotion.** A follower becomes a voter only when it implements the whole RE
 and PE surface and has then passed three consecutive certifying runs. The

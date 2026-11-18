@@ -415,11 +415,48 @@ def collect_followers(run_dir: Path) -> dict[str, Any]:
     return followers
 
 
+# Where a follower's stage verdict is shown beside the voters' result (owner,
+# 2026-11-18: Rust ships in release-v0.0.2, still non-voting). The keys are the
+# follower lane's stage names (rust-conformance.sh); the values, the ## Results
+# line it belongs under: a section key of the first loop, or a stage name.
+FOLLOWER_RESULT_LINES = {
+    "trajectory": "trajectoryParity",
+    "mqtt-yuma": "mqtt",
+    "arbiter": "arbiter",
+    "machine-set": "machine-set-parity",
+    "export": "export-parity",
+    "engine-process": "engine-process-parity",
+    "pe-step-contract": "pe-step-contract",
+    "escalation-dispatch": "escalation-dispatch",
+    "arbitration-retention": "arbitration-retention",
+    "reset-contract": "reset-contract",
+}
+
+
+def follower_result_lines(followers: dict[str, Any], result: str) -> list[str]:
+    """Each follower's verdict on the stage behind one ## Results line.
+
+    Indented, so the issue filer (which reads only top-level `- <label>: `status``
+    lines) never sees it: a follower is shown beside the voters and never
+    decides the run (docs/QUORUM_CONTRACT.md section 1).
+    """
+    lines = []
+    for stage, line in FOLLOWER_RESULT_LINES.items():
+        if line != result:
+            continue
+        for name, block in followers.items():
+            verdict = (block.get("stages") or {}).get(stage)
+            if verdict:
+                lines.append(f"  - Follower {name} (non-voting): `{verdict}`")
+    return lines
+
+
 def follower_markdown(followers: dict[str, Any]) -> list[str]:
     if not followers:
         return []
     lines = ["", "## Followers (non-voting)", "",
-             "Held against the voters; never part of this run's verdict (docs/QUORUM_CONTRACT.md section 1).", ""]
+             "Held against the voters and shown beside their results above; never part of this run's verdict "
+             "(docs/QUORUM_CONTRACT.md section 1). Every stage the follower lane ran:", ""]
     for name, block in followers.items():
         stages = block.get("stages") or {}
         counts: dict[str, int] = {}
@@ -445,6 +482,7 @@ def summary_markdown(run_dir: Path, status: dict[str, Any], comparison: dict[str
         "## Results",
         "",
     ]
+    followers = collect_followers(run_dir)
     for label, key in (
         ("Build", "build"),
         ("Service readiness", "serviceInventory"),
@@ -461,10 +499,12 @@ def summary_markdown(run_dir: Path, status: dict[str, Any], comparison: dict[str
         failures = section.get("failures", [])
         if failures:
             lines.append(f"  - Failures: {len(failures)}")
+        lines.extend(follower_result_lines(followers, key))
     # Same "- <label>: `<status>`" shape, inside ## Results, so the issue filer
     # keys a failure here on the stage's own name rather than "unspecified".
     for name, stage_status in unsectioned_stages(status.get("stages") or {}):
         lines.append(f"- {name}: `{stage_status}`")
+        lines.extend(follower_result_lines(followers, name))
     lines.extend([
         "",
         "## Comparison",
@@ -477,7 +517,7 @@ def summary_markdown(run_dir: Path, status: dict[str, Any], comparison: dict[str
         f"- Changed measures: `{len(comparison.get('measureChanges', []))}`",
     ])
     lines.extend(f"  - {describe_change(change)}" for change in comparison.get("measureChanges", []))
-    lines.extend(follower_markdown(collect_followers(run_dir)))
+    lines.extend(follower_markdown(followers))
     lines.extend([
         "",
         "## Artifacts",

@@ -19,6 +19,13 @@ result stays out of the run's verdict and exit status.
 lane's localAI slice runs only when the `localai_api` container is up, and the
 hosted lane starts none, so it is skipped there.
 
+**Amended 2026-11-18 (owner):** Rust is in the parity check, shown beside the
+voters, and still non-voting. `summary.md` puts its verdict under each voters'
+parity result it ran (`  - Follower rust-1 (non-voting): \`agrees\``). A Rust
+divergence is reported there and in the follower section, and the run still
+passes on the voters' 3-of-3. Shipping in release-v0.0.2 does not make Rust a
+voter; promotion is the rule in `QUORUM_CONTRACT.md` section 1.
+
 ## The four tiers
 
 | tier | what it is | where it runs | needs | proves |
@@ -170,8 +177,9 @@ path) and the PE. The follower lane below covers both.
   covers this, including that a 2-1 split among the voters stays a
   disagreement whichever side the follower takes.
 - **The runner.** It builds Rust and checks its provenance:
-  `verify-build-provenance.py --repos rust`. `rust` is an opt-in target there,
-  so the certifying run never checks it. The runner then starts `rust-1` on
+  `verify-build-provenance.py --repos rust`. A run with a follower passes it to
+  the run's own provenance check too (`--repos cpp,scala,lsp,rust`), so the
+  certifying run refuses a stale Rust build as it does a voter's. The runner then starts `rust-1` on
   5801 beside the universe, on the corpus the universe booted and at the width
   the voters report. Its UUID is allocated as `native/rust-1`. Once the RE
   answers, the runner starts `rust-1`'s PE on 5800 (`--pe-port`) driving that
@@ -328,13 +336,16 @@ refuses `--follower` and builds Rust's release image instead.
   every voting stage after it resets or registers for itself.
 - **Never a vote.** Its result goes to `reports/follower-rust/` and
   `reports/follower-results.tsv`, not to the stage results, so it is not in
-  `STAGE_FAILURES`, the run's exit status, `failingSections`, the comparison or
-  `## Results`. The issue filer cannot see it. `summary.md` gives it its own
-  `## Followers (non-voting)` section, and `regression-status.json` a
+  `STAGE_FAILURES`, the run's exit status, `failingSections` or the comparison.
+  In `## Results` it is shown, never counted: an indented line under the
+  voters' result of each stage it ran (`regression-report.py`
+  `FOLLOWER_RESULT_LINES`), which the issue filer, reading only top-level
+  `- <label>: \`status\`` lines, cannot see. `summary.md` also lists every stage it
+  ran in `## Followers (non-voting)`, and `regression-status.json` has a
   `followers` block with no top-level `status`.
   `scripts/tests/test-regression-stage-results.sh` holds all of this: a
-  follower that differs leaves `failingSections` empty and the issue filer's
-  signature unchanged.
+  follower that differs is shown under the voters' result, leaves
+  `failingSections` empty and the issue filer's signature unchanged.
 
 R3 is what a release candidate that ships `re-rust` must pass.
 

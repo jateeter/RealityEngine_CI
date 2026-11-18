@@ -130,7 +130,14 @@ check "$(python3 -c 'import json,sys; print(json.load(open(sys.argv[1]))["failin
   "[]" "a differing follower is not a failing section"
 check "$(python3 -c 'import json,sys; d=json.load(open(sys.argv[1]))["followers"]["rust-1"]; print(d["laneExit"], d["stages"]["trajectory"])' "$TMP/rf/reports/regression-status.json")" \
   "1 differs" "the follower is recorded, apart"
-check "$(sed -n '/^## Results/,/^## /p' "$TMP/rf/summary.md" | grep -c -i 'rust' || true)" "0" "## Results never names the follower"
+# Shown beside the voters (owner, 2026-11-18: Rust ships in release-v0.0.2,
+# non-voting): an indented line under the voters' result, never a top-level
+# `- <label>: `status`` line, which is all the issue filer reads.
+check "$(sed -n '/^## Results/,/^## Comparison/p' "$TMP/rf/summary.md" | grep -c '^- .*rust' || true)" "0" "## Results has no top-level follower line"
+check "$(sed -n '/^## Results/,/^## Comparison/p' "$TMP/rf/summary.md" | grep -A1 '^- ISRE/OSRE trajectory parity: `passed`$' | tail -1)" \
+  '  - Follower rust-1 (non-voting): `differs`' "the follower's verdict is shown under the voters' trajectory result"
+check "$(sed -n '/^## Results/,/^## Comparison/p' "$TMP/rf/summary.md" | grep -A1 '^- Arbiter conformance:' | tail -1)" \
+  '  - Follower rust-1 (non-voting): `agrees`' "and under the arbiter's"
 check "$(grep -c '^## Followers (non-voting)' "$TMP/rf/summary.md")" "1" "summary.md has its own follower section"
 check "$(grep -c '  - trajectory differs' "$TMP/rf/summary.md")" "1" "each follower stage is listed"
 check "$(signature "$TMP/rf/summary.md")" "$(signature "$TMP/r1/summary.md" >/dev/null; make_run "$TMP/rf0"; printf '%s\t%s\t%s\n' service-inventory passed 0 trajectory-parity passed 0 > "$TMP/rf0/reports/stage-results.tsv"; report "$TMP/rf0"; signature "$TMP/rf0/summary.md")" \
