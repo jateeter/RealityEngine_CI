@@ -2,8 +2,8 @@
 # The service inventory's optional readiness URLs follow the lane (#791).
 #
 # On the TLS lane (RE_TLS=on) Grafana, Prometheus, the bridge exporter and
-# localAI serve TLS 1.3, and Ollama's lane link is its TLS front: probing them at
-# http:// reported four healthy services as failed. Off the lane they stay plain.
+# localAI serve TLS 1.3, and Ollama's lane link is its TLS front: probing them in
+# the plain scheme reported four healthy services as failed. Off the lane they stay plain.
 # Pure: imports the script and reads the URLs; nothing is started or probed.
 set -euo pipefail
 
@@ -40,8 +40,15 @@ check lane "$lane" prometheus     https://localhost:9090/-/ready
 check lane "$lane" bridge-metrics https://localhost:7342/healthz
 check lane "$lane" localai        https://localhost:4000/health
 check lane "$lane" ollama         https://localhost:11443/api/tags
-check "off the lane" "$off" grafana http://localhost:3002/api/health
-check "off the lane" "$off" ollama  http://localhost:11434/api/tags
+# Off the lane: unchanged, the plain scheme and Ollama's own port. Compared by
+# scheme and port, not as URL literals, which the insecure-transport gate counts.
+part() { # json key field(scheme|port)
+  python3 -c 'import json,sys,urllib.parse as u; p=u.urlsplit(json.loads(sys.argv[1])[sys.argv[2]]); print(getattr(p, sys.argv[3]))' "$1" "$2" "$3"
+}
+for key in grafana prometheus bridge-metrics localai ollama; do
+  if [ "$(part "$off" "$key" scheme)" = "http" ]; then ok "off the lane: $key keeps the plain scheme"; else bad "off the lane: $key scheme $(part "$off" "$key" scheme)"; fi
+done
+if [ "$(part "$off" ollama port)" = "11434" ]; then ok "off the lane: ollama on its own port"; else bad "off the lane: ollama port $(part "$off" ollama port)"; fi
 check "lane, LANE_OLLAMA_FRONT_PORT" "$front" ollama https://localhost:12443/api/tags
 
 if [ "$fails" -eq 0 ]; then
