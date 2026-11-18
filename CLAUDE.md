@@ -1,6 +1,6 @@
 # RealityEngine_CI Guidance
 
-Last reviewed: 2026-11-06
+Last reviewed: 2026-11-18
 
 See `/Users/johnt/workspace/GitHub/CLAUDE.md` for the integrated application map. Update both this file and the root map when orchestration, instance registry, environment, or e2e responsibilities change.
 
@@ -159,7 +159,9 @@ npm run test:deployment
   `regression-test.sh`, is the default of every regression run on native
   engines, local and the hosted daily run, since release-v0.0.2 ships Rust
   (owner, 2026-11-13/14; `--no-follower` opts out). It never votes; without
-  localAI (hosted) its localAI slice is skipped. Tiers and cadence: `docs/RUST_VALIDATION_WORKFLOW.md`;
+  localAI (hosted) its localAI slice is skipped. It is in the parity check,
+  shown, not counted (owner, 2026-11-18): `summary.md` puts its verdict under
+  each voters' parity result, and a Rust divergence never fails the run. Tiers and cadence: `docs/RUST_VALIDATION_WORKFLOW.md`;
   the bounded exception: `docs/ENGINEERING_CONTRACT.md`.
 - **No parity or proof run against engines that are not built from current source.**
   `scripts/verify-build-provenance.py` gates this, and both `startUniverse.sh`

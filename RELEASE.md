@@ -46,16 +46,17 @@ images, and both are the same release.
 | `RealityEngine_CPP` | C++ RE + PE | image `re-cpp` |
 | `RealityEngine_LSP` | Common Lisp RE + PE | image `re-lsp` |
 | `RealityEngine_Scala` | Scala/Akka RE + standalone PE | images `re-scala`, `re-scala-pe` |
+| `RealityEngine_Rust` | Rust RE + PE, a non-voting conformance follower (`docs/QUORUM_CONTRACT.md`) | image `re-rust`, from `release-v0.0.2` |
 | `RealityEngine_Machines` | machine corpus, schemas, contract tests | image `re-corpus` (the regression corpus, A8) |
-| `RealityEngine_Manager` | Visualizer | images `re-visualizer-backend`, `re-visualizer-frontend` |
+| `RealityEngine_Manager` | Visualizer, and the TypeScript PE (a non-voting conformance follower) | images `re-visualizer-backend`, `re-visualizer-frontend`, `re-ts-pe` |
 | `localAIStack` | local RAG/vector services and the RE bridge | image `re-localai-api` |
 | `localOpenClawStack` | ACP/OpenClaw gateway | no image: its scripts and agents ship in `re-init`, and the gateway is the Mac's own `openclaw` (#592) |
 | `OpenCommons-Health---Personal-Information-Management` | PIM and the Solid Community Server that holds the authoritative POD | images `re-pim`, `re-css` |
 | `localHealthkitBridge` | iOS HealthKit → PE bridge | **source**, a development deployment built with Xcode (A10) |
-| `localAssetStorageStack` | dokieli asset storage: Solid Community Server, dokieli UI, document lifecycle API | from `release-v0.0.2`; pinned by the manifest, images not yet in the catalog |
+| `localAssetStorageStack` | dokieli asset storage: Solid Community Server, dokieli UI, document lifecycle API | images `re-dokieli`, `re-lifecycle`, from `release-v0.0.2` |
 
 The image catalog (repo, Dockerfile, image name) is
-`release/images.json`: twelve images. Third-party images (Loki, Prometheus,
+`release/images.json`: sixteen images. Third-party images (Loki, Prometheus,
 Promtail, Grafana, Qdrant, Redis, Open WebUI, nginx, the OpenClaw browser) are
 pinned by digest in the release compose file and are part of the release too
 (B3).

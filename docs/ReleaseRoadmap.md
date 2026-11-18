@@ -948,6 +948,14 @@ The published list is the one in
 
 **In scope for `release-v0.0.2`** (owner, 2026-11-04):
 
+- `RealityEngine_Rust` ships (owner, 2026-11-13; CI#772): the RE and PE as
+  image `re-rust`, still a **non-voting conformance follower**
+  (`docs/QUORUM_CONTRACT.md` section 1). Every native regression run, local and
+  the hosted daily run, includes it (R3, CI#708, #784), its build provenance is
+  checked with the voters', and its verdict is shown under each voters' parity
+  result in `summary.md` (owner, 2026-11-18). A Rust divergence is reported,
+  never a failure of the run: the certification stays the voters' 3-of-3.
+
 - `localAssetStorageStack` joins the release: dokieli asset storage (Solid
   Community Server, the dokieli UI, the document lifecycle API). Done: it is in
   the focus set and the engineering contract, `regression-test.sh` clones and
