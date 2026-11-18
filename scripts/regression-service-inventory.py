@@ -5,6 +5,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import os
 from pathlib import Path
 import ssl
 import sys
@@ -17,13 +18,25 @@ import re_tls  # noqa: E402
 re_tls.install_lane_opener()  # the lane CA and harness certificate when RE_TLS=on (#732)
 
 
-DEFAULT_OPTIONAL_SERVICES = {
-    "grafana": "http://localhost:3002/api/health",
-    "prometheus": "http://localhost:9090/-/ready",
-    "bridge-metrics": "http://localhost:7342/healthz",
-    "localai": "http://localhost:4000/health",
-    "ollama": "http://localhost:11434/api/tags",
-}
+def default_optional_services(lane_on: bool | None = None) -> dict[str, str]:
+    """The optional services' readiness URLs, in the lane's scheme.
+
+    On the TLS lane (RE_TLS=on) each serves TLS 1.3, most with mTLS, and the
+    lane opener presents the harness certificate; Ollama's lane link is its TLS
+    front (LANE_OLLAMA_FRONT_PORT), not its plaintext port. Probing them at
+    http:// reported four healthy services as failed (RealityEngine_CI#791).
+    """
+    if lane_on is None:
+        lane_on = os.environ.get("RE_TLS", "off") == "on"
+    scheme = "https" if lane_on else "http"
+    ollama_port = os.environ.get("LANE_OLLAMA_FRONT_PORT", "11443") if lane_on else "11434"
+    return {
+        "grafana": f"{scheme}://localhost:3002/api/health",
+        "prometheus": f"{scheme}://localhost:9090/-/ready",
+        "bridge-metrics": f"{scheme}://localhost:7342/healthz",
+        "localai": f"{scheme}://localhost:4000/health",
+        "ollama": f"{scheme}://localhost:{ollama_port}/api/tags",
+    }
 
 
 def load_json(path: Path) -> Any:
@@ -171,7 +184,7 @@ def main() -> int:
                         help="the deployment does not serve the OpenAPI Swagger UI; record why")
     parser.add_argument("--openclaw-url", default="http://localhost:18789")
     parser.add_argument("--require-openclaw", action="store_true")
-    parser.add_argument("--require-service", action="append", default=[], choices=sorted(DEFAULT_OPTIONAL_SERVICES))
+    parser.add_argument("--require-service", action="append", default=[], choices=sorted(default_optional_services()))
     parser.add_argument("--timeout", type=int, default=5)
     parser.add_argument("--insecure-tls", action="store_true")
     args = parser.parse_args()
@@ -226,7 +239,7 @@ def main() -> int:
         failures.extend(swagger_failures)
 
     required_optionals = set(args.require_service)
-    for name, url in DEFAULT_OPTIONAL_SERVICES.items():
+    for name, url in default_optional_services().items():
         result = service_check(name, url, name in required_optionals, args.timeout, args.insecure_tls)
         service_checks.append(result)
         if not result.get("ok"):
