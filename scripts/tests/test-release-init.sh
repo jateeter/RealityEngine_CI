@@ -37,6 +37,7 @@ cp -R "$CI_DIR/config/dashboards" "$OPT/ci/config/dashboards"
 LASS="$CI_DIR/../localAssetStorageStack"
 mkdir -p "$OPT/assets/scripts" "$OPT/assets/lifecycle" "$OPT/assets/css"
 cp "$LASS/scripts/accounts.js" "$LASS/scripts/grant-assets.js" "$OPT/assets/scripts/"
+cp -R "$LASS/scripts/lib" "$OPT/assets/scripts/lib"
 cp -R "$LASS/lifecycle/src" "$OPT/assets/lifecycle/src"
 cp "$LASS/css/config.json" "$OPT/assets/css/"
 
@@ -222,6 +223,23 @@ assert_contains "$ASSETSY" "LIFECYCLE_URL" "Manager's instantiation reaches the 
 assert_contains "$(cat "$INSTALL/.env")" "COMPOSE_FILE=compose.yml:compose.engines.yml:compose.assets.yml" "the asset stack is in COMPOSE_FILE"
 assert_contains "$(cat "$INSTALL/assets/runtime/registry.json" 2>/dev/null)" "https://lifecycle:8443/" "the stack's service file names the lifecycle"
 assert_eq "$([ -f "$INSTALL/assets/scripts/grant-assets.js" ] && echo yes)" yes "the provisioning scripts are in the install"
+# Every relative import of the install's asset scripts resolves inside the
+# install: grant-assets.js imported scripts/lib/secrets-home.js, which neither
+# the image nor the install carried, and assets-grant failed on the first line
+# of e1-rc1-cert-20261119c.
+MISSING="$(node -e '
+const fs = require("fs"), path = require("path");
+const root = process.argv[1], seen = new Set(), missing = [];
+const walk = (f) => {
+  if (seen.has(f)) return; seen.add(f);
+  if (!fs.existsSync(f)) { missing.push(path.relative(root, f)); return; }
+  const src = fs.readFileSync(f, "utf8");
+  for (const m of src.matchAll(/(?:from\s+|import\s*\(\s*)["\x27](\.{1,2}\/[^"\x27]+)["\x27]/g)) walk(path.resolve(path.dirname(f), m[1]));
+};
+for (const n of ["accounts.js", "grant-assets.js"]) walk(path.join(root, "scripts", n));
+console.log(missing.join(" "));
+' "$INSTALL/assets")"
+assert_eq "$MISSING" "" "every relative import of the install's asset scripts is in the install"
 # The Go observability services behind OpenSSL fronts (#729).
 TLSY="$(cat "$INSTALL/compose.tls.yml")"
 assert_contains "$TLSY" "service:loki" "Loki's front shares its network namespace"
