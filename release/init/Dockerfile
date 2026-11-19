@@ -44,9 +44,12 @@ COPY --from=ocs machine-behaviors/ /opt/ocs/machine-behaviors/
 COPY --from=ocs docker/ /opt/ocs/docker/
 
 # localAssetStorageStack at the release commit: the provisioning scripts the
-# install runs, the lifecycle sources they import, and CSS's config.
+# install runs, the helpers (scripts/lib/) and lifecycle sources they import,
+# and CSS's config.
 # hadolint ignore=DL3022
 COPY --from=assets scripts/accounts.js scripts/grant-assets.js /opt/assets/scripts/
+# hadolint ignore=DL3022
+COPY --from=assets scripts/lib/ /opt/assets/scripts/lib/
 # hadolint ignore=DL3022
 COPY --from=assets lifecycle/src/ /opt/assets/lifecycle/src/
 # hadolint ignore=DL3022

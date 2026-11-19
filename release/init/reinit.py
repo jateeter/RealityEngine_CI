@@ -924,14 +924,17 @@ def ts_pe_services(tls: bool) -> dict:
 
 
 def assets_files(install: pathlib.Path, ports: dict[str, int]) -> None:
-    """localAssetStorageStack's provisioning scripts, the lifecycle sources they
-    import, and CSS's config, into <install>/assets; and the stack's own service
+    """localAssetStorageStack's provisioning scripts, the helpers and lifecycle
+    sources they import, and CSS's config, into <install>/assets; and the stack's own service
     file, runtime/registry.json, as its scripts/up.js writes it."""
     root = install / "assets"
     for sub in ("scripts", "lifecycle/src", "css"):
         (root / sub).mkdir(parents=True, exist_ok=True)
     for name in ("accounts.js", "grant-assets.js"):
         shutil.copyfile(ASSETS / "scripts" / name, root / "scripts" / name)
+    # Their helpers (scripts/lib/secrets-home.js since lass#30): a script the
+    # install runs without what it imports fails at its first line.
+    shutil.copytree(ASSETS / "scripts" / "lib", root / "scripts" / "lib", dirs_exist_ok=True)
     for f in (ASSETS / "lifecycle" / "src").glob("*.js"):
         shutil.copyfile(f, root / "lifecycle" / "src" / f.name)
     shutil.copyfile(ASSETS / "css" / "config.json", root / "css" / "config.json")
