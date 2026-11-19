@@ -1,4 +1,5 @@
 import { defineConfig, devices } from '@playwright/test';
+import { laneTlsUse } from './e2e/lib/lane-tls';
 
 /**
  * Playwright Configuration for Reality Engine E2E Tests
@@ -41,6 +42,13 @@ export default defineConfig({
 
     // Accept self-signed dev certificates
     ignoreHTTPSErrors: true,
+
+    // On the TLS lane (RE_TLS=on): verified against the lane CA, and the
+    // harness certificate presented to every https origin the instance registry
+    // names; the engines and services require mTLS. Without it every engine
+    // call in the multi-engine specs got "certificate required" in the
+    // deployment gate (2026-11-18). Off the lane this adds nothing.
+    ...laneTlsUse(process.env.RE_REGISTRY_URL ? [process.env.RE_REGISTRY_URL] : []),
 
     // Collect trace on first retry
     trace: 'on-first-retry',
