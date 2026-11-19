@@ -1,0 +1,222 @@
+{
+  "tag": "release-v0.0.2-rc3",
+  "platform": "linux/arm64",
+  "registry": "ghcr.io/jateeter",
+  "pushed": true,
+  "built_at": "2026-11-19T20:54:06Z",
+  "images": [
+    {
+      "name": "re-cpp",
+      "repo": "RealityEngine_CPP",
+      "revision": "423ae036be5bef3e35d27da2017a239fc893d60c",
+      "ref": "ghcr.io/jateeter/re-cpp",
+      "tags": [
+        "ghcr.io/jateeter/re-cpp:release-v0.0.2-rc3",
+        "ghcr.io/jateeter/re-cpp:sha-423ae036be5b"
+      ],
+      "digest": "sha256:aa697393f9c5c4161c758bf49b3cb970eef26a2a43931589cb623c5db3f1f628",
+      "image_id": null,
+      "also_from": {}
+    },
+    {
+      "name": "re-lsp",
+      "repo": "RealityEngine_LSP",
+      "revision": "b0d2143816631c253ca8a7a93709471add71052e",
+      "ref": "ghcr.io/jateeter/re-lsp",
+      "tags": [
+        "ghcr.io/jateeter/re-lsp:release-v0.0.2-rc3",
+        "ghcr.io/jateeter/re-lsp:sha-b0d214381663"
+      ],
+      "digest": "sha256:93291cf79990c343c8e2c50e993b6a8e9bc2eb5fd9583274c19cf300ddbd3b36",
+      "image_id": null,
+      "also_from": {}
+    },
+    {
+      "name": "re-scala",
+      "repo": "RealityEngine_Scala",
+      "revision": "e3f6d5f0012672e4d2144513058cf4e08bcec26c",
+      "ref": "ghcr.io/jateeter/re-scala",
+      "tags": [
+        "ghcr.io/jateeter/re-scala:release-v0.0.2-rc3",
+        "ghcr.io/jateeter/re-scala:sha-e3f6d5f00126"
+      ],
+      "digest": "sha256:8a2bdeef103c1fc2e239b6ab175babe01c6782374e86a68ac271e63605799a51",
+      "image_id": null,
+      "also_from": {}
+    },
+    {
+      "name": "re-scala-pe",
+      "repo": "RealityEngine_Scala",
+      "revision": "e3f6d5f0012672e4d2144513058cf4e08bcec26c",
+      "ref": "ghcr.io/jateeter/re-scala-pe",
+      "tags": [
+        "ghcr.io/jateeter/re-scala-pe:release-v0.0.2-rc3",
+        "ghcr.io/jateeter/re-scala-pe:sha-e3f6d5f00126"
+      ],
+      "digest": "sha256:2bd3eabe6b644955368c76312f43e09bb09624d98f98fd823022dcb59ecc9d0f",
+      "image_id": null,
+      "also_from": {}
+    },
+    {
+      "name": "re-visualizer-backend",
+      "repo": "RealityEngine_Manager",
+      "revision": "24cec0891a2d6637e90b52a7913d36cdd53b5af8",
+      "ref": "ghcr.io/jateeter/re-visualizer-backend",
+      "tags": [
+        "ghcr.io/jateeter/re-visualizer-backend:release-v0.0.2-rc3",
+        "ghcr.io/jateeter/re-visualizer-backend:sha-24cec0891a2d"
+      ],
+      "digest": "sha256:6c74ac7facfd88dca9876cbe55e48275a7c4121001dc2a089d280d9666360434",
+      "image_id": null,
+      "also_from": {}
+    },
+    {
+      "name": "re-visualizer-frontend",
+      "repo": "RealityEngine_Manager",
+      "revision": "24cec0891a2d6637e90b52a7913d36cdd53b5af8",
+      "ref": "ghcr.io/jateeter/re-visualizer-frontend",
+      "tags": [
+        "ghcr.io/jateeter/re-visualizer-frontend:release-v0.0.2-rc3",
+        "ghcr.io/jateeter/re-visualizer-frontend:sha-24cec0891a2d"
+      ],
+      "digest": "sha256:5cc3ce510674ef4739c8eaedf6fe92aaa2a350281e7286d98a99756bf9c3fb19",
+      "image_id": null,
+      "also_from": {}
+    },
+    {
+      "name": "re-ts-pe",
+      "repo": "RealityEngine_Manager",
+      "revision": "24cec0891a2d6637e90b52a7913d36cdd53b5af8",
+      "ref": "ghcr.io/jateeter/re-ts-pe",
+      "tags": [
+        "ghcr.io/jateeter/re-ts-pe:release-v0.0.2-rc3",
+        "ghcr.io/jateeter/re-ts-pe:sha-24cec0891a2d"
+      ],
+      "digest": "sha256:2889ab64fd85c09ecb2ff2d7640bcc65e272e5b7bb24f3c2670a9230c252f4d9",
+      "image_id": null,
+      "also_from": {}
+    },
+    {
+      "name": "re-localai-api",
+      "repo": "localAIStack",
+      "revision": "edcb3f54b2f8810ec47b891a42f1b8a2916c42ca",
+      "ref": "ghcr.io/jateeter/re-localai-api",
+      "tags": [
+        "ghcr.io/jateeter/re-localai-api:release-v0.0.2-rc3",
+        "ghcr.io/jateeter/re-localai-api:sha-edcb3f54b2f8"
+      ],
+      "digest": "sha256:bf3639754f83c02e02bc7f89d5692bddf4fef19e4f63e885b6f172843deb7828",
+      "image_id": null,
+      "also_from": {}
+    },
+    {
+      "name": "re-mcp",
+      "repo": "RealityEngine_CI",
+      "revision": "25af363e7067f45eacd6d10c7440a2712ce6a29e",
+      "ref": "ghcr.io/jateeter/re-mcp",
+      "tags": [
+        "ghcr.io/jateeter/re-mcp:release-v0.0.2-rc3",
+        "ghcr.io/jateeter/re-mcp:sha-25af363e7067"
+      ],
+      "digest": "sha256:ea891e354de85fd0f5e1fb1d9f8be7562619f46afe400fa98f09add4c58c36dd",
+      "image_id": null,
+      "also_from": {}
+    },
+    {
+      "name": "re-pim",
+      "repo": "OpenCommons-Health---Personal-Information-Management",
+      "revision": "6f273882a0fc37538a10524c25681fdc918de65e",
+      "ref": "ghcr.io/jateeter/re-pim",
+      "tags": [
+        "ghcr.io/jateeter/re-pim:release-v0.0.2-rc3",
+        "ghcr.io/jateeter/re-pim:sha-6f273882a0fc"
+      ],
+      "digest": "sha256:77ade530b75b6a02b2f6c8f3ede4de7142d0cf51d111f2853ad287c36dd3f20e",
+      "image_id": null,
+      "also_from": {}
+    },
+    {
+      "name": "re-css",
+      "repo": "OpenCommons-Health---Personal-Information-Management",
+      "revision": "6f273882a0fc37538a10524c25681fdc918de65e",
+      "ref": "ghcr.io/jateeter/re-css",
+      "tags": [
+        "ghcr.io/jateeter/re-css:release-v0.0.2-rc3",
+        "ghcr.io/jateeter/re-css:sha-6f273882a0fc"
+      ],
+      "digest": "sha256:6a35b66ccc96308332e5d684332087e94d4c43c592eb79827b51558fda1df919",
+      "image_id": null,
+      "also_from": {}
+    },
+    {
+      "name": "re-rust",
+      "repo": "RealityEngine_Rust",
+      "revision": "43ad6c09fc0f695508904d6d4874c0190e2096d5",
+      "ref": "ghcr.io/jateeter/re-rust",
+      "tags": [
+        "ghcr.io/jateeter/re-rust:release-v0.0.2-rc3",
+        "ghcr.io/jateeter/re-rust:sha-43ad6c09fc0f"
+      ],
+      "digest": "sha256:9c3269eea931580a311124155f2818e549df6664ea9efcaa27c7ce30571e98a5",
+      "image_id": null,
+      "also_from": {}
+    },
+    {
+      "name": "re-dokieli",
+      "repo": "localAssetStorageStack",
+      "revision": "ba46049f04e1e6251cffebe127c6cd3e85423710",
+      "ref": "ghcr.io/jateeter/re-dokieli",
+      "tags": [
+        "ghcr.io/jateeter/re-dokieli:release-v0.0.2-rc3",
+        "ghcr.io/jateeter/re-dokieli:sha-ba46049f04e1"
+      ],
+      "digest": "sha256:9a3e81c288d3411d6aa9254a5634227f55f61518b2f4fdd0fdb1529a4ad1dc1f",
+      "image_id": null,
+      "also_from": {}
+    },
+    {
+      "name": "re-lifecycle",
+      "repo": "localAssetStorageStack",
+      "revision": "ba46049f04e1e6251cffebe127c6cd3e85423710",
+      "ref": "ghcr.io/jateeter/re-lifecycle",
+      "tags": [
+        "ghcr.io/jateeter/re-lifecycle:release-v0.0.2-rc3",
+        "ghcr.io/jateeter/re-lifecycle:sha-ba46049f04e1"
+      ],
+      "digest": "sha256:8896b7c65f8a826d7ffc0c9067beb63151c6cbecf0a5211dcebc9627b4bb1cc1",
+      "image_id": null,
+      "also_from": {}
+    },
+    {
+      "name": "re-init",
+      "repo": "RealityEngine_CI",
+      "revision": "25af363e7067f45eacd6d10c7440a2712ce6a29e",
+      "ref": "ghcr.io/jateeter/re-init",
+      "tags": [
+        "ghcr.io/jateeter/re-init:release-v0.0.2-rc3",
+        "ghcr.io/jateeter/re-init:sha-25af363e7067"
+      ],
+      "digest": "sha256:14b417f3c68b145f45abea83b2e93dd5880c003f8d7c90bf3e353c859410fdb6",
+      "image_id": null,
+      "also_from": {
+        "localOpenClawStack": "aadb899733f8af477d40aef3e5b16d61eb673dd4"
+      }
+    },
+    {
+      "name": "re-corpus",
+      "repo": "RealityEngine_Machines",
+      "revision": "ad26c0b805662278bdc271ac683a2fb40ecbde14",
+      "ref": "ghcr.io/jateeter/re-corpus",
+      "tags": [
+        "ghcr.io/jateeter/re-corpus:release-v0.0.2-rc3",
+        "ghcr.io/jateeter/re-corpus:sha-ad26c0b80566"
+      ],
+      "digest": "sha256:55bdb4fe01ac412f71b3f7335952772c17b7c143c7afdb8e481acffb0788d818",
+      "image_id": null,
+      "also_from": {
+        "localAIStack": "edcb3f54b2f8810ec47b891a42f1b8a2916c42ca",
+        "RealityEngine_CI": "25af363e7067f45eacd6d10c7440a2712ce6a29e"
+      }
+    }
+  ]
+}
