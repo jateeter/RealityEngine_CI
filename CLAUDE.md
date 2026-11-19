@@ -199,6 +199,14 @@ directory's markers and the gateway plist's OpenClaw home. It never removes the
 `realityengine_ci` stack's volumes or a development `~/.realityengine/openclaw`,
 and it keeps the host tools.
 
+From `release-v0.0.2` the HealthKit bridge is certified on the release install
+(owner, 2026-11-19; #808): the containerized lane's `healthkit-bridge` stage
+drives the iPhone against the install's PEs by the Mac's LAN address and, with
+TLS on, mirrors from the phone through PIM's device listener (PIM#91,
+`RE_PORT_PIM_DEVICE`); each install adopts the release lane's persistent CA
+(`~/.reality-engine/pki/release`, `re_pki.py adopt`) so the phone trusts it
+once, and `release-manifest.py` requires the stage.
+
 ## Editing Rules
 
 - Do not stage generated `e2e-report`, `test-results`, local runtime manifests, or logs unless explicitly requested.

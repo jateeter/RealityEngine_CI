@@ -25,6 +25,11 @@ KEYS
 
 COMMANDS
   init                          create the CA if absent (never replaces one)
+  adopt SOURCE                  take SOURCE's CA (its ca.crt and ca.key) into this
+                                state dir with a fresh database, serial and CRL:
+                                another PKI under the same trust anchor, so a
+                                device that trusts SOURCE trusts its leaves
+                                (the containerized lane's installs, #808)
   issue NAME --kind K [--dns D]... [--ip I]... [--instance-uuid U]
                                 issue, or keep a current certificate whose SANs
                                 and kind match; re-issue inside the renewal window
@@ -47,6 +52,7 @@ import datetime as dt
 import json
 import os
 import re
+import shutil
 import subprocess
 import sys
 import tempfile
@@ -146,6 +152,33 @@ def init() -> Path:
         "-addext", "keyUsage=critical,keyCertSign,cRLSign",
         "-addext", "subjectKeyIdentifier=hash",
         "-out", str(ca / "ca.crt"))
+    ca_config(root)
+    crl()
+    return root
+
+
+def adopt(source: Path) -> Path:
+    """This state dir under SOURCE's CA: its certificate and key, with a database,
+    serial and CRL of this dir's own, so two PKIs never share a serial book. An
+    existing CA here is kept when it is SOURCE's and refused otherwise."""
+    root = state_dir()
+    ca = root / "ca"
+    src = source / "ca"
+    if not ((src / "ca.crt").exists() and (src / "ca.key").exists()):
+        raise PkiError(f"{src} holds no CA to adopt")
+    if (ca / "ca.crt").exists() or (ca / "ca.key").exists():
+        if (ca / "ca.crt").read_bytes() == (src / "ca.crt").read_bytes() and (ca / "ca.key").exists():
+            ca_config(root)
+            return root
+        raise PkiError(f"{ca} already holds a different CA; refusing to replace it")
+    (ca / "newcerts").mkdir(parents=True, exist_ok=True)
+    os.chmod(root, 0o700)
+    shutil.copyfile(src / "ca.key", ca / "ca.key")
+    os.chmod(ca / "ca.key", 0o600)
+    shutil.copyfile(src / "ca.crt", ca / "ca.crt")
+    (ca / "index.txt").touch()
+    (ca / "serial").write_text(os.urandom(16).hex() + "\n")
+    (ca / "crlnumber").write_text("1000\n")
     ca_config(root)
     crl()
     return root
@@ -301,6 +334,7 @@ def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     sub = parser.add_subparsers(dest="cmd", required=True)
     sub.add_parser("init")
+    sub.add_parser("adopt").add_argument("source", type=Path)
     p = sub.add_parser("issue")
     p.add_argument("name")
     p.add_argument("--kind", required=True)
@@ -318,6 +352,8 @@ def main(argv: list[str] | None = None) -> int:
     try:
         if args.cmd == "init":
             print(f"re_pki: CA ready at {init() / 'ca' / 'ca.crt'}")
+        elif args.cmd == "adopt":
+            print(f"re_pki: CA adopted from {args.source} at {adopt(args.source) / 'ca' / 'ca.crt'}")
         elif args.cmd == "issue":
             m = issue(args.name, args.kind, args.dns, args.ip, args.instance_uuid, args.force)
             print(f"re_pki: {m['action']} {m['name']} ({m['kind']}) serial {m['serial']} until {m['notAfter']}")

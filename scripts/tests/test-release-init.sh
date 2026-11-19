@@ -266,6 +266,15 @@ assert_contains "$(cat "$INSTALL/config/fronts/loki.conf" 2>/dev/null)" "ssl_ver
 assert_contains "$(cat "$INSTALL/compose.tls.yml")" "https://registry:8000/re-registry.internal.json" "Manager reads the registry over https"
 assert_contains "$(cat "$INSTALL/compose.tls.yml")" "./pki/issued/manager:/run/re-tls/instance:ro" "Manager carries its lane certificate"
 assert_contains "$(cat "$INSTALL/config/nginx.lane.conf")" "ssl_protocols       TLSv1.3;" "tls-proxy's lane config: TLS 1.3 only"
+# PIM's device listener for the iPhone (PIM#91, #808): TLS on only, on every
+# interface (no 127.0.0.1 bind), with the lane certificate naming the LAN IP.
+PIM_TLS="$(python3 -c '
+import json, sys, yaml
+print(json.dumps(yaml.safe_load(open(sys.argv[1]))["services"]["pim"]))' "$INSTALL/compose.tls.yml")"
+assert_contains "$PIM_TLS" '"PIM_DEVICE_PORT": "8443"' "PIM opens its device listener on the lane"
+assert_contains "$PIM_TLS" '"${RE_PORT_PIM_DEVICE:-8091}:8443"' "and publishes it on every interface"
+assert_contains "$(cat "$INSTALL/.env")" "RE_PORT_PIM_DEVICE=8091" "the device port is an install port"
+assert_eq "$(grep -c 'PIM_DEVICE_PORT' "$INSTALL/compose.yml" 2>/dev/null || true)" "0" "the plaintext base never opens it"
 assert_eq "$(grep -c 'certs/server' "$INSTALL/config/nginx.lane.conf")" 0 "and not the legacy certificate"
 assert_eq "$(json "$INSTALL/registry/re-registry.json" "d['instances'][2]['pe_url']")" "https://localhost:6310" "host view: https"
 assert_eq "$(json "$INSTALL/registry/re-registry.internal.json" "d['services']['registry']['url']")" "https://registry:8000" "internal view: https registry"

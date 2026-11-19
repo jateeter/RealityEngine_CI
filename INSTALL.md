@@ -334,29 +334,38 @@ bash uninstall.sh [--images] [--yes] # remove; --images also removes the 12 re-*
 ## The HealthKit bridge (iPhone)
 
 The HealthKit bridge is an iOS app that sends your Health data to a Perception
-Engine and mirrors it into PIM. In `release-v0.0.1` it is a **development
-deployment: untested, and built and installed with Xcode.** It is not part of
-the images.
+Engine and mirrors it into PIM, your health record on your own Solid pod. It is
+built and installed with Xcode; it is not part of the images. From
+`release-v0.0.2` it is certified on the release install, on an iPhone, mirror
+included (RealityEngine_CI#808).
 
 1. Install Xcode, clone `localHealthkitBridge`, and open it as `README.md` there
    describes. Signing needs an Apple developer team.
-2. Point the app at a PE by your Mac's **LAN address**, not `localhost`. The
-   instance registry records that address as `host` in
-   `http://localhost:5999/re-registry.json`. The bridge speaks plain HTTP on the
-   local network (the app allows it with `NSAllowsLocalNetworking`), for example
-   `http://<that address>:6300` for `cpp-1`. The engine ports are published on
-   every interface for this reason; the instance registry and the other
-   services are on `localhost` only.
-3. Use the HealthKit ingest token, `HEALTHKIT_BRIDGE_TOKEN` in
-   `~/.realityengine/state/secrets.json`.
-4. The iPhone and the Mac must be on the same network, and macOS may ask once
+2. **Trust the install's CA on the iPhone.** Every link the phone uses is
+   TLS 1.3, under certificates from the install's own CA. Write the CA as an
+   iOS profile with `localHealthkitBridge/scripts/ca_profile.sh --ca
+   ~/.realityengine/pki/ca/ca.crt`, install it on the phone, and turn on full
+   trust for it (the script prints the steps). Nothing reaches the phone's
+   connections before that.
+3. **Point the app at the install by your Mac's LAN address**, never
+   `localhost`. `./realityengine install` and `up` print the addresses under
+   *iPhone HealthKit bridge*:
+   - a Perception Engine: `https://<LAN address>:<PE port>` (the PE ports are in
+     `./realityengine status`; the engines publish them on every interface);
+   - PIM's device listener: `https://<LAN address>:8091` (`RE_PORT_PIM_DEVICE`).
+     It serves only what the phone calls: the mirror and the app's view of your
+     records. The rest of PIM stays on `localhost`.
+4. Use the install's HealthKit token, `HEALTHKIT_BRIDGE_TOKEN` in
+   `~/.realityengine/state/secrets.json`, for the PE (Settings → *Bridge token*)
+   and for PIM (Settings → *PIM bridge token*).
+5. The iPhone and the Mac must be on the same network, and macOS may ask once
    to allow incoming connections for Docker.
 
-The bridge's **mirror to PIM** does not work from the phone in this release.
-PIM is published on `localhost` only: of its API, only the HealthKit routes
-authenticate the caller, so the rest must not face the network
-(`localHealthkitBridge/docs/MIRROR_CONTRACT.md` §5). The mirror itself (bridge →
-PIM → Solid pod) is tested from the Mac.
+**The mirror** (Settings → *Mirror to PIM*): declare the Health metrics to PIM,
+approve the ones you want in PIM, then *Preview from Apple Health* and *Approve
+and apply*. Only metrics you approved are read, and nothing is written to your
+pod until you approve that batch's preview
+(`localHealthkitBridge/docs/MIRROR_CONTRACT.md` §7).
 
 ## Troubleshooting
 
@@ -390,7 +399,8 @@ and restart the browser.
 - Apple Silicon Macs on macOS 26 or later only.
 - Docker Desktop is the only tested container runtime.
 - Ollama must be installed and running natively.
-- The HealthKit bridge is an untested development deployment.
+- The HealthKit bridge is built and installed with Xcode (no App Store or
+  TestFlight build).
 - MQTT ingest from the Yuma broker depends on that external broker. This
   release makes no MQTT-parity claim.
 - LLM drift between engines is recorded but not evaluated.

@@ -553,7 +553,7 @@ check_ports() {
            "${RE_PORT_CSS:-13000}" "${RE_PORT_MCP:-7331}" "${RE_PORT_REGISTRY:-5999}" \
            "${RE_PORT_GRAFANA:-3002}" "${RE_PORT_PROMETHEUS:-9090}" "${RE_PORT_QDRANT:-4333}" \
            "${RE_PORT_BROWSER_CDP:-9222}" 13443 13444 "${RE_PORT_LIFECYCLE:-13445}" \
-           "${RE_PORT_TS_PE:-3004}" "${RE_PORT_GRAFANA_PROXY:-3000}"; do
+           "${RE_PORT_TS_PE:-3004}" "${RE_PORT_GRAFANA_PROXY:-3000}" "${RE_PORT_PIM_DEVICE:-8091}"; do
     # The gateway's port is held by its own LaunchAgent between an `up` and the next.
     if [ "$p" = "${RE_PORT_OPENCLAW:-18789}" ] && gateway_pid >/dev/null; then
       [ "$(lsof -nP -tiTCP:"$p" -sTCP:LISTEN 2>/dev/null | head -1)" = "$(gateway_pid)" ] && continue
@@ -802,6 +802,16 @@ urls() {
   Engines ($RE_ENGINES): see '$PROG status'. Passwords: $DIR/state/secrets.json
   Trust the local CA so browsers accept https://localhost: $PROG trust-ca
 EOF
+  # The iPhone HealthKit bridge reaches the PEs and PIM's device listener by
+  # the Mac's LAN address, with the install's bridge token (#808, INSTALL.md).
+  [ "${RE_TLS:-off}" = on ] && cat <<EOF
+  iPhone HealthKit bridge
+    PE                   https://$(host_ip):<an engine's PE port, '$PROG status'>
+    PIM (device)         https://$(host_ip):${RE_PORT_PIM_DEVICE:-8091}
+    Token                HEALTHKIT_BRIDGE_TOKEN in $DIR/state/secrets.json
+    CA for the phone     $DIR/pki/ca/ca.crt (INSTALL.md, "The HealthKit bridge")
+EOF
+  return 0
 }
 
 status() {

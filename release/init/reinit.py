@@ -90,6 +90,9 @@ HOST_PORTS = {
     "LIFECYCLE": 13445,
     # Manager's TypeScript PE and Grafana through tls-proxy (owner, 2026-11-12).
     "TS_PE": 3004, "GRAFANA_PROXY": 3000,
+    # PIM's device listener for the iPhone HealthKit bridge (PIM#91, #808): on
+    # every interface, with TLS on only.
+    "PIM_DEVICE": 8091,
 }
 # localAssetStorageStack ROADMAP D7: https://assets-css.localhost:13443/ and
 # https://assets-dokieli.localhost:13444/, the same inside and outside.
@@ -595,7 +598,12 @@ def pim_tls_services() -> dict:
     docker-compose.tls.yml puts them (PIM#86, #729): CSS terminates TLS 1.3
     itself (css-https.json); it does not verify client certificates, so PIM ->
     CSS is TLS without mTLS (the owner-accepted pim-to-css deficiency). PIM
-    serves https and reaches the PEs (its scope push) over the lane's mTLS."""
+    serves https and reaches the PEs (its scope push) over the lane's mTLS.
+
+    PIM's device listener (PIM#91, #808) is on the lane only, since it serves
+    https only: the iPhone's mirror routes and pod hydration, bridge token
+    required, published on every interface (the phone is on the LAN) at
+    RE_PORT_PIM_DEVICE. PIM's certificate names the Mac's LAN address."""
     css = "https://css.localhost:13000"
     ca = [f"./pki/ca/ca.crt:{TLS_DIR}/ca.crt:ro"]
     return {
@@ -617,7 +625,9 @@ def pim_tls_services() -> dict:
         "pim": {
             "environment": {**TLS_ENV, "SOLID_POD_SERVER_URL": css, "SOLID_OIDC_ISSUER": css,
                             "SOLID_POD_BASE_URL": f"{css}/owner/",
-                            "SOLID_REDIRECT_URL": "https://localhost:${RE_PORT_PIM:-8090}/callback"},
+                            "SOLID_REDIRECT_URL": "https://localhost:${RE_PORT_PIM:-8090}/callback",
+                            "PIM_DEVICE_PORT": "8443"},
+            "ports": ["${RE_PORT_PIM_DEVICE:-8091}:8443"],
             "volumes": tls_mounts("pim"),
             "healthcheck": {"test": ["CMD", "node", "-e",
                                      "require('https').get({host:'127.0.0.1',port:8080,path:'/livez',servername:'localhost',"

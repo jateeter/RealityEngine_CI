@@ -48,7 +48,7 @@ trap 'rm -rf "$TMP"' EXIT
 SHA_A="aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
 SHA_B="bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"
 DIGEST="sha256:1111111111111111111111111111111111111111111111111111111111111111"
-REQUIRED=(transport-probe service-inventory trajectory-parity universal-vectors machine-set-parity export-parity pe-step-contract engine-process-parity mcp openclaw local-ai pim-mirror)
+REQUIRED=(transport-probe service-inventory trajectory-parity universal-vectors machine-set-parity export-parity pe-step-contract engine-process-parity mcp openclaw local-ai pim-mirror healthkit-bridge)
 
 # The release gate reads the link inventory (#729). The committed one is not yet
 # compliant, so the generate cases read a compliant copy: every link compliant
@@ -88,7 +88,7 @@ EOF
   python3 - "$1/reports/regression-status.json" "${REQUIRED[@]}" <<'EOF'
 import json, sys
 stages = {name: {"exit": 0, "status": "passed"} for name in sys.argv[2:]}
-stages["healthkit-bridge"] = {"exit": 0, "status": "skipped", "reason": "no connected iPhone"}
+stages["arbiter-sweep"] = {"exit": 0, "status": "skipped", "reason": "not requested"}
 json.dump({"stages": stages, "build": {"status": "passed"}, "deployment": {"status": "passed"}},
           open(sys.argv[1], "w"))
 EOF
@@ -118,7 +118,7 @@ field() { python3 -c "import json,sys;m=json.load(open(sys.argv[1]));print(eval(
 # generate, keeping its exit code: $@ = generate arguments
 gen() { set +e; OUT="$(python3 "$TOOL" generate "$@" 2>&1)"; CODE=$?; set -e; }
 
-HK=(--omission "healthkit-bridge=A10: no iPhone")
+HK=(--omission "arbiter-sweep=not requested for this release")
 
 echo "release-manifest generate"
 
@@ -136,7 +136,7 @@ assert_eq "$(field "$TMP/green.json" "m['images'][0]['digest']")" "$DIGEST" "rec
 assert_eq "$(field "$TMP/green.json" "len(m['imagesFile']['sha256'])")" "64" "records the images file's sha256"
 assert_eq "$(field "$TMP/green.json" "m['certifiedBy']['stageResults']['pim-mirror']['status']")" "passed" \
           "records the structured stage results"
-assert_eq "$(field "$TMP/green.json" "m['certifiedBy']['omissions']['healthkit-bridge']")" "A10: no iPhone" \
+assert_eq "$(field "$TMP/green.json" "m['certifiedBy']['omissions']['arbiter-sweep']")" "not requested for this release" \
           "records each omission's reason"
 OUT="$(python3 "$TOOL" check --manifest "$TMP/green.json" 2>&1)"; CODE=$?
 assert_eq "$CODE" "0" "check accepts an eligible candidate manifest"
@@ -234,6 +234,14 @@ edit_status "$TMP/pimskip" "stages['pim-mirror'] = {'status': 'skipped', 'reason
 refuses "pim-mirror skipped, even with an omission" "pim-mirror is skipped (required; D2)" \
   --run-dir "$TMP/pimskip" --images "$TMP/images.json" "${HK[@]}" --omission "pim-mirror=no POD" --version release-v9.9.9-rc1
 
+# The HealthKit bridge is required from release-v0.0.2 (owner, 2026-11-19,
+# #808): a skipped device leg is refused even with an omission, as v0.0.1's A10
+# was accepted.
+make_run "$TMP/hkskip" "completed" "$SHA_A" "$SHA_A"
+edit_status "$TMP/hkskip" "stages['healthkit-bridge'] = {'status': 'skipped', 'reason': 'no connected iPhone'}"
+refuses "healthkit-bridge skipped, even with an omission" "healthkit-bridge is skipped (required)" \
+  --run-dir "$TMP/hkskip" --images "$TMP/images.json" "${HK[@]}" --omission "healthkit-bridge=A10: no iPhone" --version release-v9.9.9-rc1
+
 make_run "$TMP/pimfail" "completed" "$SHA_A" "$SHA_A"
 edit_status "$TMP/pimfail" "stages['pim-mirror']['status'] = 'failed'"
 refuses "pim-mirror failed" "pim-mirror is failed" \
@@ -249,7 +257,7 @@ edit_status "$TMP/newparity" "stages['widget-parity'] = {'status': 'skipped', 'r
 refuses "any parity stage not passed, required list or not" "widget-parity is skipped (required)" \
   --run-dir "$TMP/newparity" --images "$TMP/images.json" "${HK[@]}" --omission "widget-parity=x" --version release-v9.9.9-rc1
 
-refuses "a skipped stage with no recorded decision" "healthkit-bridge is skipped with no recorded decision" \
+refuses "a skipped stage with no recorded decision" "arbiter-sweep is skipped with no recorded decision" \
   --run-dir "$TMP/green" --images "$TMP/images.json" --version release-v9.9.9-rc1
 
 make_run "$TMP/nostatus" "completed" "$SHA_A" "$SHA_A"

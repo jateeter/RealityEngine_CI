@@ -684,6 +684,7 @@
       "links": [
         "pim-to-css",
         "healthkit-to-pim",
+        "iphone-to-pim",
         "pim-to-pe-scope",
         "pim-to-epic"
       ]
@@ -740,7 +741,8 @@
       },
       "links": [
         "iphone-to-pe",
-        "healthkit-to-pim"
+        "healthkit-to-pim",
+        "iphone-to-pim"
       ]
     },
     {
@@ -1003,7 +1005,8 @@
         "iphone-to-pe",
         "browser-to-grafana",
         "browser-to-grafana-native",
-        "healthkit-to-pim"
+        "healthkit-to-pim",
+        "iphone-to-pim"
       ]
     }
   ]

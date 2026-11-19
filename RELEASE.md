@@ -92,8 +92,10 @@ monitoring stack.
   `POST /api/corpus/load`.
 - **The HealthKit bridge is not part of the image deployment.** It is a Swift
   app installed on an iPhone from source with Xcode. In `release-v0.0.1` it
-  ships as an **untested development deployment** (A10); the PIM mirror it
-  feeds is tested (decision D2 in `docs/MVP_ROADMAP.md`).
+  shipped as an **untested development deployment** (A10). From
+  `release-v0.0.2` it is certified on both lanes on a real iPhone, and on the
+  release install with the mirror from the phone through PIM's device listener
+  (owner, 2026-11-19; #808).
 
 ---
 
@@ -134,7 +136,10 @@ Only the local lanes run Ollama, OpenClaw and the PIM mirror, so only a local
 run can certify them. A stage the run **skipped** (an unreachable MQTT broker,
 an iPhone that isn't connected) is recorded in the manifest with its reason and
 is not certified by it: name it in the release notes. The `pim-mirror` stage
-may not be skipped (D2); `cut-release.sh` refuses a manifest where it is.
+may not be skipped (D2), nor, from `release-v0.0.2`, `healthkit-bridge` (#808):
+certify with the iPhone connected, on the Mac's Wi-Fi, trusting the release
+lane's CA (`~/.reality-engine/pki/release`, which every containerized install
+adopts); `cut-release.sh` refuses a manifest where either was skipped.
 
 A clean-Mac install from the published candidate images, following `INSTALL.md`
 word for word, is part of acceptance (E3).
@@ -184,7 +189,8 @@ lane cannot: `local-ai` and `localai-machines` (localAIStack health, every PE
 reporting Ollama reachable, the runtimes agreeing on the model),
 `openclaw-integration-*` on every runtime, `pim-mirror` (HealthKit → PIM →
 POD), and `healthkit-bridge` (the real app on a connected iPhone, never the
-simulator; optional for `release-v0.0.1`, A10). Results land in
+simulator; optional for `release-v0.0.1`, A10, required from `release-v0.0.2`,
+#808). Results land in
 `.regression-tests/runs/<run-id>/` in the same shape as a hosted run.
 
 **A green hosted run does not cover those surfaces.** The manifest records
