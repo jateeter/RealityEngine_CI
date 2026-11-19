@@ -31,11 +31,11 @@ set -euo pipefail
 # (RELEASE.md §2). Each value is the certified one: the installer at the commit
 # the images were built from, and the images file committed under
 # release/candidates/, both checked by sha256 before they are used.
-RELEASE_TAG="release-v0.0.2-rc1"
-INSTALLER_COMMIT="4737dea9afe5c0869b5b2a17e226cec26c621616"
+RELEASE_TAG="release-v0.0.2-rc3"
+INSTALLER_COMMIT="25af363e7067f45eacd6d10c7440a2712ce6a29e"
 INSTALLER_SHA256="8682eca035bc5b417014cecabaf7ebf9a6da139040262f81b35a30fc52c736ad"
-IMAGES_COMMIT="7d24fd1607b82bb0b045701880d443e0fe07331b"
-IMAGES_SHA256="8f189a90961f74b323deb89dd0c9781619e94b227b90f19d3a4046f0e021801b"
+IMAGES_COMMIT="0d5eb0d8199820182e05c9d52e02727a03cb0e84"
+IMAGES_SHA256="88662c5411d5d5e3a5340eefa75bb8d2dcade7b14bd25fac5e7f9b21bbe76557"
 
 # Host requirements (release/host-requirements.json for this release).
 NODE_VERSION="26.12.1"
