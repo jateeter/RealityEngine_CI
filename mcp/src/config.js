@@ -23,9 +23,14 @@ let _registryCache = { at: 0, data: null };
 
 // The address the running universe serves, as startUniverse.sh recorded it.
 // Read per call: a universe restarted under --free-ports moves its registry.
+// RE_MCP_UNIVERSE_FILE names another file, or `off` ignores it: an empty
+// RE_REGISTRY_URL is unset, so a gateway meant for given engines (the tests'
+// stubs) otherwise reaches whatever universe this checkout is running (#800).
 function universeRegistryUrl() {
+  const override = process.env.RE_MCP_UNIVERSE_FILE;
+  if (override === 'off') return null;
   try {
-    const file = fileURLToPath(new URL('../../.universe-registry-url', import.meta.url));
+    const file = override || fileURLToPath(new URL('../../.universe-registry-url', import.meta.url));
     return readFileSync(file, 'utf8').split('\n')[0].trim() || null;
   } catch {
     return null;
