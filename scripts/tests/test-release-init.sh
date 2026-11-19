@@ -240,6 +240,23 @@ for (const n of ["accounts.js", "grant-assets.js"]) walk(path.join(root, "script
 console.log(missing.join(" "));
 ' "$INSTALL/assets")"
 assert_eq "$MISSING" "" "every relative import of the install's asset scripts is in the install"
+# assets-grant finds the accounts where the install keeps them: the directory
+# the install's own secrets-home.js resolves from the service's environment is
+# the mount of ./assets/.secrets. It resolved /root/.reality-engine/secrets/
+# localAssetStorageStack, which nothing mounted (e1-rc2-cert-20261119a).
+GRANT_HOME="$(python3 -c '
+import json, sys, yaml
+svc = yaml.safe_load(open(sys.argv[1]))["services"]["assets-grant"]
+print(json.dumps(svc.get("environment") or {}))' "$INSTALL/compose.assets.yml" \
+  | HOME=/root node --input-type=module -e '
+let s = ""; for await (const c of process.stdin) s += c;
+const { secretsHome } = await import(process.argv[1]);
+console.log(secretsHome({ HOME: "/root", ...JSON.parse(s) }));' "$INSTALL/assets/scripts/lib/secrets-home.js")"
+GRANT_MOUNT="$(python3 -c '
+import sys, yaml
+svc = yaml.safe_load(open(sys.argv[1]))["services"]["assets-grant"]
+print(next((v.split(":")[1] for v in svc.get("volumes", []) if v.split(":")[0] == "./assets/.secrets"), ""))' "$INSTALL/compose.assets.yml")"
+assert_eq "$GRANT_HOME" "$GRANT_MOUNT" "assets-grant's secrets home is the mount of the install's assets/.secrets"
 # The Go observability services behind OpenSSL fronts (#729).
 TLSY="$(cat "$INSTALL/compose.tls.yml")"
 assert_contains "$TLSY" "service:loki" "Loki's front shares its network namespace"

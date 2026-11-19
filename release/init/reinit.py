@@ -923,6 +923,11 @@ def ts_pe_services(tls: bool) -> dict:
     return {"ts-pe-re": re_def, "perception-engine-backend": pe_def}
 
 
+# Where assets-grant finds the install's asset-stack secrets: its RE_SECRETS_DIR,
+# under which secrets-home.js names the stack's own directory.
+ASSETS_GRANT_SECRETS = "/run/re-secrets"
+
+
 def assets_files(install: pathlib.Path, ports: dict[str, int]) -> None:
     """localAssetStorageStack's provisioning scripts, the helpers and lifecycle
     sources they import, and CSS's config, into <install>/assets; and the stack's own service
@@ -1006,10 +1011,13 @@ def assets_services(ports: dict[str, int]) -> dict:
             "image": "${RE_IMAGE_LIFECYCLE}", "restart": "no", "user": "0:0",
             "working_dir": "/opt/lass",
             "command": ["node", "--dns-result-order=ipv4first", "/opt/lass/scripts/grant-assets.js"],
-            "environment": {"NODE_EXTRA_CA_CERTS": "/pki/ca.crt"},
-            # .secrets read-write: grant-assets.js keeps each person's client
-            # credentials there (lifecycle/src/identity.js provision).
-            "volumes": ["./assets:/opt/lass:ro", "./assets/.secrets:/opt/lass/.secrets",
+            # grant-assets.js reads the accounts from the stack's secrets home,
+            # $RE_SECRETS_DIR/localAssetStorageStack (scripts/lib/secrets-home.js,
+            # lass#30), not from <checkout>/.secrets: the install's .secrets is
+            # mounted there. Read-write: it keeps each person's client credentials
+            # there too (lifecycle/src/identity.js provision).
+            "environment": {"NODE_EXTRA_CA_CERTS": "/pki/ca.crt", "RE_SECRETS_DIR": ASSETS_GRANT_SECRETS},
+            "volumes": ["./assets:/opt/lass:ro", f"./assets/.secrets:{ASSETS_GRANT_SECRETS}/localAssetStorageStack",
                         "./pki/ca/ca.crt:/pki/ca.crt:ro"],
             "networks": ["realityengine"],
             "depends_on": {"assets-css": {"condition": "service_healthy"}}},
