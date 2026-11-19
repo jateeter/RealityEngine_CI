@@ -54,6 +54,14 @@ info() { echo -e "${YELLOW}ℹ${NC} $*"; }
 warn() { echo -e "${RED}⚠${NC} $*"; }
 hdr()  { echo -e "\n${CYAN}${BOLD}─── $* ───${NC}"; }
 
+# -- Probing the live stack ------------------------------------------------
+# lane_get / lane_on: a GET that speaks the lane (scripts/lib/lane-get.sh).
+# shellcheck source=lib/lane-get.sh
+. "$SCRIPT_DIR/lib/lane-get.sh"
+# re_secrets_dir: the one secrets home (owner, 2026-11-14).
+# shellcheck source=lib/secrets-home.sh
+. "$SCRIPT_DIR/lib/secrets-home.sh"
+
 # -- Result accumulation ---------------------------------------------------
 declare -a RESULTS=()        # "STATUS|label|note"
 record() { RESULTS+=("$1|$2|${3:-}"); }
@@ -173,7 +181,7 @@ skip_not_applicable() {
 
 # Instances the instance registry lists; 0 when it cannot be read.
 deployed_engine_count() {
-    curl -sf --max-time 5 "${1:-$(registry_url)}" 2>/dev/null \
+    lane_get "${1:-$(registry_url)}" -f --max-time 5 2>/dev/null \
         | python3 -c 'import json,sys; print(len(json.load(sys.stdin).get("instances") or []))' 2>/dev/null \
         || echo 0
 }
@@ -248,12 +256,12 @@ PYEOF
     # endpoints are HTTPS with self-signed certs, so probe with -k.
     if [ -n "$endpoints" ]; then
         local ui=1 be=1 endpoint_count=0
-        { curl -sk --max-time 3 https://localhost:5173/ >/dev/null 2>&1 || curl -s --max-time 3 http://localhost:5173/ >/dev/null 2>&1; } && ui=0
-        { curl -sk --max-time 3 https://localhost:3001/health >/dev/null 2>&1 || curl -s --max-time 3 http://localhost:3001/health >/dev/null 2>&1; } && be=0
+        { lane_get https://localhost:5173/ --max-time 3 >/dev/null 2>&1 || curl -s --max-time 3 http://localhost:5173/ >/dev/null 2>&1; } && ui=0
+        { lane_get https://localhost:3001/health --max-time 3 >/dev/null 2>&1 || curl -s --max-time 3 http://localhost:3001/health >/dev/null 2>&1; } && be=0
         while IFS= read -r endpoint; do
             [ -z "$endpoint" ] && continue
             endpoint_count=$((endpoint_count + 1))
-            curl -sfk --max-time 3 "$endpoint" >/dev/null 2>&1 || return 1
+            lane_get "$endpoint" -f --max-time 3 >/dev/null 2>&1 || return 1
         done <<< "$endpoints"
         [ "$ui" -eq 0 ] && [ "$be" -eq 0 ] && [ "$endpoint_count" -gt 0 ]
         return
@@ -272,21 +280,38 @@ run_openclaw_smoke() {
     repo_present "$label" "$OPENCLAW_DIR" || return
 
     local gateway_port="${OPENCLAW_GATEWAY_PORT:-18789}"
-    local gateway_url="${OPENCLAW_GATEWAY_URL:-http://localhost:${gateway_port}}"
+    # The gateway serves https on the lane (localOpenClawStack#92); OPENCLAW_GATEWAY_URL
+    # is the PE's ws(s) URL, so its scheme is mapped to http(s).
+    local default_scheme=http; lane_on && default_scheme=https
+    local gateway_url="${OPENCLAW_GATEWAY_URL:-${default_scheme}://localhost:${gateway_port}}"
+    gateway_url="$(printf '%s' "$gateway_url" | sed -E 's#^ws(s?)://#http\1://#')"
 
-    if ! curl -sf --max-time 5 "$gateway_url/healthz" >/dev/null 2>&1; then
+    if ! lane_get "$gateway_url/healthz" -f --max-time 5 >/dev/null 2>&1; then
         skip_suite "$label" "OpenClaw gateway not reachable at $gateway_url/healthz"
         return
+    fi
+
+    # /v1/models needs the gateway token. Resolved as the gateway's own launcher
+    # does (localOpenClawStack scripts/native-gateway-run.sh): the caller's, else
+    # the secrets home's, else the stack's .env. Never printed.
+    local token="${OPENCLAW_GATEWAY_TOKEN:-}"
+    if [ -z "$token" ]; then
+        local f
+        for f in "$(re_secrets_dir 2>/dev/null)/localOpenClawStack/secrets.env" "$OPENCLAW_DIR/.env"; do
+            [ -f "$f" ] || continue
+            token="$(sed -n 's/^OPENCLAW_GATEWAY_TOKEN=//p' "$f" | tail -1 | tr -d "\"'")"
+            [ -n "$token" ] && break
+        done
     fi
 
     local log; log="$(mktemp -t re-openclaw.XXXXXX)"
     info "Running: $label"
     local rc=1
-    if [ -n "${OPENCLAW_GATEWAY_TOKEN:-}" ]; then
-        curl -sf --max-time 10 -H "Authorization: Bearer ${OPENCLAW_GATEWAY_TOKEN}" "$gateway_url/v1/models" >"$log" 2>&1
+    if [ -n "$token" ]; then
+        lane_get "$gateway_url/v1/models" -f --max-time 10 -H "Authorization: Bearer ${token}" >"$log" 2>&1
         rc=$?
     else
-        curl -sf --max-time 10 "$gateway_url/v1/models" >"$log" 2>&1
+        lane_get "$gateway_url/v1/models" -f --max-time 10 >"$log" 2>&1
         rc=$?
     fi
     if [ "$rc" -eq 0 ]; then
@@ -307,7 +332,7 @@ run_semantic_parity_smoke() {
         return
     fi
     local registry_url; registry_url="$(registry_url)"
-    if ! curl -sf --max-time 5 "$registry_url" >/dev/null 2>&1; then
+    if ! lane_get "$registry_url" -f --max-time 5 >/dev/null 2>&1; then
         skip_suite "$label" "registry not reachable at $registry_url"
         return
     fi
@@ -332,7 +357,7 @@ run_ces_contract_drift() {
         return
     fi
     local registry_url; registry_url="$(registry_url)"
-    if ! curl -sf --max-time 5 "$registry_url" >/dev/null 2>&1; then
+    if ! lane_get "$registry_url" -f --max-time 5 >/dev/null 2>&1; then
         skip_suite "$label" "instance registry not reachable at $registry_url"
         return
     fi
@@ -379,7 +404,7 @@ run_metrics_parity_smoke() {
         return
     fi
     local registry_url; registry_url="$(registry_url)"
-    if ! curl -sf --max-time 5 "$registry_url" >/dev/null 2>&1; then
+    if ! lane_get "$registry_url" -f --max-time 5 >/dev/null 2>&1; then
         skip_suite "$label" "registry not reachable at $registry_url"
         return
     fi
@@ -405,7 +430,7 @@ run_audit_chain_e2e() {
         return
     fi
     local registry_url; registry_url="$(registry_url)"
-    if ! curl -sf --max-time 5 "$registry_url" >/dev/null 2>&1; then
+    if ! lane_get "$registry_url" -f --max-time 5 >/dev/null 2>&1; then
         skip_suite "$label" "registry not reachable at $registry_url"
         return
     fi
