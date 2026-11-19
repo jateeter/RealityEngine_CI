@@ -16,8 +16,9 @@ import { test, before, after } from 'node:test';
 import assert from 'node:assert/strict';
 import { createServer } from 'node:http';
 import { spawn } from 'node:child_process';
-import { readFileSync } from 'node:fs';
-import { dirname, resolve } from 'node:path';
+import { mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { once } from 'node:events';
 
@@ -155,6 +156,7 @@ async function startGateway(env, reUrl, peUrl) {
       RE_URL: reUrl,
       PE_URL: peUrl,
       RE_REGISTRY_URL: '',
+      RE_MCP_UNIVERSE_FILE: 'off',
       RE_MCP_HTTP_PORT: String(port),
       RE_MCP_HTTP_HOST: '127.0.0.1',
       RE_MCP_TIMEOUT_MS: '5000',
@@ -211,6 +213,28 @@ after(async () => {
 });
 
 // ── Tests ──────────────────────────────────────────────────────────────────
+
+test('the universe file is read unless turned off (#800)', async () => {
+  // A registry address nothing serves, in a universe file of the test's own.
+  const probe = createServer();
+  const dead = await listen(probe);
+  probe.close();
+  await once(probe, 'close');
+  const dir = mkdtempSync(join(tmpdir(), 'mcp-universe-'));
+  const file = join(dir, '.universe-registry-url');
+  writeFileSync(file, `http://127.0.0.1:${dead}/re-registry.json\n`);
+  const stubs = `http://127.0.0.1:${reStub.server.address().port}`;
+  const g = await startGateway({ RE_MCP_UNIVERSE_FILE: file }, stubs, stubs);
+  try {
+    const c = new McpClient(g.baseUrl);
+    await c.initialize();
+    const res = await c.call('re.read_state', {});
+    assert.ok(res.result?.isError, 'the universe file\'s registry was used ahead of RE_URL');
+  } finally {
+    g.child.kill('SIGKILL');
+    rmSync(dir, { recursive: true, force: true });
+  }
+});
 
 test('the gateway serves the full tool catalogue over Streamable HTTP', async () => {
   const res = await client.send('tools/list');

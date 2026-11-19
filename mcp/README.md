@@ -67,6 +67,7 @@ node bin/realityengine-mcp.js --list-tools   # npm run mcp:tools
 | Variable | Default | Purpose |
 |---|---|---|
 | `RE_REGISTRY_URL` | `.universe-registry-url` | Instance registry. Unset, the gateway reads the address `startUniverse.sh` wrote to `.universe-registry-url` (`:5999` with fixed ports, OS-assigned under `--free-ports`). Preferred. |
+| `RE_MCP_UNIVERSE_FILE` | `../.universe-registry-url` | The file read when `RE_REGISTRY_URL` is unset or empty. `off` ignores it, so a gateway given `RE_URL`/`PE_URL` never reaches a universe this checkout is running (the tests set it; #800). |
 | `RE_URL` / `PE_URL` | – | Single-instance fallback when no registry. |
 | `RE_MCP_ALLOW_MUTATION` | `false` | Allow all mutating tools. |
 | `RE_MCP_ALLOWED_TOOLS` | – | Comma-list allowlist (overrides the above; read or write). |

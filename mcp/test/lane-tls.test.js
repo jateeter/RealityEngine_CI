@@ -111,7 +111,7 @@ async function startGateway(env) {
   await new Promise((r) => probe.close(r));
   const child = spawn(process.execPath, [gatewayEntry], {
     env: {
-      ...process.env, RE_REGISTRY_URL: '', RE_MCP_HTTP_PORT: String(port), RE_MCP_HTTP_HOST: '127.0.0.1',
+      ...process.env, RE_REGISTRY_URL: '', RE_MCP_UNIVERSE_FILE: 'off', RE_MCP_HTTP_PORT: String(port), RE_MCP_HTTP_HOST: '127.0.0.1',
       RE_MCP_TIMEOUT_MS: '5000', RE_TLS_CERT: file('gateway.chain'), RE_TLS_KEY: file('gateway.key'), RE_TLS_CA: file('ca.crt'), ...env,
     },
     stdio: ['ignore', 'ignore', 'pipe'],
