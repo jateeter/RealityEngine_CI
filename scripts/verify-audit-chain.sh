@@ -71,7 +71,9 @@ fail() {
   exit 1
 }
 
-registry_json="$(curl -sf --max-time 5 "$REGISTRY_URL" || true)"
+# shellcheck source=lib/lane-get.sh
+. "$CI_DIR/scripts/lib/lane-get.sh"
+registry_json="$(lane_get "$REGISTRY_URL" -f --max-time 5 || true)"
 if [ -z "$registry_json" ]; then
   fail "registry unreachable at $REGISTRY_URL"
 fi

@@ -17,6 +17,11 @@
 #
 # Usage: bash scripts/tests/test-serve-openapi.sh
 set -uo pipefail
+# The lane's harness trust, when the caller runs on the lane (the deployment
+# gate does), replaced the throwaway CA these cases configure and failed the
+# instance routes with CERTIFICATE_VERIFY_FAILED (2026-11-18). The lane cases
+# below set their own.
+unset RE_TLS RE_HARNESS_TLS_CA RE_HARNESS_TLS_CERT RE_HARNESS_TLS_KEY
 
 CI_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 TMP="$(mktemp -d)"
