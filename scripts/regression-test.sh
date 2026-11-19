@@ -380,8 +380,11 @@ case "$PROFILE" in
     export OLLAMA_MODEL
     # The native local lane runs on TLS (owner, 2026-11-13): every link is TLS 1.3
     # (#668), so a local regression measures the lane the release ships. RE_TLS=off
-    # still opts out. local-containerized brings its install's own CA (#729).
-    if [ "$PROFILE" = local ]; then RE_TLS="${RE_TLS:-on}"; export RE_TLS; fi
+    # still opts out. local-containerized brings its install's own CA (#729);
+    # the install's TLS is on by default too, so the lane is, here, before the
+    # default service URLs below take its scheme. Left off, they stayed http and
+    # every probe of the TLS-only install was reset (e1-rc3-cert-20261119a, #808).
+    RE_TLS="${RE_TLS:-on}"; export RE_TLS
     ;;
   *)
     echo "Unsupported --profile: $PROFILE (hosted|local|local-containerized)" >&2
@@ -2382,9 +2385,39 @@ run_healthkit_bridge() {
     log "HealthKit bridge: no token configured — expecting the PE to accept unauthenticated ingest"
   fi
 
+  # The release install (#808): the bridge is certified on it, with the
+  # mirror from the phone. Its registry names its engines at localhost, while
+  # publishing them on every interface with certificates for the Mac's LAN
+  # address (its `host`), so the phone gets that address. The install has its
+  # own bridge token, and PIM's device listener (PIM#91) for the mirror, with
+  # PIM's loopback API as the owner's side. The phone trusts the release lane's
+  # CA, which the install adopted (containerized_release_ca).
+  local pim_env=()
+  if [ "$CONTAINERIZED" = true ]; then
+    local install="$RUN_DIR/install" lan port pim_port device_port
+    lan="$(python3 -c 'import json,sys; print(json.load(open(sys.argv[1])).get("host", ""))' "$REGISTRY_FILE" 2>/dev/null)"
+    case "$lan" in ""|127.*|localhost) lan="$(ipconfig getifaddr en0 2>/dev/null || ipconfig getifaddr en1 2>/dev/null || true)" ;; esac
+    if [ -z "$lan" ]; then
+      log "HealthKit bridge: the install publishes no LAN address and the Mac has none; the phone cannot reach it"
+      return 1
+    fi
+    port="${pe_url##*:}"; port="${port%%/*}"
+    pe_url="${pe_url%%://*}://$lan:$port"
+    token="$(python3 -c 'import json,sys; print(json.load(open(sys.argv[1])).get("HEALTHKIT_BRIDGE_TOKEN", ""))' "$install/state/secrets.json" 2>/dev/null)"
+    [ -n "$token" ] || { log "HealthKit bridge: the install has no HEALTHKIT_BRIDGE_TOKEN in state/secrets.json"; return 1; }
+    pim_port="$(sed -n 's/^RE_PORT_PIM=//p' "$install/.env" | tail -1)"
+    device_port="$(sed -n 's/^RE_PORT_PIM_DEVICE=//p' "$install/.env" | tail -1)"
+    if [ "${RE_TLS:-on}" = on ] && [ -n "$device_port" ]; then
+      pim_env=(PIM_BASE_URL="https://$lan:$device_port" PIM_OWNER_URL="https://localhost:${pim_port:-8090}" PIM_TOKEN="$token")
+      log "HealthKit bridge: the mirror from the phone through PIM's device listener at https://$lan:$device_port"
+    else
+      log "HealthKit bridge: the install has no PIM device listener (TLS off); PE ingest only"
+    fi
+  fi
+
   log "HealthKit bridge on $iphone against $pe_url"
   run_cmd "healthkit-bridge-device" \
-    env PE_BASE_URL="$pe_url" HEALTHKIT_BRIDGE_TOKEN="$token" DEVELOPMENT_TEAM="$team" \
+    env PE_BASE_URL="$pe_url" HEALTHKIT_BRIDGE_TOKEN="$token" DEVELOPMENT_TEAM="$team" "${pim_env[@]}" \
     bash "$bridge/scripts/e2e_device.sh"
 }
 

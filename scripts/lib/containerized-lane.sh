@@ -27,6 +27,48 @@ containerized_cli() {
     bash "$(repo_root RealityEngine_CI)/release/realityengine" "$@"
 }
 
+# The release lane's CA, kept across runs (#808): each install adopts it
+# (re_pki.py adopt, its own serial book) instead of minting a CA of its own, so
+# the iPhone trusts the installs once, through the profile
+# localHealthkitBridge/scripts/ca_profile.sh writes for this certificate.
+# RE_RELEASE_CA_DIR moves it; the default is the release lane's PKI home.
+containerized_release_ca() {
+  local pki ca_dir
+  pki="$(repo_root RealityEngine_CI)/scripts/lib/re_pki.py"
+  ca_dir="${RE_RELEASE_CA_DIR:-$HOME/.reality-engine/pki/release}"
+  RE_PKI_DIR="$ca_dir" python3 "$pki" init >/dev/null || return 1
+  RE_PKI_DIR="$RUN_DIR/install/pki" python3 "$pki" adopt "$ca_dir" >/dev/null || return 1
+  log "release CA: $ca_dir/ca/ca.crt ($(openssl x509 -in "$ca_dir/ca/ca.crt" -noout -fingerprint -sha256 | cut -d= -f2)); the phone trusts this one"
+}
+
+# The install's engines and localAI reach the host's Ollama through the
+# release's TLS front; nothing on this lane started Ollama, and stopping a
+# native universe stops it (e1-rc3-cert-20261119a). Started as startUniverse.sh
+# starts it, when :11434 does not answer.
+containerized_host_ollama() {
+  command -v ollama >/dev/null || { log "Ollama is not installed; the install's Ollama links will fail"; return 0; }
+  # `ollama list` asks the server, and fails when none answers.
+  ollama list >/dev/null 2>&1 && return 0
+  log "Starting the host's Ollama (:11434 did not answer)"
+  ollama serve > /tmp/ollama_universe.log 2>&1 &
+  for _ in $(seq 1 20); do
+    ollama list >/dev/null 2>&1 && return 0
+    sleep 1
+  done
+  log "Ollama did not answer on :11434 after 20s (log: /tmp/ollama_universe.log)"
+}
+
+# The release's Ollama TLS front is a LaunchAgent with a fixed label, serving
+# :11443, the port the native lane's own front needs. The lane unloads it when
+# the run ends, whether the install came up or not (#803); the install's
+# containers are kept for inspection. The plist stays and the next install
+# rewrites it.
+containerized_front_down() {
+  launchctl bootout "gui/$(id -u)/org.realityengine.ollama-tls-front" >/dev/null 2>&1 \
+    && log "Unloaded the release's Ollama TLS front (org.realityengine.ollama-tls-front)"
+  return 0
+}
+
 containerized_image_tag() {
   # dev-<run id>, lower-cased to the image tag alphabet.
   printf 'dev-%s' "$(printf '%s' "$RUN_ID" | tr '[:upper:]' '[:lower:]' | tr -c 'a-z0-9.-' '-')"
@@ -103,7 +145,12 @@ containerized_start() {
   run_cmd "materialize-boot-corpus" bash "$(repo_root RealityEngine_CI)/scripts/materialize-machine-corpus.sh" \
     "$(repo_root RealityEngine_Machines)" "$MACHINE_CORPUS_MANIFEST" "$MACHINE_CORPUS_WORK_DIR" \
     "$(repo_root localAIStack)/data/machines" || return 1
-  run_cmd "install-release" containerized_cli install --version "$tag" --engines "$ENGINES_SPEC" "${args[@]}" || return 1
+  containerized_host_ollama
+  if [ "${RE_TLS:-on}" != off ]; then
+    run_cmd "release-ca" containerized_release_ca || return 1
+  fi
+  run_cmd "install-release" containerized_cli install --version "$tag" --engines "$ENGINES_SPEC" "${args[@]}" \
+    || { containerized_front_down; return 1; }
   REGISTRY_FILE="$RUN_DIR/install/registry/re-registry.json"
   RE_REGISTRY_URL="http://localhost:${RE_PORT_REGISTRY:-5999}/re-registry.json"
   # The install's TLS switch (#729, on by default): the stages reach it over
@@ -121,6 +168,7 @@ containerized_start() {
 }
 
 containerized_finish() {
+  containerized_front_down
   if [ "${RE_REGRESSION_KEEP:-1}" = "0" ]; then
     containerized_remove_project || true
     log "Removed the install (RE_REGRESSION_KEEP=0)."

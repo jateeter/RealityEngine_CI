@@ -41,11 +41,10 @@ Examples
 
     # A release: E1's run pins, the candidate's images, the native lane
     scripts/release-manifest.py generate \\
-        --run-dir .regression-tests/runs/e1-rc6-cert-20261029a \\
-        --images release/candidates/release-v0.0.1-rc6.images.json \\
-        --native-run-dir .regression-tests/runs/f1-native-rc6-20261029a \\
-        --omission healthkit-bridge="A10: no iPhone on the certifying Mac" \\
-        --version release-v0.0.1 --out releases/release-v0.0.1.json
+        --run-dir .regression-tests/runs/<E1 run> \\
+        --images release/candidates/release-v0.0.2-rcN.images.json \\
+        --native-run-dir .regression-tests/runs/<native run> \\
+        --version release-v0.0.2 --out releases/release-v0.0.2.json
 
     # Confirm a workspace matches
     scripts/release-manifest.py verify --manifest release-manifest.json
@@ -197,6 +196,10 @@ REQUIRED_STAGES = (
     "openclaw",
     "local-ai",
     "pim-mirror",
+    # The HealthKit bridge on the iPhone, with the mirror from the phone on the
+    # release install: part of the release from release-v0.0.2 (owner,
+    # 2026-11-19, #808), no longer an accepted omission (v0.0.1's A10).
+    "healthkit-bridge",
 )
 CERTIFYING_LANE = "local-containerized"
 NATIVE_LANE = "local"

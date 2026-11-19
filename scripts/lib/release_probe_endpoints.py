@@ -58,6 +58,9 @@ def main() -> int:
         "openclaw-to-browser-cdp": host("RE_PORT_BROWSER_CDP", "9222", "/json/version"),
         "pim-to-css": host("RE_PORT_CSS", "13000", "/"),
         "healthkit-to-pim": host("RE_PORT_PIM", "8090", "/api/integrations/healthkit/metrics"),
+        # PIM's device listener for the iPhone (PIM#91, #808), probed on loopback:
+        # it is the same listener the LAN reaches.
+        "iphone-to-pim": host("RE_PORT_PIM_DEVICE", "8091", "/healthz"),
         # The asset storage stack (owner, 2026-11-12): CSS and dokieli on their
         # fixed ports, the lifecycle on its own.
         "browser-to-assets-css": [{"url": "https://127.0.0.1:13443", "path": "/"}],

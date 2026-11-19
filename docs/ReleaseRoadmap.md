@@ -45,7 +45,7 @@ needing no source checkout, compiler or build toolchain on the Mac:
 | Prometheus, Loki, Promtail, Grafana (one stack) | containers |
 | TLS front end | container |
 | Ollama with `nemotron-3-nano:4b-mlx` (#593) | **native on the host**, so it uses the Apple GPU (A6) |
-| HealthKit bridge | iPhone app built with Xcode: an **untested development deployment** in this release (A10) |
+| HealthKit bridge | iPhone app built with Xcode: an **untested development deployment** in `release-v0.0.1` (A10); certified on the release install, mirror from the phone included, from `release-v0.0.2` (#808) |
 
 ## Where we are, 2026-10-12
 

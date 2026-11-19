@@ -3781,6 +3781,42 @@
       }
     },
     {
+      "id": "iphone-to-pim",
+      "from": "iPhone (HealthKit bridge)",
+      "to": "PIM device listener (HealthKit mirror routes, pod hydration)",
+      "protocol": "HTTPS",
+      "audience": "user",
+      "lanes": [
+        "release"
+      ],
+      "owner": "OpenCommons-Health---Personal-Information-Management",
+      "issue": "OpenCommons-Health---Personal-Information-Management#91",
+      "status": "compliant",
+      "mtls": false,
+      "note": "The HealthKit bridge's mirror from the phone (owner, 2026-11-19; RealityEngine_CI#808). PIM's API stays on loopback; PIM_DEVICE_PORT opens a second listener on every interface that serves only GET /healthz, /api/integrations/healthkit/* and GET /api/resources/<domain> (the app's pod hydration), each but /healthz requiring the bridge token, checked before PIM touches the pod; every other path is 404. TLS 1.3 with a server certificate only (user-facing, transport audience rule), PIM's certificate naming the Mac's LAN address; PIM refuses to start it without lane TLS or the token. The release install publishes it at RE_PORT_PIM_DEVICE (default 8091) with TLS on. The phone trusts the install's CA through its profile (localHealthkitBridge scripts/ca_profile.sh). Server TLS only by design (mtls false). Probed 2026-11-19 on the release lane's CA against PIM#92's built listener (run pim92-device-listener-20261119: TLS 1.3, profile suite and group; TLS 1.2, a non-profile suite and plaintext refused; no client certificate asked); the containerized lane probes the installed listener again (release_probe_endpoints.py).",
+      "probe": {
+        "release": {
+          "profileId": "re-transport-2026.11",
+          "at": "2026-11-19T23:15:08Z",
+          "run": "pim92-device-listener-20261119",
+          "verdict": "compliant",
+          "mtls": false,
+          "endpoints": [
+            {
+              "path": "/healthz",
+              "version": "TLSv1.3",
+              "cipher": "TLS_AES_256_GCM_SHA384",
+              "group": "X25519MLKEM768",
+              "mtls": "none",
+              "tls12": "refused",
+              "nonProfileSuite": "refused",
+              "plaintext": "refused"
+            }
+          ]
+        }
+      }
+    },
+    {
       "id": "browser-to-grafana",
       "from": "browser",
       "to": "Grafana through tls-proxy (:3000)",

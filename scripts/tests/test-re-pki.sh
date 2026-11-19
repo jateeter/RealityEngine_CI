@@ -96,5 +96,17 @@ noclient=$( (sleep 1; echo Q 2>/dev/null) | openssl s_client -connect "127.0.0.1
 if [[ "$noclient" == *"certificate required"* ]]; then ok "server refuses a client without a certificate (mTLS)"; else bad "mTLS not enforced: $(echo "$noclient" | grep -i -E 'alert|error' | head -2)"; fi
 kill "$SERVER_PID" 2>/dev/null; SERVER_PID=""
 
+# adopt (#808): another PKI under the same trust anchor, with its own serial book.
+A="$(mktemp -d)"
+RE_PKI_DIR="$A/inst" python3 "$PKI" adopt "$RE_PKI_DIR" >/dev/null && ok "adopt takes a CA into a new state dir" || bad "adopt failed"
+RE_PKI_DIR="$A/inst" python3 "$PKI" issue adopted --kind server --dns localhost >/dev/null
+openssl verify -CAfile "$RE_PKI_DIR/ca/ca.crt" "$A/inst/issued/adopted/cert.pem" >/dev/null 2>&1 \
+  && ok "a leaf of the adopting PKI verifies against the source CA" || bad "adopted leaf does not chain to the source CA"
+[[ "$(cat "$A/inst/ca/serial")" != "$(cat "$RE_PKI_DIR/ca/serial")" ]] && ok "the adopting PKI keeps its own serial book" || bad "adopt shared the serial file"
+RE_PKI_DIR="$A/inst" python3 "$PKI" adopt "$RE_PKI_DIR" >/dev/null && ok "adopting the same CA again is a no-op" || bad "re-adopt failed"
+RE_PKI_DIR="$A/other" python3 "$PKI" init >/dev/null
+if RE_PKI_DIR="$A/inst" python3 "$PKI" adopt "$A/other" >/dev/null 2>&1; then bad "adopt replaced a different CA"; else ok "adopt refuses to replace a different CA"; fi
+rm -rf "$A"
+
 echo "re_pki: $PASS passed, $FAIL failed"
 [[ $FAIL -eq 0 ]]
