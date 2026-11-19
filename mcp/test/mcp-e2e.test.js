@@ -174,6 +174,7 @@ async function startGateway(env, reUrl, peUrl) {
 // ── Fixtures ───────────────────────────────────────────────────────────────
 
 let reStub;
+let reStubUrl;
 let peStub;
 let gateway;
 let client;
@@ -201,7 +202,8 @@ before(async () => {
   peStub = startStubEngine('pe');
   const rePort = await listen(reStub.server);
   const pePort = await listen(peStub.server);
-  gateway = await startGateway({}, `http://127.0.0.1:${rePort}`, `http://127.0.0.1:${pePort}`);
+  reStubUrl = `http://127.0.0.1:${rePort}`;
+  gateway = await startGateway({}, reStubUrl, `http://127.0.0.1:${pePort}`);
   client = new McpClient(gateway.baseUrl);
   await client.initialize();
 });
@@ -222,9 +224,8 @@ test('the universe file is read unless turned off (#800)', async () => {
   await once(probe, 'close');
   const dir = mkdtempSync(join(tmpdir(), 'mcp-universe-'));
   const file = join(dir, '.universe-registry-url');
-  writeFileSync(file, `http://127.0.0.1:${dead}/re-registry.json\n`);
-  const stubs = `http://127.0.0.1:${reStub.server.address().port}`;
-  const g = await startGateway({ RE_MCP_UNIVERSE_FILE: file }, stubs, stubs);
+  writeFileSync(file, `https://127.0.0.1:${dead}/re-registry.json\n`);
+  const g = await startGateway({ RE_MCP_UNIVERSE_FILE: file }, reStubUrl, reStubUrl);
   try {
     const c = new McpClient(g.baseUrl);
     await c.initialize();
