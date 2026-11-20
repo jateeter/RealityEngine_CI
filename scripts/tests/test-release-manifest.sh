@@ -190,6 +190,55 @@ gen --run-dir "$TMP/drifted" --images "$TMP/images.json" "${HK[@]}" --version re
 assert_eq "$CODE" "2" "refuses when the build and the branch tip disagree"
 assert_contains "$OUT" "but origin/main was" "names the disagreement"
 
+# RELEASE.md §2 merges the images file and install.sh into RealityEngine_CI's main
+# before E1, so E1 sees main past the built commit. Release data alone between
+# them pins; anything else is still a disagreement.
+CIREPO="$TMP/ci-repo"
+git init -q "$CIREPO"
+gitc() { git -C "$CIREPO" -c user.name=t -c user.email=t@example.org "$@"; }
+mkdir -p "$CIREPO/scripts" "$CIREPO/release/candidates" "$CIREPO/releases"
+echo base > "$CIREPO/scripts/tool.sh"; echo 'RELEASE_TAG=a' > "$CIREPO/install.sh"
+gitc add -A; gitc commit -qm base
+CI_BUILT="$(git -C "$CIREPO" rev-parse HEAD)"
+echo '{}' > "$CIREPO/release/candidates/x.images.json"; echo '{}' > "$CIREPO/releases/x.json"
+echo 'RELEASE_TAG=b' > "$CIREPO/install.sh"
+gitc add -A; gitc commit -qm "release data"
+CI_DATA_TIP="$(git -C "$CIREPO" rev-parse HEAD)"
+echo changed > "$CIREPO/scripts/tool.sh"
+gitc add -A; gitc commit -qm "code"
+CI_CODE_TIP="$(git -C "$CIREPO" rev-parse HEAD)"
+
+# $1=dir $2=origin/main at the run: a green run whose RepoA is RealityEngine_CI built at CI_BUILT.
+make_ci_run() {
+  make_run "$1" "completed" "$CI_BUILT" "$2"
+  python3 - "$1/manifest.json" "$1/reports/images.json" "$CIREPO" <<'EOF'
+import json, sys
+m = json.load(open(sys.argv[1]))
+m["repos"][0].update(name="RealityEngine_CI", sourcePath=sys.argv[3])
+json.dump(m, open(sys.argv[1], "w"))
+i = json.load(open(sys.argv[2])); i["images"][0]["repo"] = "RealityEngine_CI"
+json.dump(i, open(sys.argv[2], "w"))
+EOF
+}
+make_images "$TMP/ci-images.json" "$CI_BUILT"
+python3 - "$TMP/ci-images.json" <<'EOF'
+import json, sys
+i = json.load(open(sys.argv[1])); i["images"][0]["repo"] = "RealityEngine_CI"
+json.dump(i, open(sys.argv[1], "w"))
+EOF
+
+make_ci_run "$TMP/ci-data" "$CI_DATA_TIP"
+gen --run-dir "$TMP/ci-data" --images "$TMP/ci-images.json" "${HK[@]}" --version release-v9.9.9-rc1 --out "$TMP/ci-data.json"
+assert_eq "$CODE" "0" "pins when RealityEngine_CI's main moved only by release data"
+assert_eq "$(field "$TMP/ci-data.json" "m['repos'][0]['sha']")" "$CI_BUILT" "and pins the built commit, not main"
+assert_eq "$(field "$TMP/ci-data.json" "sorted(m['repos'][0]['releaseDataAhead'])")" \
+          "['install.sh', 'release/candidates/x.images.json', 'releases/x.json']" "and records the release data it moved by"
+
+make_ci_run "$TMP/ci-code" "$CI_CODE_TIP"
+gen --run-dir "$TMP/ci-code" --images "$TMP/ci-images.json" "${HK[@]}" --version release-v9.9.9-rc1 --out "$TMP/ci-code.json"
+assert_eq "$CODE" "2" "refuses when RealityEngine_CI's main moved by anything else"
+assert_contains "$OUT" "but origin/main was" "and names the disagreement"
+
 # A status the harness never emits is uncertified, not assumed good.
 make_run "$TMP/odd" "passed" "$SHA_A" "$SHA_A"
 gen --run-dir "$TMP/odd" --images "$TMP/images.json" "${HK[@]}" --version release-v9.9.9-rc1 --out "$TMP/odd.json"
