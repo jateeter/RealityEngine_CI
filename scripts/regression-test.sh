@@ -2428,6 +2428,10 @@ run_healthkit_bridge() {
 # them the universe's addresses and the harness's lane trust.
 run_asset_workflow() {
   step "Asset workflow: smoke, and the IFRS chain on three engines"
+  if [ "$CONTAINERIZED" = true ]; then
+    run_asset_workflow_install
+    return
+  fi
   if [ "$ASSETS_FLAG" != "--assets" ]; then
     log "SKIP asset-workflow: the asset storage stack was not started (hosted or containerized lane, no Docker, or the repo is absent)"
     write_skip_report "asset-workflow-skipped.json" "the asset storage stack was not started on this lane"
@@ -2448,6 +2452,59 @@ run_asset_workflow() {
   run_cmd "asset-chain" env NODE_EXTRA_CA_CERTS="$RE_HARNESS_TLS_CA" RE_REGISTRY_URL="$reg" \
     MANAGER_URL="https://localhost:3001" \
     node --dns-result-order=ipv4first "$lass/scripts/chain-regression.js" "$REPORT_DIR/asset-chain.json"
+}
+
+# The same checks on the release install (E1): the stack is the install's own
+# (assets-css and dokieli on their fixed ports, the lifecycle on
+# RE_PORT_LIFECYCLE, Manager's instantiation on RE_PORT_MANAGER_API), and smoke's
+# restart goes through the install's compose project (ASSETS_COMPOSE_DIR). The
+# checks sign in as the install's people with its lifecycle tokens, from a
+# secrets home made for this stage outside the run directory and removed after
+# it; no token reaches a command line or the trace (#810).
+run_asset_workflow_install() {
+  local install="$RUN_DIR/install" lass home lport mport rc=0
+  lass="$(repo_root localAssetStorageStack)"
+  if [ -z "$lass" ] || [ ! -f "$lass/scripts/smoke.js" ]; then
+    log "SKIP asset-workflow: localAssetStorageStack is not in this run"
+    write_skip_report "asset-workflow-skipped.json" "localAssetStorageStack is not in this run (its checks drive the install's stack)"
+    return 0
+  fi
+  if [ "${RE_TLS:-off}" != on ]; then
+    log "SKIP asset-workflow: RE_TLS is off, so the install's lifecycle has no engine link"
+    write_skip_report "asset-workflow-skipped.json" "RE_TLS off: the lifecycle cannot reach the engines (frame lanes, rule 7)"
+    return 0
+  fi
+  lport="$(sed -n 's/^RE_PORT_LIFECYCLE=//p' "$install/.env" 2>/dev/null | tail -1)"
+  mport="$(sed -n 's/^RE_PORT_MANAGER_API=//p' "$install/.env" 2>/dev/null | tail -1)"
+  local -a envs=(env ASSETS_COMPOSE_DIR="$install" LIFECYCLE_URL="https://localhost:${lport:-13445}/"
+    NODE_EXTRA_CA_CERTS="$RE_HARNESS_TLS_CA")
+  if [ "$EXECUTE" = true ]; then
+    [ -f "$install/assets/.secrets/accounts.json" ] && [ -f "$install/state/secrets.json" ] || {
+      log "asset-workflow: the install has no asset storage accounts or lifecycle tokens ($install)"; return 1; }
+    home="$(mktemp -d)" || return 1
+    if ! (umask 077 && mkdir "$home/localAssetStorageStack" \
+        && cp "$install/assets/.secrets/accounts.json" "$home/localAssetStorageStack/accounts.json" \
+        && python3 - "$install/state/secrets.json" "$home/localAssetStorageStack/service.env" <<'PYEOF'
+import json, os, sys
+s = json.load(open(sys.argv[1]))
+fd = os.open(sys.argv[2], os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o600)
+with os.fdopen(fd, "w") as f:
+    for k in ("ADMIN_TOKEN", "REGISTRAR_TOKEN", "ENGINE_TOKEN"):
+        f.write(f"{k}={s['ASSETS_' + k]}\n")
+PYEOF
+    ); then
+      rm -rf "$home"
+      log "asset-workflow: could not prepare the install's secrets for the checks"
+      return 1
+    fi
+    envs+=(RE_SECRETS_DIR="$home")
+  fi
+  run_cmd "asset-smoke" "${envs[@]}" \
+    node --dns-result-order=ipv4first "$lass/scripts/smoke.js" "$REPORT_DIR/asset-smoke.json" || rc=1
+  run_cmd "asset-chain" "${envs[@]}" RE_REGISTRY_URL="$RE_REGISTRY_URL" MANAGER_URL="https://localhost:${mport:-3001}" \
+    node --dns-result-order=ipv4first "$lass/scripts/chain-regression.js" "$REPORT_DIR/asset-chain.json" || rc=1
+  [ -z "${home:-}" ] || rm -rf "$home"
+  return "$rc"
 }
 
 # The live transport probe (#728, #668 work item 4b): every inventory link the
