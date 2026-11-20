@@ -147,22 +147,65 @@ def repo_entries(run_manifest: dict[str, Any]) -> tuple[list[dict[str, Any]], li
         if not sha:
             problems.append(f"{name}: no commit recorded, cannot pin")
             continue
+        release_data: list[str] | None = None
         if built and branch_tip and built != branch_tip:
-            problems.append(
-                f"{name}: built {built[:8]} but origin/main was {branch_tip[:8]}"
-            )
+            release_data = release_data_ahead(repo, built, branch_tip)
+            if release_data is None:
+                problems.append(
+                    f"{name}: built {built[:8]} but origin/main was {branch_tip[:8]}"
+                )
 
-        entries.append(
-            {
-                "name": name,
-                "remoteUrl": repo.get("remoteUrl", ""),
-                "sha": sha,
-                "originMainShaAtRun": branch_tip,
-                "buildStatus": repo.get("buildStatus", "unknown"),
-            }
-        )
+        entry = {
+            "name": name,
+            "remoteUrl": repo.get("remoteUrl", ""),
+            "sha": sha,
+            "originMainShaAtRun": branch_tip,
+            "buildStatus": repo.get("buildStatus", "unknown"),
+        }
+        if release_data:
+            entry["releaseDataAhead"] = release_data
+        entries.append(entry)
 
     return entries, problems
+
+
+# RELEASE.md §2 merges the candidate's images file and install.sh constants into
+# RealityEngine_CI's main before E1 runs, so E1 always sees main one or two
+# commits past the commit its images were built from. Those commits carry only
+# release data, which no image is built from (install.sh is taken from its own
+# pinned INSTALLER_COMMIT, by sha256). Anything else between the two is a real
+# skew and stays unpinnable.
+RELEASE_DATA_REPO = "RealityEngine_CI"
+RELEASE_DATA_PATHS = (
+    "install.sh",
+    "release/host-requirements.json",
+    "release/candidates/",
+    "releases/",
+)
+
+
+def is_release_data(path: str) -> bool:
+    return any(
+        path == p or (p.endswith("/") and path.startswith(p)) for p in RELEASE_DATA_PATHS
+    )
+
+
+def release_data_ahead(repo: dict[str, Any], built: str, tip: str) -> list[str] | None:
+    """The files main moved by past the built commit, when they are only release data."""
+    source = Path(repo.get("sourcePath") or "")
+    if repo.get("name") != RELEASE_DATA_REPO or not source.is_dir():
+        return None
+    ancestor = subprocess.run(
+        ["git", "-C", str(source), "merge-base", "--is-ancestor", built, tip],
+        stdout=subprocess.DEVNULL,
+        stderr=subprocess.DEVNULL,
+    )
+    if ancestor.returncode != 0:
+        return None
+    files = git(source, "diff", "--name-only", built, tip).splitlines()
+    if not files or not all(is_release_data(f) for f in files):
+        return None
+    return files
 
 
 # Application releases are tagged release-vN.M.Z (release-vN.M.Z-rcN for a
