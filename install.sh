@@ -337,9 +337,16 @@ if [ -n "$oc_have" ] && version_ge "$oc_have" "$OPENCLAW_MIN" && ! $oc_behind; t
 elif $oc_behind && version_ge "$oc_have" "$OPENCLAW_MIN" && $CHECK; then
   todo "update OpenClaw $oc_have → $oc_latest ($OC_BIN)"
 elif $oc_behind && version_ge "$oc_have" "$OPENCLAW_MIN"; then
-  # In place, into the prefix it is already in. npm 11 skips install scripts
-  # unless allowed; OpenClaw's own postinstall prunes the old version's files.
-  long "updating OpenClaw $oc_have → $oc_latest" "$NPM" install -g "openclaw@$oc_latest" --allow-scripts=openclaw \
+  # In place, into the prefix it is already in, named: the Node found above can
+  # be another install whose npm has a root-owned global prefix (the official
+  # .pkg's /usr/local while OpenClaw is under nvm), and npm -g there is EACCES.
+  # npm 11 skips install scripts unless allowed; OpenClaw's own postinstall
+  # prunes the old version's files.
+  oc_prefix="$(dirname "$(dirname "$OC_BIN")")"
+  [ -d "$oc_prefix/lib/node_modules/openclaw" ] || oc_prefix="$("$NPM" prefix -g 2>/dev/null || true)"
+  [ -w "$oc_prefix/lib/node_modules" ] \
+    || fail "OpenClaw $oc_have is in $oc_prefix, which $(id -un) cannot write. Update it there with the npm that installed it, then run install.sh again."
+  long "updating OpenClaw $oc_have → $oc_latest" "$NPM" install -g --prefix "$oc_prefix" "openclaw@$oc_latest" --allow-scripts=openclaw \
     || fail "OpenClaw could not be updated."
   hash -r
   oc_have="$(PATH="$NODE_DIR:$PATH" openclaw_version "$OC_BIN")"
