@@ -110,7 +110,7 @@ needing no source checkout, compiler or build toolchain on the Mac:
 | **D7** | Deployment suite | CI | C3 | in progress: live suites green on the install | CPP#171, Scala#190, LSP#164, Machines#217 |
 | **E1** | `local-containerized` lane on published images | CI | B5, C3 | done: certifying form green on `release-v0.0.1-rc6` (`e1-rc6-cert-20261029a`, 0 new failures, no change from rc5's `e1-rc5-cert-20261029a`, 44 machines per engine); before it rc5 (`e1-rc5-cert-20261029a`, no change from rc4's `e1-rc4-cert-20261029a`) and rc4 (`e1-rc4-cert-20261029a`, no change from rc3's `e1-rc3-cert-20261028a`, 44 machines per engine); development form from the same commits `e1-rc3-20261027b`. Earlier: rc2 `e1-rc2-20261019a` | CI#165, CI#590, localAIStack#159 |
 | **E2** | Native vs containerized comparison | CI | E1 | done for the release: `f1-native-rc6-20261029a` vs `e1-rc6-cert-20261029a`, 53/57 reports identical, 4 explained (`releases/release-v0.0.1.md`). Before it rc3: `e2-native-rc3-20261027b` vs `e1-rc3-20261027b`, 52/57, 5 explained; the first pair (`e1-rc3-20261027a`) found the release image missing localAI's 11 domain machines, fixed by localAIStack#159 | |
-| **E3** | Clean-Mac install test | CI/operator | B5, C3, C4 | done on `release-v0.0.1-rc6` (2026-10-29, owner, second Mac) except the full wipe: upgrade from rc5, uninstall, fresh install, machine load, spec change and uninstall all succeeded; the host tools were already present, so their from-scratch installation was not exercised (below). The first rc3 attempt found the No Data dashboards (#650) and a reinstall over leftover volumes failing `pim-bootstrap` (`uninstall.sh`, #649) | |
+| **E3** | Clean-Mac install test | CI/operator | B5, C3, C4 | done on `release-v0.0.2` (2026-11-20 and 21, owner, second Mac): install (78 min), asset smoke and IFRS chain, HealthKit on the install's new CA, machine load (#829), spec change, upgrade and uninstall (#831) passed; the documented rollback to v0.0.1 failed (#830), and passed with v0.0.1's own CLI and manual steps; recorded in `releases/release-v0.0.2.md`. Before it, done on `release-v0.0.1-rc6` (2026-10-29, owner, second Mac) except the full wipe: upgrade from rc5, uninstall, fresh install, machine load, spec change and uninstall all succeeded; the host tools were already present, so their from-scratch installation was not exercised (below). The first rc3 attempt found the No Data dashboards (#650) and a reinstall over leftover volumes failing `pim-bootstrap` (`uninstall.sh`, #649) | |
 | **E4** | Release eligibility enforced | CI tooling | A1, A2, B5 | done (2026-10-29): `release-manifest.py check` and `published`, run by `cut-release.sh`; `--images`, `--native-run-dir` for F2 | |
 | **E5** | Release documentation aligned | CI/docs | A1, A2 | done (2026-10-30): no step pending in `RELEASE.md`; `INSTALL.md`, README and the roadmaps checked against the release | CI#679 |
 | **F1** | Freeze and final certification | release operator | D*, E1–E5 | done (2026-10-30): native `f1-native-rc6-20261029a` at rc6's commits, with E1 `e1-rc6-cert-20261029a` | |
@@ -760,6 +760,25 @@ source, the image rebuilt, and the check re-run.
       release (no pin either way).
     - Docker Desktop 29.9.2 is the first version recorded working on a second
       Mac (A5).
+  - **release-v0.0.2 (2026-11-20 and 21, owner's MacBook, macOS 27.0.1,
+    Docker Desktop 29.9.2 with 16 GB).** The previous install was removed with
+    `uninstall.sh --images`, Docker pruned and `~/.realityengine` deleted; the
+    Ollama models, Node and OpenClaw were kept. Every leg ran:
+    - install: 78 minutes, 64 of them image pulls, after a rerun past the
+      OpenClaw EACCES (#823);
+    - asset smoke 10/10 and IFRS chain 22/22, 3-of-3 identical;
+    - HealthKit bridge on the new CA: the phone synchronized into PIM's Pod
+      (its profile's root has to be enabled in Certificate Trust Settings);
+    - machine load (`ai-services`) on every engine, after which the gateway lost
+      its TLS (#829);
+    - spec change to `cpp:1,lsp:2,scala:1,rust:1` and back;
+    - rollback to v0.0.1 as documented failed (#830); with v0.0.1's CLI and
+      manual gateway steps it passed;
+    - upgrade back to v0.0.2, then uninstall, which leaves the CA key and
+      secrets (#831).
+
+    The per-phase transcript and the deficiencies with their avoidances are in
+    `releases/release-v0.0.2.md`.
 - [x] **E4 — Release eligibility enforced** (was R03, extended). The release
   cutter refuses when:
   - an image digest is missing, or an image's `revision` differs from its pin;
@@ -938,6 +957,11 @@ The published list is the one in
 - CI#563: drift record in a full universe; cap the drift file.
 - CI#564: gate order: `dynamic_validation_test` and MCP calls from later suites.
 - CI#317: the deterministic MQTT parity stage.
+
+**`release-v0.0.2`: released 2026-11-21 from rc5, closed 2026-11-21.** It is
+supported for bug collection and avoidance directives only; its defects and
+open limitations are on the `release-v0.0.3` milestone. The record below is
+kept as it stood.
 
 **Gates for `release-v0.0.2`** (owner, 2026-10-29 and 2026-10-30):
 

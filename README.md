@@ -44,7 +44,7 @@ The corpus at `release-v0.0.1` (`RealityEngine_Machines` `7d9bf07`,
 
 ## Running from source
 
-Clone these eleven repositories side by side in one workspace directory:
+Clone these twelve repositories side by side in one workspace directory:
 
 - RealityEngine_CI
 - RealityEngine_Machines
@@ -52,6 +52,7 @@ Clone these eleven repositories side by side in one workspace directory:
 - RealityEngine_CPP
 - RealityEngine_LSP
 - RealityEngine_Scala
+- RealityEngine_Rust (a non-voting conformance follower)
 - localAIStack
 - localOpenClawStack
 - localHealthkitBridge
@@ -64,18 +65,26 @@ Then, from `RealityEngine_CI`:
 ./startUniverse.sh --engines=cpp:1,lsp:1,scala:1
 ```
 
-## Release: release-v0.0.1
+## Release: release-v0.0.2 (closed)
 
-`release-v0.0.1` (Release 0.01) is the first release of the integrated
-RealityEngine application: the ten repositories at the commits below, each
-tagged `release-v0.0.1`, and 12 linux/arm64 images on `ghcr.io/jateeter`,
-tagged `release-v0.0.1` and pinned by digest in
-[`releases/release-v0.0.1.json`](releases/release-v0.0.1.json). It is
-candidate `release-v0.0.1-rc6`, promoted by digest without rebuilding
+`release-v0.0.2` (Release 0.02) is the second release of the integrated
+RealityEngine application: the twelve repositories at the commits below, each
+tagged `release-v0.0.2`, and 16 linux/arm64 images on `ghcr.io/jateeter`,
+tagged `release-v0.0.2` and pinned by digest in
+[`releases/release-v0.0.2.json`](releases/release-v0.0.2.json). It is
+candidate `release-v0.0.2-rc5`, promoted by digest without rebuilding
 (`release-images.yml` run
-[41001743259](https://github.com/jateeter/RealityEngine_CI/actions/runs/41001743259)).
-The release notes, with what certified it and what it does not cover, are
-[`releases/release-v0.0.1.md`](releases/release-v0.0.1.md).
+[44847165944](https://github.com/jateeter/RealityEngine_CI/actions/runs/44847165944)).
+New in it are TLS 1.3 on every link, the asset storage stack, the Rust engine
+and the TypeScript PE as followers, and the HealthKit bridge certified on the
+release install. The release notes are
+[`releases/release-v0.0.2.md`](releases/release-v0.0.2.md).
+
+**Status: closed on 2026-11-21.** release-v0.0.2 is supported for bug
+collection and avoidance directives only. Defects found in it are filed on the
+[`release-v0.0.3`](https://github.com/jateeter/RealityEngine_CI/milestone) milestone,
+and the release notes' **Deficiencies found after release** table says how to
+avoid each one on a v0.0.2 install. `release-v0.0.3` is the next release.
 
 **To install it on a Mac, run [`install.sh`](install.sh)** (see
 [Install on a fresh Mac](#install-on-a-fresh-mac) below). It does everything,
@@ -86,28 +95,32 @@ from Docker Desktop to a running suite, and needs no GitHub account.
 
 | Check | Run | Result |
 |---|---|---|
-| Containerized lane on the rc6 images (E1, the certifying run) | `e1-rc6-cert-20261029a` | completed, 0 new failures, 44 machines per engine |
-| Native lane at the same commits (F1) | `f1-native-rc6-20261029a` | completed, 0 new failures, no change from E1 |
-| Native vs containerized measurements (E2) | the two runs above | 53 of 57 reports identical, 4 explained, none an engine difference |
-| Clean-Mac install (E3) | owner, second Mac | upgrade, uninstall, fresh install, domain load, spec change and uninstall succeeded; the host tools were already installed |
+| Containerized lane on the rc5 images (E1, the certifying run) | `e1-rc5-cert-20261120b` | completed, 0 new failures against the native run |
+| Native lane at the same commits | `rc5-native-20261120` | completed, every stage passed, arbiter sweep included |
+| Native vs containerized measurements | the two runs above | 53 of 62 reports identical, 9 explained, none an engine difference |
+| Clean-Mac install (E3) | owner, second Mac, 2026-11-20 and 21 | install, asset smoke and IFRS chain, HealthKit on the new CA, machine load, spec change, upgrade and uninstall passed; the documented rollback to v0.0.1 failed (#830) and has an avoidance |
 
 | Repository | Commit |
 |---|---|
-| RealityEngine_CI | `5213088` |
-| RealityEngine_CPP | `1a66823` |
-| RealityEngine_LSP | `de28483` |
-| RealityEngine_Scala | `e5d1745` |
-| RealityEngine_Machines | `7d9bf07` |
-| RealityEngine_Manager | `c134d78` |
-| localAIStack | `f894e0f` |
-| localOpenClawStack | `ef036c9` |
-| OpenCommons-Health---Personal-Information-Management | `521e1d9` |
-| localHealthkitBridge | `3d3f5a7` (source only) |
+| OpenCommons-Health---Personal-Information-Management | `4ed20c4` |
+| RealityEngine_CI | `a3acd7e` |
+| RealityEngine_CPP | `423ae03` |
+| RealityEngine_LSP | `b0d2143` |
+| RealityEngine_Machines | `ad26c0b` |
+| RealityEngine_Manager | `24cec08` |
+| RealityEngine_Rust | `43ad6c0` |
+| RealityEngine_Scala | `e3f6d5f` |
+| localAIStack | `edcb3f5` |
+| localAssetStorageStack | `cb2c4bb` |
+| localHealthkitBridge | `2c04343` |
+| localOpenClawStack | `aadb899` |
 
-**Not certified by this release**, and not to be read as passing: the
-HealthKit bridge (no iPhone connected; an Xcode development deployment, A10),
-the arbiter sweep (off unless requested), the deployment suite (neither lane
-runs it), and a from-scratch install of the host tools.
+**Not certified by this release**, and not to be read as passing: the arbiter
+sweep on the release install (it passed on the native lane), the deployment
+suite (neither lane runs it), and a from-scratch install of the host tools.
+
+The previous release, `release-v0.0.1`, is described in
+[`releases/release-v0.0.1.md`](releases/release-v0.0.1.md).
 
 ### Install on a fresh Mac
 
@@ -123,7 +136,9 @@ bash install.sh
 ```
 
 It shows one line per step and logs the details to `~/RealityEngine/install.log`.
-A first run takes 20–40 minutes, mostly downloading. It:
+A first run is mostly downloading: the v0.0.2 clean install took 78 minutes,
+64 of them pulling images at about 1.3 MB/s. The pull prints nothing until each
+image finishes (#825); `tail -f ~/RealityEngine/install.log` shows it moving. It:
 1. Checks the Mac: Apple Silicon, macOS version, memory and disk.
 2. Installs Docker Desktop if it is missing, starts it, and checks it has at
    least 8 GB of memory. If it has less, it says how to raise it in Docker
@@ -149,9 +164,9 @@ macOS asks for your password when Docker Desktop or Node is installed system-wid
 and when the certificate is trusted.
 
 Each step is skipped when the Mac already satisfies it, so `install.sh` is safe
-to run again. On a Mac where release-v0.0.1 is already installed, it starts it.
+to run again. On a Mac where release-v0.0.2 is already installed, it starts it.
 On an older install, a release candidate included, it upgrades it to
-release-v0.0.1, keeping its data.
+release-v0.0.2, keeping its data.
 
 Options:
 - `bash install.sh --check` reports what it would do, and every requirement
@@ -185,6 +200,7 @@ cd ~/RealityEngine
 ./realityengine up            # start again
 ./realityengine machines list
 ./realityengine machines load --domain agriculture   # loads into every engine instance, keeping them in parity
+./realityengine up            # after a machines load, restores the OpenClaw gateway's TLS (#829)
 ```
 
 To remove it, run [`uninstall.sh`](uninstall.sh). It also clears an install that
@@ -195,8 +211,13 @@ and its models, Node and OpenClaw:
 ```bash
 curl -fsSL -o uninstall.sh https://raw.githubusercontent.com/jateeter/RealityEngine_CI/main/uninstall.sh
 bash uninstall.sh --check     # what it would remove
-bash uninstall.sh             # add --images to also remove the 12 re-* release images
+bash uninstall.sh             # add --images to also remove the 16 re-* release images
 ```
+
+On a v0.0.2 install it leaves `~/.realityengine/pki` (the install CA's private
+key), `~/.realityengine/assets` and the trusted install CA in the keychain
+(#831). Remove that directory and the "RealityEngine Install CA" certificate by
+hand afterwards, and the profile from any iPhone that trusted it.
 
 Run it before installing again over a failed attempt. Data left from an earlier
 install that doesn't match the new install's passwords is what stops the
@@ -207,12 +228,12 @@ Troubleshooting is covered in [INSTALL.md](INSTALL.md#troubleshooting).
 ### Re-running the regression lane on the release (developer Mac)
 
 To repeat E1 on a Mac with the sibling repos checked out at the release's
-commits (`scripts/release-manifest.py verify --manifest releases/release-v0.0.1.json`),
+commits (`scripts/release-manifest.py verify --manifest releases/release-v0.0.2.json`),
 run this from this repository:
 
 ```bash
 ./scripts/regression-test.sh --execute --profile local-containerized \
-  --images release/candidates/release-v0.0.1.images.json \
+  --images release/candidates/release-v0.0.2.images.json \
   --run-id e1-release-<yyyymmdd><letter>
 ```
 
