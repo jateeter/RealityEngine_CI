@@ -149,18 +149,18 @@ place. If Node is managed by nvm, `nvm install 26.12.1` is also fine, as long as
 ## Install
 
 ```bash
-curl -fsSL -O https://github.com/jateeter/RealityEngine_CI/releases/download/release-v0.0.1/realityengine
-curl -fsSL -O https://github.com/jateeter/RealityEngine_CI/releases/download/release-v0.0.1/release-v0.0.1.images.json
+curl -fsSL -O https://github.com/jateeter/RealityEngine_CI/releases/download/release-v0.0.2/realityengine
+curl -fsSL -O https://github.com/jateeter/RealityEngine_CI/releases/download/release-v0.0.2/release-v0.0.2.images.json
 shasum -a 256 -c - <<'SUMS'
-406963c0dcd62603fc920b655de835cee698cb924becc611380282c6e27ae26c  realityengine
-56dae114197188d7cce495fdab477f50bcb0e43453b47b949719516f84ec7ecc  release-v0.0.1.images.json
+e0963eace3e9c710e366a0a90d80de6676f10da805b963af92b0f5f17108ddb4  realityengine
+11623b7ecee1f6c262d4c6ed08d521285d2a13a739712d9116ed1171d7840712  release-v0.0.2.images.json
 SUMS
 chmod +x realityengine
-./realityengine install --version release-v0.0.1 --images release-v0.0.1.images.json
+./realityengine install --version release-v0.0.2 --images release-v0.0.2.images.json
 ```
 
 The two hashes are the ones the release was certified with, and the ones
-`install.sh` checks. `release-v0.0.1.images.json` pins every image of the
+`install.sh` checks. `release-v0.0.2.images.json` pins every image of the
 release by digest, so what you run is exactly what was certified.
 
 `install` does the following:
@@ -176,7 +176,11 @@ release by digest, so what you run is exactly what was certified.
    disk) and starts everything.
 4. Waits until every service is ready, then prints the addresses.
 
-A first install takes 10–20 minutes, most of it downloading. The install
+A first install takes about 15 minutes plus the image download. The
+download is most of it: release-v0.0.2's clean install took 78 minutes in all,
+64 of them pulling over Wi-Fi at about 1.2 MB/s
+([`releases/release-v0.0.2.md`](releases/release-v0.0.2.md), "Clean
+install"). The pull prints nothing until each image finishes. The install
 directory holds generated configuration only. Your data lives in Docker
 volumes and survives restarts, upgrades and `uninstall` without `--purge`.
 
@@ -301,7 +305,7 @@ failed sync leaves the catalog as it was.
 ## Upgrading and rolling back
 
 ```bash
-./realityengine upgrade --to release-v0.0.2 --images images-v0.0.2.json
+./realityengine upgrade --to release-v0.0.2 --images release-v0.0.2.images.json
 ./realityengine upgrade --to release-v0.0.1 --images release-v0.0.1.images.json   # roll back
 ```
 
@@ -394,21 +398,32 @@ Ollama app) and check `curl http://127.0.0.1:11434/api/version` answers.
 **The browser warns about the certificate.** Run `./realityengine trust-ca`
 and restart the browser.
 
-## Known limitations of release-v0.0.1
+## Known limitations of release-v0.0.2
 
-- Apple Silicon Macs on macOS 26 or later only.
+- Apple Silicon Macs on macOS 26 or later only; no Intel or Linux images.
 - Docker Desktop is the only tested container runtime.
-- Ollama must be installed and running natively.
+- Ollama runs natively on the Mac and must be installed first. Ollama and
+  OpenClaw are updated to their current releases (#663).
 - The HealthKit bridge is built and installed with Xcode (no App Store or
-  TestFlight build).
+  TestFlight build). Its POD defaults still name `http://css.localhost`
+  (localHealthkitBridge#61), and its CA profiles are not named by lane and
+  fingerprint (localHealthkitBridge#62).
 - MQTT ingest from the Yuma broker depends on that external broker. This
   release makes no MQTT-parity claim.
 - LLM drift between engines is recorded but not evaluated.
-- Ollama and OpenClaw are kept at whatever version the Mac has, at or above
-  the minimum, with a warning when behind the current release (#663).
-- Data in motion is not fully encrypted. Manager is served over HTTPS; most
-  other traffic between the suite's parts, on loopback and on the compose
-  network, is plain HTTP (#668).
+- The Rust engine and the TypeScript PE are followers: their results are shown
+  and never fail a run or count toward parity.
+- Ollama and Open WebUI are plain HTTP, accepted transport deficiencies of
+  this release; the others are listed in the release notes.
+- OpenClaw sandbox workspace containers accumulate across runs
+  (localOpenClawStack#104).
+- A run trace printed the HealthKit bridge token (#810); rotate it on any
+  install that ran that trace.
 
-The release notes, [`releases/release-v0.0.1.md`](releases/release-v0.0.1.md),
+The release notes, [`releases/release-v0.0.2.md`](releases/release-v0.0.2.md),
 list every limitation and what the release's certification does not cover.
+
+release-v0.0.2 is closed and supported for bug collection and avoidance
+directives only; `release-v0.0.3` is the next release. Defects found since it
+shipped, among them a Scala engine memory leak under autopush, are in the release
+notes under "Deficiencies found after release", each with how to avoid it.

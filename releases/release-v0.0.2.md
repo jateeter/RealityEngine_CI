@@ -6,6 +6,12 @@ those commits, pinned by digest in [`release-v0.0.2.json`](release-v0.0.2.json).
 It is candidate `release-v0.0.2-rc5`, promoted by digest without rebuilding
 (promotion run 44847165944).
 
+**Status: closed on 2026-11-21.** release-v0.0.2 is supported for bug
+collection and avoidance directives only: a defect found in it is filed against
+the `release-v0.0.3` milestone and, where there is one, given a way to avoid it
+on a v0.0.2 install ("Deficiencies found after release", below). No fix is
+back-ported. `release-v0.0.3` is the next primary target.
+
 New since `release-v0.0.1`:
 - **Data in motion is encrypted** (#668): every link between the system's
   parts runs TLS 1.3 under transport profile `re-transport-2026.11`, mTLS
@@ -150,7 +156,52 @@ These were skipped or not run, by decision, and must not be read as passing:
   native lane, `rc5-native-20261120`.
 - **The deployment suite**, which neither lane runs yet; it is not wired into
   `regression-test.sh` (owner accepted, 2026-11-20).
-- **A clean-Mac install** of this release has not yet been run.
+
+## Clean install
+
+Run 2026-11-20 (times UTC, 2026-11-21) on the owner's Mac with `install.sh`
+from `main`. It was a MacBook with Apple Silicon, macOS 27.0.1, 32 GB of memory,
+Docker Desktop 29.9.2 with 16 GB, and Wi-Fi at about 1.2–1.3 MB/s. It
+succeeded: every service was ready, the native OpenClaw gateway answered with
+the profile's 20 agents, and the local CA was trusted.
+
+| Phase | Start | Took |
+|---|---|---|
+| First run, stopped at OpenClaw (EACCES, #823) | 04:58:20 | 1 min |
+| Host checks: Mac, Docker, Ollama 0.40.16, Node, OpenClaw 2026.11.6 | 05:17:20 | 28 s |
+| `realityengine install`: host check, `re-init` configure, PKI, accounts | 05:17:48 | about 10 min |
+| Pulling the release images | about 05:28 | about 64 min |
+| Start, readiness, OpenClaw gateway (sandbox image built) | 06:32:36 | about 3 min |
+| `trust-ca` (waiting for the owner's keychain password) | 06:35:17 | 10 min |
+| Service check | 06:45:08 | under 1 min |
+
+From the second `install.sh` to the running install took **78 minutes**,
+and 64 of them were the image download. The download speed decides how
+long it takes.
+
+**How clean it was.** Before the install, the RC4 install was removed with
+`uninstall.sh --images --yes`, and Docker's images and build cache were pruned.
+`~/.realityengine` was deleted, so the CA, secrets and instance UUIDs are new.
+Some state was kept:
+- the Ollama models were already pulled;
+- two data volumes, `realityengine_localai-machines` and
+  `realityengine_corpus-catalog`, survived the uninstall, because it does not
+  pass `--purge`;
+- Node 26.12.1 (the official `.pkg`) and nvm's OpenClaw were already
+  installed.
+
+So this run did not exercise installing Ollama, Node or OpenClaw from nothing,
+or pulling the models.
+
+**Findings.**
+- The in-place OpenClaw update used the root-owned `/usr/local` npm, which
+  failed with EACCES (#823). The workaround was to update OpenClaw with nvm's
+  npm and rerun.
+- `docker compose pull --quiet` prints nothing for the whole download, so a
+  slow pull looks like a hang.
+- `INSTALL.md` still showed the v0.0.1 manual install (#824).
+- Ollama 0.40.17 was released during the install; the installer filed a
+  `host-update` issue and kept 0.40.16, which is above the 0.40.13 minimum.
 
 ## Known limitations
 
@@ -176,3 +227,25 @@ These were skipped or not run, by decision, and must not be read as passing:
   (localOpenClawStack#104).
 - A run trace printed the HealthKit bridge token (#810); rotate it on any
   install that ran that trace.
+
+## Deficiencies found after release
+
+Found on the clean install and in the day after it (2026-11-20 and 21). Each
+one is filed on the `release-v0.0.3` milestone; the avoidance is what to do on
+a v0.0.2 install until then.
+
+| Deficiency | Impact | Avoidance on v0.0.2 |
+|---|---|---|
+| **The Scala RE's step history is unbounded** (RealityEngine_Scala#222). `historyLimit` is reported but never applied, so every step is kept. | Under autopush, `ts-pe-re` (2 GB heap) fails with `OutOfMemoryError` after about 2,000 steps, and `engine-scala-1-re` (3 GB) fills its heap. With both JVMs that large, the 16 GB Docker VM runs out of memory every ~40 minutes and the kernel kills processes: services restart, and Manager can briefly return 502. | Leave autopush off on Scala-backed PEs (`scala-*` and Manager's TypeScript PE). If you need it, reset the PE/RE pair well inside 2,000 steps (`POST {pe}/api/reset`, then `POST {re}/api/engine/reset`). |
+| **The C++ RE grows ~105 KB per step under autopush** (RealityEngine_CPP#204), beyond its 250-step history. Cause not yet found. | About 380 MB an hour at one step a second. | Reset or restart the RE during long autopush runs. |
+| **The in-place OpenClaw update can fail with EACCES** (#823). With the official Node `.pkg` in `/usr/local` and OpenClaw under nvm, `install.sh` updates OpenClaw with the root-owned `/usr/local` npm. | The install stops at the OpenClaw step. | Update OpenClaw with the npm beside it (`~/.nvm/versions/node/v26.12.1/bin/npm install -g openclaw@latest --allow-scripts=openclaw`), then run `install.sh` again. |
+| **The image pull is silent** (#825). `docker compose pull --quiet` prints nothing until each image finishes. | A slow first install looks hung (64 minutes on the clean install). | `tail -f ~/RealityEngine/install.log`; network activity shows it is moving. |
+| **`assets-css` halts on a lock expiry** (localAssetStorageStack#37), with a `TypeError` in n3's error path (CSS 7.3.0). | The asset store's Solid server restarts (8 times in 10 hours, under the memory pressure above). | It restarts on its own; retry an edit that was in flight. |
+| **`tls-proxy` truncates a large `POST /api/corpus/load` response** (#826). | A full-catalog load through the proxy finishes on the server, but the client gets a cut-off body. | Load with `realityengine machines load`, which does not go through the proxy. Read the result from Manager's log or the engine's machine count. |
+| **`install.sh` starts a second `ollama serve`** after Homebrew restarted the service (#827). | A misleading `bind: address already in use` message; no other effect. | None needed. |
+| **Two data volumes are created outside Compose** (#828): `corpus-catalog` and `localai-machines`. | Compose warns on `up`. Whether `uninstall --purge` removes them is not yet verified. | After `uninstall --purge`, check `docker volume ls` and remove leftover `realityengine_*` volumes by hand. |
+
+Carried to `release-v0.0.3` from the known limitations above: #668 (with its
+follow-ups #729 and #730), #810, #819, RealityEngine_CPP#203,
+localHealthkitBridge#61 and #62, and localOpenClawStack#104. The developer
+lane's `stopUniverse.sh` defect (#817) is on the same milestone.
