@@ -176,7 +176,11 @@ release by digest, so what you run is exactly what was certified.
    disk) and starts everything.
 4. Waits until every service is ready, then prints the addresses.
 
-A first install takes 10–20 minutes, most of it downloading. The install
+A first install takes about 15 minutes plus the image download. The
+download is most of it: release-v0.0.2's clean install took 78 minutes in all,
+64 of them pulling over Wi-Fi at about 1.2 MB/s
+([`releases/release-v0.0.2.md`](releases/release-v0.0.2.md), "Clean
+install"). The pull prints nothing until each image finishes. The install
 directory holds generated configuration only. Your data lives in Docker
 volumes and survives restarts, upgrades and `uninstall` without `--purge`.
 

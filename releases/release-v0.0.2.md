@@ -150,7 +150,52 @@ These were skipped or not run, by decision, and must not be read as passing:
   native lane, `rc5-native-20261120`.
 - **The deployment suite**, which neither lane runs yet; it is not wired into
   `regression-test.sh` (owner accepted, 2026-11-20).
-- **A clean-Mac install** of this release has not yet been run.
+
+## Clean install
+
+Run 2026-11-20 (times UTC, 2026-11-21) on the owner's Mac with `install.sh`
+from `main`. It was a MacBook with Apple Silicon, macOS 27.0.1, 32 GB of memory,
+Docker Desktop 29.9.2 with 16 GB, and Wi-Fi at about 1.2–1.3 MB/s. It
+succeeded: every service was ready, the native OpenClaw gateway answered with
+the profile's 20 agents, and the local CA was trusted.
+
+| Phase | Start | Took |
+|---|---|---|
+| First run, stopped at OpenClaw (EACCES, #823) | 04:58:20 | 1 min |
+| Host checks: Mac, Docker, Ollama 0.40.16, Node, OpenClaw 2026.11.6 | 05:17:20 | 28 s |
+| `realityengine install`: host check, `re-init` configure, PKI, accounts | 05:17:48 | about 10 min |
+| Pulling the release images | about 05:28 | about 64 min |
+| Start, readiness, OpenClaw gateway (sandbox image built) | 06:32:36 | about 3 min |
+| `trust-ca` (waiting for the owner's keychain password) | 06:35:17 | 10 min |
+| Service check | 06:45:08 | under 1 min |
+
+From the second `install.sh` to the running install took **78 minutes**,
+and 64 of them were the image download. The download speed decides how
+long it takes.
+
+**How clean it was.** Before the install, the RC4 install was removed with
+`uninstall.sh --images --yes`, and Docker's images and build cache were pruned.
+`~/.realityengine` was deleted, so the CA, secrets and instance UUIDs are new.
+Some state was kept:
+- the Ollama models were already pulled;
+- two data volumes, `realityengine_localai-machines` and
+  `realityengine_corpus-catalog`, survived the uninstall, because it does not
+  pass `--purge`;
+- Node 26.12.1 (the official `.pkg`) and nvm's OpenClaw were already
+  installed.
+
+So this run did not exercise installing Ollama, Node or OpenClaw from nothing,
+or pulling the models.
+
+**Findings.**
+- The in-place OpenClaw update used the root-owned `/usr/local` npm, which
+  failed with EACCES (#823). The workaround was to update OpenClaw with nvm's
+  npm and rerun.
+- `docker compose pull --quiet` prints nothing for the whole download, so a
+  slow pull looks like a hang.
+- `INSTALL.md` still showed the v0.0.1 manual install (#824).
+- Ollama 0.40.17 was released during the install; the installer filed a
+  `host-update` issue and kept 0.40.16, which is above the 0.40.13 minimum.
 
 ## Known limitations
 
