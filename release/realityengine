@@ -398,14 +398,18 @@ HOST_UPDATE=false
 HOST_UPDATED=""
 
 update_openclaw() { # to
-  local npm
+  local npm prefix
   npm="${RE_NPM:-$(dirname "${OPENCLAW_NODE:-/usr/bin/node}")/npm}"
   [ -x "$npm" ] || npm="$(command -v npm 2>/dev/null || true)"
   [ -n "$npm" ] || { warn "No npm beside OpenClaw's Node; OpenClaw stays at $OPENCLAW_VER."; return 1; }
+  # Into the prefix OpenClaw is in, when it is <prefix>/bin/openclaw: the npm
+  # found can have another, root-owned global prefix (/usr/local under nvm).
+  prefix="$(dirname "$(dirname "$OPENCLAW_BIN")")"
+  [ -d "$prefix/lib/node_modules/openclaw" ] || prefix=""
   say "Updating OpenClaw $OPENCLAW_VER → $1"
   # npm 11 skips install scripts unless allowed; OpenClaw's own postinstall
   # prunes the previous version's files.
-  "$npm" install -g "openclaw@$1" --allow-scripts=openclaw >/dev/null 2>&1 \
+  "$npm" install -g ${prefix:+--prefix "$prefix"} "openclaw@$1" --allow-scripts=openclaw >/dev/null 2>&1 \
     || { warn "npm could not install openclaw@$1; OpenClaw stays at $OPENCLAW_VER."; return 1; }
   HOST_UPDATED="${HOST_UPDATED}openclaw ${OPENCLAW_VER}→$1; "
 }
