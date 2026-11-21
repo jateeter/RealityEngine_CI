@@ -205,6 +205,14 @@ expect "...and records the versions that now run" $?
 grep -q '"updated": "ollama 0.40.14→0.40.20; openclaw 2026.10.6→2026.10.7"' "$T/c9b/state/host-services.json"; expect "...and what it updated" $?
 [ ! -f "$T/c9b/state/host-updates.md" ]; expect "...and leaves no update note" $?
 reset_updates
+# OpenClaw at <prefix>/bin/openclaw is updated into that prefix, whatever npm's
+# own global prefix is (nvm's OpenClaw with the official .pkg's root-owned /usr/local).
+mkdir -p "$T/lib/node_modules/openclaw"
+env FAKE_OLLAMA_API=0.40.20 FAKE_OC=2026.10.6 RE_LATEST_OLLAMA=0.40.20 RE_LATEST_OPENCLAW=2026.10.7 RE_HOST_UPDATE_ISSUES=0 \
+  REALITYENGINE_DIR="$T/c9f" PATH="$BIN:$SYS" /bin/bash "$CLI" host-check --update >"$T/c9f.out" 2>&1
+grep -q "install -g --prefix $T openclaw@2026.10.7" "$NPM_LOG"; expect "...into the prefix OpenClaw is already in" $?
+rm -rf "$T/lib"
+reset_updates
 env FAKE_OLLAMA_API=0.40.20 FAKE_OC=2026.10.6 RE_LATEST_OLLAMA=0.40.20 RE_LATEST_OPENCLAW=2026.10.7 RE_HOST_UPDATE_ISSUES=0 NPM_FAIL=1 \
   REALITYENGINE_DIR="$T/c9c" PATH="$BIN:$SYS" /bin/bash "$CLI" host-check --update >"$T/c9c.out" 2>&1
 expect "a failed update above the floor still passes" $?
