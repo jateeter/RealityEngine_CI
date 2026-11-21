@@ -203,6 +203,22 @@ or pulling the models.
 - Ollama 0.40.17 was released during the install; the installer filed a
   `host-update` issue and kept 0.40.16, which is above the 0.40.13 minimum.
 
+## Clean-Mac certification
+
+The remaining legs, run on the clean install on 2026-11-21 (times UTC) with
+the release CLI (`realityengine` sha256 `e0963eac…`, images file `11623b7e…`).
+
+| Leg | Result | What was checked |
+|---|---|---|
+| Asset smoke and IFRS chain (18:47) | **pass** | Smoke 10/10; IFRS chain 22/22, 3-of-3 identical. |
+| HealthKit bridge on the install's new CA (21:37) | **pass** | 3 HealthKit sensors live on the PE, the phone reached PIM and synchronized, mirror applied 2 records into the Pod. The phone needed the profile's root turned on in Certificate Trust Settings; installing the profile alone gives `-1202`. |
+| Machine load, `domains/ai-services` (21:37, 4 min) | **pass, with a defect** | Every engine took the 9 machines (scala, cpp 28→37, lsp 46→55; rust already held them). The OpenClaw gateway then came back on plain HTTP and the command failed (#829). |
+| Spec change to `cpp:1,lsp:2,scala:1,rust:1` and back (21:43, 2 + 2 min) | **pass** | `lsp-2` got its own UUID and was given the 9 loaded machines (55, as `lsp-1`); the four existing UUIDs were unchanged; restoring the spec removed `lsp-2`'s containers. `up` also restored the gateway's TLS. |
+| Rollback to `release-v0.0.1` as documented (21:46) | **fail** (#830) | `reinit: error: unrecognized arguments: --tls on`, before any pull, with the gateway already stopped. |
+| Rollback with v0.0.1's own CLI and `--engines cpp:1,lsp:1,scala:1` (21:47, 12 min) | **pass, with manual steps** (#830) | 23 containers on the v0.0.1 digests, all ready; UUIDs kept; 53 machines per engine (v0.0.1's corpus plus the 9 loaded); every data volume kept. The gateway did not start until `openclaw doctor --fix` (v0.0.1 writes the retired `agents.defaults.heartbeat`) and `gateway.tls` was removed from `openclaw.json` (v0.0.1's engines call it over `ws://`). |
+| Upgrade back to `release-v0.0.2` (22:04, 2 min, images cached) | **pass** | `upgrade --to release-v0.0.2 --images images.json --engines cpp:1,lsp:1,scala:1,rust:1`: 33 containers healthy, TLS on, UUIDs identical to before the legs, 55 machines on every engine, gateway on HTTPS, phone route 200. The 1,573-machine corpus loaded into Rust through Manager's API was not replayed: only `machines load` is recorded. |
+| Uninstall (22:06, under 1 min) | **pass, with a defect** (#831) | Containers, network and both LaunchAgents removed, ports freed; data in `~/.realityengine` and 16 volumes kept, as documented. `uninstall.sh --check` would leave `pki/` (the CA key), `assets/` and the trusted install CA (#831). |
+
 ## Known limitations
 
 - Apple Silicon Macs on macOS 26 or later only; no Intel or Linux images.
@@ -244,6 +260,9 @@ a v0.0.2 install until then.
 | **`tls-proxy` truncates a large `POST /api/corpus/load` response** (#826). | A full-catalog load through the proxy finishes on the server, but the client gets a cut-off body. | Load with `realityengine machines load`, which does not go through the proxy. Read the result from Manager's log or the engine's machine count. |
 | **`install.sh` starts a second `ollama serve`** after Homebrew restarted the service (#827). | A misleading `bind: address already in use` message; no other effect. | None needed. |
 | **Two data volumes are created outside Compose** (#828): `corpus-catalog` and `localai-machines`. | Compose warns on `up`. Whether `uninstall --purge` removes them is not yet verified. | After `uninstall --purge`, check `docker volume ls` and remove leftover `realityengine_*` volumes by hand. |
+| **`machines load` drops the OpenClaw gateway's TLS** (#829). Machines-load regenerates the OpenClaw config without the install's TLS switch. | The gateway serves plain HTTP, OpenClaw uses Ollama without its TLS front, and the command reports that the gateway did not start. | Run `./realityengine up` after every `machines load`. |
+| **The documented rollback to v0.0.1 fails** (#830). The CLI passes `--tls` to v0.0.1's `re-init`, which rejects it, and has already stopped the gateway. | No rollback through `upgrade`; the gateway is left stopped. | Roll back with v0.0.1's CLI: `bash <v0.0.1>/realityengine upgrade --to release-v0.0.1 --images release-v0.0.1.images.json --engines cpp:1,lsp:1,scala:1`. Then `OPENCLAW_STATE_DIR=~/.realityengine/openclaw openclaw doctor --fix`, delete `gateway.tls` from `~/.realityengine/openclaw/openclaw.json`, and `launchctl kickstart -k gui/$(id -u)/org.realityengine.openclaw-gateway`. Upgrading back with the v0.0.2 CLI needs nothing extra. |
+| **`uninstall.sh` predates v0.0.2** (#831). | It leaves `~/.realityengine/pki` (the CA's private key) and `assets/` (account secrets), and does not find the trusted "RealityEngine Install CA pki" in the keychain. | After it, remove `~/.realityengine` and delete the CA in Keychain Access (login); remove the profile from any iPhone that trusted it. |
 
 Carried to `release-v0.0.3` from the known limitations above: #668 (with its
 follow-ups #729 and #730), #810, #819, RealityEngine_CPP#203,
