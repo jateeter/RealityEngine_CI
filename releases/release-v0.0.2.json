@@ -1,0 +1,437 @@
+{
+  "certifiedBy": {
+    "coverage": {
+      "localAI": true,
+      "machineCorpus": "regression",
+      "openclaw": true
+    },
+    "engineSpec": "cpp:1,lsp:1,scala:1",
+    "native": {
+      "drift": {},
+      "engineSpec": "cpp:1,lsp:1,scala:1",
+      "omissions": {
+        "arbiter-sweep": "the containerized lane does not run it (it restarts a native universe per rule); it passed on the native lane, rc5-native-20261120",
+        "section:deployment": "neither lane runs the deployment suite (not yet wired into regression-test.sh); owner accepted 2026-11-20"
+      },
+      "profile": "local",
+      "runId": "rc5-native-20261120",
+      "stageResults": {
+        "agent-corpus-current": {
+          "status": "passed"
+        },
+        "arbiter": {
+          "status": "passed"
+        },
+        "arbiter-sweep": {
+          "status": "passed"
+        },
+        "arbitration-retention": {
+          "status": "passed"
+        },
+        "asset-workflow": {
+          "status": "passed"
+        },
+        "boot-source-declaration": {
+          "status": "passed"
+        },
+        "engine-process-parity": {
+          "status": "passed"
+        },
+        "escalation-dispatch": {
+          "status": "passed"
+        },
+        "export-parity": {
+          "status": "passed"
+        },
+        "healthkit-bridge": {
+          "status": "passed"
+        },
+        "local-ai": {
+          "status": "passed"
+        },
+        "localai-machines": {
+          "status": "passed"
+        },
+        "machine-set-parity": {
+          "status": "passed"
+        },
+        "mcp": {
+          "status": "passed"
+        },
+        "mqtt-yuma": {
+          "status": "passed"
+        },
+        "openclaw": {
+          "status": "passed"
+        },
+        "pe-step-contract": {
+          "status": "passed"
+        },
+        "pim-mirror": {
+          "status": "passed"
+        },
+        "reset-contract": {
+          "status": "passed"
+        },
+        "section:build": {
+          "status": "passed"
+        },
+        "section:deployment": {
+          "status": "not-run"
+        },
+        "service-inventory": {
+          "status": "passed"
+        },
+        "trajectory-parity": {
+          "status": "passed"
+        },
+        "transport-probe": {
+          "status": "passed"
+        },
+        "universal-vectors": {
+          "status": "passed"
+        }
+      },
+      "status": "completed"
+    },
+    "omissions": {
+      "arbiter-sweep": "the containerized lane does not run it (it restarts a native universe per rule); it passed on the native lane, rc5-native-20261120",
+      "section:deployment": "neither lane runs the deployment suite (not yet wired into regression-test.sh); owner accepted 2026-11-20"
+    },
+    "profile": "local-containerized",
+    "runId": "e1-rc5-cert-20261120b",
+    "serviceInventoryStatus": "passed",
+    "stageResults": {
+      "agent-corpus-current": {
+        "status": "passed"
+      },
+      "arbiter": {
+        "status": "passed"
+      },
+      "arbiter-sweep": {
+        "reason": "not requested; pass --arbiter-sweep to compare ISRE/OSRE under every arbiter rule",
+        "status": "skipped"
+      },
+      "arbitration-retention": {
+        "status": "passed"
+      },
+      "asset-workflow": {
+        "status": "passed"
+      },
+      "boot-source-declaration": {
+        "status": "passed"
+      },
+      "engine-process-parity": {
+        "status": "passed"
+      },
+      "escalation-dispatch": {
+        "status": "passed"
+      },
+      "export-parity": {
+        "status": "passed"
+      },
+      "healthkit-bridge": {
+        "status": "passed"
+      },
+      "local-ai": {
+        "status": "passed"
+      },
+      "localai-machines": {
+        "status": "passed"
+      },
+      "machine-set-parity": {
+        "status": "passed"
+      },
+      "mcp": {
+        "status": "passed"
+      },
+      "mqtt-yuma": {
+        "status": "passed"
+      },
+      "openclaw": {
+        "status": "passed"
+      },
+      "pe-step-contract": {
+        "status": "passed"
+      },
+      "pim-mirror": {
+        "status": "passed"
+      },
+      "reset-contract": {
+        "status": "passed"
+      },
+      "section:build": {
+        "status": "passed"
+      },
+      "section:deployment": {
+        "status": "not-run"
+      },
+      "service-inventory": {
+        "status": "passed"
+      },
+      "trajectory-parity": {
+        "status": "passed"
+      },
+      "transport-probe": {
+        "status": "passed"
+      },
+      "universal-vectors": {
+        "status": "passed"
+      }
+    },
+    "stages": {
+      "arbiter": "passed",
+      "arbiter-sweep-skipped": "skipped",
+      "arbitration-retention": "passed",
+      "asset-chain": "passed",
+      "asset-smoke": "passed",
+      "engine-config-parity": "passed",
+      "engine-process-parity": "passed",
+      "escalation-dispatch": "passed",
+      "export-parity": "passed",
+      "images": "passed",
+      "local-ai": "passed",
+      "machine-set-parity": "passed",
+      "mcp-smoke": "passed",
+      "mqtt-yuma-cpp-1": "passed",
+      "mqtt-yuma-lsp-1": "passed",
+      "mqtt-yuma-scala-1": "passed",
+      "openclaw-integration-cpp-1": "passed",
+      "openclaw-integration-lsp-1": "passed",
+      "openclaw-integration-scala-1": "passed",
+      "pe-step-contract": "passed",
+      "pim-mirror": "passed",
+      "regression-comparison": "compared",
+      "regression-status": "passed",
+      "service-inventory": "passed",
+      "transport-probe": "passed",
+      "transport-probe-browser": "passed",
+      "transport-probe-grafana": "passed",
+      "transport-probe-loki": "passed",
+      "transport-probe-network": "passed",
+      "transport-probe-prometheus": "passed"
+    },
+    "status": "completed"
+  },
+  "generatedAt": "2026-11-21T00:37:59Z",
+  "images": [
+    {
+      "digest": "sha256:9ea3dbbcd7ca41357a501bdd9e90108b889f3a27a5c361022bd9b00b2bf4462b",
+      "name": "re-corpus",
+      "ref": "ghcr.io/jateeter/re-corpus",
+      "repo": "RealityEngine_Machines",
+      "revision": "ad26c0b805662278bdc271ac683a2fb40ecbde14"
+    },
+    {
+      "digest": "sha256:5b89f93c039fe94460f83efbfb9cc61fcb2b53da52f0405b9e0c5566a7848711",
+      "name": "re-cpp",
+      "ref": "ghcr.io/jateeter/re-cpp",
+      "repo": "RealityEngine_CPP",
+      "revision": "423ae036be5bef3e35d27da2017a239fc893d60c"
+    },
+    {
+      "digest": "sha256:13dfc8d5835484fd0f586df2f2e71aa9d11000ab60ee5567bf9244ffc361eebd",
+      "name": "re-css",
+      "ref": "ghcr.io/jateeter/re-css",
+      "repo": "OpenCommons-Health---Personal-Information-Management",
+      "revision": "4ed20c4d98cba5c22cbcd29b32458b86dd31cef0"
+    },
+    {
+      "digest": "sha256:ffedea77c57a3207d5ad695fd6ffd10e4eaca5ed7d7dd119aecd92547026662a",
+      "name": "re-dokieli",
+      "ref": "ghcr.io/jateeter/re-dokieli",
+      "repo": "localAssetStorageStack",
+      "revision": "cb2c4bbb771ddb30a7900c7745cb29e08bafb517"
+    },
+    {
+      "digest": "sha256:41d0f3e792006fa32760ee479175a08c640638322183267021faa3f15cf41f36",
+      "name": "re-init",
+      "ref": "ghcr.io/jateeter/re-init",
+      "repo": "RealityEngine_CI",
+      "revision": "a3acd7e075a9cf4bacd984591073e060101e98e8"
+    },
+    {
+      "digest": "sha256:46ced52f160e9861f33b261d300b4b22bed2d3cfa19c169494a617e1da3c1bb7",
+      "name": "re-lifecycle",
+      "ref": "ghcr.io/jateeter/re-lifecycle",
+      "repo": "localAssetStorageStack",
+      "revision": "cb2c4bbb771ddb30a7900c7745cb29e08bafb517"
+    },
+    {
+      "digest": "sha256:50ee32fa77427f32ea1c882917e7e68e2e544605ec27cf712a04589a6f5ee1c9",
+      "name": "re-localai-api",
+      "ref": "ghcr.io/jateeter/re-localai-api",
+      "repo": "localAIStack",
+      "revision": "edcb3f54b2f8810ec47b891a42f1b8a2916c42ca"
+    },
+    {
+      "digest": "sha256:deb2e9c0a4cee7186d9967b4fed77f92f250446a23277fa1168b6afff2474115",
+      "name": "re-lsp",
+      "ref": "ghcr.io/jateeter/re-lsp",
+      "repo": "RealityEngine_LSP",
+      "revision": "b0d2143816631c253ca8a7a93709471add71052e"
+    },
+    {
+      "digest": "sha256:f6f912ae8d11e7c65d9a65a77c7107f3079c94638c4084dda6a592173345bc77",
+      "name": "re-mcp",
+      "ref": "ghcr.io/jateeter/re-mcp",
+      "repo": "RealityEngine_CI",
+      "revision": "a3acd7e075a9cf4bacd984591073e060101e98e8"
+    },
+    {
+      "digest": "sha256:2af3757a0d8e884a5cbd963d16211144a4646dee2b3cdeb5d3e238e251215c0b",
+      "name": "re-pim",
+      "ref": "ghcr.io/jateeter/re-pim",
+      "repo": "OpenCommons-Health---Personal-Information-Management",
+      "revision": "4ed20c4d98cba5c22cbcd29b32458b86dd31cef0"
+    },
+    {
+      "digest": "sha256:8f098a18dd29bbcdeda12b520750bb1265fea41af1cd5fba185a89615206e536",
+      "name": "re-rust",
+      "ref": "ghcr.io/jateeter/re-rust",
+      "repo": "RealityEngine_Rust",
+      "revision": "43ad6c09fc0f695508904d6d4874c0190e2096d5"
+    },
+    {
+      "digest": "sha256:3d63b22e3948f637a634370f60f3409b5d2bb6f783a747a332ceec2e53db7e48",
+      "name": "re-scala",
+      "ref": "ghcr.io/jateeter/re-scala",
+      "repo": "RealityEngine_Scala",
+      "revision": "e3f6d5f0012672e4d2144513058cf4e08bcec26c"
+    },
+    {
+      "digest": "sha256:119e33200d7fade7c017e30eb969067de28e27723fdb3e122bed74b95dc3de2b",
+      "name": "re-scala-pe",
+      "ref": "ghcr.io/jateeter/re-scala-pe",
+      "repo": "RealityEngine_Scala",
+      "revision": "e3f6d5f0012672e4d2144513058cf4e08bcec26c"
+    },
+    {
+      "digest": "sha256:e458f074be8fe224627fcfbbc27770636dc37e37b87c294fecc1c3104acaf74e",
+      "name": "re-ts-pe",
+      "ref": "ghcr.io/jateeter/re-ts-pe",
+      "repo": "RealityEngine_Manager",
+      "revision": "24cec0891a2d6637e90b52a7913d36cdd53b5af8"
+    },
+    {
+      "digest": "sha256:c323b88079e522118c6558cc6178aae16f9edc907ea96c77a9b0b0b00631e12a",
+      "name": "re-visualizer-backend",
+      "ref": "ghcr.io/jateeter/re-visualizer-backend",
+      "repo": "RealityEngine_Manager",
+      "revision": "24cec0891a2d6637e90b52a7913d36cdd53b5af8"
+    },
+    {
+      "digest": "sha256:357d64b5a1ac9fd812080d12ee2a4d50dcdc9655a11c6128ad484b073c4a424b",
+      "name": "re-visualizer-frontend",
+      "ref": "ghcr.io/jateeter/re-visualizer-frontend",
+      "repo": "RealityEngine_Manager",
+      "revision": "24cec0891a2d6637e90b52a7913d36cdd53b5af8"
+    }
+  ],
+  "imagesFile": {
+    "platform": "linux/arm64",
+    "pushed": true,
+    "registry": "ghcr.io/jateeter",
+    "sha256": "77a98eb92b78a39e7be727516dfd10beffd131d751922026735f46f59e43b5f2",
+    "tag": "release-v0.0.2-rc5"
+  },
+  "repos": [
+    {
+      "buildStatus": "passed",
+      "name": "OpenCommons-Health---Personal-Information-Management",
+      "originMainShaAtRun": "4ed20c4d98cba5c22cbcd29b32458b86dd31cef0",
+      "remoteUrl": "https://github.com/jateeter/OpenCommons-Health---Personal-Information-Management.git",
+      "sha": "4ed20c4d98cba5c22cbcd29b32458b86dd31cef0"
+    },
+    {
+      "buildStatus": "passed",
+      "name": "RealityEngine_CI",
+      "originMainShaAtRun": "fef8fcb78c9d0ed02ff14816e6cea9353cfd9937",
+      "releaseDataAhead": [
+        "install.sh",
+        "release/candidates/release-v0.0.2-rc5.images.json",
+        "release/host-requirements.json",
+        "releases/release-v0.0.2-rc5.json"
+      ],
+      "remoteUrl": "git@github.com:jateeter/RealityEngine_CI.git",
+      "sha": "a3acd7e075a9cf4bacd984591073e060101e98e8"
+    },
+    {
+      "buildStatus": "unknown",
+      "name": "RealityEngine_CPP",
+      "originMainShaAtRun": "423ae036be5bef3e35d27da2017a239fc893d60c",
+      "remoteUrl": "git@github.com:jateeter/RealityEngine_CPP.git",
+      "sha": "423ae036be5bef3e35d27da2017a239fc893d60c"
+    },
+    {
+      "buildStatus": "unknown",
+      "name": "RealityEngine_LSP",
+      "originMainShaAtRun": "b0d2143816631c253ca8a7a93709471add71052e",
+      "remoteUrl": "git@github.com:jateeter/RealityEngine_LSP.git",
+      "sha": "b0d2143816631c253ca8a7a93709471add71052e"
+    },
+    {
+      "buildStatus": "passed",
+      "name": "RealityEngine_Machines",
+      "originMainShaAtRun": "ad26c0b805662278bdc271ac683a2fb40ecbde14",
+      "remoteUrl": "git@github.com:jateeter/RealityEngine_Machines.git",
+      "sha": "ad26c0b805662278bdc271ac683a2fb40ecbde14"
+    },
+    {
+      "buildStatus": "passed",
+      "name": "RealityEngine_Manager",
+      "originMainShaAtRun": "24cec0891a2d6637e90b52a7913d36cdd53b5af8",
+      "remoteUrl": "git@github.com:jateeter/RealityEngine_Manager.git",
+      "sha": "24cec0891a2d6637e90b52a7913d36cdd53b5af8"
+    },
+    {
+      "buildStatus": "unknown",
+      "name": "RealityEngine_Rust",
+      "originMainShaAtRun": "43ad6c09fc0f695508904d6d4874c0190e2096d5",
+      "remoteUrl": "git@github.com:jateeter/RealityEngine_Rust.git",
+      "sha": "43ad6c09fc0f695508904d6d4874c0190e2096d5"
+    },
+    {
+      "buildStatus": "unknown",
+      "name": "RealityEngine_Scala",
+      "originMainShaAtRun": "e3f6d5f0012672e4d2144513058cf4e08bcec26c",
+      "remoteUrl": "git@github.com:jateeter/RealityEngine_Scala.git",
+      "sha": "e3f6d5f0012672e4d2144513058cf4e08bcec26c"
+    },
+    {
+      "buildStatus": "unknown",
+      "name": "localAIStack",
+      "originMainShaAtRun": "edcb3f54b2f8810ec47b891a42f1b8a2916c42ca",
+      "remoteUrl": "git@github.com:jateeter/localAIStack.git",
+      "sha": "edcb3f54b2f8810ec47b891a42f1b8a2916c42ca"
+    },
+    {
+      "buildStatus": "passed",
+      "name": "localAssetStorageStack",
+      "originMainShaAtRun": "cb2c4bbb771ddb30a7900c7745cb29e08bafb517",
+      "remoteUrl": "https://github.com/jateeter/localAssetStorageStack.git",
+      "sha": "cb2c4bbb771ddb30a7900c7745cb29e08bafb517"
+    },
+    {
+      "buildStatus": "passed",
+      "name": "localHealthkitBridge",
+      "originMainShaAtRun": "2c0434338a9ebd464ba07817c45bc5c8a4748c02",
+      "remoteUrl": "https://github.com/jateeter/localHealthkitBridge.git",
+      "sha": "2c0434338a9ebd464ba07817c45bc5c8a4748c02"
+    },
+    {
+      "buildStatus": "unknown",
+      "name": "localOpenClawStack",
+      "originMainShaAtRun": "aadb899733f8af477d40aef3e5b16d61eb673dd4",
+      "remoteUrl": "git@github.com:jateeter/localOpenClawStack.git",
+      "sha": "aadb899733f8af477d40aef3e5b16d61eb673dd4"
+    }
+  ],
+  "schemaVersion": 1,
+  "transport": {
+    "compliant": true,
+    "gaps": [],
+    "profileId": "re-transport-2026.11"
+  },
+  "version": "release-v0.0.2"
+}
