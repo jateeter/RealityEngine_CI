@@ -422,3 +422,8 @@ and restart the browser.
 
 The release notes, [`releases/release-v0.0.2.md`](releases/release-v0.0.2.md),
 list every limitation and what the release's certification does not cover.
+
+release-v0.0.2 is closed and supported for bug collection and avoidance
+directives only; `release-v0.0.3` is the next release. Defects found since it
+shipped, among them a Scala engine memory leak under autopush, are in the release
+notes under "Deficiencies found after release", each with how to avoid it.
