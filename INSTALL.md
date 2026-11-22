@@ -207,18 +207,34 @@ has a 3 GB heap and the PE a 2 GB heap.
 
 ## Using it
 
-| | |
-|---|---|
-| Manager (Visualizer) | https://localhost:5173 |
-| Instance registry | http://localhost:5999/re-registry.json |
-| localAI API | http://localhost:4000 |
-| Open WebUI | http://localhost:8080 |
-| OpenClaw gateway | http://localhost:18789 |
-| PIM | http://localhost:8090 |
-| Grafana | http://localhost:3002 (user `admin`) |
-| Prometheus | http://localhost:9090 |
-| Qdrant | http://localhost:4333 |
-| MCP | http://localhost:7331 |
+| Service | Address | Client certificate |
+|---|---|---|
+| Manager (Visualizer) | https://localhost:5173 | no |
+| Instance registry | https://localhost:5999/re-registry.json | required |
+| localAI API | https://localhost:4000 | required |
+| Open WebUI | http://localhost:8080 | no (plain HTTP, see below) |
+| OpenClaw gateway | https://localhost:18789 | no (its token instead) |
+| PIM | https://localhost:8090 | no |
+| Grafana | https://localhost:3002 (user `admin`) | no |
+| Prometheus | https://localhost:9090 | required |
+| Qdrant | https://localhost:4333 | required |
+| MCP | https://localhost:7331 | required |
+| Asset storage (dokieli) | https://assets-dokieli.localhost:13444/ | no |
+| Asset storage (pods) | https://assets-css.localhost:13443/ | no |
+
+These are the addresses with TLS on, the release's default. `./realityengine
+urls` prints the install's own; with `RE_TLS=off` every one is `http://`.
+- **Browsers:** run `./realityengine trust-ca` once (next section), and the
+  services marked "no" open without a warning.
+- **Tools:** for a service marked "required", trust the install CA and present a
+  client certificate. The CLI uses `~/.realityengine/pki/issued/harness`. For
+  example:
+
+  ```bash
+  P=~/.realityengine/pki
+  curl --cacert $P/ca/ca.crt --cert $P/issued/harness/cert.pem --key $P/issued/harness/key.pem \
+    https://localhost:5999/re-registry.json
+  ```
 
 The generated passwords (Open WebUI admin, Grafana admin, the Solid account) and
 tokens are in `~/.realityengine/state/secrets.json`.
