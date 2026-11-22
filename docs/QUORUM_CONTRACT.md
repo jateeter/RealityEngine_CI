@@ -55,6 +55,13 @@ A follower:
   to, and a follower's answer never changes what the voters agreed on.
   *Until #842 lands, the harness still reports a follower without counting it.
   The release manager applies this rule by hand from `summary.md`.*
+- **The TypeScript PE is bound to Manager** (owner, 2026-11-22). It follows
+  Manager's lead first, because it exists for Manager's observation, manual
+  testing and validation. Second, it tracks the follower release gate: its
+  verdicts are measured and reported against what the voters agree on, as
+  Go's and Rust's are. A TypeScript PE deviation does not block a release
+  automatically. Each one is decided by the owner **case by case**, and the
+  decision is recorded on the deviation's issue and in the release notes.
 
 **Shipping is not voting.** RealityEngine_Rust ships in release-v0.0.2 (image
 `re-rust`, owner 2026-11-13) as a follower. A released follower is held to the

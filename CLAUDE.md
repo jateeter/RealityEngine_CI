@@ -150,9 +150,13 @@ npm run test:deployment
 
   Lane TLS only: the lifecycle is TLS-only, so `config/prometheus.yml` has no
   asset-workflow job.
-- **Two conformance followers, never votes** (`docs/QUORUM_CONTRACT.md`): RealityEngine_Rust
-  (RE and PE) and, since 2026-11-06, the TypeScript PE in RealityEngine_Manager
-  (PE only). Quorum stays 3-of-3 among C++, LSP and Scala.
+- **Conformance followers, never votes** (`docs/QUORUM_CONTRACT.md`): RealityEngine_Rust
+  (RE and PE), RealityEngine_GO (RE and PE, in development for v0.0.3) and,
+  since 2026-11-06, the TypeScript PE in RealityEngine_Manager (PE only).
+  Quorum stays 3-of-3 among C++, LSP and Scala. Rust and Go must agree, and a
+  deviation blocks the release (#842). The TypeScript PE is bound to Manager:
+  it follows Manager's lead first, tracks the gate second, and its deviations
+  are decided case by case (owner, 2026-11-22).
 - **RealityEngine_Rust validates itself (owner decision, 2026-10-30).** It is a
   non-voting follower with its own self-contained lane (R0 static, R1 corpus
   replay). R2 runs it beside a universe. R3, the follower lane inside
