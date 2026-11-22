@@ -218,11 +218,13 @@ reservation is recorded in `DEPLOYMENT_CONTRACT.md`'s port table in C1.
 *Noted, not changed here:* Rust's fixed 5800/5801 sits on that grid and
 collides with lsp-3.
 
-## Open questions for the owner
+## The other follower
 
-| # | Question |
-|---|---|
-| Q1 | Manager's TypeScript PE is also a follower. D6 names Go and Rust: does the TypeScript PE's release gate change too? (CI#842) |
+Manager's TypeScript PE is bound to Manager (owner, 2026-11-22). It follows
+Manager's lead first and tracks the follower release gate second. The owner
+decides its deviations case by case, and they don't block a release
+automatically. This doesn't change anything in Go's plan: D6 applies to Go and
+Rust as written.
 
 ## Dependencies on other open work
 
