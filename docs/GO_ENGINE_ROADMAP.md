@@ -32,10 +32,15 @@ to what C++, LSP and Scala agree on. It does not mean a vote on day one.
 
 | # | Decision | Consequence |
 |---|---|---|
-| D1 | **Go ships in `release-v0.0.3` as a non-voting conformance follower, with the full surface. Promotion to a voter is the last milestone, after the release.** | Go joins Rust and Manager's TypeScript PE as a follower (QUORUM_CONTRACT §1). Its verdict is shown under each voters' parity result in `summary.md` and never counts. The v0.0.3 certification stays the voters' 3-of-3. |
+| D1 | **Go ships in `release-v0.0.3` as a non-voting conformance follower, with the full surface. Promotion to a voter is the last milestone, after the release.** | Go joins Rust and Manager's TypeScript PE as a follower (QUORUM_CONTRACT §1). Quorum stays the voters' 3-of-3, which Go can neither form nor break. D6 makes Go's agreement a release requirement. |
 | D2 | **Standard minimal CI only. No second exception to "peripheral CI stays minimal".** | The Go repository's hosted workflow runs `gofmt -l`, `go vet`, `go test -race` and `go build`, and nothing else. Corpus replay and the surface probe (Go#9) are tools run locally and from this repository's lanes, never a hosted job. `ENGINEERING_CONTRACT.md` keeps Rust as its one exception. |
+| D3 | **Ports come from `--free-ports`** so instances never collide. **Where fixed ports are required, 5850 (PE) and 5851 (RE) are reserved for Go.** | See [Ports](#ports). |
+| D4 | **K-lines are implemented with full parity and follower compliance:** the K-line store and its routes (CI#603) and the snapshot and restore routes (CI#287), 3-of-3 among the voters, with Go and Rust agreeing. | K-lines move into G2 and are part of the v0.0.3 surface, not declared `unsupported`. |
+| D5 | **The agent gateway is the A2A (Agent2Agent) standard,** with compatible services integrated through it (CI#841). | Go#3 builds an A2A client, not an OpenClaw ACP adapter. |
+| D6 | **Followers must agree with the voters, and a follower that does not blocks the release, for Go and Rust** (CI#842). | This reverses the 2026-11-18 "shown, not counted" rule. A Go or Rust `differs`, `unsupported` or unavailable lane on a certifying run blocks v0.0.3. |
 
 Go#9's open item "agree hosted CI scope with the owner" is settled by D2.
+Go#1's open decisions are settled by D1 and D3–D6.
 
 ## Where it starts
 
@@ -115,15 +120,19 @@ voters agree on.
 | Go#5 | Cloneable templates recognised at load, the clone space, clone and generation-checked recycle, `GET /api/engine/clones`. Run `localAssetStorageStack`'s IFRS chain against Go as a follower (#715). |
 | Go#2 | The rest of the RE tables: `/api/engine/config` and the eight universal controls, `/api/runtime/*`, metrics with CES coverage, Reality Event and sequence routes, machine graph, perceptual simulation (active events and regions, lane notation), sampler, perception, governance, demos, engine SSE. Full-corpus load measured and published. |
 
-**Phase-2 K-line snapshot routes** (`/api/runtime/snapshot*`, `restore`) stay
-declared `unsupported`. No voter implements them today, which is unanimous
-silence (QUORUM_CONTRACT §3), and their scope is CI#603. Go follows when the
-voters do.
+| K-lines (D4) | The K-line store under CI#603: boundaries from the transition rule (opens; closes `completed`, `abandoned`, `subsumed`, `interrupted`), feedback scope to `klineFeedbackHops`, the `re-source-kinds/1` taxonomy, the open table and start-state ring per committed step, the append-only per-instance store under `$RE_INSTANCE_STATE_DIR/klines/<instance_uuid>/` covered by the instance lock, `GET /api/klines`, `/open`, `/:id`, `/stats`, `POST /api/klines/export` (`re-kline-bundle/1`). The snapshot and restore routes under CI#287 (`/api/runtime/snapshot*`, `/api/runtime/restore`) to the SURFACE_SPEC phase-2 acceptance, cross-runtime restore included. Tracked in Go#13 (store, boundaries) and Go#2 (routes). |
 
-**Exit:** every RE-only harness stage runs with `go-1` as a follower and
-reports `agrees` or a filed `differs`; the RE surface record has no
-`unsupported` route outside phase 2; `go test -race` covers concurrent
-processing.
+**K-lines need the voters first.** No runtime implements them today. D4 puts
+them in v0.0.3 on C++, LSP and Scala (CI#603, CI#287), and Go and Rust
+(Rust#81) must agree with what the voters land. Go can build against the spec
+early, but its K-line stages can only be judged once the voters agree. Until
+then they report `not-compared`.
+
+**Exit:** every RE harness stage runs with `go-1` as a follower and reports
+`agrees` (D6). Nothing in the RE surface record is `unsupported`. The K-line
+boundaries stage agrees on the parity key
+`(focal, sequence, open.step, close.step, outcome, path)`. `go test -race`
+covers concurrent processing.
 
 ### G3: the Perception Engine (about 3–4 weeks; can start beside G2)
 
@@ -131,9 +140,10 @@ processing.
 |---|---|
 | Go#8 | PE health, state and config; sources and sensors with TTL; `bootstrap-from-machines` (skip-if-present, honours `machineIds`); machine ingestion; signals; the RE machines proxy; layer-local reset (the PE never resets the RE). |
 | Go#11 | Push cycle (synchronous, asynchronous jobs, auto push), partial-step requests, `lastPush` as the last step, SSE and WebSocket streams that do not leak goroutines. |
-| Go#3 | Integrations (localAI invoke contract, the OpenAI route on the local LLM, HealthKit and CareKit ingest under `localHealthkitBridge/docs/INGEST_CONTRACT.md`), dispatch, the dispatch ledger and replay, triggers, the MQTT bridge with its mapping. Integration scope is decision O3. |
+| Go#3 | Integrations (localAI invoke contract, the OpenAI route on the local LLM, HealthKit and CareKit ingest under `localHealthkitBridge/docs/INGEST_CONTRACT.md`), dispatch, the dispatch ledger and replay, triggers, the MQTT bridge with its mapping. Agent dispatch goes through an **A2A client** under the gateway contract CI#841 (D5), not the OpenClaw ACP adapter. |
 
-**Exit:** the follower lane's PE stages run against Go;
+**Exit:** the follower lane's PE stages agree for Go, the A2A dispatch stage
+included;
 `RealityEngine_Machines/tests/integration/healthkit-ingest-contract.spec.ts`
 passes against the Go PE.
 
@@ -164,10 +174,11 @@ included.
 | Go#14 + C3 | Image `re-go`, the docker lane, the release bundle, clean install, rollback, release notes listing the supported surface and anything still `unsupported`. |
 
 **Exit (v0.0.3 inclusion):** a release candidate whose regression run includes
-`go-1` as a follower on the local and hosted lanes, the release candidate
-certified on the voters' 3-of-3, Go's verdicts recorded per stage, and the E1–E3
-install checks passing with `re-go` in the bundle. A Go `differs` is a
-recorded finding, not a release blocker, as for Rust (D1).
+`go-1` and `rust-1` as followers on the local and hosted lanes. The candidate is
+certified on the voters' 3-of-3, **and both followers record `agrees` on every
+parity stage** (D6, CI#842). The E1–E3 install checks pass with `re-go` in the
+bundle. A follower that differs, is unsupported or whose lane is unavailable
+blocks the release.
 
 ### G6: promotion to voter (after `release-v0.0.3`)
 
@@ -186,28 +197,32 @@ evidence exists. C4 tracks the inventory.
 | ID | Item | Phase | Tracking |
 |---|---|---|---|
 | C1 | **Register RealityEngine_GO in the build and the workspace.** `BUILD_CONTROL_CONTRACT.md` row (`go build -trimpath` for both commands); `regression-test.sh` clone, pin, cold-start worktree and `build_repos()`; `verify-build-provenance.py` entry for both binaries; Go toolchain prerequisite and check (one Go version in `.go-version`, `go.mod`, images and this Mac, as JDK 25 is held); workspace map and this repository's `CLAUDE.md` list Go as a follower in development. | G0 | CI#836 |
-| C2 | **Generalise the follower lane to more than one follower.** `scripts/rust-conformance.sh` → a lane that takes each follower by name; `regression-test.sh --follower rust,go`; one indented verdict line per follower in `summary.md`; `test-followers.sh` covers two followers, an absent one and a deliberate difference; `go-1` ports. | G2–G5 | CI#837 |
+| C2 | **Generalise the follower lane to more than one follower.** `scripts/rust-conformance.sh` → a lane that takes each follower by name; `regression-test.sh --follower rust,go`; one indented verdict line per follower in `summary.md`; `test-followers.sh` covers two followers, an absent one and a deliberate difference; `go` in `allocate-ports.sh` (free claim by default, fixed base 5850, D3). The release-blocking gate itself is CI#842. | G2–G5 | CI#837 |
 | C3 | **Package `re-go`.** `docker/go/Dockerfile` (static binaries, distroless or alpine, the OpenSSL front), compose services `engine-go-re` / `engine-go-pe`, `release/images.json`, `release/init/reinit.py`, `release/realityengine`, `release-images.yml`, `release-manifest.py`, transport inventory and BOM, `install.sh` and `uninstall.sh`, docs. | G4–G5 | CI#838 |
 | C4 | **Promotion inventory.** The list of every file naming the voting set, and the N-of-N change that sweeps them, ready for when a follower qualifies. Not on the v0.0.3 milestone. | G6 | CI#839 (no milestone) |
 
-## Ports (proposal, decision O1)
+## Ports
 
-| Lane | PE | RE | Why |
-|---|---|---|---|
-| native follower lane (`go-1`) | 5850 | 5851 | Off the `allocate-ports.sh` grid: instance *n* of a voter takes base + 100·(n−1), so every *x*00 slot in 5000–5900 belongs to some voter's instance (lsp-2 is 5700/5701). Rust's 5800/5801 sits on that grid and collides with lsp-3; noted, not changed here. |
-| docker lane and release install | 6700 | 6701 | Follows the docker pattern (6100, 6300, 6600, 6900); free today. |
+**Go's ports are allocated with `--free-ports` (`RE_FREE_PORTS=true`)** so no
+two instances can collide (D3). The OS assigns them, and the instance registry
+records them. Every lane that can claim free ports does: the native universe,
+the follower lane and regression.
 
-Under `RE_FREE_PORTS=true` the ports are OS-assigned, as for every engine, and
-the instance registry records them.
+**Where a fixed port is unavoidable, Go has 5850 (PE) and 5851 (RE)
+reserved.** That applies to a docker or release port mapping that must be
+stated in advance, or an operator pin. These sit off the `allocate-ports.sh`
+grid: instance *n* of a voter takes base + 100·(n−1), so every *x*00 slot from
+5000 to 5900 belongs to some voter's instance (lsp-2 is 5700/5701). The
+reservation is recorded in `DEPLOYMENT_CONTRACT.md`'s port table in C1.
 
-## Open decisions for the owner
+*Noted, not changed here:* Rust's fixed 5800/5801 sits on that grid and
+collides with lsp-3.
 
-| # | Question | Proposal |
-|---|---|---|
-| O1 | Ports | The table above. |
-| O2 | Required surface for v0.0.3 | Every RE and PE route the voters implement. Phase-2 K-line routes are declared `unsupported` until the voters implement them (CI#603). |
-| O3 | Integration scope, given the OpenClaw sunset planned for v0.0.3 (`AGENT_GOVERNANCE_REVIEW.md`) | Implement the ACP source and completion mapping against the runtime-neutral ACP contract the voters carry at the time, not the OpenClaw gateway specifically. Go does not build a surface the release is retiring. |
-| O4 | Whether a Go `differs` on a stage can block v0.0.3 | No, as for Rust (D1). Recorded per stage and filed. |
+## Open questions for the owner
+
+| # | Question |
+|---|---|
+| Q1 | Manager's TypeScript PE is also a follower. D6 names Go and Rust: does the TypeScript PE's release gate change too? (CI#842) |
 
 ## Dependencies on other open work
 
@@ -215,8 +230,12 @@ the instance registry records them.
   Rust.
 - **CI#610**, the `/api/health` shape: Go answers as the spec says
   (`{status, timestamp, version}`), as Rust does, until the ruling.
-- **CI#600**, the full Lamport receive rule, and **CI#603**, K-lines: Go
-  implements what the voters carry at G2 and follows later changes.
+- **CI#603 and CI#287**, K-lines and snapshots: the voters' implementation in
+  v0.0.3 is the oracle for Go's K-line stages (D4).
+- **CI#600**, the full Lamport receive rule: Go implements what the voters carry
+  at G2 and follows later changes.
+- **CI#841**, the A2A gateway contract: Go#3's dispatch waits on it.
+- **CI#842**, the follower release gate: G5's exit depends on it.
 - **`FOLD_PLACEMENT.md`**: if applied in v0.0.3, it changes G1's fold site in
   the voters first.
 - **QUORUM_CONTRACT §2**: the participation-state wire shape is specified, and
