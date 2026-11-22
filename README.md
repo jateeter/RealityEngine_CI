@@ -180,12 +180,20 @@ Options:
 | Service | Address |
 |---|---|
 | Manager (Visualizer) | https://localhost:5173 |
-| Instance registry | http://localhost:5999/re-registry.json |
-| localAI API | http://localhost:4000 |
+| Instance registry | https://localhost:5999/re-registry.json |
+| localAI API | https://localhost:4000 |
 | Open WebUI | http://localhost:8080 |
-| OpenClaw gateway (on the Mac, not in Docker) | http://localhost:18789 |
-| PIM | http://localhost:8090 |
-| Grafana | http://localhost:3002 (user `admin`) |
+| OpenClaw gateway (on the Mac, not in Docker) | https://localhost:18789 |
+| PIM | https://localhost:8090 |
+| Grafana | https://localhost:3002 (user `admin`) |
+| Asset storage (dokieli) | https://assets-dokieli.localhost:13444/ |
+
+Every service serves TLS 1.3 except Open WebUI, which serves plain HTTP on
+loopback behind its own login. That is an accepted release-v0.0.2 deficiency.
+Run `./realityengine trust-ca` once so the browser accepts the install's
+certificates. The instance registry and localAI also require a client
+certificate (INSTALL.md, "Certificates and encryption").
+`./realityengine urls` prints this install's addresses.
 
 The generated passwords and tokens are in `~/.realityengine/state/secrets.json`.
 The instance registry lists each engine instance's `re_url` and `pe_url`.
