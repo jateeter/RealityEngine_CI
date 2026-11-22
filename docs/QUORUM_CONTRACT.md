@@ -22,7 +22,9 @@ agreed contract; it is not a fourth vote that can outnumber a disagreement.
 
 Owner decision, 2026-10-30; promotion rule ruled 2026-10-31 (RealityEngine_CI#607).
 A runtime outside C++, LSP and Scala is a **conformance follower**. There are
-two today (owner, 2026-11-06):
+two today (owner, 2026-11-06), and a third is in development for
+release-v0.0.3: RealityEngine_GO, the Go RE and PE (owner, 2026-11-22;
+`docs/GO_ENGINE_ROADMAP.md`):
 
 - `RealityEngine_Rust`, the RE and PE (its lane: `docs/RUST_VALIDATION_WORKFLOW.md`);
 - the TypeScript PE in `RealityEngine_Manager` (`perception-engine/backend/`),
@@ -41,8 +43,18 @@ A follower:
 - It is shown beside the voters (owner, 2026-11-18). Each parity result in a
   regression's `summary.md` carries the follower's verdict on that stage
   (`agrees`, `differs`, `unsupported`, `not-compared`) on an indented line
-  under the voters' result. A follower that differs is reported, not counted:
-  the run's verdict, exit status and issue filing stay the voters' 3-of-3.
+  under the voters' result.
+- **It must agree, and a follower that does not blocks the release** (owner,
+  2026-11-22, RealityEngine_CI#842, reversing 2026-11-18's "reported, not
+  counted"). This applies to RealityEngine_Rust and RealityEngine_GO. On every
+  parity stage of a certifying run, each follower's verdict must be `agrees`.
+  `differs`, `unsupported` and an unavailable follower lane fail the run and
+  block the release. `not-compared` means the voters disagree, which fails the
+  run on its own. A follower still never votes. Blocking a release is not
+  forming or breaking a quorum: the voters' agreement is what a follower is held
+  to, and a follower's answer never changes what the voters agreed on.
+  *Until #842 lands, the harness still reports a follower without counting it.
+  The release manager applies this rule by hand from `summary.md`.*
 
 **Shipping is not voting.** RealityEngine_Rust ships in release-v0.0.2 (image
 `re-rust`, owner 2026-11-13) as a follower. A released follower is held to the

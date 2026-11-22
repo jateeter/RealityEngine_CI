@@ -23,7 +23,12 @@ hosted lane starts none, so it is skipped there.
 voters, and still non-voting. `summary.md` puts its verdict under each voters'
 parity result it ran (`  - Follower rust-1 (non-voting): \`agrees\``). A Rust
 divergence is reported there and in the follower section, and the run still
-passes on the voters' 3-of-3. Shipping in release-v0.0.2 does not make Rust a
+passes on the voters' 3-of-3.
+
+**Amended 2026-11-22 (owner):** followers must agree with the voters, and a
+Rust follower that does not blocks the release (RealityEngine_CI#842). This
+supersedes the 2026-11-18 rule that a divergence leaves the run passing.
+Rust still never votes. Shipping in release-v0.0.2 does not make Rust a
 voter; promotion is the rule in `QUORUM_CONTRACT.md` section 1.
 
 ## The four tiers
@@ -47,9 +52,13 @@ as the e2e rules require. A tier that could not run reports **unavailable**
 | R2 | each phase exit of the repair plan (Rust#2), any Rust change to engine-visible behaviour before it is relied on, and weekly while Rust is under active development | a universe boot plus the follower lane's twelve stages |
 | R3 | every regression run on native engines: `--profile local` (since 2026-11-13) and the 09:17 daily `--profile hosted` run (since 2026-11-14), and so every release candidate | the follower lane's twelve stages inside the full run |
 
-R3 cannot turn a run red: the follower never votes, so the voters'
-certification is unchanged. On the hosted lane, which starts no localAI, the
-lane's localAI slice is skipped; every other stage runs as on the local lane.
+**R3 blocks the release when Rust does not agree** (owner, 2026-11-22;
+RealityEngine_CI#842). Rust never votes, but on a certifying run every parity
+stage must record `agrees` for it. `differs`, `unsupported` or an unavailable
+lane block the release (QUORUM_CONTRACT §1). Until #842 lands, the harness
+reports this without failing the run. On the hosted lane, which starts no
+localAI, the lane's localAI slice is not run for any engine and is reported as
+not run.
 
 These cadences are the starting point; changing them is an edit to this table.
 
