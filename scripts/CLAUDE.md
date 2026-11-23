@@ -30,8 +30,10 @@ section 1, #607). `lib/followers.py` `voters()` drops followers. A stage that
 reads instance data runs it through `voters()` before composing a quorum, as the
 four RE-only parity stages, `regression-arbitration-retention.py` and both
 `quorum_composition()`s do. A new stage does the
-same. Followers are judged only by the follower lane, `rust-conformance.sh`,
-which runs each stage on the voters and then jointly. Its verdicts are
+same. Followers are judged only by the follower lane, `follower-conformance.sh
+--follower rust|go` (`rust-conformance.sh` is kept as the Rust name), which runs
+each stage on the voters and then jointly. `regression-test.sh --follower
+rust,go` runs it once per follower. Its verdicts are
 `agrees`, `differs`, `unsupported` and `not-compared`; see
 `docs/RUST_VALIDATION_WORKFLOW.md`.
 
@@ -517,10 +519,12 @@ The rule is in `docs/ENGINEERING_CONTRACT.md`; the design in
   Prometheus and Grafana, from the profile. On the lane each Go service listens
   on its container's loopback and its front serves the public port with mTLS
   (Grafana's 3000 is the browser's; tls-proxy reaches it on 3443).
-- `rust-conformance.sh` runs on the lane with `RE_TLS=on`: rust-1 serves TLS 1.3
-  with an instance certificate from the lane PKI, every call presents the
-  harness certificate, and rust-1's listeners are probed
-  (`transport-probe-rust.json`).
+- `follower-conformance.sh` runs on the lane with `RE_TLS=on`: rust-1 serves
+  TLS 1.3 with an instance certificate from the lane PKI, every call presents
+  the harness certificate, and its listeners are probed
+  (`transport-probe-rust.json`). go-1 cannot serve the lane's TLS until
+  RealityEngine_GO#6, so on a TLS lane it is `unavailable`, never run in
+  plaintext.
 - `check-insecure-transport.py`: fails a new `http://`, `ws://`, `curl -k`,
   `rejectUnauthorized: false`, `verify=False` or similar, across the focus
   set. The baseline only shrinks; `--write --ref origin/main` records it from

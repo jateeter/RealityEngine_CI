@@ -282,6 +282,9 @@
     "RealityEngine_CI/scripts/examples/test-rs-flipflop.sh": {
       "plaintext-url": 2
     },
+    "RealityEngine_CI/scripts/follower-conformance.sh": {
+      "plaintext-url": 2
+    },
     "RealityEngine_CI/scripts/full-corpus-load-parity.sh": {
       "plaintext-url": 1
     },
@@ -340,9 +343,6 @@
     },
     "RealityEngine_CI/scripts/run-all-tests.sh": {
       "plaintext-url": 9
-    },
-    "RealityEngine_CI/scripts/rust-conformance.sh": {
-      "plaintext-url": 2
     },
     "RealityEngine_CI/scripts/serve-openapi.sh": {
       "plaintext-url": 2

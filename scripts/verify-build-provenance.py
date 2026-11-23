@@ -42,6 +42,7 @@ Usage:
     ./scripts/verify-build-provenance.py --warn-only     # report, always exit 0
     ./scripts/verify-build-provenance.py --repos cpp,scala
     ./scripts/verify-build-provenance.py --repos rust    # opt-in: the follower lane only
+    ./scripts/verify-build-provenance.py --repos go      # opt-in: the follower lane only
     ./scripts/verify-build-provenance.py --no-fetch      # skip the remote comparison
 """
 
@@ -155,6 +156,16 @@ TARGETS: dict[str, dict] = {
         "opt_in": True,
         "artifacts": ["target/release/reality-engine"],
         "sources": ["src/**/*.rs", "Cargo.toml", "Cargo.lock"],
+    },
+    # The second follower (owner, 2026-11-22; RealityEngine_CI#836). Opt-in, as
+    # Rust is: the follower lane, scripts/follower-conformance.sh --follower go,
+    # names it before it launches the build. The binaries embed the surface
+    # inventory (internal/surface/spec-routes.json), so it is a source too.
+    "go": {
+        "dir": "RealityEngine_GO",
+        "opt_in": True,
+        "artifacts": ["bin/reality-engine", "bin/perception-engine"],
+        "sources": ["**/*.go", "go.mod", ".go-version", "internal/surface/spec-routes.json"],
     },
     "machines": {"dir": "RealityEngine_Machines", "artifacts": [], "sources": []},
     "manager": {"dir": "RealityEngine_Manager", "artifacts": [], "sources": []},
