@@ -45,6 +45,15 @@ It is the answer to "how is this repository built", per repository:
 | RealityEngine_Machines | `bash scripts/validate-corpus.sh`, `npm ci`, `npm run typecheck` |
 | RealityEngine_Manager | per package dir: `npm ci`, `npm run build`, `npm run typecheck` |
 | RealityEngine_CI | `npm ci`, `mcp` route fixture regenerated from the C++ source, then `mcp` install + test, `npm run typecheck` |
+| RealityEngine_Rust (follower) | `cargo build --release`, when `--follower` names `rust` (the local and hosted default) |
+| RealityEngine_GO (follower) | `go build -trimpath -o bin/reality-engine ./cmd/reality-engine` and `-o bin/perception-engine ./cmd/perception-engine`, with the pinned Go (`scripts/lib/go-toolchain.sh`), when `--follower` names `go` |
+
+A follower is built, provenance-checked and held against the voters by the
+follower lane (`scripts/follower-conformance.sh`, run by `regression-test.sh`).
+Its regression lives here, not in its own repository's hosted CI: Rust's early
+self-contained workflow moved into this lane, and Go takes the same path from
+the start (owner, 2026-11-23). The follower repositories' hosted checks stay at
+GitGuardian.
 
 Run the whole thing with:
 
@@ -124,6 +133,11 @@ somewhere else.
   previously only worked because the *workflow* had prepared `$HOME` first. A
   harness that runs only when its caller happened to prepare the environment is
   not a harness.
+- **Go** — one version, RealityEngine_GO's `.go-version` (`go.mod` repeats it).
+  `scripts/lib/go-toolchain.sh` finds that exact version on `PATH` or under
+  `~/sdk/go<version>` (`GO_SDK_DIR`) and refuses any other; the build runs with
+  `GOTOOLCHAIN=local`, so Go never fetches a different toolchain. It is held
+  the way JDK 25 is held for Scala.
 
 ## 5. The provenance gate
 

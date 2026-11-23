@@ -2,7 +2,9 @@
 # Unit tests for conformance followers (docs/QUORUM_CONTRACT.md section 1,
 # RealityEngine_CI#607): scripts/lib/followers.py, the follower filter in the
 # parity stages and quorum_composition(), and the follower lane's
-# unavailable exits (scripts/rust-conformance.sh).
+# unavailable exits (scripts/follower-conformance.sh, for rust and go, and the
+# rust-conformance.sh wrapper), the follower list of regression-test.sh and the
+# Go entry of the build provenance gate.
 #
 # The rule under test is that a follower never votes: a 2-1 split among the
 # voters stays a disagreement whatever the follower says, and a follower that
@@ -219,24 +221,53 @@ grep -q 'current.setdefault(label, {}).update(bodies)' "$CI_DIR/scripts/regressi
   && ok "regression-arbitration-retention.py records per runtime" \
   || bad "regression-arbitration-retention.py replaces each label's whole map when recording"
 
-# ── the lane runs rust-1 as an RE+PE pair ────────────────────────────────────
-grep -q '"re_url": url, "pe_url": pe_url,' "$CI_DIR/scripts/rust-conformance.sh" \
-  && ! grep -q '"pe_participation": "unsupported"' "$CI_DIR/scripts/rust-conformance.sh" \
-  && ok "the lane registers rust-1 with its PE" \
-  || bad "the lane registers rust-1 without its PE"
-for stage in trajectory pe-step-contract reset-contract; do
-  grep -qE "^STAGES=.*|^ +.*\b$stage\b" "$CI_DIR/scripts/rust-conformance.sh" \
-    && grep -q "^    $stage) python3" "$CI_DIR/scripts/rust-conformance.sh" \
+# ── the lane runs the follower as an RE+PE pair ──────────────────────────────
+LANE="$CI_DIR/scripts/follower-conformance.sh"
+grep -q '"re_url": url, "pe_url": pe_url,' "$LANE" \
+  && ! grep -q '"pe_participation": "unsupported"' "$LANE" \
+  && ok "the lane registers the follower with its PE" \
+  || bad "the lane registers the follower without its PE"
+for stage in machine-set engine-process export engine-config arbitration-retention trajectory pe-step-contract reset-contract escalation-dispatch arbiter metrics-parity mqtt-yuma; do
+  grep -qE "^STAGES=.*|^ +.*\b$stage\b" "$LANE" \
+    && grep -qE "^    $stage\) " "$LANE" \
     && ok "the lane runs $stage" || bad "the lane does not run $stage"
 done
 
 # ── the lane: unavailable is exit 3, never a pass ────────────────────────────
-lane() { "$CI_DIR/scripts/rust-conformance.sh" --out "$TMP/lane" --no-build "$@" >"$TMP/lane.out" 2>&1; echo $?; }
+lane() { "$LANE" --out "$TMP/lane" --no-build "$@" >"$TMP/lane.out" 2>&1; echo $?; }
 expect "the lane with no universe is unavailable" 3 \
   "$(lane --registry "$TMP/none.json")"
-registry 5871 5872 5873
 expect "the lane without a corpus it can name is unavailable" 3 \
   "$(RE_UNIVERSE_REGISTRY_URL_FILE=/dev/null lane --registry "$TMP/registry.json" --corpus "$TMP/no-such-corpus")"
+expect "go-1 with no universe is unavailable" 3 \
+  "$(lane --follower go --registry "$TMP/none.json")"
+grep -q 'go-1 unavailable' "$TMP/lane.out" && ok "go-1's unavailable names go-1" || bad "go-1's unavailable does not name go-1"
+expect "go-1 on a TLS lane is unavailable (RealityEngine_GO#6), never plaintext" 3 \
+  "$(RE_TLS=on lane --follower go)"
+grep -q 'RealityEngine_GO#6' "$TMP/lane.out" && ok "the TLS refusal names RealityEngine_GO#6" || bad "the TLS refusal does not name RealityEngine_GO#6"
+expect "an unknown follower is a usage error" 2 "$(lane --follower cobol)"
+wrapped() { "$CI_DIR/scripts/rust-conformance.sh" --out "$TMP/lane" --no-build --registry "$TMP/none.json" >"$TMP/lane.out" 2>&1; echo $?; }
+expect "rust-conformance.sh is the lane for rust" 3 "$(wrapped)"
+grep -q 'rust-1 unavailable' "$TMP/lane.out" && ok "the wrapper runs rust-1" || bad "the wrapper does not run rust-1"
+
+# ── regression-test.sh takes a follower list ─────────────────────────────────
+plan() { "$CI_DIR/scripts/regression-test.sh" --profile local --follower "$1" >"$TMP/plan.out" 2>&1; echo $?; }
+expect "regression-test.sh --follower rust,go plans" 0 "$(plan rust,go)"
+grep -q 'RealityEngine_GO' "$TMP/plan.out" && ok "the plan pins RealityEngine_GO for --follower go" || bad "the plan does not pin RealityEngine_GO"
+expect "regression-test.sh refuses an unknown follower" 2 "$(plan rust,cobol)"
+
+# ── the build provenance gate knows Go, opt-in ───────────────────────────────
+if python3 - "$CI_DIR/scripts/verify-build-provenance.py" <<'PROV'
+import importlib.util, sys
+spec = importlib.util.spec_from_file_location("prov", sys.argv[1])
+m = importlib.util.module_from_spec(spec); spec.loader.exec_module(m)
+go = m.TARGETS["go"]
+assert go["opt_in"] and go["dir"] == "RealityEngine_GO"
+assert set(go["artifacts"]) == {"bin/reality-engine", "bin/perception-engine"}
+PROV
+then ok "provenance: go is an opt-in target with both binaries"
+else bad "provenance: go entry missing or not opt-in"
+fi
 
 echo
 echo "followers: $PASS passed, $FAIL failed"

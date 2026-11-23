@@ -209,17 +209,22 @@ Options:
                             Default: regression
                             on both profiles. full is an explicit opt-in and is
                             refused under --profile hosted.
-  --follower rust           Build RealityEngine_Rust and hold it against the
-                            voters as a non-voting follower (tier R3 of
-                            docs/RUST_VALIDATION_WORKFLOW.md), through the
-                            follower lane, scripts/rust-conformance.sh. Reported
-                            in its own section and reports/follower-rust/; never
-                            part of this run's verdict or exit status.
-                            Default under --profile local and hosted, so the
-                            daily run includes it: the release ships Rust from
-                            release-v0.0.2 (owner, 2026-11-13/14). Without
-                            localAI (hosted) the lane skips its localAI slice.
-                            Refused under --profile local-containerized.
+  --follower LIST           Build each named follower (rust, go; comma-separated)
+                            and hold it against the voters as a non-voting
+                            follower (tier R3 of docs/RUST_VALIDATION_WORKFLOW.md,
+                            the pattern every follower takes), through the
+                            follower lane, scripts/follower-conformance.sh.
+                            Each is reported in its own section and
+                            reports/follower-<name>/; never part of this run's
+                            stage verdicts or exit status (the release gate,
+                            #842, reads them). Default: rust under --profile
+                            local and hosted, so the daily run includes it: the
+                            release ships Rust from release-v0.0.2 (owner,
+                            2026-11-13/14). Go is opt-in (--follower rust,go)
+                            while it is in development for release-v0.0.3
+                            (RealityEngine_CI#836, #837). Without localAI
+                            (hosted) the lane skips its localAI slice. Refused
+                            under --profile local-containerized.
   --no-follower             Run without the follower.
   --retain N                Keep latest N local run histories. Default: 20
   --compare RUN_ID          Compare against a previous run id. Default: latest completed run.
@@ -407,18 +412,29 @@ OPENCLAW_HEALTH_URL="$LANE_SCHEME://localhost:18789"
 # profiles. CONTAINERIZED: the engines, Manager, localAI and OpenClaw come from
 # the release images, not from native builds.
 # A follower is built and measured with the run but never votes (R3,
-# docs/RUST_VALIDATION_WORKFLOW.md). Rust is the only follower, and the lane
-# that holds it against the voters runs beside native engines only.
-case "$FOLLOWER" in
-  "") ;;
-  rust)
-    if [ "$PROFILE" = local-containerized ]; then
-      echo "error: --follower runs beside native engines (--profile local or hosted; this is $PROFILE)" >&2
-      exit 2
-    fi
-    REPOS+=(RealityEngine_Rust) ;;
-  *) echo "error: --follower takes rust (got '$FOLLOWER')" >&2; exit 2 ;;
-esac
+# docs/RUST_VALIDATION_WORKFLOW.md). The followers are Rust and Go (owner,
+# 2026-11-22), and the lane that holds them against the voters runs beside
+# native engines only. FOLLOWERS is the parsed list; FOLLOWER stays the
+# comma-separated form the provenance gate takes.
+FOLLOWERS=()
+if [ -n "$FOLLOWER" ]; then
+  if [ "$PROFILE" = local-containerized ]; then
+    echo "error: --follower runs beside native engines (--profile local or hosted; this is $PROFILE)" >&2
+    exit 2
+  fi
+  IFS=',' read -r -a FOLLOWERS <<< "$FOLLOWER"
+fi
+follower_repo() {  # follower_repo <name>: the repository a follower builds from
+  case "$1" in
+    rust) echo RealityEngine_Rust ;;
+    go) echo RealityEngine_GO ;;
+    *) return 1 ;;
+  esac
+}
+for f in ${FOLLOWERS[@]+"${FOLLOWERS[@]}"}; do
+  repo="$(follower_repo "$f")" || { echo "error: --follower takes rust and/or go (got '$f')" >&2; exit 2; }
+  [[ " ${REPOS[*]} " == *" $repo "* ]] || REPOS+=("$repo")
+done
 # The release ships Rust's image (re-rust, owner 2026-11-12), so the
 # containerized lane pins RealityEngine_Rust to build it; it is still a follower
 # there and never votes.
@@ -758,6 +774,7 @@ plan() {
   log "local ai:     $LOCAL_AI"
   [ "$LOCAL_AI" = true ] && log "ollama model: ${OLLAMA_MODEL:-<engine default>}"
   log "corpus:       $MACHINE_CORPUS"
+  log "followers:    ${FOLLOWER:-<none>} (non-voting; reports/follower-<name>/)"
   log "mqtt broker:  ${MQTT_BROKER_URL:-<not configured>}"
   log "lane tls:     ${RE_TLS:-off}"
   log "secrets home: $RE_SECRETS_DIR"
@@ -1233,10 +1250,15 @@ build_repos() {
     containerized_build_images || { log "Release images failed; nothing to install."; exit 1; }
   else
   run_repo_cmd "RealityEngine_CPP" "build" "build-cpp" bash -lc "cd '$(repo_root RealityEngine_CPP)' && make all"
-  if [ "$FOLLOWER" = rust ]; then
-    run_repo_cmd "RealityEngine_Rust" "build" "build-rust" bash -lc \
-      "cd '$(repo_root RealityEngine_Rust)' && cargo build --release --quiet"
-  fi
+  for f in ${FOLLOWERS[@]+"${FOLLOWERS[@]}"}; do
+    case "$f" in
+      rust) run_repo_cmd "RealityEngine_Rust" "build" "build-rust" bash -lc \
+              "cd '$(repo_root RealityEngine_Rust)' && cargo build --release --quiet" ;;
+      # The pinned Go (.go-version), never a fetched toolchain (#836).
+      go) run_repo_cmd "RealityEngine_GO" "build" "build-go" bash -c \
+            "source '$(repo_root RealityEngine_CI)/scripts/lib/go-toolchain.sh' && go_build_engines '$(repo_root RealityEngine_GO)'" ;;
+    esac
+  done
   # RealityEngine_LSP/quicklisp/ is untracked, so a cold-start worktree never
   # has it and `make build` dies with "Missing Quicklisp". The hosted lane only
   # worked because the *workflow* bootstrapped Quicklisp into $HOME before
@@ -2753,28 +2775,34 @@ retain_history() {
 # section passed, and the issue filer could only call it "unspecified" — #350
 # was red every night for three weeks with nothing in it naming why.
 STAGE_FAILURES=()
-# The follower (R3): rust-1 held against the voters through the follower lane,
-# on this run's universe, corpus, broker and worktree build. Not a run_stage:
-# its result goes to reports/follower-rust/ and reports/follower-results.tsv,
-# never to STAGE_FAILURES, so a follower can neither fail nor pass this run
-# (docs/QUORUM_CONTRACT.md section 1). It runs before mcp: the MCP smoke
+# The followers (R3): each (rust-1, go-1) held against the voters through the
+# follower lane, on this run's universe, corpus, broker and worktree build, one
+# after another. Not a run_stage: each result goes to reports/follower-<name>/
+# and reports/follower-results.tsv, never to STAGE_FAILURES, so a follower can
+# neither fail nor pass a stage of this run (docs/QUORUM_CONTRACT.md section 1);
+# the release gate (#842) reads them. It runs before mcp: the MCP smoke
 # registers sources (cell 4200) on the voters that no reset removes and rust-1,
 # started later, never receives, so after it trajectory and reset-contract
 # differ on that residue alone (run 20261104T195423Z). The lane resets every
 # voter it reads, and restores the MQTT sensors its own mqtt-yuma leaves; every
 # voting stage after it resets or registers for itself.
 run_follower() {
-  [ -n "$FOLLOWER" ] || return 0
-  step "Follower: rust-1 against the voters (non-voting; not part of this run's verdict)"
-  local ci out status=0
+  local ci f id out status
   ci="$(repo_root RealityEngine_CI)"
-  out="$REPORT_DIR/follower-rust"
-  bash "$ci/scripts/rust-conformance.sh" --rust-repo "$(repo_root RealityEngine_Rust)" \
-    --registry "$REGISTRY_FILE" --no-build --out "$out" \
-    --mqtt-broker-url "${MQTT_BROKER_URL:-none}" > "$LOG_DIR/follower-rust.log" 2>&1 || status=$?
-  printf 'rust-1\t%s\n' "$status" >> "$REPORT_DIR/follower-results.tsv"
-  sed -n '/== rust-1 against the voters/,$p' "$LOG_DIR/follower-rust.log" || true
-  log "follower rust-1: lane exit $status (0 agrees, 1 differs, 3 unavailable); report $out/summary.json"
+  for f in ${FOLLOWERS[@]+"${FOLLOWERS[@]}"}; do
+    id="$f-1"
+    step "Follower: $id against the voters (non-voting; not a stage of this run)"
+    out="$REPORT_DIR/follower-$f"
+    status=0
+    bash "$ci/scripts/follower-conformance.sh" --follower "$f" --repo "$(repo_root "$(follower_repo "$f")")" \
+      --registry "$REGISTRY_FILE" --no-build --out "$out" \
+      --mqtt-broker-url "${MQTT_BROKER_URL:-none}" > "$LOG_DIR/follower-$f.log" 2>&1 || status=$?
+    printf '%s\t%s\n' "$id" "$status" >> "$REPORT_DIR/follower-results.tsv"
+    sed -n "/== $id against the voters/,\$p" "$LOG_DIR/follower-$f.log" || true
+    # An unavailable lane (3) says why on its last line; show it.
+    [ "$status" -ne 3 ] || tail -1 "$LOG_DIR/follower-$f.log" || true
+    log "follower $id: lane exit $status (0 agrees, 1 differs, 3 unavailable); report $out/summary.json"
+  done
   return 0
 }
 
