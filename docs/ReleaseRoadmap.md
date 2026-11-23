@@ -963,6 +963,32 @@ supported for bug collection and avoidance directives only; its defects and
 open limitations are on the `release-v0.0.3` milestone. The record below is
 kept as it stood.
 
+**In scope for `release-v0.0.3`** (owner, 2026-11-22):
+
+- `RealityEngine_GO`, a Go RE and PE: first-class dFSA engines with the full
+  RE and PE surface (machine loading and transitions, the output fold, the
+  ISRE/OSRE step, clones, K-lines, the whole PE), on the suite's TLS profile.
+  They ship as image `re-go`, a **non-voting conformance follower** like Rust
+  (`QUORUM_CONTRACT.md` section 1). Promotion to a voter is a separate change
+  after the release. The Go repository's CI stays minimal: no second
+  exception to the engineering contract. Ports come from `--free-ports`, and
+  5850/5851 are reserved where a fixed port is required. The plan is
+  [`GO_ENGINE_ROADMAP.md`](GO_ENGINE_ROADMAP.md): phases G0–G6, the Go
+  repository's issues #1–#14 and the suite-side items C1–C4 (CI#836–#839).
+
+- **Followers block the release** (owner, 2026-11-22; CI#842). Go and Rust
+  must agree with the voters on every parity stage of the certifying run. A
+  follower that differs, is unsupported or is unavailable blocks the release.
+  Followers stay non-voting. This reverses 2026-11-18 (#793).
+
+- **K-lines with full parity and follower compliance** (owner, 2026-11-22):
+  the K-line store (CI#603) and snapshots and restore (CI#287), 3-of-3 among
+  the voters, with Go and Rust (Rust#81) agreeing.
+
+- **The agent gateway is A2A** (owner, 2026-11-22; CI#841). Compatible
+  services are integrated through the A2A standard, replacing OpenClaw, which
+  is sunset in v0.0.3.
+
 **Gates for `release-v0.0.2`** (owner, 2026-10-29 and 2026-10-30):
 
 - CI#663: Ollama and OpenClaw always updated to current; minimum floors kept,
