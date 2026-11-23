@@ -275,8 +275,11 @@ here, on purpose, and this section will say so.
 validation workflow. Since release-v0.0.2 ships Rust (owner, 2026-11-13), the
 full regression suite also runs it, as a non-voting follower, in every
 regression run on native engines, local and the hosted daily run (R3; owner,
-2026-11-14). Its verdict is shown beside the voters' parity results and never
-counts (owner, 2026-11-18). It is not in the focus set above. The
+2026-11-14). Its verdict is shown beside the voters' parity results. It never
+votes, but it must agree, and a Rust that does not blocks the release (owner,
+2026-11-22, RealityEngine_CI#842, superseding 2026-11-18's "never counts").
+It is not in the focus set above. RealityEngine_GO, the second follower
+engine, takes no exception: its CI stays minimal (owner, 2026-11-22). The
 tiers, their cadence and what each one proves are
 [`RUST_VALIDATION_WORKFLOW.md`](RUST_VALIDATION_WORKFLOW.md); the exception is
 bounded here so it cannot drift into the general case:
