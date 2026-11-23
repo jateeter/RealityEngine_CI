@@ -409,7 +409,7 @@ constructing it.
 | K14 | Operator surface and OpenClaw migration | Manager/CI | K2, K4 | open |
 | A13 | v0.0.3 compatible service: LangGraph over A2A with LangChain, in the new `localLangChainStack` | owner | — | decided 2026-11-23 |
 | A14 | Serving path: open-source `langgraph` + A2A Python SDK, on the Agent Server's resource model | owner | — | decided 2026-11-23; dependency check, licence inventory and telemetry-off check open in localLangChainStack#2 before release-v0.0.3 |
-| L1 | `localLangChainStack` in the focus set, build control, regression and release | CI | repository created | open |
+| L1 | `localLangChainStack` in the focus set, build control, regression and release | CI | repository created | open: #847; the stack's own work is localLangChainStack#2–#9 |
 | L2 | Migrate or close the localOpenClawStack v0.0.3 issues; OpenClaw stages become `acs-a2a` | CI/OCS | L1, K12 | open |
 | B1 | Re-pin: the current ACS release (v0.1.4 or later; the review recommended retargeting) and A2A v1.0.x, both vendored | CI | — | open |
 | B4 | `docs/A2A_GATEWAY_CONTRACT.md` (#841 scope 1; K1): dispatch, ingress, Agent Card per instance, task-state ↔ ledger mapping, the containment boundary | CI/docs | B1 | open |
