@@ -1,8 +1,8 @@
 # RealityEngine A2A Framework Specification
 
 **Version:** `re-a2a-v0.1-draft`. Last reviewed: 2026-11-23.
-**Status: draft for owner review.** Nothing here is settled until the owner
-approves it. Each open choice is listed in § 13.
+**Status: draft for owner review.** Owner rulings of 2026-11-23 on Q2–Q6 are
+applied (§ 13). Q1 is open.
 
 This document is task **K1** in `docs/OWASP_ACS_ROADMAP.md` § A2A, and its
 § 6 is task **K3**. It is the master that every engine's implementation of the
@@ -89,6 +89,13 @@ states.
 
 ### 4.1 The flow
 
+**The step's engine PE dispatches** (owner, 2026-11-23, Q5). Every dispatch,
+including a workflow step's clone agent, is sent by the framework in the PE of
+the engine instance that runs the step. Manager's TypeScript framework
+dispatches only for Manager's own workflows, never in the basic PE → RE → PE
+cycle. Manager's instantiation component asks the step's engine to clone and
+observes; it does not send the A2A message.
+
 1. A CES match records a dispatch envelope in the PE's ledger, as today. The PE
    cycle is done with it at that point (2.4).
 2. The runner claims the record, idempotently by `dispatchId` `[V-D1]`.
@@ -125,7 +132,8 @@ deprecation window (§ 9).
 | (not yet sent) | `recorded`, today's value | — |
 | `submitted`, `working` | `delivering` | — |
 | `completed` | `delivered` | **return** (§ 6.4) |
-| `input-required` | `delivering`; the record notes `awaiting-input` | **park** (§ 6.4) |
+| `input-required` | **`parked`** (new) | **park** (§ 6.4) |
+| (the lifecycle resumes the parked continuation) | **`unparked`** (new), then `delivering` while the resumed step runs | resume |
 | `failed` | `failed`, `error: "a2a:failed:<reason>"` | **fail** (§ 6.4) |
 | `canceled` | `failed`, `error: "a2a:canceled"` | **fail** |
 | `rejected` | `failed`, `error: "a2a:rejected:<reason>"` | **fail** |
@@ -134,24 +142,56 @@ deprecation window (§ 9).
 
 Notes on the table:
 - **Status names.** `recorded`, `delivering` and `delivered` are the statuses
-  the voters already write. C++ (`perception_engine_server.cpp`) and LSP
-  (`perception-service.lisp`) write them in their provider adapters, and Scala
-  writes them through `PATCH /api/dispatch/records/:id`. Only the
-  `awaiting-input` note is new (§ 13, Q3).
+  the voters already write: C++ (`perception_engine_server.cpp`) and LSP
+  (`perception-service.lisp`) in their provider adapters, Scala through
+  `PATCH /api/dispatch/records/:id`. **`parked` and `unparked` are new ledger
+  statuses** (owner, 2026-11-23, Q3). They are a SURFACE_SPEC change on every
+  PE, compared 3-of-3: `PATCH /api/dispatch/records/:id` accepts them, and
+  `dispatch.record.updated` broadcasts them.
 - **Receipt fields.** The A2A `taskId` and `contextId` are recorded in
   `providerReceipt` (`externalRunId: taskId`), and so is the agent's card URL.
 
-### 4.4 Message identity
+### 4.4 Message identity and the context
 
 A dispatch's A2A identities are deterministic, so that a retry is recognisable
 and parity can be compared:
 
 - `messageId` = `"re:" + instance_uuid + ":" + dispatchId + ":" + attempt`
   `[V-D2]`.
-- `contextId` is the frame's assetID when the dispatch carries one. Otherwise
-  it is `"re:" + instance_uuid + ":" + dispatchId` `[V-D3]`.
+- `contextId` is set by the dispatch's **context scope** (§ 4.5) `[V-D3]`.
 - `taskId` is minted by the agent (A2A does not let the client choose it), and
   is recorded in the receipt.
+
+### 4.5 Context scope: the context's lifecycle is configuration
+
+Owner, 2026-11-23 (Q2): a workflow chooses how long an agent's context lives.
+A context may be unique to one frame, span any number of frames, or travel
+with the continuation. Every frame has a continuation. **The context's
+lifecycle is a primary configuration knob, and it also gives the work a
+temporal information contour:** the context's opening and closing, measured on
+the instance clock, bound what the agent may carry from one step to the next.
+
+| Scope | `contextId` | Opens | Closes |
+|---|---|---|---|
+| `frame` | `"re:ctx:frame:" + assetId + ":" + continuationId` | the step's dispatch | the step's terminal outcome (return, fail, escape) |
+| `continuation` | `"re:ctx:cont:" + assetId + ":" + delimiter` | the first step of the continuation chain | the frame's close or abandon; it **travels** with the continuation through park, resume and rework |
+| `span` | `"re:ctx:span:" + spanId` | the first step that names `spanId` | an explicit close by the workflow, or the close of the last frame that names it; it spans an indeterminate number of frames |
+| `dispatch` (no frame) | `"re:" + instance_uuid + ":" + dispatchId` | the dispatch | its terminal state |
+
+Rules:
+- **Where the scope is declared:** the scope comes from the template's agent
+  binding (`agentBinding.context`: `{scope, spanId?}`), schema-checked in
+  RealityEngine_Machines (K3). A frame step with no declaration takes
+  `frame`. An ordinary dispatch with no frame takes `dispatch`.
+- **No reuse:** a context id is never reused after it closes. A closed
+  context's agent state is not readable by a later context `[V-D4]`.
+- **The contour:** the extension's `context` member (§ 6.3) carries the scope,
+  the id, and the instance-clock value at which the context opened. A closing
+  is recorded in the audit chain. Together these give each step its temporal
+  contour: what the agent knew, from when.
+- **The lifecycle stays the authority** for the frame and its continuation. A
+  context never outlives the frame chain it serves, except a `span`, which
+  closes only explicitly or with its last frame.
 
 ## 5. Ingress
 
@@ -246,6 +286,11 @@ only.
     "skill": "<skill id>",
     "clock": { "instance": "<instance_uuid>", "lamport": 1234, "step": 56 }
   },
+  "context": {
+    "scope": "continuation",
+    "contextId": "re:ctx:cont:<assetID>:<delimiter>",
+    "opened": { "instance": "<instance_uuid>", "lamport": 1200, "step": 50 }
+  },
   "frame": {
     "assetId": "<assetID>",
     "delimiter": "<case delimiter>",
@@ -281,6 +326,8 @@ The field meanings and sources:
   the extension, a log, a trace or the audit chain `[V-X2]`.
 - **`dispatch`:** copied from the ledger record and the instance clock. It
   never uses a wall-clock time `[V-X3]`.
+- **`context`:** the scope and id of § 4.5, and the instance-clock value at
+  which the context opened. It is present on every message `[V-X7]`.
 
 ### 6.4 The return
 
@@ -357,16 +404,64 @@ Every implementation must produce **the same bytes** for the same inputs:
 - **Fail closed:** no answer, a timeout or an error is `deny` (A5) `[V-G1]`.
 - **The decision record** is `{hook, disposition, reason, policyDigest,
   requestId, sessionId, clock}`, and it is appended to the audit chain.
-- **Policy is data with exact semantics** (K7, specified separately in
-  `docs/A2A_POLICY_SPEC.md`, to be written). It is an ordered decision table
-  over the hook payload: first match wins, total, and denies by default. Each
-  engine evaluates it natively, and the same table gives the same decision in
-  every implementation `[V-G2]`. An optional out-of-process Guardian (OPA, the
-  upstream reference) is an interoperability check behind the same port, never
-  the release Guardian.
+- **Policy is data with exact semantics** (K7, § 7.1, owner 2026-11-23 Q6:
+  a chapter here). Each engine evaluates it natively, and the same table gives
+  the same decision in every implementation `[V-G2]`. An optional
+  out-of-process Guardian (OPA, the upstream reference) is an interoperability
+  check behind the same port, never the release Guardian.
 - **What a decision may change:** `modify` redacts the prompt and metadata
   only. It never touches values, `sourceMappingId`, region, TTL, the target, or
   any member of the extension `[V-G3]`.
+
+### 7.1 The policy decision table
+
+A policy is one JSON document per engine instance. In regression and the
+release default, every instance has the same document.
+
+```json
+{
+  "policyVersion": "re-a2a-policy-v0.1",
+  "default": { "disposition": "deny", "reason": "no-rule" },
+  "rules": [
+    { "id": "allow-reply-from-langstack",
+      "hook": "userMessage",
+      "when": { "all": [
+        { "field": "caller.service", "op": "eq", "value": "localLangChainStack" },
+        { "field": "extension.dispatch.skill", "op": "in", "value": ["re.reply"] }
+      ] },
+      "then": { "disposition": "allow" } }
+  ]
+}
+```
+
+**Evaluation** is exact and the same everywhere:
+1. The rules are tried in document order. **The first rule** whose `hook`
+   equals the hook being decided and whose `when` holds **decides**.
+2. If none holds, `default` decides. A document without a `default` is
+   refused at load, so the table is always total.
+3. `when` is a tree of `all` (every child holds), `any` (some child holds),
+   `not` (its child doesn't hold) and leaf tests.
+4. **Leaf tests:**
+   - `field` is a dotted path into the hook's payload: `caller.*`,
+     `extension.*`, `target.*`, `prompt.*` and `values.*`, as § 3's interfaces
+     supply them.
+   - `op` is one of `eq`, `ne`, `in`, `notIn`, `prefix`, `exists` or
+     `absent`.
+   - There are no regular expressions, arithmetic or functions, so the
+     semantics stay identical across six languages.
+   - Comparison is on JCS-canonical values (§ 6.6). A number equals a number
+     with the same canonical form, and a string never equals a number.
+   - A path that doesn't exist makes every op false except `absent`.
+5. `then` names a disposition (`allow`, `deny`, `ask`, `defer`, or `modify`
+   with a `redact` list of payload paths) and an optional `reason`. A
+   disposition the hook cannot take (`docs/OWASP_ACS_ROADMAP.md` A3) is refused
+   at load.
+6. **`policyDigest`** is SHA-256 over the document's JCS bytes. It is part of
+   every decision record.
+
+**What policy may not read** (invariant 2.3): `triggerConfig`, severity,
+paging, runbook and SLA fields are not offered to `field`. A rule that names
+them is refused at load `[V-G4]`.
 
 ## 8. Audit, provenance and signing
 
@@ -397,7 +492,11 @@ route is served by every PE, and compared 3-of-3.
 | POST | `/api/integrations/a2a/asks/:id` | an operator's `approve` or `deny` |
 | GET, PATCH | `/api/dispatch/ledger`, `/api/dispatch/records/:id` | unchanged |
 
-**Deprecated over one release** (v0.0.3 serves both, v0.0.4 removes them):
+**Deprecated incrementally over the milestone** (owner, 2026-11-23, Q4). Each
+deprecation proceeds step by step through the milestone's duration, each step
+a reviewed change with both forms served while it migrates. The old form is
+removed **when the milestone is achieved** (for these, release-v0.0.3). The
+deprecated items are:
 - `/api/integrations/acp/status` and `/api/integrations/acp/dispatch`;
 - `/api/integrations/completions` as an external route. Ingress is in-process
   now; Manager's manual testing keeps it until then;
@@ -481,24 +580,30 @@ A resolution may decide how a rule is realised. It may never change what is
 observable at the boundary. The repository's `CLAUDE.md` and `AGENTS.md`
 point to both documents.
 
-## 13. Open questions for the owner
+## 13. Owner rulings and open questions
 
-- **Q1. Extension URI.** Use `urn:realityengine:a2a:ext:v0.1`, or a resolvable
-  URL that serves this document.
-- **Q2. `contextId` for a frame.** This draft sets `contextId` to the assetID,
-  so every step of a frame shares one A2A context, and a compatible service's
-  thread is keyed by `assetId + continuationId`. The alternative is one context
-  per continuation.
-- **Q3. The park state in the ledger.** An agent's `input-required` maps to
-  the existing `delivering` plus an `awaiting-input` note in
-  `providerReceipt`. The alternative is a new ledger status, which would be a
-  SURFACE_SPEC change on every PE.
-- **Q4. The deprecation window.** One release (v0.0.3 serves both, v0.0.4
-  removes them), or longer.
-- **Q5. Who dispatches a workflow step.** Today Manager's instantiation
-  component dispatches clone agents. Under this specification, does it ask the
-  step's engine PE to dispatch (the clone is on that engine), or does it call
-  a PE's framework in-process? Manager's TypeScript PE is a framework
-  implementation of its own.
-- **Q6. Policy specification.** K7's decision-table format as its own document
-  (`docs/A2A_POLICY_SPEC.md`), or a chapter here.
+Rulings of 2026-11-23 (PR #848):
+
+- **Q2, context:** all three lifetimes are needed, plus the context-free
+  dispatch. The lifecycle of the context is a primary configuration knob and a
+  temporal information contour (§ 4.5).
+- **Q3, park:** `parked` is a new ledger status, as is `unparked` (§ 4.3).
+- **Q4, deprecation:** each deprecation proceeds incrementally over the
+  milestone, and completes when the milestone is achieved (§ 9).
+- **Q5, who dispatches:** the step's engine PE. Manager's TypeScript framework
+  is involved only in Manager workflows (§ 4.1).
+- **Q6, policy:** a chapter here (§ 7.1).
+
+Open:
+
+- **Q1, the extension's identifier.** A2A names each extension by a URI. The
+  URI is only an identifier: agents list it in their Agent Card, and clients
+  activate it per request. Nothing in an existing URI is being extended. The
+  choice is which string identifies RealityEngine's extension:
+  - a URN, `urn:realityengine:a2a:ext:v0.1`, which needs no hosting; or
+  - a URL that resolves to this specification, for example its published
+    page, so an outside agent's developer can read what the extension
+    requires.
+
+  Either way the version is part of the identifier, so a new extension version
+  is a new URI.
