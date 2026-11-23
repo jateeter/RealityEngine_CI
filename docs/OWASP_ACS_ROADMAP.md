@@ -331,6 +331,11 @@ constructing it.
   under its licence terms, or serve the LangGraph graphs with the official A2A
   Python SDK (open-source `langgraph` plus `a2a-sdk`, no Agent Server). The
   second keeps LangGraph and LangChain in the flow without a licence server.
+  PyPI metadata (2026-11-23) lists `langgraph-api` as `Elastic-2.0`. The
+  repository's first version already takes the second path (`a2a-sdk` 1.0.3,
+  Apache-2.0; `langgraph` 1.0.10, MIT; `langchain-ollama` 1.0.1, MIT).
+  **A14 must be resolved before release-v0.0.3,** tracked in
+  localLangChainStack#2.
 - **OpenClaw's sunset.** The `localOpenClawStack` issues on the
   `release-v0.0.3` milestone (#68, #82–#85, #91) are migrated to
   `localLangChainStack` or closed with the reason. The regression stages
@@ -389,7 +394,7 @@ constructing it.
 | K4–K11, K13 | Implementation in each engine's PE (voters, then followers) | each engine | K1–K3, K7, K12 | open |
 | K14 | Operator surface and OpenClaw migration | Manager/CI | K2, K4 | open |
 | A13 | v0.0.3 compatible service: LangGraph over A2A with LangChain, in the new `localLangChainStack` | owner | — | decided 2026-11-23 |
-| A14 | LangGraph Agent Server (licence key, ELv2?) or open-source `langgraph` + A2A Python SDK | owner | licence check | open |
+| A14 | LangGraph Agent Server (`langgraph-api`, Elastic-2.0, licence key) or open-source `langgraph` + A2A Python SDK; must be resolved before release-v0.0.3 | owner | — | open: localLangChainStack#2 |
 | L1 | `localLangChainStack` in the focus set, build control, regression and release | CI | repository created | open |
 | L2 | Migrate or close the localOpenClawStack v0.0.3 issues; OpenClaw stages become `acs-a2a` | CI/OCS | L1, K12 | open |
 | B1 | Re-pin: the current ACS release (v0.1.4 or later; the review recommended retargeting) and A2A v1.0.x, both vendored | CI | — | open |
