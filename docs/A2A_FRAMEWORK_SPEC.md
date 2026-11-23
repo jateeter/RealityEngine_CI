@@ -2,7 +2,7 @@
 
 **Version:** `re-a2a-v0.1-draft`. Last reviewed: 2026-11-23.
 **Status: draft for owner review.** Owner rulings of 2026-11-23 on Q2–Q6 are
-applied (§ 13). Q1 is open.
+applied (§ 13), and Q1 was ruled the same day.
 
 This document is task **K1** in `docs/OWASP_ACS_ROADMAP.md` § A2A, and its
 § 6 is task **K3**. It is the master that every engine's implementation of the
@@ -251,7 +251,19 @@ the A2A `taskId`, scoped by `instance_uuid`.
 
 ### 6.1 Identity and activation
 
-- **URI:** `urn:realityengine:a2a:ext:v0.1` (proposal; § 13, Q1).
+- **URI: a URL to the published specification** (owner, 2026-11-23, Q1):
+  `https://github.com/jateeter/RealityEngine_CI/blob/re-a2a-v0.1/docs/A2A_FRAMEWORK_SPEC.md`
+  - **It resolves.** An outside agent's developer who follows it reads exactly
+    what the extension requires.
+  - **It is pinned to a version.** The path names the git tag `re-a2a-vX.Y`,
+    created in this repository when that version of the specification is
+    published (K12), never a branch. The page behind an identifier never
+    changes, and a new version of the extension is a new URI.
+  - **It is compared as a string, byte for byte.** Implementations hold it as a
+    constant and never fetch it at run time. A receiver that sees a URI it
+    doesn't know refuses the request (§ 6.5, check 1).
+  - **Until the tag exists** (this draft), the URI is reserved, not yet
+    resolvable.
 - **Declared** in every RealityEngine Agent Card, and in every compatible
   service's card, under `capabilities.extensions`, with `required: true`.
 - **Activated** per request with A2A's extension header (`A2A-Extensions`; some
@@ -587,23 +599,16 @@ Rulings of 2026-11-23 (PR #848):
 - **Q2, context:** all three lifetimes are needed, plus the context-free
   dispatch. The lifecycle of the context is a primary configuration knob and a
   temporal information contour (§ 4.5).
-- **Q3, park:** `parked` is a new ledger status, as is `unparked` (§ 4.3).
+- **Q3, park:** `parked` is a new ledger status, as is `unparked` (§ 4.3;
+  "unpark" confirmed by the owner).
 - **Q4, deprecation:** each deprecation proceeds incrementally over the
   milestone, and completes when the milestone is achieved (§ 9).
 - **Q5, who dispatches:** the step's engine PE. Manager's TypeScript framework
   is involved only in Manager workflows (§ 4.1).
 - **Q6, policy:** a chapter here (§ 7.1).
 
-Open:
+- **Q1, the extension's identifier:** a URL to the published specification,
+  pinned to its version tag (§ 6.1):
+  `https://github.com/jateeter/RealityEngine_CI/blob/re-a2a-v0.1/docs/A2A_FRAMEWORK_SPEC.md`.
 
-- **Q1, the extension's identifier.** A2A names each extension by a URI. The
-  URI is only an identifier: agents list it in their Agent Card, and clients
-  activate it per request. Nothing in an existing URI is being extended. The
-  choice is which string identifies RealityEngine's extension:
-  - a URN, `urn:realityengine:a2a:ext:v0.1`, which needs no hosting; or
-  - a URL that resolves to this specification, for example its published
-    page, so an outside agent's developer can read what the extension
-    requires.
-
-  Either way the version is part of the identifier, so a new extension version
-  is a new URI.
+No questions are open.
