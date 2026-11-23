@@ -987,7 +987,53 @@ kept as it stood.
 
 - **The agent gateway is A2A** (owner, 2026-11-22; CI#841). Compatible
   services are integrated through the A2A standard, replacing OpenClaw, which
-  is sunset in v0.0.3.
+  is sunset in v0.0.3. **The integration is a RealityEngine A2A framework**
+  (owner, 2026-11-23) for dispatch and ingress. Every mapping to the
+  underlying APIs and flows (ACS, A2A's bindings, MCP wrapping, OpenTelemetry)
+  is contained in it, and the engines see only its dispatch and ingress
+  surface. One plan with OWASP ACS governance:
+  [`OWASP_ACS_ROADMAP.md`](OWASP_ACS_ROADMAP.md) § A2A, tasks K1–K14.
+
+- **Leftovers of earlier releases are in v0.0.3** (owner, 2026-11-23).
+  release-v0.0.2 is complete, and v0.0.3 is the next release. Every item left
+  open by release-v0.0.1 or release-v0.0.2 is carried and must be resolved in
+  v0.0.3, by being done or by an owner decision recorded on its issue. On
+  2026-11-23, 60 open issues across ten repositories were moved to their
+  `release-v0.0.3` milestones:
+  - **RealityEngine_CI:**
+    - the post-rc3 milestone: #607, #610, #611;
+    - the TLS follow-ups #728 and #732;
+    - #707, #715, #808;
+    - the regression failures #577, #686, #797;
+    - the parity discrepancies #677, #678, #681;
+    - #592, #636, #165.
+  - **RealityEngine_Rust:** the post-rc3 P2 and P3 work (#11, #12, #14, #17,
+    #20), its tracker #2, and #81. Followers block the release, so Rust's
+    full surface is a release item.
+  - **RealityEngine_Manager:** #248, #250, #298, #324.
+  - **RealityEngine_Machines:** #117, #164, #225, #229, #231, #233, #240,
+    #257–#259.
+  - **RealityEngine_CPP:** #181–#183. **RealityEngine_LSP:** #102, #190, #191.
+    **RealityEngine_Scala:** #200.
+  - **localAIStack:** #134, #139, #160–#163, #173.
+  - **localOpenClawStack:** #68, #82–#85, #91. These are dispositioned by the
+    OpenClaw sunset: migrated to the A2A framework or closed with the reason.
+  - **localAssetStorageStack:** #4, #8.
+
+  Already on the milestone: the v0.0.2 deficiencies and carried limitations
+  (`releases/release-v0.0.2.md`) and the A11 features (#317, #562–#564).
+
+  The release-v0.0.1 task table below still shows B1–B4, B6, C1–C6, D1–D7
+  and F5 as open or in progress. Each is either confirmed done by v0.0.2's
+  certification and ticked, or carried as a v0.0.3 task.
+
+  Not moved, because the owner set them aside earlier:
+  - the unscheduled backlog: CI#256, #526, PIM#68 and #69,
+    localHealthkitBridge#40, localAIStack#113;
+  - research issues never scoped to a release: CI#639, #672, #675;
+  - CI#839, which is after the release by its own decision.
+
+  New automated failures and host-update notices are triaged as they come.
 
 **Gates for `release-v0.0.2`** (owner, 2026-10-29 and 2026-10-30):
 

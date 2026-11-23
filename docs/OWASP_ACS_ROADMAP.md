@@ -1,6 +1,6 @@
 # OWASP ACS Roadmap: governing RealityEngine agent dispatch and ingress over A2A
 
-Last reviewed: 2026-11-22
+Last reviewed: 2026-11-23
 
 > **Revised 2026-11-22 (owner): A2A is the gateway, and this plan governs it.**
 > The suite's agent gateway is the A2A (Agent2Agent) standard
@@ -79,30 +79,146 @@ Sources:
   link, so it is mTLS, which also closes upstream #70 (an unauthenticated wire)
   on our side.
 
-### A RealityEngine A2A framework (owner, 2026-11-22: under review)
+### The RealityEngine A2A framework is the integration (owner, 2026-11-23)
 
-The owner is reviewing A2A-compliant frameworks. The outcome may be that
-RealityEngine provides **its own A2A framework**, built from these dispatch and
-ingress patterns:
+**A9 is decided.** The target integration is a RealityEngine A2A framework.
+It covers both patterns: dispatch (egress) and ingress. **The mapping to the
+underlying APIs and flows is contained inside that integration abstraction.**
+That covers ACS and its Guardian wire, AGT if used, A2A's bindings and
+versions, MCP wrapping, OpenTelemetry/OCSF and the AgBOM.
 
-- the per-instance runner and Guardian;
-- the Agent Card per instance;
-- the dispatch ledger and the task-state mapping;
-- the commit gate into the PE.
+What follows:
 
-That framework would be what other services adopt to become compatible. The
-framework choice is **A9**, and until it is made:
+- **One boundary.** The engines, Manager's workflow driver and the corpus see
+  only the framework's RealityEngine-side surface. That is the PE dispatch
+  ledger (fire-and-record, 2.4) and the PE's ingress (2.2). No engine, and no
+  other component, calls A2A, ACS or a Guardian directly or depends on their
+  types.
+- **Standard churn stays inside.** A new A2A version, ACS v0.2 or a
+  different Guardian changes the framework, not the engines. The framework
+  pins and declares the standards' versions it speaks.
+- **Engines don't implement A2A.** #841's per-repository table had a "PE A2A
+  client" in each engine. Under containment, an engine instead keeps the
+  framework's engine-facing surface: the dispatch ledger and ingress,
+  generalised from today's `acp/*` routes and specified in SURFACE_SPEC. That
+  surface is what C++, LSP and Scala are compared on 3-of-3, and what the
+  followers must agree with. Go#3 and Rust's A2A item move the same way.
+- **Compatible services adopt the framework or its contract.** A service
+  becomes compatible by speaking A2A to the framework, or by embedding the
+  framework, never by integrating with an engine.
 
-- B4–B6 and the specifications (#841 scope 1, B2) are written against the A2A
-  and ACS standards, not a framework's API, so they hold whichever way A9 goes;
-- no engine takes a framework dependency. Engine code still doesn't change
-  (invariant 2.5), and PE dispatch stays fire-and-record (2.4).
+### What the framework needs
+
+The status table tracks these as tasks K1–K14.
+
+**Contract and surface**
+
+- **K1 — Framework contract.** `docs/A2A_GATEWAY_CONTRACT.md` (B4), extended
+  to cover:
+  - the engine-facing surface;
+  - the A2A-facing surface;
+  - the governance surface (the Guardian port);
+  - the rule that nothing crosses the boundary except through these.
+- **K2 — Engine-facing surface in SURFACE_SPEC.** Generalise
+  `/api/integrations/acp/*` and `/api/integrations/completions` into
+  runtime-neutral dispatch and ingress routes:
+  - the dispatch record and its states;
+  - the ingress write;
+  - the participation states;
+  - a deprecation window for the `acp` names and the `ACP_*` variables.
+- **K3 — Agent binding in the corpus.** A machine's `agent:*` binding names an
+  A2A agent and skill: an Agent Card URL or a directory entry, plus a skill
+  id. It is schema-checked in RealityEngine_Machines and runtime-neutral, as
+  the AI governance regime's agents already are (Machines#256).
+
+**Dispatch and ingress**
+
+- **K4 — Dispatch runner.** C1, as the framework's egress. Per instance, it:
+  - claims ledger records;
+  - resolves and caches Agent Cards;
+  - negotiates the binding (JSON-RPC, gRPC or HTTP+JSON) and `A2A-Version`;
+  - sends the message;
+  - follows the task (streaming, push or poll);
+  - handles cancel, retry, idempotency by `dispatchId`, and TTL;
+  - maps task states to ledger states.
+- **K5 — Ingress server.** C7, as the framework's ingress. Per instance, it:
+  - publishes the instance's Agent Card and skills;
+  - authenticates the caller;
+  - holds an inbound task to a policy;
+  - passes the commit gate (D2) into the PE's ingress.
+
+  Unsolicited tasks are refused unless policy names the caller and the skill.
+- **K6 — Agent directory.** Which agents exist and where. Sources are the
+  generated `config/integrations.json` and the instance registry, and the
+  directory is served per install. It holds no hard-coded URLs
+  (`check-registry-url-literals.sh`).
+
+**Governance and evidence (contained)**
+
+- **K7 — Governance port.** One internal interface that every hook goes
+  through. Its first implementation is the ACS v0.1.x client and the
+  per-instance deterministic Guardian (A1, A2). AGT, the upstream reference
+  Guardian or a later ACS version plugs in behind the same port. Fail-closed
+  lives here (A5).
+- **K8 — Audit, provenance and signing.** E1–E4, owned by the framework:
+  - the hash chain per session;
+  - provenance back to the CES match;
+  - keys from the secrets home, per instance.
+- **K9 — Observability and Inspect.** F1–F6 and F4's AgBOM, emitted by the
+  framework only, every signal labelled with `instance_uuid`.
+- **K10 — MCP wrapping.** When a governed session uses MCP tools (`re-mcp`,
+  #714), the framework wraps them (`protocols/MCP/*`). Tools are scoped per
+  session, which closes the #714 deficiency by construction.
+
+**Security and identity**
+
+- **K11 — Identity and transport.**
+  - Per-instance certificates from the suite PKI.
+  - mTLS to RealityEngine entities, TLS-only to external agents (the transport
+    audience rule).
+  - A2A authentication schemes declared in the Agent Card.
+  - Every link goes in `config/transport-inventory.json`.
+
+**Proof, packaging and operation**
+
+- **K12 — Conformance kit.**
+  - A deterministic test agent and a mock Guardian.
+  - A2A's own conformance tests (B6) and the ACS harness (B3).
+  - A parity mode in which only the deterministic policy layer decides.
+  - The `acs-a2a` regression stage (G9).
+- **K13 — Packaging.**
+  - The framework's own version, declared beside the A2A and ACS versions it
+    pins.
+  - One implementation used by every instance, since engines don't embed it.
+  - Images `re-a2a` (runner plus ingress) and `re-acs-guardian`, generated per
+    instance by `re-init` and natively by `startUniverse.sh`.
+- **K14 — Operator surface.**
+  - Manager observes tasks and answers `ask` (C6), as observation and
+    configuration only. No AGT or ACS host goes in Manager (2026-11-11).
+  - Manager's workflow driver dispatches through the framework like any other
+    client.
+  - The OpenClaw sunset migrates the clone agents and the regression stages
+    (#841 scope 6).
+
+**Open for the owner**
+
+- **A10 — Where the framework lives:** a new repository (for example
+  `RealityEngine_A2A`), or inside RealityEngine_CI. A new repository would
+  join the focus set and build control.
+- **A11 — Implementation language, and whether to build on an A2A SDK** (the
+  A2A project publishes Python, JavaScript, Java, Go and .NET SDKs) or
+  implement the wire directly. Either way the SDK stays inside the framework.
+  Today's adapter and Manager are TypeScript, and the suite's Go services need
+  the OpenSSL front for TLS 1.3 suites.
+- **A12 — Whether the framework is published** as a RealityEngine A2A framework
+  other services can adopt, or stays internal for v0.0.3.
 
 ### Revised decisions
 
-- **A7 (revised): release-v0.0.3,** with the A2A gateway. The original target,
-  "the next release", passed when release-v0.0.2 shipped without this work.
-  It needs the owner's confirmation and is open until then.
+- **A7 (decided 2026-11-23): release-v0.0.3.** release-v0.0.2 is complete and
+  closed, so v0.0.3 is the next release. v0.0.3 must include the leftovers of
+  earlier releases, and this plan is one of them: it was set for "the next
+  release" in 2026-10 and v0.0.2 shipped without it.
 - **A8 (revised): A2A in.**
   - A2A is the gateway, so governing A2A traffic is in scope.
   - At 2026-10-19, upstream ACS reserved A2A wrapping for v0.2. We therefore
@@ -113,19 +229,24 @@ framework choice is **A9**, and until it is made:
     `AGENT_GOVERNANCE_REVIEW.md` §1). That reopens the MCP half of the original
     A8, and B2 records it.
   - The OpenClaw-internal hooks fall away with OpenClaw.
-- **A9 (open): A2A framework.** Either adopt an existing A2A-compliant
-  framework, or provide a RealityEngine A2A framework built from the dispatch
-  and ingress patterns. The owner is reviewing.
+- **A9 (decided 2026-11-23): the RealityEngine A2A framework is the target
+  integration,** for dispatch and ingress, with every mapping to the
+  underlying standards' APIs and flows contained in it (above). A10–A12 are
+  open.
 
 ### Revised and added tasks
 
 | ID | Task | Area | Depends on | Status |
 |---|---|---|---|---|
-| A7 | Release vehicle: v0.0.3 | owner | — | proposed, to confirm |
+| A7 | Release vehicle: v0.0.3, with the leftovers of earlier releases | owner | — | decided 2026-11-23 |
 | A8 | Scope: A2A in, MCP wrapping as ACS requires, OpenClaw hooks out | owner | — | revised 2026-11-22 |
-| A9 | A2A framework: adopt one, or provide RealityEngine's own | owner | — | open, under review |
+| A9 | The RealityEngine A2A framework is the target integration, containing every mapping | owner | — | decided 2026-11-23 |
+| A10 | Where the framework lives | owner | — | open |
+| A11 | Language, and SDK or own wire | owner | — | open |
+| A12 | Published for others, or internal in v0.0.3 | owner | — | open |
+| K1–K14 | What the framework needs (§ What the framework needs) | CI + owner | A9 | open |
 | B1 | Re-pin: the current ACS release (v0.1.4 or later; the review recommended retargeting) and A2A v1.0.x, both vendored | CI | — | open |
-| B4 | `docs/A2A_GATEWAY_CONTRACT.md` (#841 scope 1): dispatch, ingress, Agent Card per instance, task-state ↔ ledger mapping | CI/docs | B1 | open |
+| B4 | `docs/A2A_GATEWAY_CONTRACT.md` (#841 scope 1; K1): dispatch, ingress, Agent Card per instance, task-state ↔ ledger mapping, the containment boundary | CI/docs | B1 | open |
 | B5 | Ingress hook mapping, beside B2's dispatch mapping | CI/docs | B2, B4 | open |
 | B6 | A2A conformance: the A2A project's test kit run against each runner and each instance's Agent Card | CI | B1, B4 | open |
 | C1 | Runner = per-instance A2A client (dispatch), replacing the OpenClaw adapter | CI | A1, A9 | revised |
@@ -263,9 +384,9 @@ says so.
 | **A4** | Session, turn and agent identity | owner | — | decided: session = `dispatchId` | |
 | **A5** | Fail-closed timeouts and the `ask` path | owner | — | decided: timeout denies; `ask` answered in Manager | |
 | **A6** | Trace backend | owner | — | decided: existing Prometheus/Loki/Grafana plus Collector and Tempo, with their use verified | |
-| **A7** | Release vehicle and version | owner | — | decided: the next release; `acs-acp-v0.1.0`. **Revised 2026-11-22: v0.0.3, to confirm** | |
+| **A7** | Release vehicle and version | owner | — | decided: the next release; `acs-acp-v0.1.0`. **Decided 2026-11-23: release-v0.0.3** | |
 | **A8** | Scope | owner | — | decided: MCP wrapping and A2A out; OpenClaw-internal hooks **in**. **Revised 2026-11-22: A2A in** (§ A2A) | |
-| **A9** | A2A framework | owner | — | open: owner reviewing (§ A2A) | #841 |
+| **A9** | A2A framework | owner | — | **decided 2026-11-23:** the RealityEngine A2A framework, containing every mapping (§ A2A) | #841 |
 | **B1** | Vendor the v0.1.0 schemas, pinned | CI | — | open | |
 | **B2** | ACP ACS profile: the hook mapping, confirmed | CI/docs | B1 | open | |
 | **B3** | Upstream conformance harness, runnable locally | CI | B1 | open | |
@@ -311,7 +432,7 @@ says so.
 
 ## A. Decisions, made 2026-10-19
 
-A7 and A8 are revised, and A9 added, in § A2A (2026-11-22).
+A7 and A8 are revised, and A9–A12 added, in § A2A (2026-11-22, 2026-11-23).
 
 - [x] **A1 — A runner and a Guardian per engine instance.** Every engine
   instance gets its own ACP runner (C1) and its own Guardian, and together
