@@ -988,10 +988,13 @@ kept as it stood.
 - **The agent gateway is A2A** (owner, 2026-11-22; CI#841). Compatible
   services are integrated through the A2A standard, replacing OpenClaw, which
   is sunset in v0.0.3. **The integration is a RealityEngine A2A framework**
-  (owner, 2026-11-23) for dispatch and ingress. Every mapping to the
-  underlying APIs and flows (ACS, A2A's bindings, MCP wrapping, OpenTelemetry)
-  is contained in it, and the engines see only its dispatch and ingress
-  surface. One plan with OWASP ACS governance:
+  (owner, 2026-11-23) for dispatch and ingress. Its specification, contracts
+  and conformance kit live in RealityEngine_CI and are published. Each engine
+  implements it in its own repository and language, inside its PE with no
+  internal HTTP, and every mapping to the underlying APIs (ACS, A2A's
+  bindings, MCP wrapping, OpenTelemetry) is contained there. Continuations and
+  asset references cross the boundary exactly, verified 3-of-3 with the
+  followers agreeing. One plan with OWASP ACS governance:
   [`OWASP_ACS_ROADMAP.md`](OWASP_ACS_ROADMAP.md) § A2A, tasks K1–K14.
 
 - **Leftovers of earlier releases are in v0.0.3** (owner, 2026-11-23).

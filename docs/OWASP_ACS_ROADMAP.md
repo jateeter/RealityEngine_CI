@@ -75,143 +75,219 @@ Sources:
 - **Transport.** Every A2A link is TLS 1.3 under
   `config/transport-profile.json`: mTLS between RealityEngine entities,
   TLS-only for external agents (transport audience rule). The Agent Card
-  declares the scheme. The ACS wire to the Guardian is a RealityEngine-internal
-  link, so it is mTLS, which also closes upstream #70 (an unauthenticated wire)
-  on our side.
+  declares the scheme. The Guardian is in-process in each PE (A11, K7), so
+  the ACS wire has no network hop to authenticate. That closes upstream #70
+  (an unauthenticated wire) on our side by construction.
 
-### The RealityEngine A2A framework is the integration (owner, 2026-11-23)
+### The RealityEngine A2A framework (owner, 2026-11-23)
 
-**A9 is decided.** The target integration is a RealityEngine A2A framework.
-It covers both patterns: dispatch (egress) and ingress. **The mapping to the
-underlying APIs and flows is contained inside that integration abstraction.**
-That covers ACS and its Guardian wire, AGT if used, A2A's bindings and
-versions, MCP wrapping, OpenTelemetry/OCSF and the AgBOM.
+**A9:** the target integration is a RealityEngine A2A framework, for dispatch
+(egress) and ingress. **A10–A12** settle how it exists:
 
-What follows:
+- **A10, where it lives.** The framework **specification and contracts live in
+  RealityEngine_CI** and are the masters. **Each engine implements the
+  framework itself, in its own repository and language,** and parity is
+  verified across the implementations. Any repository-specific resolution of
+  the CI specification (how a rule is realised in that language, a recorded
+  deviation, a platform limit) lives in that engine's repository, with an
+  authoritative pointer back to the CI master and the specification version
+  it resolves. A resolution may narrow how something is done. It never changes
+  what is observable at the boundary.
+- **A11, language-level integration.** Each engine has its own A2A
+  instantiation of the framework, **tightly integrated with its PE at the
+  language level.**
+  - Inside an engine instance, the PE, the dispatch runner, the ingress
+    handler and the governance layer talk through in-process calls, never
+    HTTP or HTTPS.
+  - HTTP is used only where A2A itself requires it: at the boundary, to and
+    from remote agents.
+- **A12, published as a standard for engines.** The specification is
+  published so that new and existing engines align exactly with the A2A
+  standard and with **RealityEngine's dispatch and ingress harnesses** defined
+  by the specification. **Continuations and asset references crossing the
+  boundary must be provided exactly, byte for byte, by every implementation.**
 
-- **One boundary.** The engines, Manager's workflow driver and the corpus see
-  only the framework's RealityEngine-side surface. That is the PE dispatch
-  ledger (fire-and-record, 2.4) and the PE's ingress (2.2). No engine, and no
-  other component, calls A2A, ACS or a Guardian directly or depends on their
-  types.
-- **Standard churn stays inside.** A new A2A version, ACS v0.2 or a
-  different Guardian changes the framework, not the engines. The framework
-  pins and declares the standards' versions it speaks.
-- **Engines don't implement A2A.** #841's per-repository table had a "PE A2A
-  client" in each engine. Under containment, an engine instead keeps the
-  framework's engine-facing surface: the dispatch ledger and ingress,
-  generalised from today's `acp/*` routes and specified in SURFACE_SPEC. That
-  surface is what C++, LSP and Scala are compared on 3-of-3, and what the
-  followers must agree with. Go#3 and Rust's A2A item move the same way.
-- **Compatible services adopt the framework or its contract.** A service
-  becomes compatible by speaking A2A to the framework, or by embedding the
-  framework, never by integrating with an engine.
+**Containment is now per engine.** Every mapping to the underlying APIs and
+flows (A2A's bindings and versions, ACS, MCP wrapping, OpenTelemetry/OCSF, the
+AgBOM) is contained in each engine's framework module. Nothing else in the
+engine, and nothing outside it, reaches past that module. A new A2A or ACS
+version changes the specification first, then each implementation, and the
+change is proven by the same parity gate as everything else.
+
+**What this supersedes in the 2026-10-19 text.**
+- **A1:** each engine instance still has its own runner and Guardian, but
+  they become parts of that instance's PE, not processes beside it. A1's
+  "engines' code unchanged" no longer holds.
+- **Invariant 2.5 still holds:** the framework lives in the PE, and no hook
+  reaches the RE. **2.4 still holds:** dispatch runs off the PE cycle, on the
+  PE's own worker, and never blocks a step.
+- **A2:** the Guardian's deterministic layer must run in-process in C++,
+  Common Lisp, Scala, Rust, Go and TypeScript. So the policy is specified in
+  CI as data with exact semantics (K7), and each engine evaluates it natively.
+  OPA/Rego and the upstream reference Guardian stay as an optional rung-4
+  interoperability check, not the release Guardian. ACS v0.1 puts transport
+  and the policy engine out of scope (`owasp_acs.md` §8), so in-process hook
+  calls carrying ACS's message shapes conform.
+- **#841's per-repository table** (a "PE A2A client" per engine) stands, now
+  as each engine's whole framework implementation: dispatch, ingress and
+  governance. This corrects the 2026-11-23 comments on #841, Go#3 and Rust#81.
 
 ### What the framework needs
 
-The status table tracks these as tasks K1–K14.
+The status table tracks these as tasks K1–K14. K1–K3 and K12 are written in
+RealityEngine_CI. Every other task is a specification item in CI plus one
+implementation per engine (C++, LSP, Scala; Rust, Go and the TypeScript PE as
+followers). Each implementation is proven by K12.
 
-**Contract and surface**
+**The specification (RealityEngine_CI masters)**
 
-- **K1 — Framework contract.** `docs/A2A_GATEWAY_CONTRACT.md` (B4), extended
-  to cover:
-  - the engine-facing surface;
-  - the A2A-facing surface;
-  - the governance surface (the Guardian port);
-  - the rule that nothing crosses the boundary except through these.
-- **K2 — Engine-facing surface in SURFACE_SPEC.** Generalise
-  `/api/integrations/acp/*` and `/api/integrations/completions` into
-  runtime-neutral dispatch and ingress routes:
-  - the dispatch record and its states;
-  - the ingress write;
-  - the participation states;
-  - a deprecation window for the `acp` names and the `ACP_*` variables.
-- **K3 — Agent binding in the corpus.** A machine's `agent:*` binding names an
-  A2A agent and skill: an Agent Card URL or a directory entry, plus a skill
-  id. It is schema-checked in RealityEngine_Machines and runtime-neutral, as
-  the AI governance regime's agents already are (Machines#256).
+- **K1 — Framework specification.** `docs/A2A_FRAMEWORK_SPEC.md`, versioned
+  (`re-a2a-vX.Y`), with B4's gateway contract as its integration chapter. It
+  defines:
+  - the framework's parts and their in-process interfaces, in
+    language-neutral terms: the dispatch runner, the ingress handler, the
+    governance port, the audit, the telemetry;
+  - the boundary rule that nothing crosses except through them;
+  - the exact wire output at the A2A boundary.
 
-**Dispatch and ingress**
+  It is normative ("must" is tested), and every rule names the K12 vector
+  that tests it.
+- **K2 — Engine surfaces in SURFACE_SPEC.** Two kinds:
+  - the routes an operator and Manager observe: dispatch records and states,
+    held `ask`s, the instance's Agent Card, the framework's version and
+    participation state;
+  - the A2A endpoints each PE serves for ingress.
 
-- **K4 — Dispatch runner.** C1, as the framework's egress. Per instance, it:
-  - claims ledger records;
-  - resolves and caches Agent Cards;
-  - negotiates the binding (JSON-RPC, gRPC or HTTP+JSON) and `A2A-Version`;
-  - sends the message;
-  - follows the task (streaming, push or poll);
-  - handles cancel, retry, idempotency by `dispatchId`, and TTL;
-  - maps task states to ledger states.
-- **K5 — Ingress server.** C7, as the framework's ingress. Per instance, it:
-  - publishes the instance's Agent Card and skills;
-  - authenticates the caller;
-  - holds an inbound task to a policy;
-  - passes the commit gate (D2) into the PE's ingress.
+  `/api/integrations/acp/*` and `/api/integrations/completions` are
+  generalised with a stated deprecation window, and the `ACP_*` variables are
+  replaced. The internal interfaces are K1's, not routes.
+- **K3 — The RealityEngine A2A extension.** Continuations and asset
+  references cross the boundary through a published **A2A extension** (A2A's
+  extension mechanism, declared in the Agent Card and on each message). It
+  defines:
+  - **the asset reference:** an assetID frame's documents pinned by revision,
+    SHA-256 and ETag; `upstreamRefs`; the case keys;
+  - **the continuation:** the frame id, continuation id `k`, generation,
+    template and instance, the step capability's scope (never the capability
+    itself in a log or trace), and `park`, `escape`/`onStale` and `fail`
+    outcomes, as `CONTINUATIONS_APPROVAL_CHAIN.md` and the lifecycle API
+    define them;
+  - **the mapping onto A2A:** `contextId` to the frame and `taskId` to the
+    continuation step; task states to capture, park, resume, fail and escape;
+    artifacts to returns;
+  - **one canonical serialisation,** so every implementation emits the same
+    bytes for the same dispatch: key order, number form (ECMAScript), string
+    normalisation, timestamps from the instance clock, never the wall clock;
+  - **what a receiver must check** before acting: generation, pinned
+    revisions, principal.
 
-  Unsolicited tasks are refused unless policy names the caller and the skill.
-- **K6 — Agent directory.** Which agents exist and where. Sources are the
-  generated `config/integrations.json` and the instance registry, and the
-  directory is served per install. It holds no hard-coded URLs
-  (`check-registry-url-literals.sh`).
+  The machine agent binding (`agent:*` → Agent Card and skill) is part of
+  K3, schema-checked in RealityEngine_Machines.
 
-**Governance and evidence (contained)**
+**Per-engine implementation (each engine repository)**
 
-- **K7 — Governance port.** One internal interface that every hook goes
-  through. Its first implementation is the ACS v0.1.x client and the
-  per-instance deterministic Guardian (A1, A2). AGT, the upstream reference
-  Guardian or a later ACS version plugs in behind the same port. Fail-closed
-  lives here (A5).
-- **K8 — Audit, provenance and signing.** E1–E4, owned by the framework:
-  - the hash chain per session;
-  - provenance back to the CES match;
-  - keys from the secrets home, per instance.
-- **K9 — Observability and Inspect.** F1–F6 and F4's AgBOM, emitted by the
-  framework only, every signal labelled with `instance_uuid`.
+- **K4 — Dispatch runner, in the PE.**
+  - It claims dispatch records from the PE's ledger in-process, off the PE
+    cycle.
+  - It resolves Agent Cards (K6) and negotiates the binding and `A2A-Version`.
+  - It builds the message with the K3 extension, sends it, and follows the
+    task (streaming, push or poll), with cancel, retry, idempotency by
+    `dispatchId`, and TTL.
+  - It maps task states onto the ledger and the continuation outcomes.
+- **K5 — Ingress handler, in the PE.**
+  - It serves the instance's Agent Card and A2A endpoint on the PE's listener,
+    under the lane's TLS.
+  - It validates the K3 extension, runs the governance hooks, and writes
+    through the commit gate (D2) into the PE's ingress in-process.
+  - Unsolicited tasks are refused unless policy names the caller and the
+    skill.
+- **K6 — Agent directory.** Resolved from the generated
+  `config/integrations.json` and the instance registry, never a literal.
+  Cached Agent Cards are verified.
+
+**Governance and evidence (inside each implementation, specified in CI)**
+
+- **K7 — Governance port and the policy specification.**
+  - Every ACS hook goes through one in-process port that fails closed (A5).
+    The decision record is specified, including the policy digest.
+  - The deterministic policy is specified in CI as data with exact,
+    total semantics (a decision table over the hook payload), so six
+    languages decide identically. Each engine evaluates it natively.
+  - The ACS message shapes are used in-process. B1 pins the ACS version.
+  - An optional out-of-process Guardian (the upstream reference, OPA) is a
+    rung-4 interoperability check, behind the same port.
+- **K8 — Audit, provenance and signing.** The hash chain per session, with
+  the hash, chain encoding and HMAC-SHA256 envelope specified exactly so that
+  chains are comparable across engines. Provenance runs back to the CES match
+  and carries the K3 references. Keys come from the secrets home, per
+  instance.
+- **K9 — Telemetry and Inspect.** The signals are specified: span names and
+  attributes, OCSF decision events, metric names and labels with
+  `instance_uuid`, and the AgBOM document. Each engine emits them with its
+  language's OpenTelemetry support, or through the existing log and metric
+  paths where none exists. The difference is recorded in that engine's
+  resolution.
 - **K10 — MCP wrapping.** When a governed session uses MCP tools (`re-mcp`,
-  #714), the framework wraps them (`protocols/MCP/*`). Tools are scoped per
+  #714), the implementation wraps them (`protocols/MCP/*`), scoped per
   session, which closes the #714 deficiency by construction.
 
 **Security and identity**
 
-- **K11 — Identity and transport.**
+- **K11 — Identity and transport at the boundary.**
   - Per-instance certificates from the suite PKI.
-  - mTLS to RealityEngine entities, TLS-only to external agents (the transport
-    audience rule).
-  - A2A authentication schemes declared in the Agent Card.
-  - Every link goes in `config/transport-inventory.json`.
+  - mTLS to RealityEngine entities, TLS-only to external agents.
+  - The authentication schemes are declared in the Agent Card.
+  - Each implementation meets `config/transport-profile.json` in its own
+    language. Where a language's TLS can't, the suite's recorded pattern
+    applies: Go's OpenSSL front (2026-11-12). The front is a TLS terminator
+    at the boundary, not an internal HTTP hop. Each boundary link goes in
+    `config/transport-inventory.json`.
 
-**Proof, packaging and operation**
+**Proof, publication and operation**
 
-- **K12 — Conformance kit.**
-  - A deterministic test agent and a mock Guardian.
-  - A2A's own conformance tests (B6) and the ACS harness (B3).
-  - A parity mode in which only the deterministic policy layer decides.
-  - The `acs-a2a` regression stage (G9).
-- **K13 — Packaging.**
-  - The framework's own version, declared beside the A2A and ACS versions it
-    pins.
-  - One implementation used by every instance, since engines don't embed it.
-  - Images `re-a2a` (runner plus ingress) and `re-acs-guardian`, generated per
-    instance by `re-init` and natively by `startUniverse.sh`.
-- **K14 — Operator surface.**
-  - Manager observes tasks and answers `ask` (C6), as observation and
-    configuration only. No AGT or ACS host goes in Manager (2026-11-11).
-  - Manager's workflow driver dispatches through the framework like any other
-    client.
+- **K12 — The published conformance kit,** what A12 requires:
+  - the specification and the K3 extension, versioned and published from
+    RealityEngine_CI;
+  - JSON Schemas for every message and record;
+  - **golden vectors:** for each dispatch fixture, the exact A2A request
+    bytes, the continuation and asset-reference encodings, the audit chain,
+    and the decision records. Negative vectors too: a stale generation, a
+    changed pin, a wrong principal, a replay, a bad signature;
+  - a **harness** any engine runs against itself: a deterministic test agent,
+    a test caller for ingress, the ACS harness (B3), and A2A's own
+    conformance tests (B6).
+
+  The regression stage `acs-a2a` (G9) drives every PE through the harness
+  and compares the boundary bytes. It is 3-of-3 among the voters, and the
+  followers must agree (#842). A new engine is aligned when it passes the
+  kit, the same rule as for the engine surface.
+- **K13 — Versioning and packaging.**
+  - The framework version (`re-a2a-vX.Y`) is declared in each Agent Card and
+    in the release manifest, beside the A2A and ACS versions it pins.
+  - No separate runner or Guardian images: each engine image carries its
+    implementation, and `re-init` and `startUniverse.sh` give each instance
+    its keys, policy and certificates.
+  - Each engine repository's resolution document names the specification
+    version it implements, and K12 rejects a mismatch.
+- **K14 — Operator surface and migration.**
+  - Manager observes dispatch records and tasks, and answers `ask` (C6),
+    through each PE's K2 routes, as observation and configuration only. No
+    AGT or ACS host goes in Manager (2026-11-11).
+  - Manager's workflow driver (lass phase 8) dispatches through a PE's
+    framework, not its own A2A client.
   - The OpenClaw sunset migrates the clone agents and the regression stages
     (#841 scope 6).
 
-**Open for the owner**
+**Per-repository layout (A10)**
 
-- **A10 — Where the framework lives:** a new repository (for example
-  `RealityEngine_A2A`), or inside RealityEngine_CI. A new repository would
-  join the focus set and build control.
-- **A11 — Implementation language, and whether to build on an A2A SDK** (the
-  A2A project publishes Python, JavaScript, Java, Go and .NET SDKs) or
-  implement the wire directly. Either way the SDK stays inside the framework.
-  Today's adapter and Manager are TypeScript, and the suite's Go services need
-  the OpenSSL front for TLS 1.3 suites.
-- **A12 — Whether the framework is published** as a RealityEngine A2A framework
-  other services can adopt, or stays internal for v0.0.3.
+- **RealityEngine_CI:** `docs/A2A_FRAMEWORK_SPEC.md` (K1), the K3 extension,
+  the K7 policy specification, the K12 kit (`conformance/a2a/`: schemas,
+  vectors, harness) and the `acs-a2a` stage.
+- **Each engine repository:** the implementation inside its PE, plus
+  `docs/A2A_FRAMEWORK.md`, its resolution document. It opens with
+  "Authority: RealityEngine_CI `docs/A2A_FRAMEWORK_SPEC.md`, version …", and
+  lists each resolution and recorded deviation with the specification rule it
+  resolves. The repository's `CLAUDE.md` and `AGENTS.md` point to both.
 
 ### Revised decisions
 
@@ -231,8 +307,11 @@ The status table tracks these as tasks K1–K14.
   - The OpenClaw-internal hooks fall away with OpenClaw.
 - **A9 (decided 2026-11-23): the RealityEngine A2A framework is the target
   integration,** for dispatch and ingress, with every mapping to the
-  underlying standards' APIs and flows contained in it (above). A10–A12 are
-  open.
+  underlying standards' APIs and flows contained in it (above).
+- **A10–A12 (decided 2026-11-23):** the specification lives in
+  RealityEngine_CI, and each engine implements it in its own repository and
+  language, inside its PE with no internal HTTP. It is published with a
+  conformance kit, and continuations and asset references are exact (above).
 
 ### Revised and added tasks
 
@@ -241,16 +320,18 @@ The status table tracks these as tasks K1–K14.
 | A7 | Release vehicle: v0.0.3, with the leftovers of earlier releases | owner | — | decided 2026-11-23 |
 | A8 | Scope: A2A in, MCP wrapping as ACS requires, OpenClaw hooks out | owner | — | revised 2026-11-22 |
 | A9 | The RealityEngine A2A framework is the target integration, containing every mapping | owner | — | decided 2026-11-23 |
-| A10 | Where the framework lives | owner | — | open |
-| A11 | Language, and SDK or own wire | owner | — | open |
-| A12 | Published for others, or internal in v0.0.3 | owner | — | open |
-| K1–K14 | What the framework needs (§ What the framework needs) | CI + owner | A9 | open |
+| A10 | Spec and contracts in CI; one implementation per engine repository, with resolutions there that point back to CI | owner | — | decided 2026-11-23 |
+| A11 | Each engine's own A2A instantiation, in-process with its PE; no internal HTTP | owner | — | decided 2026-11-23 |
+| A12 | Published spec and conformance kit; continuations and asset references exact | owner | — | decided 2026-11-23 |
+| K1–K3, K12 | Specification, engine surfaces, A2A extension, conformance kit | CI | A9–A12, B1 | open |
+| K4–K11, K13 | Implementation in each engine's PE (voters, then followers) | each engine | K1–K3, K7, K12 | open |
+| K14 | Operator surface and OpenClaw migration | Manager/CI | K2, K4 | open |
 | B1 | Re-pin: the current ACS release (v0.1.4 or later; the review recommended retargeting) and A2A v1.0.x, both vendored | CI | — | open |
 | B4 | `docs/A2A_GATEWAY_CONTRACT.md` (#841 scope 1; K1): dispatch, ingress, Agent Card per instance, task-state ↔ ledger mapping, the containment boundary | CI/docs | B1 | open |
 | B5 | Ingress hook mapping, beside B2's dispatch mapping | CI/docs | B2, B4 | open |
 | B6 | A2A conformance: the A2A project's test kit run against each runner and each instance's Agent Card | CI | B1, B4 | open |
-| C1 | Runner = per-instance A2A client (dispatch), replacing the OpenClaw adapter | CI | A1, A9 | revised |
-| C7 | Per-instance A2A server (ingress), behind that instance's Guardian | CI | A1, A9, B5 | new |
+| C1 | Runner = the dispatch runner inside each PE (K4), replacing the OpenClaw adapter | each engine | A1, K1 | revised |
+| C7 | Ingress handler inside each PE (K5), behind that instance's governance port | each engine | A1, K1, B5 | new |
 | D2 | Commit gate covers solicited and unsolicited ingress | CI | D1, C7 | revised |
 | O1–O6 | Per compatible service: hook inventory where the runtime has one, else the gap goes in H3 | per service | A9 | revised |
 | G4 | Rung 4 against a live A2A agent (the first compatible services, #841 scope 5) and the release Guardians | CI/operator | G3, A2 | revised |
@@ -386,7 +467,7 @@ says so.
 | **A6** | Trace backend | owner | — | decided: existing Prometheus/Loki/Grafana plus Collector and Tempo, with their use verified | |
 | **A7** | Release vehicle and version | owner | — | decided: the next release; `acs-acp-v0.1.0`. **Decided 2026-11-23: release-v0.0.3** | |
 | **A8** | Scope | owner | — | decided: MCP wrapping and A2A out; OpenClaw-internal hooks **in**. **Revised 2026-11-22: A2A in** (§ A2A) | |
-| **A9** | A2A framework | owner | — | **decided 2026-11-23:** the RealityEngine A2A framework, containing every mapping (§ A2A) | #841 |
+| **A9** | A2A framework | owner | — | **decided 2026-11-23:** the RealityEngine A2A framework, containing every mapping; A10–A12 decided the same day (§ A2A) | #841 |
 | **B1** | Vendor the v0.1.0 schemas, pinned | CI | — | open | |
 | **B2** | ACP ACS profile: the hook mapping, confirmed | CI/docs | B1 | open | |
 | **B3** | Upstream conformance harness, runnable locally | CI | B1 | open | |
