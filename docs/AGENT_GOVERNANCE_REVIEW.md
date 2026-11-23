@@ -31,6 +31,9 @@ So:
   including §1 (gateway-wide MCP servers, RealityEngine_CI#714).
 - **OpenClaw is to be sunset in v0.0.3.** Where governance (AGT, ACS) and its
   replacement attach is a v0.0.3 question; §2–§4 remain the input to it.
+- **Follow-up (owner, 2026-11-22):** the replacement is the A2A standard
+  (RealityEngine_CI#841), and ACS governs it. `docs/OWASP_ACS_ROADMAP.md`
+  § A2A (2026-11-22) is the combined plan.
 
 ## 1. The deficiency (accepted while testing)
 
