@@ -994,7 +994,10 @@ kept as it stood.
   internal HTTP, and every mapping to the underlying APIs (ACS, A2A's
   bindings, MCP wrapping, OpenTelemetry) is contained there. Continuations and
   asset references cross the boundary exactly, verified 3-of-3 with the
-  followers agreeing. One plan with OWASP ACS governance:
+  followers agreeing. **The agents run on LangGraph over A2A, with LangChain
+  in the flow, from a new repository, `localLangChainStack`,** which replaces
+  `localOpenClawStack` (owner, 2026-11-23). One plan with OWASP ACS
+  governance:
   [`OWASP_ACS_ROADMAP.md`](OWASP_ACS_ROADMAP.md) § A2A, tasks K1–K14.
 
 - **Leftovers of earlier releases are in v0.0.3** (owner, 2026-11-23).
@@ -1020,7 +1023,8 @@ kept as it stood.
     **RealityEngine_Scala:** #200.
   - **localAIStack:** #134, #139, #160–#163, #173.
   - **localOpenClawStack:** #68, #82–#85, #91. These are dispositioned by the
-    OpenClaw sunset: migrated to the A2A framework or closed with the reason.
+    OpenClaw sunset: migrated to `localLangChainStack` or closed with the
+    reason.
   - **localAssetStorageStack:** #4, #8.
 
   Already on the milestone: the v0.0.2 deficiencies and carried limitations

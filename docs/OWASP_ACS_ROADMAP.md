@@ -278,6 +278,68 @@ followers). Each implementation is proven by K12.
   - The OpenClaw sunset migrates the clone agents and the regression stages
     (#841 scope 6).
 
+### The v0.0.3 compatible service: LangGraph over A2A (owner, 2026-11-23)
+
+**A13 is decided.** v0.0.3's agents run on **LangGraph, served over A2A, with
+LangChain in the flow**. A new repository, **`localLangChainStack`**, provides
+the replacement path for `localOpenClawStack`, built on A2A. The owner is
+constructing it.
+
+- **Role.** `localLangChainStack` hosts the agents the engines dispatch to:
+  - the per-clone workflow agents (lass phase 8);
+  - the corpus's `agent:*` bindings, including the AI governance regime's
+    runtime-neutral agents (Machines#256).
+
+  Each agent is an A2A server with an Agent Card. The engines' framework
+  implementations (K4, K5) are its only RealityEngine-side callers, so
+  LangGraph and LangChain stay behind the A2A boundary. No engine, and no
+  CI specification item, depends on a LangChain type.
+- **What it must meet** (as a compatible service of this specification):
+  - **K3:** it carries the RealityEngine A2A extension unchanged. It returns
+    continuations and asset references exactly as given, and never mints or
+    rewrites one. It reads frame documents only with the step's capability.
+  - **K10 and #714:** tools are scoped per agent and per session, never
+    shared across the server. That is the deficiency OpenClaw couldn't close.
+  - **K11:**
+    - TLS 1.3 under the transport profile, with mTLS to RealityEngine
+      entities;
+    - every link in `config/transport-inventory.json`;
+    - its model calls go to the host's native Ollama (the universe model,
+      `nemotron-3-nano:4b-mlx`) through the existing TLS front.
+  - **Governance.** Where LangGraph or LangChain expose callbacks around tool
+    and model calls, the agent's own tool calls are reported to the
+    dispatching instance's governance port (section O, now per service).
+    Where they can't block, H3 says so.
+  - **Dependencies.** Only maintained, standalone LangChain packages
+    (`langchain-core`, `langchain-ollama`, `langgraph`, `langgraph-prebuilt`
+    and the like). No `langchain-community` or other sunset package. This is
+    the localAIStack rule (2026-10-25), extended to this repository.
+  - **No data leaves the install.** LangSmith tracing and any LangChain cloud
+    telemetry are off. Traces go to the suite's Collector (F5).
+- **To verify first: the server.** LangGraph's A2A endpoint
+  (`/a2a/{assistant_id}`) belongs to the LangGraph **Agent Server**
+  (`langgraph-api`), not to the open-source `langgraph` library. Sources on
+  2026-11-23 report that:
+  - a standalone Agent Server reads a LangSmith license key, or a Plus-tier
+    API key, at startup and re-checks it online;
+  - LangChain staff say self-hosting otherwise needs an enterprise key;
+  - `langgraph-api` may be under the Elastic License 2.0 rather than an open
+    licence.
+
+  Any of these would conflict with an offline, self-contained Mac install and
+  with "no data leaves the install". **A14 (open):** run the Agent Server
+  under its licence terms, or serve the LangGraph graphs with the official A2A
+  Python SDK (open-source `langgraph` plus `a2a-sdk`, no Agent Server). The
+  second keeps LangGraph and LangChain in the flow without a licence server.
+- **OpenClaw's sunset.** The `localOpenClawStack` issues on the
+  `release-v0.0.3` milestone (#68, #82–#85, #91) are migrated to
+  `localLangChainStack` or closed with the reason. The regression stages
+  that use OpenClaw (`openclaw-integration-*`, the ACP dispatch tests) become
+  `acs-a2a` against `localLangChainStack`. `startUniverse.sh --openclaw`
+  gives way to the new stack's flag, with a stated deprecation window. When
+  the repository exists, it joins the focus set, build control and the
+  release (images and install).
+
 **Per-repository layout (A10)**
 
 - **RealityEngine_CI:** `docs/A2A_FRAMEWORK_SPEC.md` (K1), the K3 extension,
@@ -326,6 +388,10 @@ followers). Each implementation is proven by K12.
 | K1–K3, K12 | Specification, engine surfaces, A2A extension, conformance kit | CI | A9–A12, B1 | open |
 | K4–K11, K13 | Implementation in each engine's PE (voters, then followers) | each engine | K1–K3, K7, K12 | open |
 | K14 | Operator surface and OpenClaw migration | Manager/CI | K2, K4 | open |
+| A13 | v0.0.3 compatible service: LangGraph over A2A with LangChain, in the new `localLangChainStack` | owner | — | decided 2026-11-23 |
+| A14 | LangGraph Agent Server (licence key, ELv2?) or open-source `langgraph` + A2A Python SDK | owner | licence check | open |
+| L1 | `localLangChainStack` in the focus set, build control, regression and release | CI | repository created | open |
+| L2 | Migrate or close the localOpenClawStack v0.0.3 issues; OpenClaw stages become `acs-a2a` | CI/OCS | L1, K12 | open |
 | B1 | Re-pin: the current ACS release (v0.1.4 or later; the review recommended retargeting) and A2A v1.0.x, both vendored | CI | — | open |
 | B4 | `docs/A2A_GATEWAY_CONTRACT.md` (#841 scope 1; K1): dispatch, ingress, Agent Card per instance, task-state ↔ ledger mapping, the containment boundary | CI/docs | B1 | open |
 | B5 | Ingress hook mapping, beside B2's dispatch mapping | CI/docs | B2, B4 | open |
