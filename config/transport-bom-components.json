@@ -168,6 +168,31 @@
       ]
     },
     {
+      "id": "go-engine",
+      "name": "Go Reality Engine and Perception Engine (non-voting follower), behind scripts/lib/tls_front.py on the lane",
+      "kind": "engine",
+      "repo": "RealityEngine_GO",
+      "lanes": {
+        "native": {
+          "source": "RealityEngine_GO",
+          "artifacts": [
+            "bin/reality-engine",
+            "bin/perception-engine"
+          ]
+        },
+        "docker": {
+          "none": "no Go engine image yet (follower lane, native; release-v0.0.3, RealityEngine_GO#14)"
+        },
+        "release": {
+          "none": "not in a release install until RealityEngine_GO#14"
+        }
+      },
+      "links": [
+        "go-re-pe",
+        "go-front-to-go"
+      ]
+    },
+    {
       "id": "manager-visualizer",
       "name": "Manager: Visualizer backend and frontend",
       "kind": "service",

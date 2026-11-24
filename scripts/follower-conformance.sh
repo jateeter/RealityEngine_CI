@@ -30,9 +30,10 @@
 #   go    go-1    RealityEngine_GO    go build (scripts/lib/go-toolchain.sh)
 #                                     ports from the OS (--free-ports, owner
 #                                     2026-11-22; 5851/5850 only when pinned)
-# A follower whose runtime cannot yet serve the lane's TLS (Go until
-# RealityEngine_GO#6) is `unavailable` on a RE_TLS=on lane, never run in
-# plaintext there.
+# On a RE_TLS=on lane go-1's two listeners serve TLS 1.3 + mTLS on loopback
+# ports of their own, each behind lib/tls_front.py on the public port, which
+# holds the profile's suites (RealityEngine_GO#6). A follower that cannot serve
+# the lane's TLS is `unavailable` there, never run in plaintext.
 #
 # Never a vote. Since 2026-11-22 a follower that does not agree blocks the
 # release (#842); that gate reads this lane's verdicts. Exit status:
@@ -95,11 +96,14 @@ done
 case "$FOLLOWER" in
   rust) RUNTIME=rust; ID=rust-1; REPO_NAME=RealityEngine_Rust
         RE_BIN=target/release/reality-engine; PE_BIN=target/release/perception-engine
-        PORT="${PORT:-5801}"; PE_PORT="${PE_PORT:-5800}"; SERVES_TLS=true ;;
+        PORT="${PORT:-5801}"; PE_PORT="${PE_PORT:-5800}"; SERVES_TLS=true; FRONTED=false ;;
   go)   RUNTIME=go; ID=go-1; REPO_NAME=RealityEngine_GO
         RE_BIN=bin/reality-engine; PE_BIN=bin/perception-engine
         PORT="${PORT:-free}"; PE_PORT="${PE_PORT:-free}"
-        SERVES_TLS=false ;;  # until RealityEngine_GO#6 (the OpenSSL front pattern)
+        # Go cannot restrict TLS 1.3 suites, so on the lane each listener stays
+        # on loopback behind lib/tls_front.py, which serves the profile on the
+        # public port (RealityEngine_GO#6; TRANSPORT_SECURITY.md, Go services).
+        SERVES_TLS=true; FRONTED=true ;;
   *) echo "follower-conformance.sh: --follower takes rust or go (got '$FOLLOWER')" >&2; exit 2 ;;
 esac
 F_REPO="${F_REPO:-$CI_DIR/../$REPO_NAME}"
@@ -213,12 +217,23 @@ if lane_tls_enabled; then
   lane_tls_issue_instance "$ID" "$UUID" "$HOST_IP" || { echo "follower-conformance: $ID's certificate could not be issued" >&2; exit 1; }
   TLS_ENV=(RE_TLS_CERT="$INST_TLS_CERT" RE_TLS_KEY="$INST_TLS_KEY" RE_TLS_CA="$INST_TLS_CA" RE_TLS_CRL="$INST_TLS_CRL")
 fi
+# A fronted follower listens on loopback ports of its own; its front takes the
+# public one. Off the lane there is no front and it listens where asked.
+RE_LISTEN="$PORT"; PE_LISTEN="$PE_PORT"; FRONT_PIDS=()
+if lane_tls_enabled && [ "$FRONTED" = true ]; then
+  RE_LISTEN="$(free_port)"; PE_LISTEN="$(free_port)"
+fi
+front() {  # front PUBLIC UPSTREAM LOG: the profile on PUBLIC, relayed to UPSTREAM
+  env "${TLS_ENV[@]}" python3 "$LIB/tls_front.py" --listen "127.0.0.1:$1" --upstream "127.0.0.1:$2" > "$3" 2>&1 &
+  FRONT_PIDS+=("$!")
+}
 env ${TLS_ENV[@]+"${TLS_ENV[@]}"} INSTANCE_UUID="$UUID" INSTANCE_CLOCK_DIR="$CLOCK_DIR" MACHINES_DIR="$CORPUS" \
-  VECTOR_DIMENSION="$WIDTH" REALITY_ENGINE_PORT="$PORT" \
+  VECTOR_DIMENSION="$WIDTH" REALITY_ENGINE_PORT="$RE_LISTEN" \
   "$F_REPO/$RE_BIN" > "$OUT/$ID.log" 2>&1 &
 F_PID=$!
 PE_PID=""
-trap 'kill "$F_PID" ${PE_PID:+"$PE_PID"} 2>/dev/null || true; wait "$F_PID" ${PE_PID:+"$PE_PID"} 2>/dev/null || true' EXIT
+trap 'kill "$F_PID" ${PE_PID:+"$PE_PID"} ${FRONT_PIDS[@]+"${FRONT_PIDS[@]}"} 2>/dev/null || true; wait "$F_PID" ${PE_PID:+"$PE_PID"} ${FRONT_PIDS[@]+"${FRONT_PIDS[@]}"} 2>/dev/null || true' EXIT
+[ "$RE_LISTEN" = "$PORT" ] || front "$PORT" "$RE_LISTEN" "$OUT/$ID-front.log"
 F_URL="$SCHEME://127.0.0.1:$PORT"
 started=false
 for _ in $(seq 1 600); do
@@ -251,11 +266,12 @@ HK_TOKEN="$(healthkit_token_read "$CI_DIR" 2>/dev/null || true)"
   export LOCAL_AI_MACHINES_DIR="${LOCAL_AI_MACHINES_DIR:-$CI_DIR/../localAIStack/data/machines}"
   export MQTT_CLIENT_ID; MQTT_CLIENT_ID="$(mqtt_client_id "$ID" "$UUID")"
   export MQTT_BROKER_HOST=""
-  exec env ${TLS_ENV[@]+"${TLS_ENV[@]}"} PERCEPTION_ENGINE_PORT="$PE_PORT" RE_URL="$F_URL" MACHINES_DIR="$CORPUS" \
+  exec env ${TLS_ENV[@]+"${TLS_ENV[@]}"} PERCEPTION_ENGINE_PORT="$PE_LISTEN" RE_URL="$F_URL" MACHINES_DIR="$CORPUS" \
     VECTOR_DIMENSION="$WIDTH" \
     "$F_REPO/$PE_BIN"
 ) > "$OUT/$ID-pe.log" 2>&1 &
 PE_PID=$!
+[ "$PE_LISTEN" = "$PE_PORT" ] || front "$PE_PORT" "$PE_LISTEN" "$OUT/$ID-pe-front.log"
 F_PE_URL="$SCHEME://127.0.0.1:$PE_PORT"
 started=false
 for _ in $(seq 1 600); do

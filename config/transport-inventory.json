@@ -781,6 +781,34 @@
       }
     },
     {
+      "id": "go-re-pe",
+      "from": "clients and the Go PE",
+      "to": "Go RE and PE (follower lane), at their OpenSSL fronts",
+      "protocol": "HTTP",
+      "lanes": [
+        "native"
+      ],
+      "owner": "RealityEngine_GO",
+      "issue": "RealityEngine_GO#6",
+      "status": "tls",
+      "mtls": false,
+      "note": "Follower. On a RE_TLS=on lane each Go listener stays on loopback behind scripts/lib/tls_front.py, which serves the public port at the profile with mTLS and the CRL (TRANSPORT_SECURITY.md, Go services). Probed on a scratch lane PKI on 2026-11-23: TLS 1.3, TLS_AES_256_GCM_SHA384, X25519MLKEM768, mTLS required, TLS 1.2, a non-profile suite and plaintext refused. Status and mTLS are claimed here once follower-conformance.sh records the native lane's probe (transport-probe.py --apply)."
+    },
+    {
+      "id": "go-front-to-go",
+      "from": "the Go follower's OpenSSL front (scripts/lib/tls_front.py)",
+      "to": "the Go RE or PE listener on the host's loopback",
+      "protocol": "HTTPS",
+      "lanes": [
+        "native"
+      ],
+      "owner": "RealityEngine_GO",
+      "issue": "RealityEngine_GO#6",
+      "status": "tls",
+      "mtls": false,
+      "note": "Go's crypto/tls cannot restrict a server's TLS 1.3 suites, so the Go listener also accepts TLS_AES_128_GCM_SHA256 (probed 2026-11-23: 'a suite outside the profile accepted'). The hop is TLS 1.3 with mTLS both ways and the CRL, on loopback only; the front offers the profile's suites alone. It is the Loki/Prometheus/Grafana front pattern on a native host rather than a container namespace, and it is not yet an accepted deficiency: that is the owner's decision, so the release gate lists this link until one is recorded."
+    },
+    {
       "id": "manager-ts-pe",
       "from": "clients",
       "to": "TypeScript PE (Manager)",

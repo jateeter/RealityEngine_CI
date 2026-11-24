@@ -242,9 +242,16 @@ expect "the lane without a corpus it can name is unavailable" 3 \
 expect "go-1 with no universe is unavailable" 3 \
   "$(lane --follower go --registry "$TMP/none.json")"
 grep -q 'go-1 unavailable' "$TMP/lane.out" && ok "go-1's unavailable names go-1" || bad "go-1's unavailable does not name go-1"
-expect "go-1 on a TLS lane is unavailable (RealityEngine_GO#6), never plaintext" 3 \
-  "$(RE_TLS=on lane --follower go)"
-grep -q 'RealityEngine_GO#6' "$TMP/lane.out" && ok "the TLS refusal names RealityEngine_GO#6" || bad "the TLS refusal does not name RealityEngine_GO#6"
+# On a TLS lane go-1 is no longer refused for want of TLS (RealityEngine_GO#6):
+# with no universe it is unavailable for that reason alone. A scratch PKI keeps
+# the lane's real one untouched.
+expect "go-1 on a TLS lane with no universe is unavailable" 3 \
+  "$(RE_TLS=on RE_PKI_DIR="$TMP/pki" lane --follower go --registry "$TMP/none.json")"
+! grep -q 'cannot yet' "$TMP/lane.out" && ok "go-1 is not refused for TLS on a TLS lane" || bad "go-1 is still refused for TLS on a TLS lane"
+grep -q 'FRONTED=true' "$LANE" && grep -q 'tls_front.py' "$LANE" \
+  && ok "the lane fronts go-1's listeners with tls_front.py" || bad "the lane does not front go-1"
+python3 "$CI_DIR/scripts/tests/test_tls_front.py" >"$TMP/front.out" 2>&1 \
+  && ok "tls_front.py holds the profile and refuses what it must" || { bad "tls_front.py tests failed"; cat "$TMP/front.out"; }
 expect "an unknown follower is a usage error" 2 "$(lane --follower cobol)"
 wrapped() { "$CI_DIR/scripts/rust-conformance.sh" --out "$TMP/lane" --no-build --registry "$TMP/none.json" >"$TMP/lane.out" 2>&1; echo $?; }
 expect "rust-conformance.sh is the lane for rust" 3 "$(wrapped)"
