@@ -1044,6 +1044,22 @@ jobs:
           distribution: temurin
           java-version: '25'
 
+      # Maven Central rate-limits GitHub-hosted runners (HTTP 429). Uncached,
+      # every run fetched sbt and the Scala engines' dependency tree from it, so
+      # some runs could not retrieve sbt 1.12.8 and the Scala RE never started
+      # (CI#853, #855, 2026-11-24). The cache keys on the Scala build
+      # definition, so only a dependency change goes back to Maven Central.
+      - name: Cache sbt and Scala dependencies
+        uses: actions/cache@v6
+        with:
+          path: |
+            ~/.sbt
+            ~/.ivy2/cache
+            ~/.cache/coursier
+          key: sbt-${{ runner.os }}-${{ hashFiles('RealityEngine_Scala/**/*.sbt', 'RealityEngine_Scala/**/project/build.properties', 'RealityEngine_Scala/**/project/*.sbt') }}
+          restore-keys: |
+            sbt-${{ runner.os }}-
+
       - name: Setup sbt for native Scala engines
         run: |
           curl -fsSL https://github.com/sbt/sbt/releases/download/v1.12.8/sbt-1.12.8.tgz -o /tmp/sbt-1.12.8.tgz
