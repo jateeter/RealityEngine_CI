@@ -527,7 +527,10 @@ The rule is in `docs/ENGINEERING_CONTRACT.md`; the design in
   port of its own behind `lib/tls_front.py`, an OpenSSL (Python 3.15 `ssl`)
   front that serves the public port at the profile and re-originates TLS 1.3
   + mTLS to Go (RealityEngine_GO#6). The front → Go hop is inventory link
-  `go-front-to-go`, `tls` until the owner decides on it as a deficiency.
+  `go-front-to-go`: TLS 1.3 + mTLS, with Go's extra AES-128 suite accepted
+  as a deficiency on `loki-front-to-loki`'s terms (owner, 2026-11-24). The
+  lane probes it beside `go-re-pe`. Clearing both Go-suite deficiencies is
+  the release-v0.0.3 stretch goal #854.
 - `check-insecure-transport.py`: fails a new `http://`, `ws://`, `curl -k`,
   `rejectUnauthorized: false`, `verify=False` or similar, across the focus
   set. The baseline only shrinks; `--write --ref origin/main` records it from
