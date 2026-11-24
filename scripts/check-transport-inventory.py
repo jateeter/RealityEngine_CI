@@ -63,7 +63,7 @@ AUDIENCES = {"service", "user", "external"}
 CLIENT_AUTH_METHODS = {"token"}
 OWNERS = {
     "RealityEngine_CI", "RealityEngine_Manager", "RealityEngine_Machines", "RealityEngine_CPP",
-    "RealityEngine_LSP", "RealityEngine_Scala", "RealityEngine_Rust", "localAIStack",
+    "RealityEngine_LSP", "RealityEngine_Scala", "RealityEngine_Rust", "RealityEngine_GO", "localAIStack",
     "localOpenClawStack", "localHealthkitBridge", "localAssetStorageStack",
     "OpenCommons-Health---Personal-Information-Management",
 }

@@ -522,9 +522,12 @@ The rule is in `docs/ENGINEERING_CONTRACT.md`; the design in
 - `follower-conformance.sh` runs on the lane with `RE_TLS=on`: rust-1 serves
   TLS 1.3 with an instance certificate from the lane PKI, every call presents
   the harness certificate, and its listeners are probed
-  (`transport-probe-rust.json`). go-1 cannot serve the lane's TLS until
-  RealityEngine_GO#6, so on a TLS lane it is `unavailable`, never run in
-  plaintext.
+  (`transport-probe-rust.json`). go-1 serves TLS 1.3 + mTLS too, but Go
+  cannot restrict TLS 1.3 suites, so each of its listeners takes a loopback
+  port of its own behind `lib/tls_front.py`, an OpenSSL (Python 3.15 `ssl`)
+  front that serves the public port at the profile and re-originates TLS 1.3
+  + mTLS to Go (RealityEngine_GO#6). The front → Go hop is inventory link
+  `go-front-to-go`, `tls` until the owner decides on it as a deficiency.
 - `check-insecure-transport.py`: fails a new `http://`, `ws://`, `curl -k`,
   `rejectUnauthorized: false`, `verify=False` or similar, across the focus
   set. The baseline only shrinks; `--write --ref origin/main` records it from
