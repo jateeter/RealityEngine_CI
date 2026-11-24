@@ -3299,8 +3299,10 @@ what kind. They are joined on the RE's `(instance, commit)`.
   - `kind` is the source's own kind;
   - `provider` is taken from `origin` through the provider mapping above
     (`openclaw` → `acp`; `ollama` and `localaistack` → `localai`);
-  - `class` is `deterministic` or `generated`, as the provider registry ranks
-    it.
+  - `class` is one of `docs/ARBITER_CONTRACT.md`'s determinism classes,
+    `deterministic`, `measured` or `generated`, with its default providers.
+    An unknown or absent provider is recorded as `unattributed`, `generated`
+    ("when in doubt it is generated").
 - **Version 1** has these kinds:
   - `test`: a machine-derived interned source;
   - `sensor`, with its `provider`: `mqtt`, `healthkit`, `carekit`, `acp`,
@@ -3310,6 +3312,9 @@ what kind. They are joined on the RE's `(instance, commit)`.
 - **Changing the taxonomy means a new version**, never an edit. Each version
   after the first ships a mapping from the previous one. A PE refuses to boot
   when its taxonomy version is not present in `RealityEngine_Machines`.
+- Version 1 is `schemas/source-kinds/re-source-kinds-1.json`, validated by
+  `schemas/source-kinds.schema.json` and pinned by
+  `tests/contracts/source_kinds_test.py` (RealityEngine_Machines#290).
 
 **The record, one per committed step** (`re-isre-composition/1`):
 
