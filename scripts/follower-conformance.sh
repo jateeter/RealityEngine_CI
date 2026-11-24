@@ -289,8 +289,15 @@ grep -m2 'perception-engine:' "$OUT/$ID-pe.log" || true
 # On the lane, probe the follower's listeners against the transport profile
 # while they are up (<runtime>-re-pe; recorded with transport-probe.py --apply).
 if lane_tls_enabled; then
-  printf '{"%s-re-pe": [{"url": "%s", "path": "/api/health"}, {"url": "%s", "path": "/api/state"}]}\n' \
-    "$RUNTIME" "$F_URL" "$F_PE_URL" > "$OUT/transport-probe-endpoints.json"
+  # A fronted follower's own listeners are probed too, as the hop behind the
+  # fronts (<runtime>-front-to-<runtime>): their findings are the deficiency's.
+  inner=""
+  if [ "$FRONTED" = true ]; then
+    inner="$(printf ', "%s-front-to-%s": [{"url": "https://127.0.0.1:%s", "path": "/api/health"}, {"url": "https://127.0.0.1:%s", "path": "/api/state"}]' \
+      "$RUNTIME" "$RUNTIME" "$RE_LISTEN" "$PE_LISTEN")"
+  fi
+  printf '{"%s-re-pe": [{"url": "%s", "path": "/api/health"}, {"url": "%s", "path": "/api/state"}]%s}\n' \
+    "$RUNTIME" "$F_URL" "$F_PE_URL" "$inner" > "$OUT/transport-probe-endpoints.json"
   if ! python3 "$CI_DIR/scripts/transport-probe.py" --lane native --only-endpoints \
       --endpoints "$OUT/transport-probe-endpoints.json" --report "$OUT/transport-probe-$RUNTIME.json" \
       > "$OUT/transport-probe.log" 2>&1; then
