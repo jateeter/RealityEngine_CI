@@ -2881,6 +2881,25 @@ are a contract with no implementation yet. The routes stay out of the RE route
 tables, which list only what all three runtimes serve, until phase 2 implements
 them on every runtime.*
 
+*Readiness decisions, 2026-11-24 (owner; RealityEngine_CI#603, #287), settled
+before any runtime implements this section so the voters do not each guess:*
+1. *The corpus fingerprint hashes each machine's **declared** object, without
+   anything ingestion assigns ("The snapshot body").*
+2. *Each pair carries a third element, **OSRE(m)**: every machine's own
+   output before arbitration ("What a K-line is").*
+3. *The full clock of RealityEngine_CI#600 lands on the three voters
+   **first**; K-line work starts on it ("Identity, clock and parity").*
+4. *Active lists are kept for **every retained step** (`historyLimit`), not
+   only the start-state ring ("Managing K-lines during operation").*
+5. *A K-line is **two streams joined by step**. The RE holds the episode and
+   the OSRE side; the PE holds the ISRE composition: which source won each
+   cell, of what kind. Neither process takes on the other's knowledge ("The PE
+   half: ISRE composition").*
+
+*Order of work: #600's clock on C++, LSP and Scala; then this section on the
+three voters, compared 3-of-3; then the followers (RealityEngine_Rust#81,
+RealityEngine_GO#17), held to what the voters agree on.*
+
 ### What a K-line is
 
 **A K-line is the composition of (a) the active Reality Events of a set of
@@ -2919,8 +2938,22 @@ K-line(M, m..n) = ( active(M, before m),
 
   Minted machine ids never appear, because they differ per runtime ("The OSRE
   value is the equality indicator across runtimes").
-- **A pair** is `{"stepNumber": k, "isre": <entry>, "osre": <entry>}`. `<entry>` is
-  the trajectory entry shape (`stepNumber`, `length`, `nonZero`).
+- **A pair** is `{"stepNumber": k, "isre": <entry>, "osre": <entry>, "contributions":
+  [<contribution>, …]}`. `<entry>` is the trajectory entry shape (`stepNumber`,
+  `length`, `nonZero`).
+- **`contributions` is OSRE(m), the third element** (owner, 2026-11-24). ISRE
+  and OSRE are the primary pairs, but the composed OSRE cannot say which
+  machine asserted a cell, and K-line analysis needs that. Each contribution is
+  one machine's own output at step k, **before cell arbitration**, as the
+  step's `mergeBatch` carries it:
+  `{"machine": "<name>", "region": {"offset", "length"}, "values": [...]}`.
+  - It records what each machine asserted, never how the arbiter decided
+    (arbiter internals stay out of scope, "Trajectory histories").
+  - Only machines in the K-line's scope `M` and its contributors appear, and
+    only when they asserted something that step. `values` are the machine's
+    folded output (its `outputMergeTransformation`) over its region.
+  - Ordered by `(region.offset, machine)`, machine names compared as UTF-8
+    bytes.
 
 **Projection.** For a scope narrower than the corpus, each pair is projected onto
 M (owner decision, 2026-10-05):
@@ -3015,7 +3048,8 @@ ones that took the path.
   without a match.
 - **Abandoned K-lines are kept** (owner decision 2). They are near-misses, and
   they record what differed: the event that was expected, the element index
-  that failed and its score, and the ISRE cells that the comparison read. Near
+  that failed, the value and threshold it was held to, and the ISRE cells that
+  the comparison read (`difference`, below). Near
   misses are the initialization context for a sandboxed learning deployment
   (below).
 - **Milestones belong to the episode** (owner decision 4). An intermediate
@@ -3028,12 +3062,18 @@ ones that took the path.
 the path through arbitration feedback** (owner decision 3). That feedback is
 `ISRE(n) = mergeBatch(ISRESeed(n), arbiter(OSRE(n-1)))`.
 
-- **Contributors.** For each step `k` in `m..n`, a cell in the focal machine's
-  input region that took its value from `arbiter(OSRE(k-1))` names the machine
-  that asserted that cell. The arbitration records at `k-1` show which machine
-  that was. Its K-line, the episode that was open or sustaining at `k-1`, is a
-  **contributor**. Contributors are followed again, from their own spans,
-  for up to `klineFeedbackHops` hops (an engine control, default 3).
+- **Contributors.** For each step `k` in `m..n`, every machine whose OSRE(m)
+  at `k-1` asserted a cell inside the focal machine's input region is a
+  candidate source of that cell. Its K-line, the episode open or sustaining at
+  `k-1`, is a **contributor**. The RE resolves this from the contributions
+  (OSRE(m)) it records, so it does not depend on `arbitrationRetention`.
+  Contributors are followed again, from their own spans, for up to
+  `klineFeedbackHops` hops (an engine control, default 3).
+  - Whether the fed-back value actually **won** the cell is the PE's fold's
+    decision, not the RE's. The PE half records it (`kind: "feedback"`), and an
+    analysis that joins the two streams can narrow candidates to the cells
+    feedback won. The RE half names candidates; it never claims the fold's
+    outcome.
 - If the closure would go further, the K-line records `feedbackTruncated: true`.
   A K-line never silently claims a cause set that it cut short.
 - `M` is the focal machine plus every contributor's focal machine. Each pair is
@@ -3044,49 +3084,42 @@ the path through arbitration feedback** (owner decision 3). That feedback is
 
 #### Source kinds, under a versioned taxonomy
 
-**Every pair records which kinds of source drove `M`'s input cells at that
-step** (owner decision 5). The vocabulary is a **versioned taxonomy**, and each
-K-line names the version it was written under.
-
-- The taxonomy is contract data in `RealityEngine_Machines`:
-  `schemas/source-kinds/re-source-kinds-<N>.json`.
-- Each entry is `{kind, provider?, class}`:
-  - `kind` is the source's own kind;
-  - `provider` is taken from `origin` through the provider mapping above
-    (`openclaw` → `acp`; `ollama` and `localaistack` → `localai`);
-  - `class` is `deterministic` or `generated`, as the provider registry ranks
-    it.
-- **Version 1** has these kinds:
-  - `test`: a machine-derived interned source;
-  - `sensor`, with its `provider`: `mqtt`, `healthkit`, `carekit`, `acp`,
-    `mcp`, `localai` or `signal`;
-  - `feedback`: the cell came from `arbiter(OSRE(k-1))`;
-  - `none`: the cell was not written that step.
-- Each pair carries
-  `sources: [{"cells": [<from>, <to>], "kind", "provider", "class", "id"}]`,
-  covering the projected input cells. This also records, step by step, where a
-  live source won a shared lane over the seed.
-- **Changing the taxonomy means a new version**, never an edit. A K-line keeps
-  the version it was written under. Each version after the first ships a
-  mapping from the previous one, so readers can translate a population that
-  spans versions. An engine refuses to boot when its taxonomy version is not
-  present in `RealityEngine_Machines`.
+**Which kind of source drove each input cell is recorded by the PE, not the
+RE** (owner decision 5, placed by the owner on 2026-11-24). Providers act only
+on the ISRE composition, in the PE's Source-vs-OSRE fold (`docs/ARBITER_CONTRACT.md`
+§1.1, §4.4b). The RE is presented the composed ISRE and knows nothing of its
+sources. The vocabulary, its versioning and the per-step record are specified
+in "The PE half: ISRE composition" below. The RE's K-line record carries no
+`sources`.
 
 #### Identity, clock and parity
 
 - **`id`** is `<instance>:<lamport at open>`. It is unique per instance, and
   stays unique across restarts.
 - **Clock.** Every boundary (open, each milestone, close, `sustain-end`) is
-  stamped `{instance, lamport, commit, step}`, the instance clock (RealityEngine_CI#600).
-  `causedBy` holds the `RE-Clock` of the external input that wrote the cells
-  that opened the path, when there was one.
+  stamped `{instance, lamport, commit, step}`, the instance clock of
+  RealityEngine_CI#600. **#600 lands on the three voters before any K-line
+  work** (owner, 2026-11-24), so K-lines are built on the full clock from the
+  start: `lamport` with the receive rule, `commit` counting committed steps.
+- **Causality** belongs to the PE half: the PE records the `RE-Clock` of each
+  external write that reached a cell (`causedBy` on a source entry). The RE
+  never sees those writes, so its record carries no `causedBy`.
+- **The step response carries its clock.** `POST /api/perceive` (and every
+  route that commits a step) answers with the committed step's
+  `clock: {instance, lamport, commit, step}` in its body, so the PE can key its
+  half by the RE's `(instance, commit)`, which never resets, where `step` does.
+  `clock` joins the step's declared keys ("POST /api/push response shape", and
+  `ALWAYS` in `scripts/regression-pe-step-contract.py`) in the change that lands
+  #600 on the voters, not before, so the conformance stage never declares a key
+  that no runtime emits.
 - **Corpus.** Every K-line carries the corpus fingerprint
   (`sha256/resident-declared-v1`). It is valid only against that corpus.
 - **Cross-runtime parity.** The boundaries come from the corpus, so engines
   given the same stimulus must open and close the same K-lines. The comparison
   key is `(focal machine, sequence, open.step, close.step, outcome, path event
-  ids)`, plus `scope` and the source kinds. `id`, `instance`, `lamport` and
-  `commit` are excluded, as everywhere else.
+  ids)`, plus `scope` and `contributions`. `id`, `instance`, `lamport` and
+  `commit` are excluded, as everywhere else. The PE half is compared on its own
+  terms (below).
 
 ### Managing K-lines during operation
 
@@ -3097,13 +3130,20 @@ reconstruct it afterwards.
   flight, at most one per active non-initial event, keyed by the event the path
   currently holds. Each open K-line holds its pairs so far, its milestones, and
   its start state.
-- **The start-state ring.** The engine keeps the active list for each of the
-  last `W` committed steps, so that a contributor's start state is still
-  available when a K-line closes. `W = L × (klineFeedbackHops + 1)`, where `L`
-  is the longest initial-to-final path in the **resident** corpus. `W` is
-  recomputed whenever the corpus changes at runtime. The ring stores deltas
-  between consecutive steps. It is bounded by the corpus, not by a retention
-  setting.
+- **Active lists for every retained step** (owner, 2026-11-24). The engine
+  keeps the active list after each committed step for the last
+  `max(historyLimit, W)` steps, as deltas between consecutive steps, beside the
+  trajectory pairs. `W = L × (klineFeedbackHops + 1)`, where `L` is the longest
+  initial-to-final path in the **resident** corpus, recomputed whenever the
+  corpus changes at runtime.
+  - The **start-state ring** is the newest `W` of them: what K-line closure
+    needs, so a contributor's start state is available when a K-line closes
+    even if `historyLimit` is set below `W`.
+  - Every retained trajectory pair can therefore start a snapshot: `activeBefore`
+    of step `m` is the list after `m-1`, or the boot/reset state when `m` is the
+    first step since either.
+  - A reset clears them with the histories. Narrowing `historyLimit` drops the
+    oldest at once, never below `W`.
 - **At each committed step**, in the same place as arbitration retention, that
   is, **before** the step's completion point is published:
   1. Read each sequence's transition result: matched, activated, asserted, and
@@ -3178,14 +3218,14 @@ does (RealityEngine_CI#296).
 { "format": "re-kline/1",
   "id": "<instance>:<lamport>",
   "corpus": { "algorithm": "sha256/resident-declared-v1", "fingerprint": "<hex>" },
-  "taxonomy": "re-source-kinds/1",
   "focal": { "machine": "<name>", "sequence": "<id>" },
   "outcome": "completed" | "abandoned" | "subsumed" | "interrupted",
   "reason": null | "reset" | "machine-removed" | "shutdown",
   "open":  { "step": m, "commit": …, "lamport": …, "instance": … },
   "close": { "step": n, "commit": …, "lamport": …, "instance": … },
   "path": [ { "event": "<id>", "step": k, "milestone": false, "outputs": [] }, … ],
-  "difference": null | { "expected": ["<event id>"], "elementIndex": i, "score": s, "cells": [<from>, <to>] },
+  "difference": null | { "expected": ["<event id>"], "elementIndex": i, "cell": c,
+                          "value": v, "comparator": "<name>", "threshold": t, "cells": [<from>, <to>] },
   "subsumedBy": null | "<kline id>",
   "sustain": { "through": n, "ended": false },
   "scope": ["<machine name>", …],
@@ -3195,11 +3235,24 @@ does (RealityEngine_CI#296).
   "activeBefore": [ {machine, sequence, event, justMatched}, … ],
   "activeAfter":  [ … ],
   "pairs": [ { "stepNumber": k, "isre": <entry>, "osre": <entry>,
-               "sources": [ { "cells": [a, b], "kind": "sensor", "provider": "healthkit",
-                              "class": "deterministic", "id": "<source id>" } ] }, … ],
-  "outputs": { "outputVector": …, "mergedOutputVector": … },
-  "causedBy": null | { "instance": "<uuid>", "lamport": n } }
+               "contributions": [ { "machine": "<name>", "region": { "offset": o, "length": l },
+                                    "values": [ … ] } ] }, … ],
+  "outputs": { "outputVector": …, "mergedOutputVector": … } }
 ```
+
+- **`difference`** (an `abandoned` K-line only) names the first comparison that
+  failed, with no score invented: `expected` is the event the path held,
+  `elementIndex` its first element in index order whose comparison failed,
+  `cell` that element's absolute ISRE index, `value` the ISRE value there,
+  `comparator` and `threshold` what it was held to ("Comparators"), and `cells`
+  the input region the comparison read.
+- **`re-kline-event/1`**, appended to the segment when a sustain ends:
+  `{"format": "re-kline-event/1", "kline": "<id>", "event": "sustain-end",
+  "through": n, "at": {instance, lamport, commit, step}}`.
+- **Order.** Records are appended, and listed, by `close.commit`; K-lines
+  closing on the same step are ordered by `(focal.machine, focal.sequence,
+  open.step)`, names and ids compared as UTF-8 bytes. The order is part of the
+  compared surface.
 
 #### Routes
 
@@ -3211,15 +3264,113 @@ GET  /api/klines/stats                                                counts by 
 POST /api/klines/export   {"outcome": [...], "since": …, "machines": [...]}  → a re-kline-bundle/1, and marks the segments it covered as exported
 ```
 
+Bodies:
+- `GET /api/klines` → `{"klines": [<record>, …], "next": <commit> | null}`.
+  `limit` defaults to 100 and is capped at 1000; `next` is the `since` for the
+  following page.
+- `GET /api/klines/open` → `{"commit": c, "open": [{"id", "focal", "open",
+  "path", "held": "<event id>"}, …]}`, ordered as closed records are.
+- `GET /api/klines/:id` → the record, or 404 `{"error": "no K-line <id>"}`.
+- `GET /api/klines/stats` → `{"byOutcome": {<outcome>: n}, "byMachine":
+  {<name>: {<outcome>: n}}, "segments": n, "bytes": n, "budget": n,
+  "warnings": ["…"]}`.
+- With `klineCapture` off, every route still answers from the store; capture
+  alone stops.
+
 A bundle (`re-kline-bundle/1`) holds:
 - the selected records;
 - the corpus fingerprint;
-- the taxonomy version;
 - the engine controls in force;
 - the source instance UUID;
 - a sha256 over the records.
 
 The routes stay out of the RE route tables until all three runtimes serve them.
+
+### The PE half: ISRE composition
+
+*Owner, 2026-11-24.* A K-line is two streams joined by step. The RE records
+the episode and the OSRE side (above). The PE records the ISRE composition, the
+one thing only it knows: which source won each input cell at each step, and of
+what kind. They are joined on the RE's `(instance, commit)`.
+
+**The taxonomy.** The vocabulary of source kinds is contract data in
+`RealityEngine_Machines`: `schemas/source-kinds/re-source-kinds-<N>.json`.
+- Each entry is `{kind, provider?, class}`:
+  - `kind` is the source's own kind;
+  - `provider` is taken from `origin` through the provider mapping above
+    (`openclaw` → `acp`; `ollama` and `localaistack` → `localai`);
+  - `class` is `deterministic` or `generated`, as the provider registry ranks
+    it.
+- **Version 1** has these kinds:
+  - `test`: a machine-derived interned source;
+  - `sensor`, with its `provider`: `mqtt`, `healthkit`, `carekit`, `acp`,
+    `mcp`, `localai` or `signal`;
+  - `feedback`: the fold kept the `OSRE(k-1)` term for the cell;
+  - `none`: nothing wrote the cell that step.
+- **Changing the taxonomy means a new version**, never an edit. Each version
+  after the first ships a mapping from the previous one. A PE refuses to boot
+  when its taxonomy version is not present in `RealityEngine_Machines`.
+
+**The record, one per committed step** (`re-isre-composition/1`):
+
+```
+{ "format": "re-isre-composition/1",
+  "taxonomy": "re-source-kinds/1",
+  "re": { "instance": "<RE uuid>", "lamport": …, "commit": c, "step": k },
+  "pe": { "instance": "<PE uuid>", "lamport": … },
+  "sources": [ { "cells": [a, b], "kind": "sensor", "provider": "healthkit",
+                 "class": "deterministic", "id": "<source id>",
+                 "causedBy": null | { "instance": "<uuid>", "lamport": n } }, … ],
+  "folds": [ <fold record>, … ],
+  "delta": true | false }
+```
+
+- `re` is the step response's `clock`; `pe` is the PE's own clock when it
+  recorded the step.
+- `sources` covers every input cell some source or the feedback term wrote,
+  as runs of consecutive cells with one winner, ascending by `cells[0]`. Cells
+  nobody wrote are `none` by omission.
+- `causedBy` is the `RE-Clock` of the external write that delivered the
+  winning value, when the writer sent one.
+- `folds` are the step's Source-vs-OSRE fold records, as
+  `GET /api/sources/contention` reports them (§4.4b), in their canonical order.
+- `delta: true` means `sources` lists only the runs that changed since the
+  previous record. The first record after boot, a reset, or a new segment is
+  complete (`delta: false`).
+
+**The store, per PE instance.** `$RE_INSTANCE_STATE_DIR/isre/<pe_uuid>/`,
+`~/.reality-engine/isre/<pe_uuid>/` natively, in the K-line store's format:
+append-only `segment-<first commit>.jsonl`, `index.json`, and `manifest.json`
+for sealed segments, flushed before the PE answers the push. The PE's own
+lifetime lock on its UUID (#600) covers it. `isreStoreMaxBytes` (default 2 GiB)
+bounds it as `klineStoreMaxBytes` does the K-line store: an unexported segment
+is never evicted.
+
+**PE controls**, through `PATCH /api/config`: `isreCapture` (default `true` once
+all three runtimes implement it) and `isreStoreMaxBytes`.
+
+**Routes (PE):**
+```
+GET  /api/isre-composition?from=<commit>&to=<commit>&limit=   records in commit order, deltas expanded
+GET  /api/isre-composition/stats                               segments, bytes, budget, warnings
+POST /api/isre-composition/export {"from", "to"}               → a re-isre-bundle/1, and marks the segments exported
+```
+`GET /api/isre-composition` answers `{"records": [...], "next": <commit> | null}`
+with every record complete, so a reader never applies deltas itself.
+A `re-isre-bundle/1` holds the selected records (complete), the taxonomy
+version, the PE's instance UUID, its RE's instance UUID, and a sha256 over the
+records.
+
+**The join.** A K-line's ISRE side is the PE records whose `re.instance` is the
+K-line's instance and whose `re.commit` lies in its span. An export or an
+analysis joins them; neither process stores the other's half. A
+`re-kline-bundle/1` and a `re-isre-bundle/1` over the same commits form a whole
+population.
+
+**Parity.** Engines given the same stimulus must record the same composition.
+The PE half is compared per step by `re.step`, on `sources` (`cells`, `kind`,
+`provider` and `class`) and `folds`. Source `id`s, every `instance`, `lamport`
+and `commit`, and `causedBy` are excluded.
 
 ### Sandboxed learning deployment: initialization from the population
 
@@ -3291,8 +3442,13 @@ into a different machine set: restoring machine state into other machines
 produces nonsense silently (#220). The fingerprint covers the machines that are
 **resident**, not the files on disk, because machines are also ingested at
 runtime (`POST /api/machines`). To compute it:
-1. For each resident machine, take the SHA-256 of its declared form (the machine
-   object as ingested) serialized by RFC 8785 (JCS).
+1. For each resident machine, take the SHA-256 of its **declared** form,
+   serialized by RFC 8785 (JCS). The declared form is the machine object as its
+   corpus file or request body declares it, **without anything ingestion
+   assigns** (owner, 2026-11-24): no `id`, minted or kept, and the declared
+   `name`, not a versioned one. A fingerprint over assigned fields would differ
+   per runtime, and refuse every cross-runtime restore. Machine lines with the
+   same name keep both lines, ordered by their hex.
 2. Write one line per machine, `"<name>\t<hex>\n"`, ordered by name.
 3. The fingerprint is the SHA-256 of those lines.
 
@@ -3331,7 +3487,7 @@ under "Retained step shape". Everything else is compared, the digest included.
 
 | Method | Path | Does |
 |---|---|---|
-| POST | `/api/runtime/snapshot` | capture a K-line over the retained steps. Body `{scope?, from?, to?}`: scope defaults to `"corpus"`, span to the newest committed step alone. Returns `{id, digest, span}` |
+| POST | `/api/runtime/snapshot` | capture a K-line over the retained steps (the trajectory histories' `historyLimit`, whose active lists are kept with them). Body `{scope?, from?, to?}`: scope defaults to `"corpus"`, span to the newest committed step alone. Returns `{id, digest, span}` |
 | GET | `/api/runtime/snapshots` | list `{id, digest, scope, span, machines}`, oldest first by `clocks.to.lamport` |
 | GET | `/api/runtime/snapshot/:id` | one snapshot body, in full |
 | POST | `/api/runtime/restore` | `{id}` or `{snapshot: <body>}`: re-establish it (below). Returns `{digest, step}` |
