@@ -1402,29 +1402,104 @@ an instance of the same id in a universe running alongside it is a different
 instance and is allocated its own UUID, recorded as `<lane>/<id>#<n>`
 (RealityEngine_CI#637).
 
-The clock is `{instance, lamport, step}`:
+The clock is `{instance, lamport, commit, step}` (owner, 2026-10-24;
+RealityEngine_CI#600): a count of committed steps **and** a full Lamport clock
+with the receive rule, carried across the local integration boundaries.
 
-| field | |
-|---|---|
-| `instance` | the instance UUID |
-| `lamport` | ticks once per committed step and is **never reset**, so `(instance, lamport)` names one step uniquely. `0` before the first step since boot |
-| `step` | the step count, which a reset restarts. `-1` before the first step since boot or reset |
+| field | | ticks on | resets |
+|---|---|---|---|
+| `instance` | the participant's UUID | — | never |
+| `lamport` | the **full Lamport clock** | every committed step, every send and every receive | never |
+| `commit` | **committed steps**: what `lamport` counted before #600 | a committed step only | never |
+| `step` | the step count | a committed step | on reset (`-1` before the first step since boot or reset) |
 
-`GET /api/engine/clock` returns the clock for the newest committed step. Every
-retained arbitration step carries the clock it committed at.
+- `(instance, lamport)` names one event uniquely, and `(instance, commit)`
+  names one committed step uniquely. `lamport >= commit` always holds, and both
+  only ever increase. Both are `0` before the participant's first event.
+- **A committed step** ticks `commit` and `lamport` together. The step's clock
+  is the participant's clock at that event: `GET /api/engine/clock`, every
+  retained arbitration step, every K-line boundary and the step response's
+  `clock` all report it.
+- **Every inbound request is a receive**, applied **before** the request is
+  handled: `lamport = max(local, received) + 1` with an `RE-Clock` header, or
+  `lamport = local + 1` without one (a local event, so legacy and external
+  callers keep working).
+- **Every response is a send:** the participant ticks, then stamps the response
+  with its clock. A request therefore moves a participant's `lamport` by at
+  least 2.
+- **Every outbound call is a send** (tick, then stamp), and its response is a
+  receive.
 
-**An allocated instance keeps its clock across restarts.** `INSTANCE_CLOCK_DIR`
-(default `~/.reality-engine/clock/`) holds `<uuid>.lamport`, a high-water mark
-reserved 1024 ticks ahead: a boot resumes from the mark and reserves the next
-block before issuing any tick, and a tick past the persisted mark is always
-preceded by the write of the next block (temp + rename), never followed by it.
-The instance holds an exclusive `fcntl` lock on `<uuid>.lock` for its whole life,
-so a second live process — of any engine type — presenting the same UUID refuses
-to boot. A clock that cannot be read or written refuses the boot too: either way
-ticks could be issued twice.
+**The header**, on every request and response that crosses a boundary:
 
-`instance` and `lamport` are instance facts and are **left out of cross-runtime
-byte comparison**; `step` is compared. Wall-clock time orders nothing.
+```
+RE-Clock: instance=<uuid>; lamport=<n>
+```
+
+- `<uuid>` is a UUID in canonical lower-case hex (`8-4-4-4-12`). `<n>` is a
+  decimal integer in `[0, 2^53 - 1]`, with no sign and no leading zeros.
+  The two parameters appear once each, in that order, separated by `;` with
+  optional spaces.
+- **Malformed is refused with 400** `{"error": "malformed RE-Clock header"}`
+  before the request is handled. That covers a missing parameter, an extra one,
+  a bad UUID or number, a value out of range, or more than one `RE-Clock`
+  header. A refused request is still a receive of a local event: the
+  participant's clock moves, and the 400 carries `RE-Clock`.
+- **Absent** is accepted, as a local event.
+- A response's header is the responder's clock, and the caller applies the
+  receive rule to it.
+
+**Body fields**, wherever a message is **stored or forwarded**, because a
+header does not survive either: `clock` (the participant's clock when it
+stored or forwarded the message) and, where one event caused another,
+`causedBy` (the causing event's `{instance, lamport}`). Dispatch records and
+completion envelopes carry `clock`, and a completion carries the dispatch's
+clock as `causedBy`.
+
+**The participants.** A Lamport clock belongs to a process.
+- **Each engine RE** has its clock under `INSTANCE_UUID` (`instance_uuid` in the
+  instance registry). `GET /api/engine/clock` returns it, with all four fields.
+- **Each engine PE** is a participant of its own: `PE_INSTANCE_UUID`, recorded
+  as `pe_uuid` next to `instance_uuid` and allocated by CI under `<lane>/<id>/pe`.
+  It keeps `lamport` and `commit` like an RE, where `commit` counts the pushes
+  it completed and `step` its `globalStep`. `GET /api/clock` on the PE returns
+  `{instance, lamport, commit, step}`.
+- localAI, the OpenClaw adapter or ACP runner, and the HealthKit bridge are
+  participants under RealityEngine_CI#600's plan. Manager's backend and the
+  MCP gateway only **relay**: they pass `RE-Clock` through unchanged and do not
+  tick.
+
+**Persistence: no tick is handed out twice.** `INSTANCE_CLOCK_DIR` (default
+`~/.reality-engine/clock/`) holds, per participant UUID, two high-water marks,
+`<uuid>.lamport` and `<uuid>.commit`. Each is reserved 1024 ticks ahead:
+- a boot resumes each counter from its mark and reserves the next block before
+  issuing any tick;
+- a tick past a persisted mark is always preceded by the write of the next block
+  (temp file, then rename), never followed by it;
+- **a receive that jumps past the reserved mark** writes the new mark
+  (`received + 1 + 1024`) **before** the value is used, because one jump can
+  exceed the reservation, and adopting it before it is durable could reissue
+  the same tick after a crash.
+
+A clock directory written before #600 holds only `<uuid>.lamport`, whose value
+counted committed steps. At its first boot under this rule it seeds **both**
+marks from that value: `commit` keeps counting from it, and `lamport` starts
+there, which keeps `lamport >= commit`.
+
+Each participant holds an exclusive `fcntl` lock on `<uuid>.lock` for its whole
+life, so a second live process presenting the same UUID refuses to boot. That
+covers any engine type and an RE and PE alike. A clock that cannot be read or
+written refuses the boot too: either way ticks could be issued twice.
+
+**Comparison.** `instance`, `lamport` and `commit` are participant facts and are
+**left out of cross-runtime byte comparison**, as are `RE-Clock` headers; `step`
+is compared. Received values differ from one engine to the next, and that is
+correct. Wall-clock time orders nothing.
+
+**Order of rollout.** The step response's `clock`, the four-field
+`GET /api/engine/clock` and the new routes join the conformance stages and
+route tables in the change that lands them on all three voters, not before
+(see "K-lines and runtime snapshots").
 
 ##### The controls and the two worlds
 
@@ -1454,7 +1529,7 @@ K-line's pairs by step number ("K-lines and runtime snapshots").
 ##### Retained step shape
 
 ```
-{ "clock": {"instance", "lamport", "step"},
+{ "clock": {"instance", "lamport", "commit", "step"},
   "registryEntries", "registrySource", "shards", "count",
   "records": [ ArbitrationRecord … ] }
 ```
@@ -1468,7 +1543,7 @@ The legacy object's fields under the clock. In this world the records are
 - a machine contribution's `outputVectorId` is the string `"0"`.
 
 `shards` (arbiter parallelism) and `registrySource` (a path) are deployment facts
-and are left out of byte comparison with `instance` and `lamport`.
+and are left out of byte comparison with `instance`, `lamport` and `commit`.
 
 The legacy object keeps each runtime's own order and fields — the escape
 preserves what a consumer was written against. Its bytes are unchanged except

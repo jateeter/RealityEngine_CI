@@ -126,6 +126,37 @@ registry_add "lsp-1" "lsp" "http://127.0.0.1:5601" "http://127.0.0.1:5600" "" ""
 assert_eq "$(python3 -c "import json; d=json.load(open('$RE_REGISTRY_FILE')); print([i['instance_uuid'] for i in d['instances'] if i['id']=='lsp-1'][0])")" "None" "U10: without a UUID the field is null"
 python3 "$CI_DIR/scripts/lib/instance_uuids.py" check-registry "$RE_REGISTRY_FILE"
 assert_exit "$?" "0" "U11: check-registry passes a registry with unique UUIDs"
+# The PE is a clock participant of its own (RealityEngine_CI#600): its UUID is
+# allocated under <lane>/<id>/pe, recorded as pe_uuid, and no RE or PE may share it.
+u_pe1=$(instance_uuid_allocate native cpp-1/pe)
+_distinct=no; [ -n "$u_pe1" ] && [ "$u_pe1" != "$u_cpp1" ] && _distinct=yes
+assert_eq "$_distinct" "yes" "P1: an instance's PE has its own UUID, not its RE's"
+assert_eq "$(instance_uuid_allocate native cpp-1/pe)" "$u_pe1" "P1: and keeps it across allocations"
+registry_add "cpp-1" "cpp" "https://127.0.0.1:5301" "https://127.0.0.1:5300" "" "" "$u_cpp1" "" "$u_pe1"
+assert_eq "$(python3 -c "import json; d=json.load(open('$RE_REGISTRY_FILE')); print([i['pe_uuid'] for i in d['instances'] if i['id']=='cpp-1'][0])")" "$u_pe1" "P2: registry_add records pe_uuid"
+set +e
+registry_add "cpp-2" "cpp" "https://127.0.0.1:5311" "https://127.0.0.1:5310" "" "" "$u_pe1" 2>/dev/null; _e1=$?
+registry_add "cpp-2" "cpp" "https://127.0.0.1:5311" "https://127.0.0.1:5310" "" "" "$u_cpp2" "" "$u_cpp1" 2>/dev/null; _e2=$?
+registry_add "cpp-2" "cpp" "https://127.0.0.1:5311" "https://127.0.0.1:5310" "" "" "$u_cpp2" "" "$u_cpp2" 2>/dev/null; _e3=$?
+set -e
+assert_exit "$_e1" "1" "P3: an RE UUID another instance's PE holds is refused"
+assert_exit "$_e2" "1" "P4: a PE UUID another instance's RE holds is refused"
+assert_exit "$_e3" "1" "P5: an instance's RE and PE may not share a UUID"
+assert_eq "$(python3 -c "import json; d=json.load(open('$RE_REGISTRY_FILE')); print(sorted(i['id'] for i in d['instances']))")" "['cpp-1', 'lsp-1']" "P3-P5: and nothing was registered"
+python3 "$CI_DIR/scripts/lib/instance_uuids.py" check-registry "$RE_REGISTRY_FILE"
+assert_exit "$?" "0" "P6: check-registry passes distinct RE and PE UUIDs"
+_shared="$(mktemp)"
+python3 - "$RE_REGISTRY_FILE" "$u_pe1" "$_shared" <<'PY'
+import json, sys
+d = json.load(open(sys.argv[1]))
+d['instances'].append({'id': 'lsp-9', 'instance_uuid': sys.argv[2]})
+json.dump(d, open(sys.argv[3], 'w'))
+PY
+set +e
+python3 "$CI_DIR/scripts/lib/instance_uuids.py" check-registry "$_shared" 2>/dev/null; _e4=$?
+set -e
+rm -f "$_shared"
+assert_exit "$_e4" "1" "P7: check-registry refuses an RE sharing another instance's PE UUID"
 python3 - "$RE_REGISTRY_FILE" "$u_cpp1" <<'PY'
 import json, sys
 d = json.load(open(sys.argv[1]))
