@@ -187,24 +187,30 @@ instance_clock_dir() {
     python3 "$(dirname "${BASH_SOURCE[0]}")/lib/instance_uuids.py" clock-dir
 }
 
-# The optional seventh argument is the instance's UUID. A UUID another instance
-# in this registry already holds is refused (exit 1), never overwritten: two
-# instances sharing one would share a Lamport clock.
+# The optional seventh argument is the instance's UUID, and the ninth its PE's
+# participant UUID (pe_uuid, RealityEngine_CI#600). A UUID already held in this
+# instance registry -- by an RE or a PE -- is refused (exit 1), never
+# overwritten: two participants sharing one would share a Lamport clock.
 registry_add() {
     # role: empty for a voter; `follower` for a conformance follower (Rust), which never votes.
-    local id="$1" runtime="$2" re_url="$3" pe_url="$4" pid_re="${5:-}" pid_pe="${6:-}" instance_uuid="${7:-}" role="${8:-}"
+    local id="$1" runtime="$2" re_url="$3" pe_url="$4" pid_re="${5:-}" pid_pe="${6:-}" instance_uuid="${7:-}" role="${8:-}" pe_uuid="${9:-}"
     _registry_init
-    python3 - "$REGISTRY_FILE" "$id" "$runtime" "$re_url" "$pe_url" "$pid_re" "$pid_pe" "$instance_uuid" "$role" <<'EOF'
+    python3 - "$REGISTRY_FILE" "$id" "$runtime" "$re_url" "$pe_url" "$pid_re" "$pid_pe" "$instance_uuid" "$role" "$pe_uuid" <<'EOF'
 import json, sys, datetime
-path, iid, runtime, re_url, pe_url, pid_re, pid_pe, instance_uuid, role = sys.argv[1:]
+path, iid, runtime, re_url, pe_url, pid_re, pid_pe, instance_uuid, role, pe_uuid = sys.argv[1:]
 with open(path) as f:
     reg = json.load(f)
 reg['instances'] = [i for i in reg['instances'] if i['id'] != iid]
-if instance_uuid:
-    holders = [i['id'] for i in reg['instances'] if i.get('instance_uuid') == instance_uuid]
+if instance_uuid and instance_uuid == pe_uuid:
+    sys.exit(f"registry_add {iid}: its RE and PE may not share a UUID")
+for mine, what in ((instance_uuid, "instance"), (pe_uuid, "PE")):
+    if not mine:
+        continue
+    holders = [i['id'] + ('' if i.get('instance_uuid') == mine else '/pe') for i in reg['instances']
+               if mine in (i.get('instance_uuid'), i.get('pe_uuid'))]
     if holders:
-        sys.exit(f"registry_add {iid}: instance UUID {instance_uuid} is already held by "
-                 f"{', '.join(holders)}; two instances may not share a UUID")
+        sys.exit(f"registry_add {iid}: {what} UUID {mine} is already held by "
+                 f"{', '.join(holders)}; two participants may not share a UUID")
 def _port(url):
     try: return int(url.rsplit(':', 1)[-1])
     except: return 0
@@ -215,6 +221,7 @@ entry = {
     'pid_re': int(pid_re) if pid_re else None,
     'pid_pe': int(pid_pe) if pid_pe else None,
     'instance_uuid': instance_uuid or None,
+    'pe_uuid': pe_uuid or None,
     'started_at': datetime.datetime.utcnow().strftime('%Y-%m-%dT%H:%M:%SZ'),
     'status': 'running'
 }

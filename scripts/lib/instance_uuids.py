@@ -278,11 +278,20 @@ def docker_env(instance_id: str) -> str:
 
 
 def check_registry(registry_file: str) -> list[str]:
-    """Failures: two instances in one instance registry holding the same UUID."""
+    """Failures: two participants in one instance registry holding the same UUID.
+
+    Every participant counts: each instance's RE (`instance_uuid`) and, since
+    RealityEngine_CI#600, its PE (`pe_uuid`, held as `<id>/pe`), so an RE and a
+    PE may not share one either.
+    """
     document = json.loads(Path(registry_file).read_text())
-    held = {i.get("id", "?"): i["instance_uuid"]
-            for i in document.get("instances", []) if i.get("instance_uuid")}
-    return [f"instance UUID {u} is held by {', '.join(ids)}: two instances may not share a UUID"
+    held: dict[str, str] = {}
+    for i in document.get("instances", []):
+        if i.get("instance_uuid"):
+            held[i.get("id", "?")] = i["instance_uuid"]
+        if i.get("pe_uuid"):
+            held[f"{i.get('id', '?')}/pe"] = i["pe_uuid"]
+    return [f"UUID {u} is held by {', '.join(ids)}: two participants may not share a UUID"
             for u, ids in duplicates(held).items()]
 
 

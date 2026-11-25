@@ -774,10 +774,12 @@ the domain bus exists to surface.
 cells is OPTIONAL and SHOULD be off by default.
 
 The records are served by `GET /api/arbitration`: the latest step's in the legacy
-shape, or — with `arbitrationRetention` on — retained per step and addressed by
-`?step=N`, each under the instance clock `{instance, lamport, step}`. That is
-specified in SURFACE_SPEC.md, "Arbitration retention and the instance clock"
-(RealityEngine_CI#296).
+shape, or — with `arbitrationRetention` on — retained per committed step and
+addressed by `?step=N`, each under the instance clock `{instance, lamport,
+commit, step}`. Retention is keyed by `commit`, which never repeats; `?step=N`
+addresses it within the current reset epoch, since a reset drops what was
+retained. That is specified in SURFACE_SPEC.md, "Arbitration retention and the
+instance clock" (RealityEngine_CI#296, #600).
 
 ## 7. Parallelism directives
 

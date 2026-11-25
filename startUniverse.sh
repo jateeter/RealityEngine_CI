@@ -1469,6 +1469,10 @@ spawn_scala_instance() {
     # kept across universes so its Lamport clock carries on (#296).
     local instance_uuid
     instance_uuid=$(instance_uuid_allocate native "$id") || die "$id: instance UUID allocation failed"
+    # The PE is a clock participant of its own (RealityEngine_CI#600): its own
+    # UUID under <lane>/<id>/pe, recorded as pe_uuid, and its own lock.
+    local pe_uuid
+    pe_uuid=$(instance_uuid_allocate native "$id/pe") || die "$id: PE UUID allocation failed"
     # Its certificate (#732): issued always, handed over only with RE_TLS=on.
     lane_tls_issue_instance "$id" "$instance_uuid" "$HOST_IP" || die "$id: certificate issue failed (RE_TLS=on)"
     # localAI, Qdrant and Ollama follow the lane (localAIStack#172): each spawn
@@ -1482,6 +1486,7 @@ spawn_scala_instance() {
 
     INSTANCE_ID="$id" \
     INSTANCE_UUID="$instance_uuid" \
+    PE_INSTANCE_UUID="$pe_uuid" \
     MQTT_CLIENT_ID="$(mqtt_client_id "$id" "$instance_uuid")" \
     INSTANCE_CLOCK_DIR="$INSTANCE_CLOCK_DIR" \
     RE_TLS_CERT="$INST_TLS_CERT" \
@@ -1516,7 +1521,7 @@ spawn_scala_instance() {
         "$scheme://$HOST_IP:$re_port" \
         "$scheme://$HOST_IP:$pe_port" \
         "${pid_re_actual:-$pid_re}" "${pid_pe_actual:-}" \
-        "$instance_uuid" || die "$id: not registered (see above)"
+        "$instance_uuid" "" "$pe_uuid" || die "$id: not registered (see above)"
 }
 
 spawn_cpp_instance() {
@@ -1529,6 +1534,10 @@ spawn_cpp_instance() {
     # kept across universes so its Lamport clock carries on (#296).
     local instance_uuid
     instance_uuid=$(instance_uuid_allocate native "$id") || die "$id: instance UUID allocation failed"
+    # The PE is a clock participant of its own (RealityEngine_CI#600): its own
+    # UUID under <lane>/<id>/pe, recorded as pe_uuid, and its own lock.
+    local pe_uuid
+    pe_uuid=$(instance_uuid_allocate native "$id/pe") || die "$id: PE UUID allocation failed"
     # Its certificate (#732): issued always, handed over only with RE_TLS=on.
     lane_tls_issue_instance "$id" "$instance_uuid" "$HOST_IP" || die "$id: certificate issue failed (RE_TLS=on)"
     local scheme; scheme=$(lane_tls_scheme)
@@ -1538,6 +1547,7 @@ spawn_cpp_instance() {
 
     INSTANCE_ID="$id" \
     INSTANCE_UUID="$instance_uuid" \
+    PE_INSTANCE_UUID="$pe_uuid" \
     MQTT_CLIENT_ID="$(mqtt_client_id "$id" "$instance_uuid")" \
     INSTANCE_CLOCK_DIR="$INSTANCE_CLOCK_DIR" \
     RE_TLS_CERT="$INST_TLS_CERT" \
@@ -1571,7 +1581,7 @@ spawn_cpp_instance() {
         "$scheme://$HOST_IP:$re_port" \
         "$scheme://$HOST_IP:$pe_port" \
         "${pid_re_actual:-}" "${pid_pe_actual:-}" \
-        "$instance_uuid" || die "$id: not registered (see above)"
+        "$instance_uuid" "" "$pe_uuid" || die "$id: not registered (see above)"
 }
 
 spawn_lsp_instance() {
@@ -1584,6 +1594,10 @@ spawn_lsp_instance() {
     # kept across universes so its Lamport clock carries on (#296).
     local instance_uuid
     instance_uuid=$(instance_uuid_allocate native "$id") || die "$id: instance UUID allocation failed"
+    # The PE is a clock participant of its own (RealityEngine_CI#600): its own
+    # UUID under <lane>/<id>/pe, recorded as pe_uuid, and its own lock.
+    local pe_uuid
+    pe_uuid=$(instance_uuid_allocate native "$id/pe") || die "$id: PE UUID allocation failed"
     # Its certificate (#732): issued always, handed over only with RE_TLS=on.
     lane_tls_issue_instance "$id" "$instance_uuid" "$HOST_IP" || die "$id: certificate issue failed (RE_TLS=on)"
     local scheme; scheme=$(lane_tls_scheme)
@@ -1593,6 +1607,7 @@ spawn_lsp_instance() {
 
     INSTANCE_ID="$id" \
     INSTANCE_UUID="$instance_uuid" \
+    PE_INSTANCE_UUID="$pe_uuid" \
     MQTT_CLIENT_ID="$(mqtt_client_id "$id" "$instance_uuid")" \
     INSTANCE_CLOCK_DIR="$INSTANCE_CLOCK_DIR" \
     RE_TLS_CERT="$INST_TLS_CERT" \
@@ -1626,7 +1641,7 @@ spawn_lsp_instance() {
         "$scheme://$HOST_IP:$re_port" \
         "$scheme://$HOST_IP:$pe_port" \
         "${pid_re_actual:-}" "${pid_pe_actual:-}" \
-        "$instance_uuid" || die "$id: not registered (see above)"
+        "$instance_uuid" "" "$pe_uuid" || die "$id: not registered (see above)"
 }
 
 # ── Engine-selection short-circuit ────────────────────────────────────────
