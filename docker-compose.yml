@@ -295,9 +295,13 @@ services:
       - TRIGGER_DISPATCH_MODE
       - TRIGGER_GRAPHQL_URL
     env_file:
+      # Its own participant UUID and clock (#600): <id>.pe.env, PE_INSTANCE_UUID.
+      - path: ${RE_INSTANCE_STATE_DIR:-${HOME}/.reality-engine}/docker/scala-1.pe.env
+        required: false
       - path: ${RE_INSTANCE_STATE_DIR:-${HOME}/.reality-engine}/docker/scala-1.tls.env
         required: false
     volumes:
+      - ${RE_INSTANCE_STATE_DIR:-${HOME}/.reality-engine}/clock-docker:/var/lib/reality-engine/clock
       - ${MACHINE_CORPUS_DIR:-${MACHINES_DIR:?MACHINES_DIR must be set — run via startUniverse.sh}}/machines:/app/machines:ro
       - ${MACHINE_CORPUS_DIR:-${MACHINES_DIR:?MACHINES_DIR must be set — run via startUniverse.sh}}/semantics:/app/semantics:ro
       - ./config:/app/config:ro
@@ -387,9 +391,13 @@ services:
     command: ["/app/bin/perception_engine_server", "3004", "${RE_LANE_SCHEME:-http}://engine-cpp-re:3000",
               "${RE_LANE_SCHEME:-http}://host.docker.internal:4000", "/app/localai-machines", "${VECTOR_DIMENSION:-7680}"]
     env_file:
+      # Its own participant UUID and clock (#600): <id>.pe.env, PE_INSTANCE_UUID.
+      - path: ${RE_INSTANCE_STATE_DIR:-${HOME}/.reality-engine}/docker/cpp-1.pe.env
+        required: false
       - path: ${RE_INSTANCE_STATE_DIR:-${HOME}/.reality-engine}/docker/cpp-1.tls.env
         required: false
     volumes:
+      - ${RE_INSTANCE_STATE_DIR:-${HOME}/.reality-engine}/clock-docker:/var/lib/reality-engine/clock
       - ${MACHINE_CORPUS_DIR:-${MACHINES_DIR:?MACHINES_DIR must be set — run via startUniverse.sh}}/machines:/app/machines:ro
       - ${MACHINE_CORPUS_DIR:-${MACHINES_DIR:?MACHINES_DIR must be set — run via startUniverse.sh}}/semantics:/app/semantics:ro
       - ./config:/app/config:ro
@@ -481,9 +489,13 @@ services:
       - TRIGGER_GRAPHQL_URL
     command: ["perception"]
     env_file:
+      # Its own participant UUID and clock (#600): <id>.pe.env, PE_INSTANCE_UUID.
+      - path: ${RE_INSTANCE_STATE_DIR:-${HOME}/.reality-engine}/docker/lsp-1.pe.env
+        required: false
       - path: ${RE_INSTANCE_STATE_DIR:-${HOME}/.reality-engine}/docker/lsp-1.tls.env
         required: false
     volumes:
+      - ${RE_INSTANCE_STATE_DIR:-${HOME}/.reality-engine}/clock-docker:/var/lib/reality-engine/clock
       - ${MACHINE_CORPUS_DIR:-${MACHINES_DIR:?MACHINES_DIR must be set — run via startUniverse.sh}}/machines:/app/machines:ro
       - ${MACHINE_CORPUS_DIR:-${MACHINES_DIR:?MACHINES_DIR must be set — run via startUniverse.sh}}/semantics:/app/semantics:ro
       - ./config:/app/config:ro
@@ -567,9 +579,13 @@ services:
       - TRIGGER_GRAPHQL_URL
     command: ["/app/bin/perception-engine"]
     env_file:
+      # Its own participant UUID and clock (#600): <id>.pe.env, PE_INSTANCE_UUID.
+      - path: ${RE_INSTANCE_STATE_DIR:-${HOME}/.reality-engine}/docker/rust-1.pe.env
+        required: false
       - path: ${RE_INSTANCE_STATE_DIR:-${HOME}/.reality-engine}/docker/rust-1.tls.env
         required: false
     volumes:
+      - ${RE_INSTANCE_STATE_DIR:-${HOME}/.reality-engine}/clock-docker:/var/lib/reality-engine/clock
       - ${MACHINE_CORPUS_DIR:-${MACHINES_DIR:?MACHINES_DIR must be set — run via startUniverse.sh}}/machines:/app/machines:ro
       - ./config:/app/config:ro
       - ../localAIStack/data/machines:/app/localai-machines:ro

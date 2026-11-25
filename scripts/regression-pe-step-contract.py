@@ -43,6 +43,8 @@ ALWAYS = {
     "activeRegions",
     "mergeBatch",
     "eventBus",
+    # The committed step's clock {instance, lamport, commit, step} (#600).
+    "clock",
 }
 FULL_ONLY = {"machineResults"}
 COMPACT_KEYS = ALWAYS

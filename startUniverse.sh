@@ -2866,10 +2866,15 @@ fi
 # (env_file) before the containers are created (#296).
 # Plain variables, not an associative array: this runs under macOS /bin/bash 3.2.
 DOCKER_UUID_SCALA_1="" DOCKER_UUID_CPP_1="" DOCKER_UUID_LSP_1="" DOCKER_UUID_RUST_1=""
+# Each voter PE's own participant UUID (#600; <id>.pe.env, PE_INSTANCE_UUID).
+DOCKER_PE_UUID_SCALA_1="" DOCKER_PE_UUID_CPP_1="" DOCKER_PE_UUID_LSP_1=""
 if [ "$DRY_RUN" = false ]; then
     DOCKER_UUID_SCALA_1=$(instance_uuid_docker_env scala-1) || die "scala-1: instance UUID allocation failed"
     DOCKER_UUID_CPP_1=$(instance_uuid_docker_env cpp-1)     || die "cpp-1: instance UUID allocation failed"
     DOCKER_UUID_LSP_1=$(instance_uuid_docker_env lsp-1)     || die "lsp-1: instance UUID allocation failed"
+    DOCKER_PE_UUID_SCALA_1=$(instance_uuid_docker_env scala-1/pe) || die "scala-1: PE UUID allocation failed"
+    DOCKER_PE_UUID_CPP_1=$(instance_uuid_docker_env cpp-1/pe)     || die "cpp-1: PE UUID allocation failed"
+    DOCKER_PE_UUID_LSP_1=$(instance_uuid_docker_env lsp-1/pe)     || die "lsp-1: PE UUID allocation failed"
     # rust-1: the conformance follower (owner, 2026-11-12), registered with role follower.
     DOCKER_UUID_RUST_1=$(instance_uuid_docker_env rust-1)   || die "rust-1: instance UUID allocation failed"
     # Lane TLS (#732): each instance's certificate from the docker lane's own CA,
@@ -2986,11 +2991,11 @@ if [ "$MULTI_ENGINE_MODE" != true ] && [ "$DRY_RUN" = false ]; then
     # $HOST_IP, as the native lane registers, not localhost: Manager's
     # Visualizer backend runs in a container here, and its localhost is itself.
     registry_add "scala-1" "scala" "$(lane_tls_scheme)://$HOST_IP:6101" "$(lane_tls_scheme)://$HOST_IP:6100" "" "" \
-        "$DOCKER_UUID_SCALA_1" || die "scala-1: not registered (see above)"
+        "$DOCKER_UUID_SCALA_1" "" "$DOCKER_PE_UUID_SCALA_1" || die "scala-1: not registered (see above)"
     registry_add "cpp-1"   "cpp"   "$(lane_tls_scheme)://$HOST_IP:6301" "$(lane_tls_scheme)://$HOST_IP:6300" "" "" \
-        "$DOCKER_UUID_CPP_1" || die "cpp-1: not registered (see above)"
+        "$DOCKER_UUID_CPP_1" "" "$DOCKER_PE_UUID_CPP_1" || die "cpp-1: not registered (see above)"
     registry_add "lsp-1"   "lsp"   "$(lane_tls_scheme)://$HOST_IP:6601" "$(lane_tls_scheme)://$HOST_IP:6600" "" "" \
-        "$DOCKER_UUID_LSP_1" || die "lsp-1: not registered (see above)"
+        "$DOCKER_UUID_LSP_1" "" "$DOCKER_PE_UUID_LSP_1" || die "lsp-1: not registered (see above)"
     registry_add "rust-1"  "rust"  "$(lane_tls_scheme)://$HOST_IP:6901" "$(lane_tls_scheme)://$HOST_IP:6900" "" "" \
         "$DOCKER_UUID_RUST_1" follower || die "rust-1: not registered (see above)"
     _publish_service "registry"         "${REGISTRY_PORT}" "/re-registry.json"

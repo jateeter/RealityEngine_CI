@@ -87,6 +87,12 @@ assert_eq "$(cat "$INSTALL"/engines/*.env | grep -c '^MQTT_CLIENT_ID=')" 4 "ever
 assert_eq "$(cat "$INSTALL"/engines/*.env | grep '^MQTT_CLIENT_ID=' | sort -u | wc -l | tr -d ' ')" 4 "no two PEs share an MQTT client id"
 CPP2="$(json "$INSTALL/registry/re-registry.json" "d['instances'][2]['instance_uuid']")"
 assert_contains "$(cat "$INSTALL/engines/cpp-2.env")" "INSTANCE_UUID=$CPP2" "and the instance's UUID"
+# Each PE is a participant of its own (#600): its UUID, distinct from every RE's.
+CPP2PE="$(json "$INSTALL/registry/re-registry.json" "d['instances'][2]['pe_uuid']")"
+assert_contains "$(cat "$INSTALL/engines/cpp-2.pe.env")" "PE_INSTANCE_UUID=$CPP2PE" "the PE env file names the PE's UUID"
+assert_eq "$(json "$INSTALL/registry/re-registry.json" "len(set([i['instance_uuid'] for i in d['instances']] + [i['pe_uuid'] for i in d['instances']]))")" 8 "four REs and four PEs, eight UUIDs"
+assert_eq "$(python3 "$CI_DIR/scripts/lib/instance_uuids.py" check-registry "$INSTALL/registry/re-registry.json" >/dev/null 2>&1; echo $?)" 0 "the instance registry passes check-registry"
+assert_contains "$(cat "$INSTALL/compose.engines.yml")" "cpp-2.pe.env" "the PE service loads its env file"
 reinit configure --install "$INSTALL" --engines cpp:2,lsp:1,scala:1 --version dev --skip-openclaw
 assert_eq "$(json "$INSTALL/registry/re-registry.json" "[i['instance_uuid'] for i in d['instances']]")" "$U1" "a re-run keeps every UUID"
 reinit configure --install "$INSTALL" --engines cpp:1 --version dev --skip-openclaw

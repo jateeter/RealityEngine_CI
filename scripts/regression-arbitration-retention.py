@@ -21,12 +21,14 @@ Per runtime:
              malformed.
   toggle     both directions with no restart; off answers the legacy object on
              the very next read, on starts empty.
-  clock      {instance, lamport, step}: lamport ticks once per committed step
-             and never resets; step resets; retained steps carry consecutive
-             ticks.
+  clock      {instance, lamport, commit, step} (#600): commit ticks once per
+             committed step, lamport on every event (step, send, receive); neither
+             resets, step does; consecutive retained steps carry consecutive
+             commits and increasing lamports.
 
 Across runtimes: the retained window and the ?step body for the same drive are
-byte-identical once the instance facts (clock.instance, clock.lamport) and the
+byte-identical once the instance facts (clock.instance, clock.lamport,
+clock.commit) and the
 deployment facts (shards, registrySource) are removed. A runtime that does not
 answer is not agreement (docs/QUORUM_CONTRACT.md).
 
@@ -106,6 +108,7 @@ def comparable(body: Any) -> str:
         clock = dict(element.get("clock") or {})
         clock.pop("instance", None)
         clock.pop("lamport", None)
+        clock.pop("commit", None)
         element["clock"] = clock
         element.pop("shards", None)
         element.pop("registrySource", None)
@@ -253,9 +256,16 @@ def exercise(rt: Runtime, baseline: dict | None, record: dict | None) -> dict[st
     if isinstance(window, list) and len(window) == 2:
         rt.check([e.get("count") for e in window] == [FIXTURE_RECORDS, 0],
                  f"n = 2 counts {[e.get('count') for e in window]}, expected [{FIXTURE_RECORDS}, 0]")
+        # #600: commit counts committed steps, so consecutive steps carry
+        # consecutive commits; lamport also ticks on every send and receive in
+        # between, so it only increases.
+        commits = [e.get("clock", {}).get("commit") for e in window]
+        rt.check(isinstance(commits[0], int) and commits[1] == commits[0] + 1,
+                 f"consecutive steps carry commits {commits}, expected consecutive")
         ticks = [e.get("clock", {}).get("lamport") for e in window]
-        rt.check(isinstance(ticks[0], int) and ticks[1] == ticks[0] + 1,
-                 f"consecutive steps carry Lamport ticks {ticks}, expected consecutive")
+        rt.check(isinstance(ticks[0], int) and isinstance(ticks[1], int) and ticks[1] > ticks[0]
+                 and all(isinstance(t, int) and isinstance(c, int) and t >= c for t, c in zip(ticks, commits)),
+                 f"consecutive steps carry Lamport ticks {ticks} (commits {commits}), expected increasing and lamport >= commit")
         records = window[0].get("records") or []
         rt.check([r.get("cell") for r in records] == sorted(r.get("cell") for r in records),
                  "retained records are not ordered by cell")
@@ -293,8 +303,9 @@ def exercise(rt: Runtime, baseline: dict | None, record: dict | None) -> dict[st
         rt.reset()
         _, after = http("GET", f"{rt.re}/api/engine/clock")
         rt.check(after.get("step") == -1 and after.get("lamport") == before.get("lamport")
+                 and after.get("commit") == before.get("commit")
                  and after.get("instance") == before.get("instance"),
-                 f"a reset moved the clock {before} -> {after}: step restarts, lamport and instance do not")
+                 f"a reset moved the clock {before} -> {after}: step restarts, lamport, commit and instance do not")
 
     # -- toggle ----------------------------------------------------------------
     rt.step(FIXTURE)

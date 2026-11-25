@@ -268,13 +268,35 @@ def strip_engine_identity(value: Any, extra_keys: frozenset[str] | None = None) 
     return _strip_keys(without_slots(value), extra_keys)
 
 
+# A participant clock's facts (RealityEngine_CI#600; SURFACE_SPEC.md "The
+# instance clock", Comparison): `instance`, `lamport` and `commit` are left out
+# of cross-runtime comparison -- received values differ engine to engine, and
+# that is correct -- while `step` is compared. They are dropped inside the
+# objects that carry a clock (a step's `clock`, a stored message's `clock`, a
+# completion's `causedBy`) and nowhere else, so a corpus key of the same name
+# elsewhere is still compared. `headers` on a clock route counts this
+# participant's inbound requests: a property of its history, not of the event.
+CLOCK_OBJECT_KEYS = frozenset({"clock", "causedBy"})
+CLOCK_FACT_KEYS = frozenset({"instance", "lamport", "commit", "headers"})
+
+
+def _strip_clock(value: Any) -> Any:
+    if isinstance(value, dict):
+        return {k: v for k, v in value.items() if k not in CLOCK_FACT_KEYS}
+    return value
+
+
 def _strip_keys(value: Any, extra_keys: frozenset[str] | None = None) -> Any:
     drop = (
         ENGINE_LOCAL_KEYS | INTERNAL_AUGMENTATION_KEYS | (extra_keys or frozenset())
     ) - UNIT_BEARING_KEYS
 
     if isinstance(value, dict):
-        return {k: _strip_keys(v, extra_keys) for k, v in value.items() if k not in drop}
+        return {
+            k: _strip_keys(_strip_clock(v) if k in CLOCK_OBJECT_KEYS else v, extra_keys)
+            for k, v in value.items()
+            if k not in drop
+        }
     if isinstance(value, list):
         return [_strip_keys(v, extra_keys) for v in value]
     return value
