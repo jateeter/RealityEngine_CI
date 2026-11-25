@@ -34,7 +34,8 @@ from one universe to the next.
     instance_uuids.py live                   print "<uuid> <pid>" for every held lock
     instance_uuids.py clock-dir              print the clock directory
     instance_uuids.py docker-env <id>        allocate docker/<id> and write the env
-                                             file its compose service loads
+                                             file its compose service loads;
+                                             <id>/pe for its PE (<id>.pe.env)
     instance_uuids.py check-registry <file>  refuse an instance registry in which
                                              two instances share a UUID
 
@@ -267,13 +268,18 @@ def docker_env(instance_id: str) -> str:
     letting the engine mint a new one. The clock directory it names is the
     container side of the <state>/clock-docker bind mount."""
     uuid = allocate("docker", instance_id)
-    path = state_dir() / "docker" / f"{instance_id}.env"
+    # A PE is a participant of its own (#600): docker/<id>/pe, written as
+    # <id>.pe.env with PE_INSTANCE_UUID, beside its RE's <id>.env.
+    pe = instance_id.endswith("/pe")
+    base = instance_id[: -len("/pe")] if pe else instance_id
+    path = state_dir() / "docker" / (f"{base}.pe.env" if pe else f"{base}.env")
     path.parent.mkdir(parents=True, exist_ok=True)
     (state_dir() / "clock-docker").mkdir(parents=True, exist_ok=True)
     # The container's user is not the host's; the clock must be writable by it
     # or the engine (correctly) refuses to boot.
     os.chmod(state_dir() / "clock-docker", 0o1777)
-    path.write_text(f"INSTANCE_UUID={uuid}\nINSTANCE_CLOCK_DIR={DOCKER_CLOCK_DIR}\n")
+    variable = "PE_INSTANCE_UUID" if pe else "INSTANCE_UUID"
+    path.write_text(f"{variable}={uuid}\nINSTANCE_CLOCK_DIR={DOCKER_CLOCK_DIR}\n")
     return uuid
 
 

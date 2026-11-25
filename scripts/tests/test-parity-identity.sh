@@ -174,6 +174,18 @@ a = {"mergeBatch": [{"sourceName": "localai/health/slot/sleep", "offset": 7601, 
 b = {"mergeBatch": [], "x": 1}
 out.append(("a slot one engine has is not a parity difference",
             pi.parity_signature(a) == pi.parity_signature(b)))
+# The participant clock (#600): instance, lamport and commit differ by design
+# and are left out; step is compared; a same-named key elsewhere is kept.
+c1 = {"step": {"clock": {"instance": "0192f3a0-0000-7000-8000-0000000000a1", "lamport": 9, "commit": 3, "step": 4}},
+      "completion": {"causedBy": {"instance": "0192f3a0-0000-7000-8000-0000000000a2", "lamport": 5}}}
+c2 = {"step": {"clock": {"instance": "0192f3a0-0000-7000-8000-0000000000b1", "lamport": 70, "commit": 12, "step": 4}},
+      "completion": {"causedBy": {"instance": "0192f3a0-0000-7000-8000-0000000000b2", "lamport": 61}}}
+out.append(("clock instance/lamport/commit and causedBy facts are not compared",
+            pi.strip_engine_identity(c1) == pi.strip_engine_identity(c2)))
+c3 = json.loads(json.dumps(c2)); c3["step"]["clock"]["step"] = 5
+out.append(("a clock's step is compared", pi.strip_engine_identity(c1) != pi.strip_engine_identity(c3)))
+out.append(("a commit key outside a clock is compared",
+            pi.strip_engine_identity({"commit": 1}) != pi.strip_engine_identity({"commit": 2})))
 out.append(("no slots: nothing changes", pi.without_slots({"a": [1, 2], "b": [{"name": "x"}]}) == {"a": [1, 2], "b": [{"name": "x"}]}))
 print(json.dumps(out))
 PYEOF

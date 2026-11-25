@@ -252,6 +252,15 @@ registry_add "follower-1" "rust" "https://127.0.0.1:6901" "https://127.0.0.1:690
 registry_add "voter-9" "cpp" "https://127.0.0.1:6391" "https://127.0.0.1:6390"
 assert_eq "$(python3 -c "import json; d={i['id']: i for i in json.load(open('$RE_REGISTRY_FILE'))['instances']}; print(d['follower-1'].get('role'), d['voter-9'].get('role'))")" "follower None" "T-role: follower role recorded, none for a voter"
 
+# D-pe: the docker lane's PE is a participant of its own (#600): docker/<id>/pe,
+# written as <id>.pe.env with PE_INSTANCE_UUID, distinct from its RE's.
+_dre="$(instance_uuid_docker_env dpe-1)"
+_dpe="$(instance_uuid_docker_env dpe-1/pe)"
+assert_eq "$([ -n "$_dpe" ] && [ "$_dre" != "$_dpe" ] && echo distinct)" "distinct" "D-pe1: the PE gets a UUID of its own"
+assert_eq "$(head -1 "$RE_INSTANCE_STATE_DIR/docker/dpe-1.pe.env")" "PE_INSTANCE_UUID=$_dpe" "D-pe2: <id>.pe.env names PE_INSTANCE_UUID"
+assert_eq "$(head -1 "$RE_INSTANCE_STATE_DIR/docker/dpe-1.env")" "INSTANCE_UUID=$_dre" "D-pe3: <id>.env still names the RE's"
+assert_eq "$(instance_uuid_docker_env dpe-1/pe)" "$_dpe" "D-pe4: a re-run keeps the PE's UUID"
+
 # ── Summary ───────────────────────────────────────────────────────────────────
 echo ""
 echo "registry: $PASS passed, $FAIL failed"

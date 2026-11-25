@@ -10,6 +10,7 @@ release compose needs there, so nothing is generated on the Mac itself:
       compose.engines.yml   one RE and one PE service per instance in the spec
       .env                  image references, host ports, secrets (0600)
       engines/<id>.env      INSTANCE_UUID and INSTANCE_CLOCK_DIR per instance
+      engines/<id>.pe.env   PE_INSTANCE_UUID and INSTANCE_CLOCK_DIR: its PE's own (#600)
       state/                the instance UUID table (#296), kept across runs
       registry/             the instance registry, in two views of the same
                             instances: re-registry.json (host addresses, what
@@ -191,9 +192,15 @@ def allocate_uuids(install: pathlib.Path, insts: list[dict]) -> None:
         write(install / "engines" / f"{inst['id']}.env",
               f"INSTANCE_UUID={inst['instance_uuid']}\nINSTANCE_CLOCK_DIR={CLOCK_DIR}\n"
               f"MQTT_CLIENT_ID={client_id}\n")
+        # The PE is a participant of its own (RealityEngine_CI#600): its own
+        # UUID (<id>/pe), lock and marks in the same clock volume.
+        inst["pe_uuid"] = instance_uuids.allocate(LANE, f"{inst['id']}/pe")
+        write(install / "engines" / f"{inst['id']}.pe.env",
+              f"PE_INSTANCE_UUID={inst['pe_uuid']}\nINSTANCE_CLOCK_DIR={CLOCK_DIR}\n")
     held: dict[str, list[str]] = {}
     for inst in insts:
         held.setdefault(inst["instance_uuid"], []).append(inst["id"])
+        held.setdefault(inst["pe_uuid"], []).append(f"{inst['id']}/pe")
     clash = {u: ids for u, ids in held.items() if len(ids) > 1}
     if clash:
         raise SystemExit(f"two instances share a UUID, which is never allowed: {clash}")
@@ -260,7 +267,9 @@ def engine_services(insts: list[dict], tls: bool = False) -> dict:
             **common,
             "image": f"${{RE_IMAGE_{'SCALA_PE' if rt == 'scala' else rt.upper()}}}",
             "environment": pe_env,
+            "env_file": [*common["env_file"], {"path": f"./engines/{iid}.pe.env", "required": True}],
             "volumes": ["corpus-boot:/app/corpus:ro", "localai-machines:/app/localai-machines:ro",
+                        f"engine-clock:{CLOCK_DIR}",
                         "./config/integrations.json:/app/config/integrations.json:ro"],
             "ports": [f"{inst['pe_port']}:{PE_PORT}"],
             # restart: a PE must restart when its RE is recreated (an image
@@ -358,7 +367,8 @@ def registries(insts: list[dict], ip: str, ports: dict[str, int], tls: bool = Fa
         # native instance registry reads this one unchanged.
         return {"id": inst["id"], "runtime": inst["runtime"], "re_url": re_url, "pe_url": pe_url,
                 "re_port": re_port, "pe_port": pe_port, "pid_re": None, "pid_pe": None,
-                "instance_uuid": inst["instance_uuid"], "started_at": started, "status": "running",
+                "instance_uuid": inst["instance_uuid"], "pe_uuid": inst.get("pe_uuid"),
+                "started_at": started, "status": "running",
                 **({"role": "follower"} if inst["runtime"] in FOLLOWERS else {})}
 
     # The `services` block is the native instance registry's contract

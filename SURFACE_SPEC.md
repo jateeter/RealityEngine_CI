@@ -1456,6 +1456,23 @@ stored or forwarded the message) and, where one event caused another,
 completion envelopes carry `clock`, and a completion carries the dispatch's
 clock as `causedBy`.
 
+- **Storing is an event.** A record's `clock` is a tick of the storing
+  participant, so no two stored messages share `(instance, lamport)`.
+- **Dispatch records:** `clock` on every record, a replay included
+  ("Dispatch surface shapes").
+- **`POST /api/integrations/completions`:** the response's `completion` object
+  and the `agent.completion.received` broadcast carry `clock` and `causedBy`.
+  `causedBy` is the clock of the record named by the body's `dispatchId` while
+  that record is still in the ledger (the PE's own record wins); otherwise the
+  sender's echo, a body `causedBy` that is a canonical lower-case UUID and a
+  `lamport` in `[0, 2^53 - 1]`; otherwise `null`. A malformed echo is ignored,
+  never refused: the completion still commits.
+
+**Header counts.** `GET /api/engine/clock` and the PE's `GET /api/clock` also
+report `headers: {received, missing, rejected}`: the inbound requests since
+boot that presented a well-formed `RE-Clock`, none, or one refused with 400.
+They describe one participant's traffic and are left out of comparison.
+
 **The participants.** A Lamport clock belongs to a process.
 - **Each engine RE** has its clock under `INSTANCE_UUID` (`instance_uuid` in the
   instance registry). `GET /api/engine/clock` returns it, with all four fields.
@@ -1499,7 +1516,11 @@ correct. Wall-clock time orders nothing.
 **Order of rollout.** The step response's `clock`, the four-field
 `GET /api/engine/clock` and the new routes join the conformance stages and
 route tables in the change that lands them on all three voters, not before
-(see "K-lines and runtime snapshots").
+(see "K-lines and runtime snapshots"). That change has landed: the PE's
+`GET /api/clock` is in the PE route table, `clock` in the step's declared
+keys, and the dispatch record's key set includes `clock`. The conformance
+followers (Rust, Go, the TypeScript PE) report `differs` on these until they
+implement them.
 
 ##### The controls and the two worlds
 
@@ -2210,6 +2231,7 @@ Default ports: Scala 5000 · CPP 5300 · LSP 5600
 |--------|------|-----|-----|-------|
 | GET | `/` | ✓ | ✓ | ✓ |
 | GET | `/api/health` | ✓ | ✓ | ✓ |
+| GET | `/api/clock` | ✓ | ✓ | ✓ |
 | GET | `/api/state` | ✓ | ✓ | ✓ |
 
 #### `lastPush` is the last step, not when it happened
@@ -2219,7 +2241,7 @@ the step object the last push produced** — the same shape `POST /api/push`
 returns under `step`, carrying the same keys:
 
 ```
-activeRegions  eventBus  machineResults  mergeBatch  perceptualSpace
+activeRegions  clock  eventBus  machineResults  mergeBatch  perceptualSpace
 perceptualSpaceIsDebugProjection  stepNumber  timestamp
 ```
 
@@ -2381,6 +2403,7 @@ what the cross-runtime parity stage was reporting as engine divergence.
 | `mergeBatch` | ✓ | ✓ | |
 | `eventBus` | ✓ | ✓ | |
 | `machineResults` | — | ✓ | Per-machine detail; omitted when `compact` |
+| `clock` | ✓ | ✓ | The committed step's `{instance, lamport, commit, step}` (RealityEngine_CI#600, "The instance clock"). `instance`, `lamport` and `commit` are participant facts, left out of byte comparison; `step` is compared |
 
 `compact: true` omits exactly `machineResults` — the heavy per-machine payload —
 and nothing else. A runtime that ignores `compact` does not satisfy the
@@ -2864,7 +2887,10 @@ the runtimes used different names, the name was chosen by what consumers read
 audit trail (§6 Q2): a ring of `TRIGGER_DISPATCH_LEDGER_LIMIT` records, default 256.
 
 **Dispatch record**, every key always present:
-`id, envelopeId, correlationId, status, mode, target, machineId, sequenceIds, ragStatusCode, processStatus, attempts, createdAt, updatedAt, providerReceipt, envelope, error, semantics, replayOf`.
+`id, envelopeId, correlationId, status, mode, target, machineId, sequenceIds, ragStatusCode, processStatus, attempts, createdAt, updatedAt, providerReceipt, envelope, error, semantics, replayOf, clock`.
+`clock` is the PE's clock when it stored the record, `{instance, lamport}`
+(RealityEngine_CI#600, "The instance clock"); a replay is a new record with a
+clock of its own. Its values are participant facts, left out of comparison.
 `ragStatusCode`, `processStatus`, `providerReceipt`, `error` and `replayOf` are `null`
 when there is no value, never `""`. Provider details (`provider`, `adapter`,
 `externalRunId`, ...) live inside `providerReceipt`, not flattened onto the record.
@@ -3183,10 +3209,9 @@ in "The PE half: ISRE composition" below. The RE's K-line record carries no
   route that commits a step) answers with the committed step's
   `clock: {instance, lamport, commit, step}` in its body, so the PE can key its
   half by the RE's `(instance, commit)`, which never resets, where `step` does.
-  `clock` joins the step's declared keys ("POST /api/push response shape", and
-  `ALWAYS` in `scripts/regression-pe-step-contract.py`) in the change that lands
-  #600 on the voters, not before, so the conformance stage never declares a key
-  that no runtime emits.
+  `clock` is one of the step's declared keys ("POST /api/push response shape",
+  and `ALWAYS` in `scripts/regression-pe-step-contract.py`), declared in the
+  change that landed #600 on the three voters.
 - **Corpus.** Every K-line carries the corpus fingerprint
   (`sha256/resident-declared-v1`). It is valid only against that corpus.
 - **Cross-runtime parity.** The boundaries come from the corpus, so engines
