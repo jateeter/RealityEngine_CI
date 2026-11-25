@@ -132,12 +132,12 @@ u_pe1=$(instance_uuid_allocate native cpp-1/pe)
 _distinct=no; [ -n "$u_pe1" ] && [ "$u_pe1" != "$u_cpp1" ] && _distinct=yes
 assert_eq "$_distinct" "yes" "P1: an instance's PE has its own UUID, not its RE's"
 assert_eq "$(instance_uuid_allocate native cpp-1/pe)" "$u_pe1" "P1: and keeps it across allocations"
-registry_add "cpp-1" "cpp" "http://127.0.0.1:5301" "http://127.0.0.1:5300" "" "" "$u_cpp1" "" "$u_pe1"
+registry_add "cpp-1" "cpp" "https://127.0.0.1:5301" "https://127.0.0.1:5300" "" "" "$u_cpp1" "" "$u_pe1"
 assert_eq "$(python3 -c "import json; d=json.load(open('$RE_REGISTRY_FILE')); print([i['pe_uuid'] for i in d['instances'] if i['id']=='cpp-1'][0])")" "$u_pe1" "P2: registry_add records pe_uuid"
 set +e
-registry_add "cpp-2" "cpp" "http://127.0.0.1:5311" "http://127.0.0.1:5310" "" "" "$u_pe1" 2>/dev/null; _e1=$?
-registry_add "cpp-2" "cpp" "http://127.0.0.1:5311" "http://127.0.0.1:5310" "" "" "$u_cpp2" "" "$u_cpp1" 2>/dev/null; _e2=$?
-registry_add "cpp-2" "cpp" "http://127.0.0.1:5311" "http://127.0.0.1:5310" "" "" "$u_cpp2" "" "$u_cpp2" 2>/dev/null; _e3=$?
+registry_add "cpp-2" "cpp" "https://127.0.0.1:5311" "https://127.0.0.1:5310" "" "" "$u_pe1" 2>/dev/null; _e1=$?
+registry_add "cpp-2" "cpp" "https://127.0.0.1:5311" "https://127.0.0.1:5310" "" "" "$u_cpp2" "" "$u_cpp1" 2>/dev/null; _e2=$?
+registry_add "cpp-2" "cpp" "https://127.0.0.1:5311" "https://127.0.0.1:5310" "" "" "$u_cpp2" "" "$u_cpp2" 2>/dev/null; _e3=$?
 set -e
 assert_exit "$_e1" "1" "P3: an RE UUID another instance's PE holds is refused"
 assert_exit "$_e2" "1" "P4: a PE UUID another instance's RE holds is refused"
