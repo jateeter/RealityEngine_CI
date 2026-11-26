@@ -2568,6 +2568,41 @@ RealityEngine_Machines `tests/integration/pe-source-create-body.spec.ts`: a
 sparse and a full sensor body on every PE in the instance registry, read back
 alike.
 
+#### Simulated source: the sample
+
+An active simulated source with region `{offset, length}` writes, at global
+step `n` (the step being composed, before the post-push increment), cell
+`offset + i` for each `i` in `0 … length-1`:
+
+```
+t      = n + i * 0.1
+period = frequency > 0 ? 1 / frequency : 1
+phase  = fmod(t / period, 1)          # in [0, 1)
+```
+
+| `pattern` | value |
+|---|---|
+| `constant` | `dcOffset` |
+| `sine` | `dcOffset + amplitude * sin(2π * phase)` |
+| `sawtooth` | `dcOffset + amplitude * (2 * phase - 1)` |
+| `square` | `dcOffset + amplitude` while `phase < 0.5`, else `dcOffset - amplitude` |
+| `linear-ramp` | `dcOffset + amplitude * phase` |
+| `binary` | `1` while `phase < 0.5`, else `0` (`amplitude` and `dcOffset` are ignored) |
+| `random-walk` | the walk's current value, starting at `dcOffset` |
+| `gaussian-noise` | `dcOffset + amplitude * noise` |
+
+The first six are deterministic in `n`: every runtime must serve the same
+value for the same step, and a parity run may drive machines with them. The
+last two are random, may differ per runtime (C++ and Go draw `noise`
+uniformly in [-1, 1], Scala by Box-Muller), and are not parity terms. Tests
+that compare runtimes use only the deterministic patterns.
+
+Implementations: C++ `reality.cpp` `source_values`; Scala
+`PerceptionEngine.computeSample`; LSP `perception.lisp` `simulated-sample`
+(RealityEngine_LSP#200: before it, LSP served `dcOffset` for every pattern);
+Manager TypeScript PE `PerceptionEngine.computeSample`; Rust `pe/sources.rs`;
+Go `internal/pe/sources.go`.
+
 #### Sensor source payload
 
 A sensor source serializes `sensorId`, `lastValue`, `lastUpdated`, `ttlMs` and,
