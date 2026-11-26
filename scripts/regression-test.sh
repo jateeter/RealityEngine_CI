@@ -1803,7 +1803,7 @@ run_escalation_dispatch() {
   step "Escalation dispatch parity across runtimes"
   local ci args=()
   ci="$(repo_root RealityEngine_CI)"
-  case "$MACHINE_CORPUS" in regression|full) args+=("--expect-escalation") ;; esac
+  case "$MACHINE_CORPUS" in regression|extension|full) args+=("--expect-escalation") ;; esac
   run_cmd "escalation-dispatch" python3 "$ci/scripts/regression-escalation-dispatch.py" \
     --registry "$REGISTRY_FILE" \
     --out "$REPORT_DIR/escalation-dispatch.json" \
@@ -2093,7 +2093,7 @@ run_arbiter() {
   # this stage would stop skipping: it had skipped on every regression run,
   # correctly, because standard-deployment has no contended cell (#274).
   case "$MACHINE_CORPUS" in
-    arbiter-fixture|regression|full) ;;
+    arbiter-fixture|regression|extension|full) ;;
     *)
       write_skip_report "arbiter-skipped.json" \
         "corpus '$MACHINE_CORPUS' has no contended cells; run --machine-corpus=regression"
@@ -2114,7 +2114,7 @@ run_arbitration_retention() {
   # The 9a fixture is its stimulus, so it needs a corpus carrying the
   # ArbitrationWriterA/B pair, as the arbiter stage does.
   case "$MACHINE_CORPUS" in
-    arbiter-fixture|regression|full) ;;
+    arbiter-fixture|regression|extension|full) ;;
     *)
       write_skip_report "arbitration-retention-skipped.json" \
         "corpus '$MACHINE_CORPUS' has no contended cells; run --machine-corpus=regression"

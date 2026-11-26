@@ -8,6 +8,7 @@ This directory holds generated and shared runtime configuration for the integrat
 - `ces-contracts/` holds the CES output-stream contract shards, derived from 3-of-3 runtime agreement (`docs/QUORUM_CONTRACT.md`) and named `domain-<name>.json` or `corpus-<name>.json`. They are authoritative git files, not runtime state: review them as diffs. The drift gate in `scripts/run-all-tests.sh` runs `scripts/record-ces-contracts.py --check` against them, with `--corpus <name>` when the universe booted a `config/<name>-corpus.txt` manifest.
 - Record them with `scripts/record-ces-contracts.py --only <domain> --write` (or `--corpus <name> --write`, checked with `--corpus <name> --check`), never by hand. Which shards exist and whether they are current is tracked in the cesgen registry, `RealityEngine_Machines/domains/ces-contract-registry.json`.
 - `ces-contracts/` shards are the only CES contract record. `scripts/regression-ces-contracts.py` and `scripts/record-ces-contract-shards.sh` measured a synthetic stimulus and are retired: they refuse to run unless `CES_ALLOW_RETIRED_RECORDER=1`, which exists only to reproduce their output.
+- `extension-corpus.txt` is generated: the regression corpus plus the machine-factory candidates above the corpus vector budget, composed by `scripts/write-extension-corpus.py --write` from `extension-corpus.json`. Never edit it by hand; the hosted lane runs `--check`. Boot it with `--machine-corpus=extension`; the materializer finds candidates under `RealityEngine_Machines/machine_factory/domains`.
 
 ## Standing rules
 
