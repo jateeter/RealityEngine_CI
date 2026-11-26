@@ -1519,8 +1519,11 @@ route tables in the change that lands them on all three voters, not before
 (see "K-lines and runtime snapshots"). That change has landed: the PE's
 `GET /api/clock` is in the PE route table, `clock` in the step's declared
 keys, and the dispatch record's key set includes `clock`. The conformance
-followers (Rust, Go, the TypeScript PE) report `differs` on these until they
-implement them.
+followers implement it too: Rust and Go agree with the voters on every
+follower-lane stage (RealityEngine_Rust#82, RealityEngine_GO#38), and the
+TypeScript PE (RealityEngine_Manager#367) runs a minted, unpersisted clock,
+because CI allocates it no participant UUID and Node takes no POSIX record
+lock: a deviation for the owner to decide, as its deviations are.
 
 ##### The controls and the two worlds
 
