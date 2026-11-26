@@ -18,6 +18,8 @@ check() { if [ "$1" = "$2" ]; then echo "  PASS: $3"; PASS=$((PASS+1)); else ech
 mkdir -p "$TMP/bin"
 cat > "$TMP/bin/docker" <<'STUB'
 #!/usr/bin/env bash
+# STUB_MISSING_NAME: that plugin name fails as Docker's "not found" does.
+if [ -n "${STUB_MISSING_NAME:-}" ] && [ "${3:-}" = "$STUB_MISSING_NAME" ]; then echo; exit 1; fi
 printf '%b' "${STUB_OUT:-}"
 exit "${STUB_RC:-0}"
 STUB
@@ -39,6 +41,10 @@ check "$(STUB_OUT='false\n' STUB_RC=0 loki_driver_state)" false "disabled reads 
 check "$(STUB_OUT='\ntrue\r\n' STUB_RC=0 loki_driver_state)" true "surrounding whitespace is ignored"
 check "$(STUB_OUT='yes\n' STUB_RC=0 loki_driver_state)" "unknown:yes" \
   "an unrecognised value is reported, not mapped onto a known state"
+
+# 2026-11-25: the bare alias is not found while loki:latest is enabled.
+check "$(STUB_OUT='true\n' STUB_RC=0 STUB_MISSING_NAME=loki loki_driver_state)" true \
+  "loki:latest is found when the bare alias is not"
 
 # The old capture, kept as the regression it guards against.
 old=$(STUB_OUT='\n' STUB_RC=1; export STUB_OUT STUB_RC; docker plugin inspect loki 2>/dev/null || echo "missing")
