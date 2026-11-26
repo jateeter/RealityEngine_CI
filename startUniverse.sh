@@ -337,6 +337,16 @@ fi
 # In dry-run mode skip the stamp write — nothing will actually start
 if [ "$DRY_RUN" = false ]; then
 # Stamp engine selection so stopUniverse.sh can tear down the right stack.
+# The preflight below can still refuse this start; until it passes, a running
+# universe's stamp is kept and put back on the way out
+# (scripts/lib/universe-stamp.sh).
+source "$CI_DIR/scripts/lib/universe-stamp.sh"
+universe_stamp_stage "$CI_DIR/.universe-engine-selection"
+_universe_stamp_on_exit() {
+    local rc=$?
+    [ "$rc" -eq 0 ] || universe_stamp_abandon "$CI_DIR/.universe-engine-selection"
+}
+trap _universe_stamp_on_exit EXIT
 cat > "$CI_DIR/.universe-engine-selection" <<EOF
 RE_ENGINE=$RE_ENGINE
 PE_ENGINE=$PE_ENGINE
@@ -864,7 +874,14 @@ ok()   { echo -e "${GREEN}✓${NC} $*"; }
 info() { echo -e "${YELLOW}ℹ${NC} $*"; }
 warn() { echo -e "${RED}⚠${NC} $*"; }
 hdr()  { echo -e "\n${CYAN}${BOLD}─── $* ───${NC}"; }
-die()  { echo -e "\n${RED}✗  FATAL:${NC} $*\n"; exit 1; }
+die()  {
+    echo -e "\n${RED}✗  FATAL:${NC} $*\n"
+    # Refused before the preflight passed: the running universe's stamp stands.
+    if declare -F universe_stamp_abandon >/dev/null; then
+        universe_stamp_abandon "$CI_DIR/.universe-engine-selection"
+    fi
+    exit 1
+}
 
 WARNS=()
 add_warn() { WARNS+=("$*"); }
@@ -1970,6 +1987,12 @@ _refuse_foreign_stack() {
 _refuse_foreign_stack "localAIStack" "$LAS_DIR" "$STACK_OWNER_LOCALAI_PATTERN"
 [ "$OPENCLAW" = "no" ] || \
     _refuse_foreign_stack "localOpenClawStack" "$OCS_DIR" "$STACK_OWNER_OPENCLAW_PATTERN"
+
+# The preflight has passed: from here this start changes what runs, so its
+# stamp is the one stopUniverse.sh must read.
+if [ "$DRY_RUN" = false ]; then
+    universe_stamp_commit "$CI_DIR/.universe-engine-selection"
+fi
 
 if [ "$DRY_RUN" = false ]; then
 info "Checking for orphaned containers..."

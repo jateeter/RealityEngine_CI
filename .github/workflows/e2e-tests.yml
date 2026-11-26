@@ -634,6 +634,10 @@ jobs:
         working-directory: RealityEngine_CI
         run: bash scripts/tests/test-stop-universe-registry.sh
 
+      - name: A refused start keeps the running universe's stamp
+        working-directory: RealityEngine_CI
+        run: bash scripts/tests/test-universe-stamp.sh
+
       - name: The local lane's port preflight follows free-port allocation
         working-directory: RealityEngine_CI
         run: bash scripts/tests/test-lane-ports.sh
