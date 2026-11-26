@@ -26,9 +26,16 @@ loki_driver_state() {
   # busy, and a single miss read as "missing" stopped the docker lane with the
   # plugin installed and enabled (2026-11-11, twice). Missing means missing on
   # every one of five tries.
+  #
+  # The alias is tried bare and with its tag: on 2026-11-25 Docker Desktop
+  # listed `loki:latest` (enabled) while `docker plugin inspect loki` answered
+  # "plugin not found", on every try, and the universe refused to start.
+  local name
   for try in 1 2 3 4 5; do
-    if raw=$(docker plugin inspect loki --format '{{.Enabled}}' 2>/dev/null); then break; fi
-    raw=""
+    for name in loki loki:latest; do
+      if raw=$(docker plugin inspect "$name" --format '{{.Enabled}}' 2>/dev/null); then break 2; fi
+      raw=""
+    done
     [ "$try" -lt 5 ] && sleep 2
   done
   if [ -z "$raw" ]; then
