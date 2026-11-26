@@ -342,7 +342,11 @@ if [ "$DRY_RUN" = false ]; then
 # (scripts/lib/universe-stamp.sh).
 source "$CI_DIR/scripts/lib/universe-stamp.sh"
 universe_stamp_stage "$CI_DIR/.universe-engine-selection"
-trap '_rc=$?; [ "$_rc" -eq 0 ] || universe_stamp_abandon "$CI_DIR/.universe-engine-selection"' EXIT
+_universe_stamp_on_exit() {
+    local rc=$?
+    [ "$rc" -eq 0 ] || universe_stamp_abandon "$CI_DIR/.universe-engine-selection"
+}
+trap _universe_stamp_on_exit EXIT
 cat > "$CI_DIR/.universe-engine-selection" <<EOF
 RE_ENGINE=$RE_ENGINE
 PE_ENGINE=$PE_ENGINE
