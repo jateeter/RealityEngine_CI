@@ -90,6 +90,7 @@
   ],
   "pe": [
     "DELETE /api/sources/:id",
+    "GET /api/clock",
     "GET /api/dispatch/ledger",
     "GET /api/dispatch/records/:id",
     "GET /api/health",
