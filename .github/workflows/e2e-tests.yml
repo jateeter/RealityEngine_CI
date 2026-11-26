@@ -558,6 +558,9 @@ jobs:
       - name: No new insecure transport (#727)
         working-directory: RealityEngine_CI
         run: python3 scripts/check-insecure-transport.py
+      - name: The extension corpus is composed from its JSON
+        working-directory: RealityEngine_CI
+        run: python3 scripts/write-extension-corpus.py --check
       - name: Insecure-transport checker tests
         working-directory: RealityEngine_CI
         run: bash scripts/tests/test-insecure-transport.sh

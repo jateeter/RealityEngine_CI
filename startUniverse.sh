@@ -147,6 +147,9 @@ startUniverse.sh — engine-selectable CI orchestrator
                                 dispatch an escalation)
   --machine-corpus=standard-deployment
                                 Materialize and boot from config/standard-deployment-corpus.txt
+  --machine-corpus=extension    The regression corpus plus the machine-factory candidates
+                                above the corpus vector budget (config/extension-corpus.json;
+                                generated manifest config/extension-corpus.txt)
   --machine-corpus-manifest=PATH
                                 Alternate manifest for --machine-corpus=standard-deployment
   --agent-profile=NAME          OpenClaw machine-behavior agents to load
@@ -246,7 +249,7 @@ done
 case "$RE_ENGINE"          in ai|cpp|lsp)              ;; *) echo "Bad --re-engine=$RE_ENGINE"; exit 2 ;; esac
 case "$PE_ENGINE"          in ai|cpp|lsp)              ;; *) echo "Bad --pe-engine=$PE_ENGINE"; exit 2 ;; esac
 case "$MACHINE_LOAD"       in runtime|ci-seed|none)    ;; *) echo "Bad --machine-load=$MACHINE_LOAD (runtime|ci-seed|none)"; exit 2 ;; esac
-case "$MACHINE_CORPUS"     in full|standard-deployment|regression);; *) echo "Bad --machine-corpus=$MACHINE_CORPUS (full|standard-deployment|regression)"; exit 2 ;; esac
+case "$MACHINE_CORPUS"     in full|standard-deployment|regression|extension);; *) echo "Bad --machine-corpus=$MACHINE_CORPUS (full|standard-deployment|regression|extension)"; exit 2 ;; esac
 case "$POST_START_FULL_CORPUS" in off|seed)            ;; *) echo "Bad --post-start-full-corpus=$POST_START_FULL_CORPUS (off|seed)"; exit 2 ;; esac
 case "$PE_SOURCE_BOOTSTRAP" in auto|off)               ;; *) echo "Bad --pe-source-bootstrap=$PE_SOURCE_BOOTSTRAP (auto|off)"; exit 2 ;; esac
 case "$VALIDATE_CORPUS"    in once|off)                ;; *) echo "Bad --validate-corpus=$VALIDATE_CORPUS (once|off)"; exit 2 ;; esac
@@ -263,6 +266,12 @@ esac
 if [ "$MACHINE_CORPUS" = "regression" ] && [ "$MACHINE_CORPUS_MANIFEST" = "$CI_DIR/config/standard-deployment-corpus.txt" ]; then
     MACHINE_CORPUS_MANIFEST="$CI_DIR/config/regression-corpus.txt"
 fi
+# `extension` is the regression corpus plus the machine-factory candidates above
+# the corpus vector budget (config/extension-corpus.json; RealityEngine_Machines
+# GOV-SD-12). The manifest is generated: scripts/write-extension-corpus.py.
+if [ "$MACHINE_CORPUS" = "extension" ] && [ "$MACHINE_CORPUS_MANIFEST" = "$CI_DIR/config/standard-deployment-corpus.txt" ]; then
+    MACHINE_CORPUS_MANIFEST="$CI_DIR/config/extension-corpus.txt"
+fi
 
 # OpenClaw loads the agents of the corpus the engines load, unless the caller
 # overrode it (owner rule 2026-10-06). A bounded corpus hands OpenClaw the very
@@ -276,20 +285,24 @@ esac
 
 if [ -z "$AGENT_PROFILE" ]; then
     case "$MACHINE_CORPUS" in
-        standard-deployment|regression) AGENT_PROFILE="manifest:$MACHINE_CORPUS_MANIFEST" ;;
+        standard-deployment|regression|extension) AGENT_PROFILE="manifest:$MACHINE_CORPUS_MANIFEST" ;;
         *)                              AGENT_PROFILE="full" ;;
     esac
 fi
 
-if [ "$MACHINE_CORPUS" = "standard-deployment" ] || [ "$MACHINE_CORPUS" = "regression" ]; then
+if [ "$MACHINE_CORPUS" = "standard-deployment" ] || [ "$MACHINE_CORPUS" = "regression" ] || [ "$MACHINE_CORPUS" = "extension" ]; then
     # localAIStack's data/machines is passed as an extra source root: the
     # regression corpus lists rag_corrective_cycle / session_rag_context /
     # session_agent_context, which localAIStack owns and the corpus repo does
     # not. Listing them beats copying them — two repos declaring one machine is
     # how a definition drifts.
+    # The corpus repo's machine factory is the second extra root: the extension
+    # corpus lists candidates that are not admitted, so not under machines/, and
+    # are found there by basename. A manifest that names none takes nothing.
     bash "$CI_DIR/scripts/materialize-machine-corpus.sh" \
         "$FULL_MACHINES_DIR" "$MACHINE_CORPUS_MANIFEST" "$MACHINE_CORPUS_WORK_DIR" \
-        "$LAS_DIR/data/machines" >/tmp/machine_corpus_materialize.log 2>&1 || {
+        "$LAS_DIR/data/machines" "$FULL_MACHINES_DIR/machine_factory/domains" \
+        >/tmp/machine_corpus_materialize.log 2>&1 || {
         cat /tmp/machine_corpus_materialize.log >&2
         exit 1
     }

@@ -468,7 +468,7 @@ STAGES=(machine-set engine-process export engine-config arbitration-retention
 EXPECT_ESCALATION=()
 if [ -f "$CI_DIR/.universe-engine-selection" ]; then
   case "$(sed -n 's/^MACHINE_CORPUS=//p' "$CI_DIR/.universe-engine-selection" | tail -1)" in
-    regression|full) EXPECT_ESCALATION=(--expect-escalation) ;;
+    regression|extension|full) EXPECT_ESCALATION=(--expect-escalation) ;;
   esac
 fi
 

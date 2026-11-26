@@ -1,0 +1,33 @@
+{
+  "schemaVersion": "1.0.0",
+  "description": "The shared extension corpus (RealityEngine_Machines GOV-SD-12; MACHINE_CONCEPT section 9.3): the regression corpus plus the factory candidates that live above the corpus vector budget (16944). scripts/write-extension-corpus.py composes config/extension-corpus.txt from it; never edit that file by hand.",
+  "includes": ["regression-corpus.txt"],
+  "candidates": [
+    {
+      "package": "threat-dynamics",
+      "source": "RealityEngine_Machines/machine_factory/domains/threat-dynamics/machines",
+      "status": "candidate-not-admitted",
+      "band": "[17440:17759]",
+      "why": "Observers only, no agents: driven by its 45 simulated-Source simulations (TD-SD-04). Live run 2026-11-26: 45/45 3-of-3, followers agree (RealityEngine_Machines#313).",
+      "machines": [
+        "THR00_threat-level-rollup.json",
+        "THR01_agent-hijacking-detector.json",
+        "THR02_memory-poisoning-detector.json",
+        "THR03_malicious-tool-detector.json",
+        "THR04_malicious-skill-detector.json",
+        "THR05_malicious-agent-detector.json",
+        "THR06_resource-exhaustion-detector.json",
+        "THR07_decomposition-detector.json",
+        "THR08_red-team-result-gate.json",
+        "THR09_vendor-canary-drift.json",
+        "THR10_cross-domain-exposure.json"
+      ]
+    }
+  ],
+  "deferred": [
+    {
+      "package": "ai-governance-regime",
+      "why": "Its 16 agents have no runtime behaviors in the agent stack yet, and no governance signal has its simulated-Source definition (GOV-SD-16, step 3). It joins when both exist."
+    }
+  ]
+}
