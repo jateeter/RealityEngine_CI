@@ -2126,6 +2126,32 @@ run_arbitration_retention() {
     --out "$REPORT_DIR/arbitration-retention.json"
 }
 
+run_clock_causality() {
+  step "The full Lamport clock, 3-of-3 (#600)"
+  local ci; ci="$(repo_root RealityEngine_CI)"
+  # The marks live in the lane's clock directory; on the containerized lane,
+  # in the install's engine-clock volume, read through a container mounting it.
+  local marks=()
+  if [ "$CONTAINERIZED" = true ]; then
+    local project=""
+    [ -f "$RUN_DIR/install/.env" ] && project="$(sed -n 's/^COMPOSE_PROJECT_NAME=//p' "$RUN_DIR/install/.env" | tail -1)"
+    if [ -z "$project" ]; then
+      write_skip_report "clock-causality-skipped.json" "the release install's compose project is unknown ($RUN_DIR/install/.env)"
+      log "SKIP clock-causality: the release install's compose project is unknown"
+      return 0
+    fi
+    marks=(--clock-volume "${project}_engine-clock")
+  fi
+  # localAI's fan-out, received + 1 on every engine (localAIStack#140).
+  [ "$LOCAL_AI" = true ] && marks+=(--localai-url "$LOCAL_AI_URL")
+  # After escalation-dispatch, whose drive leaves dispatch records in every
+  # ledger: the completion's causedBy is checked against one of them.
+  run_cmd "clock-causality" python3 "$ci/scripts/regression-clock-causality.py" \
+    --registry "$REGISTRY_FILE" \
+    --out "$REPORT_DIR/clock-causality.json" \
+    "${marks[@]}"
+}
+
 run_engine_process_parity() {
   step "POST /api/engine/process parity across runtimes"
   local ci status=0; ci="$(repo_root RealityEngine_CI)"
@@ -2899,6 +2925,9 @@ if [ "$LIVE_TESTS" = true ]; then
   # Beside the arbiter, on the same fixture: retention keyed by step, the legacy
   # escape byte for byte, and the instance clock, 3-of-3 (#296).
   run_stage "arbitration-retention" run_arbitration_retention
+  # Beside retention, which checks the clock on retained steps: the full
+  # clock on every RE and PE, the receive rule, the marks and causedBy (#600).
+  run_stage "clock-causality"   run_clock_causality
   # Beside the arbiter: both are conformance gates that need the engines up and
   # a corpus that can exercise them, and both compare across runtimes rather
   # than checking one. This one drives /api/engine/process and resets both

@@ -882,7 +882,23 @@ source "$CI_DIR/scripts/lib/lane-tls.sh"
 # (localAIStack docker-compose.tls.yml, #172): Qdrant, Redis and the API on TLS
 # 1.3 with mTLS, certificates from lane_tls_localai, Ollama through its TLS
 # front. COMPOSE_FILE is set for this call only; CI's own compose is unaffected.
+#
+# localAI is a Lamport clock participant of its own (localAIStack#140, #600):
+# LOCALAI_INSTANCE_UUID, allocated once per start as <lane>/localai and kept
+# across universes, reaches every compose call. Its lock and marks live in its
+# state directory, on the stack's state bind mount.
+LOCALAI_INSTANCE_UUID="${LOCALAI_INSTANCE_UUID:-}"
+localai_instance_uuid() {
+    [ -n "$LOCALAI_INSTANCE_UUID" ] && return 0
+    [ "$DRY_RUN" = true ] && return 0
+    local lane=docker
+    [ -n "$ENGINES" ] && lane=native
+    LOCALAI_INSTANCE_UUID=$(instance_uuid_allocate "$lane" localai) \
+        || die "localai: clock participant UUID allocation failed"
+    export LOCALAI_INSTANCE_UUID
+}
 las_compose() {
+    localai_instance_uuid
     if lane_tls_enabled; then
         COMPOSE_FILE=docker-compose.yml:docker-compose.tls.yml \
         LOCALAI_TLS_DIR="${LANE_TLS_LOCALAI_DIR:-${RE_INSTANCE_STATE_DIR:-$HOME/.reality-engine}/localai/tls}" \
@@ -2216,6 +2232,9 @@ if [ "$FRESH_START" = true ]; then
 fi
 
 info "Starting Loki (CI) + Qdrant + Redis..."
+# Once, in this shell: every las_compose runs in a subshell, which cannot export.
+localai_instance_uuid
+[ -n "$LOCALAI_INSTANCE_UUID" ] && ok "localAI clock participant: $LOCALAI_INSTANCE_UUID"
 # shellcheck disable=SC2046  # obs_fronts prints service names, split on purpose
 (cd "$CI_DIR" && obs_compose up -d --remove-orphans loki $(obs_fronts loki) \
     2>/tmp/infra_start_err.log) > /dev/null || \

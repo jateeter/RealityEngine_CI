@@ -272,6 +272,31 @@ directions without a restart, and the instance clock (`lamport` never resets,
 facts (`clock.instance`, `clock.lamport`) and deployment facts removed.
 `--record-legacy-baseline` re-records the baseline from a conforming universe.
 
+`regression-clock-causality.py` (stage `clock-causality`, after retention) checks
+the full Lamport clock of #600 on every voter RE and PE, 3-of-3.
+- **The clock routes** (`GET /api/engine/clock`, `GET /api/clock`) report the
+  clock at the participant's last committed step. Its current lamport is the
+  response's `RE-Clock`.
+- **Receive:** an `RE-Clock` injected 10⁶ ahead moves the participant past it.
+  The persisted `<uuid>.lamport` mark must cover the injection. The stage reads
+  the mark from the clock directory, or on the containerized lane from the
+  install's `engine-clock` volume with `docker exec`.
+- **Malformed headers** each get 400 and still count as a receive.
+- **`causedBy`:** a completion naming a ledger record has that record's clock as
+  `causedBy`, a well-formed echo is kept, and a malformed one is nulled. The
+  dispatch path needs `escalation-dispatch`'s records in the ledger first.
+- **localAI** (`--localai-url`, given when localAI is on):
+  - one `POST /rag/retrieve` broadcast (no LLM) is one origin event of
+    localAI's clock;
+  - every voter gets a write after that origin and answers it past `sent + 1`,
+    read from localAI's `engine_parity.causal`;
+  - a localAI with no `clock` on `/health` predates localAIStack#140 and is
+    reported "not evaluable".
+
+  `startUniverse.sh` allocates localAI's UUID as `<lane>/localai` and passes it
+  as `LOCALAI_INSTANCE_UUID` to every localAIStack compose call.
+- **Not in the follower lane yet.**
+
 ## Push response shape
 
 `regression-pe-step-contract.py` probes the push response at three levels, not
