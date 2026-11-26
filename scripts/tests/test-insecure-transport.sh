@@ -29,6 +29,7 @@ cat > "$WS/localAIStack/client.py" <<'PY'
 URL = "http://localhost:4000"          # recorded
 NS = "http://www.w3.org/2001/XMLSchema" # a namespace, never counted
 DTD = "http://www.apple.com/DTDs/PropertyList-1.0.dtd" # a plist DTD identifier, never counted
+UA = 'http://opcfoundation.org/UA/2011/03/UANodeSet.xsd' # an OPC UA namespace, never counted
 PY
 printf '# docs are not scanned: http://example.invalid\n' > "$WS/localAIStack/README.md"
 commit localAIStack
@@ -84,6 +85,27 @@ deficiency "owner, 2026-11-08" tls 1
 out=$(run); [[ $? -ne 0 ]] && ok "a deficiency that does not allow plaintext allows nothing" || bad "not plaintext: $out"
 git -C "$WS/localOpenClawStack" rm -q proxy.conf; commit localOpenClawStack
 echo '{"links": []}' > "$INV"
+
+# A negative test names a plaintext .invalid URL it expects refused (owner, 2026-11-25).
+mkdir -p "$WS/RealityEngine_Machines/tools"
+M="insecure-transport: negative-test"
+printf "['insecure root', d => d.roots = ['http://example.invalid/']], // $M\n" > "$WS/RealityEngine_Machines/tools/test_fixture.mjs"
+commit RealityEngine_Machines
+out=$(run); [[ $? -eq 0 && "$out" == *"1 negative-test line(s) exempt (RealityEngine_Machines/tools/test_fixture.mjs:1)"* ]] \
+  && ok "a marked .invalid URL in a test file is exempt, and reported" || bad "negative test: $out"
+printf "u = 'http://example.invalid/'\n" > "$WS/RealityEngine_Machines/tools/test_fixture.mjs"; commit RealityEngine_Machines
+out=$(run); [[ $? -ne 0 && "$out" == *"test_fixture.mjs: plaintext-url 0 -> 1"* ]] && ok "without the marker it fails" || bad "unmarked: $out"
+printf "u = 'http://example.com/' // $M\n" > "$WS/RealityEngine_Machines/tools/test_fixture.mjs"; commit RealityEngine_Machines
+out=$(run); [[ $? -ne 0 ]] && ok "a resolvable host is never exempt" || bad "resolvable: $out"
+printf "u = ['http://a.invalid/', 'http://127.0.0.1:9'] // $M\n" > "$WS/RealityEngine_Machines/tools/test_fixture.mjs"; commit RealityEngine_Machines
+out=$(run); [[ $? -ne 0 ]] && ok "one resolvable host on the line voids the exemption" || bad "mixed: $out"
+printf "u = 'http://example.invalid/' // $M\n" > "$WS/RealityEngine_Machines/tools/fixture.mjs"
+git -C "$WS/RealityEngine_Machines" rm -q tools/test_fixture.mjs; commit RealityEngine_Machines
+out=$(run); [[ $? -ne 0 && "$out" == *"tools/fixture.mjs: plaintext-url 0 -> 1"* ]] && ok "outside a test file the marker allows nothing" || bad "not test: $out"
+printf "requests.get('https://x.invalid', verify=False) # $M\n" > "$WS/RealityEngine_Machines/tools/test_verify.py"
+git -C "$WS/RealityEngine_Machines" rm -q tools/fixture.mjs; commit RealityEngine_Machines
+out=$(run); [[ $? -ne 0 && "$out" == *"python-verify-off 0 -> 1"* ]] && ok "a disabled certificate check is never exempt" || bad "verify: $out"
+git -C "$WS/RealityEngine_Machines" rm -q tools/test_verify.py; commit RealityEngine_Machines
 
 rm -rf "$WS/RealityEngine_Rust"
 out=$(run); [[ $? -ne 0 && "$out" == *"not scanned"*"RealityEngine_Rust"* ]] && ok "a missing sibling fails, named" || bad "missing: $out"
