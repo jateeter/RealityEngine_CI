@@ -7,13 +7,17 @@ For --minutes (default 10), against every instance in the instance registry:
     the trajectory-parity stage uses;
   - follow each RE's event stream (GET /api/engine/stream) and record the
     longest silence between frames;
-  - every 5 s, check each RE and PE /api/health and the RE's instance clock
-    (GET /api/engine/clock), which must keep its UUID and never go backwards;
+  - every 5 s, check each RE and PE /api/health and both clocks, the RE's
+    (GET /api/engine/clock) and the PE's (GET /api/clock), RealityEngine_CI#600:
+    each keeps its UUID, `lamport` and `commit` never go backwards and
+    `lamport >= commit`, and `commit` advances once per committed step: by
+    exactly as much as `step`, and at least once per push the soak made;
   - every 30 s, read Prometheus' engine targets and Docker's memory and
     restart counts for the compose project.
 
 Fails on: a failed step or health check, a stream silent longer than
---max-stream-gap seconds, a clock that changes UUID or goes backwards, an
+--max-stream-gap seconds, a clock that changes UUID, goes backwards or does
+not commit once per step, an
 engine target not up at the end, or a container that restarted. Writes a JSON
 report with the measurements, and prints a summary.
 
@@ -108,6 +112,34 @@ def docker_mem(project: str) -> dict[str, float]:
     return out
 
 
+
+def clock_problems(key: str, prev: dict | None, c: dict, pushes: int) -> list[str]:
+    """One clock read against the previous one (RealityEngine_CI#600).
+
+    The UUID is kept; lamport and commit never go back; lamport >= commit; and
+    commit advances once per committed step -- exactly as much as `step` (no
+    reset happens in a soak) and at least once per push the soak made since the
+    last read (another driver, localAI's pushes say, may add steps of its own).
+    """
+    out: list[str] = []
+    if c.get("lamport", 0) < c.get("commit", 0):
+        out.append(f"{key}: lamport {c.get('lamport')} < commit {c.get('commit')}")
+    if not prev:
+        return out
+    if c.get("instance") != prev.get("instance"):
+        out.append(f"{key}: clock instance {prev.get('instance')} -> {c.get('instance')}")
+        return out
+    if c.get("lamport", 0) < prev.get("lamport", 0) or c.get("commit", 0) < prev.get("commit", 0):
+        out.append(f"{key}: clock went back: {prev} -> {c}")
+        return out
+    commits = c.get("commit", 0) - prev.get("commit", 0)
+    steps = c.get("step", 0) - prev.get("step", 0)
+    if commits != steps:
+        out.append(f"{key}: commit advanced {commits} over {steps} step(s): once per committed step")
+    if commits < pushes:
+        out.append(f"{key}: commit advanced {commits} over {pushes} push(es)")
+    return out
+
 def main() -> int:
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument("--minutes", type=float, default=10)
@@ -126,8 +158,9 @@ def main() -> int:
 
     problems: list[str] = []
     step_ms: dict[str, list[float]] = {i["id"]: [] for i in insts}
-    clocks: dict[str, tuple[str, int]] = {}
+    clocks: dict[str, dict] = {}
     mem_samples: list[dict] = []
+    pushes: dict[str, int] = {}  # successful pushes since each instance's last clock read
     start_state = docker_state(args.project)
     t0 = time.monotonic()
     end = t0 + args.minutes * 60
@@ -142,6 +175,8 @@ def main() -> int:
                 step_ms[i["id"]].append((time.monotonic() - t) * 1000)
                 if code != 200:
                     problems.append(f"{i['id']}: push answered {code}")
+                else:
+                    pushes[i["id"]] = pushes.get(i["id"], 0) + 1
             except Exception as e:  # noqa: BLE001
                 problems.append(f"{i['id']}: push failed at {tick}s: {e}")
         if tick % 5 == 0:
@@ -153,14 +188,15 @@ def main() -> int:
                             problems.append(f"{i['id']} {role} health {code} at {tick}s")
                     except Exception as e:  # noqa: BLE001
                         problems.append(f"{i['id']} {role} health failed at {tick}s: {e}")
-                try:
-                    _, c = get(f"{i['re_url']}/api/engine/clock", timeout=5)
-                    prev = clocks.get(i["id"])
-                    if prev and (c["instance"] != prev[0] or c["lamport"] < prev[1]):
-                        problems.append(f"{i['id']}: clock {prev} -> ({c['instance']}, {c['lamport']})")
-                    clocks[i["id"]] = (c["instance"], c["lamport"])
-                except Exception as e:  # noqa: BLE001
-                    problems.append(f"{i['id']}: clock read failed: {e}")
+                made = pushes.pop(i["id"], 0)
+                for role, url in (("RE", f"{i['re_url']}/api/engine/clock"), ("PE", f"{i['pe_url']}/api/clock")):
+                    key = i["id"] if role == "RE" else f"{i['id']}/pe"
+                    try:
+                        _, c = get(url, timeout=5)
+                        problems.extend(clock_problems(key, clocks.get(key), c, made))
+                        clocks[key] = c
+                    except Exception as e:  # noqa: BLE001
+                        problems.append(f"{key}: clock read failed: {e}")
         if tick % 30 == 0:
             mem_samples.append({"t": tick, "mib": docker_mem(args.project)})
             print(f"  {tick:4d}s  steps ok, stream gaps max "
@@ -197,7 +233,7 @@ def main() -> int:
                       "max_ms": round(max(v), 1) if v else None} for k, v in step_ms.items()},
         "streams": {k: {"frames": s.frames, "max_gap_s": round(s.gap_now(), 1), "reconnects": s.reconnects}
                     for k, s in streams.items()},
-        "clocks": {k: {"instance": v[0], "lamport": v[1]} for k, v in clocks.items()},
+        "clocks": {k: {f: v.get(f) for f in ("instance", "lamport", "commit", "step")} for k, v in clocks.items()},
         "memory_mib": mem_samples[-1]["mib"] if mem_samples else {},
         "memory_peak_gib": round(max((sum(m["mib"].values()) for m in mem_samples), default=0) / 1024, 2),
         "problems": problems,
