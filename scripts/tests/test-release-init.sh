@@ -93,6 +93,12 @@ assert_contains "$(cat "$INSTALL/engines/cpp-2.pe.env")" "PE_INSTANCE_UUID=$CPP2
 assert_eq "$(json "$INSTALL/registry/re-registry.json" "len(set([i['instance_uuid'] for i in d['instances']] + [i['pe_uuid'] for i in d['instances']]))")" 8 "four REs and four PEs, eight UUIDs"
 assert_eq "$(python3 "$CI_DIR/scripts/lib/instance_uuids.py" check-registry "$INSTALL/registry/re-registry.json" >/dev/null 2>&1; echo $?)" 0 "the instance registry passes check-registry"
 assert_contains "$(cat "$INSTALL/compose.engines.yml")" "cpp-2.pe.env" "the PE service loads its env file"
+# The K-line and ISRE composition stores (#603): named volumes, one per role.
+assert_contains "$(cat "$INSTALL/engines/cpp-2.env")" "INSTANCE_KLINE_DIR=/var/lib/reality-engine/klines" "the RE env file names the K-line store"
+assert_contains "$(cat "$INSTALL/engines/cpp-2.pe.env")" "INSTANCE_ISRE_DIR=/var/lib/reality-engine/isre" "the PE env file names the ISRE store"
+assert_eq "$(grep -c 'engine-klines:/var/lib/reality-engine/klines' "$INSTALL/compose.engines.yml")" 4 "every RE mounts the K-line store volume"
+assert_eq "$(grep -c 'pe-isre:/var/lib/reality-engine/isre' "$INSTALL/compose.engines.yml")" 4 "every PE mounts the ISRE store volume"
+assert_contains "$(cat "$INSTALL/compose.yml")" "--klines" "prepare makes the K-line store writable"
 LOCALAI_UUID="$(sed -n 's/^LOCALAI_INSTANCE_UUID=//p' "$INSTALL/engines/localai.env")"
 assert_eq "$(python3 -c "import uuid,sys; print(str(uuid.UUID(sys.argv[1])) == sys.argv[1])" "$LOCALAI_UUID" 2>/dev/null)" "True" \
   "localAI gets its clock participant UUID (localAIStack#140)"

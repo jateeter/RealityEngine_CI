@@ -109,7 +109,8 @@ u_docker_cpp1=$(instance_uuid_docker_env cpp-1)
 [ "$u_docker_cpp1" != "$u_cpp1" ] && _distinct=yes || _distinct=no
 assert_eq "$_distinct" "yes" "U4: the Docker lane's cpp-1 is a different instance from the native cpp-1"
 assert_eq "$(cat "$RE_INSTANCE_STATE_DIR/docker/cpp-1.env")" "INSTANCE_UUID=$u_docker_cpp1
-INSTANCE_CLOCK_DIR=/var/lib/reality-engine/clock" "U5: the Docker env file carries the UUID and the container clock dir"
+INSTANCE_CLOCK_DIR=/var/lib/reality-engine/clock
+INSTANCE_KLINE_DIR=/var/lib/reality-engine/klines" "U5: the Docker env file carries the UUID, the container clock dir and the K-line store dir"
 assert_eq "$(instance_clock_dir)" "$RE_INSTANCE_STATE_DIR/clock" "U6: native clocks live under the state dir"
 
 registry_add "cpp-1" "cpp" "http://127.0.0.1:5301" "http://127.0.0.1:5300" "" "" "$u_cpp1"
@@ -260,6 +261,9 @@ assert_eq "$([ -n "$_dpe" ] && [ "$_dre" != "$_dpe" ] && echo distinct)" "distin
 assert_eq "$(head -1 "$RE_INSTANCE_STATE_DIR/docker/dpe-1.pe.env")" "PE_INSTANCE_UUID=$_dpe" "D-pe2: <id>.pe.env names PE_INSTANCE_UUID"
 assert_eq "$(head -1 "$RE_INSTANCE_STATE_DIR/docker/dpe-1.env")" "INSTANCE_UUID=$_dre" "D-pe3: <id>.env still names the RE's"
 assert_eq "$(instance_uuid_docker_env dpe-1/pe)" "$_dpe" "D-pe4: a re-run keeps the PE's UUID"
+assert_eq "$(tail -1 "$RE_INSTANCE_STATE_DIR/docker/dpe-1.pe.env")" "INSTANCE_ISRE_DIR=/var/lib/reality-engine/isre" "D-pe5: the PE's env file names its ISRE store dir (#603)"
+assert_eq "$(python3 -c 'import os,sys; print(oct(os.stat(sys.argv[1]).st_mode & 0o7777)[2:])' "$RE_INSTANCE_STATE_DIR/klines-docker")" "1777" "D-st1: the K-line store bind dir is writable by the container user"
+assert_eq "$(python3 -c 'import os,sys; print(oct(os.stat(sys.argv[1]).st_mode & 0o7777)[2:])' "$RE_INSTANCE_STATE_DIR/isre-docker")" "1777" "D-st2: the ISRE store bind dir is writable by the container user"
 
 # ── Summary ───────────────────────────────────────────────────────────────────
 echo ""

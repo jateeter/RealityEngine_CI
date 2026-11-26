@@ -207,6 +207,9 @@ if listening "$PE_PORT"; then
 fi
 UUID="$(python3 "$LIB/instance_uuids.py" allocate native "$ID" $$)"
 CLOCK_DIR="$(python3 "$LIB/instance_uuids.py" clock-dir)"
+# The K-line and ISRE composition store parents (#603), beside the clock.
+KLINE_DIR="$(dirname "$CLOCK_DIR")/klines"; ISRE_DIR="$(dirname "$CLOCK_DIR")/isre"
+mkdir -p "$KLINE_DIR" "$ISRE_DIR"
 # The voters' host address: the follower's certificate names it, so localAI's
 # containers can reach it by it and verify the name.
 HOST_IP="$(python3 -c 'import json,sys,urllib.parse
@@ -227,7 +230,7 @@ front() {  # front PUBLIC UPSTREAM LOG: the profile on PUBLIC, relayed to UPSTRE
   env "${TLS_ENV[@]}" python3 "$LIB/tls_front.py" --listen "127.0.0.1:$1" --upstream "127.0.0.1:$2" > "$3" 2>&1 &
   FRONT_PIDS+=("$!")
 }
-env ${TLS_ENV[@]+"${TLS_ENV[@]}"} INSTANCE_UUID="$UUID" INSTANCE_CLOCK_DIR="$CLOCK_DIR" MACHINES_DIR="$CORPUS" \
+env ${TLS_ENV[@]+"${TLS_ENV[@]}"} INSTANCE_UUID="$UUID" INSTANCE_CLOCK_DIR="$CLOCK_DIR" INSTANCE_KLINE_DIR="$KLINE_DIR" MACHINES_DIR="$CORPUS" \
   VECTOR_DIMENSION="$WIDTH" REALITY_ENGINE_PORT="$RE_LISTEN" \
   "$F_REPO/$RE_BIN" > "$OUT/$ID.log" 2>&1 &
 F_PID=$!
@@ -267,6 +270,7 @@ HK_TOKEN="$(healthkit_token_read "$CI_DIR" 2>/dev/null || true)"
   export MQTT_CLIENT_ID; MQTT_CLIENT_ID="$(mqtt_client_id "$ID" "$UUID")"
   export MQTT_BROKER_HOST=""
   exec env ${TLS_ENV[@]+"${TLS_ENV[@]}"} PERCEPTION_ENGINE_PORT="$PE_LISTEN" RE_URL="$F_URL" MACHINES_DIR="$CORPUS" \
+    INSTANCE_ISRE_DIR="$ISRE_DIR" \
     VECTOR_DIMENSION="$WIDTH" \
     "$F_REPO/$PE_BIN"
 ) > "$OUT/$ID-pe.log" 2>&1 &

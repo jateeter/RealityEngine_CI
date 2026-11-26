@@ -43,16 +43,20 @@ services:
       - corpus-catalog:/volumes/catalog
       - localai-machines:/volumes/localai-machines
 
-  # Makes the engines' shared clock volume writable by every engine's user.
+  # Makes the engines' shared clock volume and the K-line and ISRE store volumes
+  # (#603) writable by every engine's user.
   prepare:
     image: ${RE_IMAGE_INIT}
     restart: "no"
     user: "0:0"     # sets the clock volume's mode; the image itself is unprivileged
     networks: [realityengine]
     logging: *logging
-    command: ["prepare-volumes", "--clock", "/var/lib/reality-engine/clock"]
+    command: ["prepare-volumes", "--clock", "/var/lib/reality-engine/clock",
+              "--klines", "/var/lib/reality-engine/klines", "--isre", "/var/lib/reality-engine/isre"]
     volumes:
       - engine-clock:/var/lib/reality-engine/clock
+      - engine-klines:/var/lib/reality-engine/klines
+      - pe-isre:/var/lib/reality-engine/isre
 
   # ── The instance registry ────────────────────────────────────────────────────
 
@@ -443,6 +447,8 @@ volumes:
   corpus-catalog:
   localai-machines:
   engine-clock:
+  engine-klines:
+  pe-isre:
   qdrant-data:
   redis-data:
   localai-state:

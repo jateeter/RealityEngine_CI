@@ -80,6 +80,12 @@ npm run test:deployment
     (`<state>/clock`); the Docker REs load `<state>/docker/<id>.env` through
     `env_file`, so a container recreated by any tool keeps its UUID, and keep
     their clocks on the `<state>/clock-docker` bind mount.
+  - The K-line and ISRE composition stores (#603) sit beside the clock:
+    `INSTANCE_KLINE_DIR` (RE, `<state>/klines`) and `INSTANCE_ISRE_DIR` (PE,
+    `<state>/isre`), one directory per participant UUID; on the Docker lane
+    `<state>/klines-docker` and `<state>/isre-docker`, in a release install the
+    `engine-klines` and `pe-isre` volumes. No stop removes them; only
+    `realityengine uninstall --purge` and `uninstall.sh` do.
   - `registry_add` records `instance_uuid` and refuses a UUID another instance
     holds; `instance_uuids.py check-registry` checks a whole instance registry.
   - The engine enforces it too: an instance holding an allocated UUID takes an

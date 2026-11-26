@@ -375,6 +375,11 @@ source "$CI_DIR/scripts/registry.sh"
 # (instance UUID + a counter that never resets) carries on. Native instances
 # keep their clocks here; the Docker lane mounts its own directory.
 INSTANCE_CLOCK_DIR="${INSTANCE_CLOCK_DIR:-$(instance_clock_dir)}"
+# The K-line store (RE) and ISRE composition store (PE) parents, each holding
+# one directory per participant UUID (#603; SURFACE_SPEC "The K-line store").
+# Beside the clock, the engines' own default; never deleted by a stop.
+INSTANCE_KLINE_DIR="${INSTANCE_KLINE_DIR:-$(dirname "$INSTANCE_CLOCK_DIR")/klines}"
+INSTANCE_ISRE_DIR="${INSTANCE_ISRE_DIR:-$(dirname "$INSTANCE_CLOCK_DIR")/isre}"
 
 # The instance registry is the only record of a universe's engine pids and, under
 # --free-ports, of its ports. Starting over a universe that is still running would
@@ -391,7 +396,8 @@ refuse_live_instance_registry() {
     fi
     die "$REGISTRY_FILE lists engines that are still running:\n$(printf '%s\n' "$live" | sed 's/^/    /')\n  Starting would delete the only record of them and leave them running (RealityEngine_CI#637).\n  Stop that universe first: ./stopUniverse.sh --engines-only"
 }
-export INSTANCE_CLOCK_DIR
+export INSTANCE_CLOCK_DIR INSTANCE_KLINE_DIR INSTANCE_ISRE_DIR
+[ "$DRY_RUN" = true ] || mkdir -p "$INSTANCE_KLINE_DIR" "$INSTANCE_ISRE_DIR"
 # shellcheck source=scripts/allocate-ports.sh
 source "$CI_DIR/scripts/allocate-ports.sh"
 
@@ -1522,6 +1528,8 @@ spawn_scala_instance() {
     PE_INSTANCE_UUID="$pe_uuid" \
     MQTT_CLIENT_ID="$(mqtt_client_id "$id" "$instance_uuid")" \
     INSTANCE_CLOCK_DIR="$INSTANCE_CLOCK_DIR" \
+    INSTANCE_KLINE_DIR="$INSTANCE_KLINE_DIR" \
+    INSTANCE_ISRE_DIR="$INSTANCE_ISRE_DIR" \
     RE_TLS_CERT="$INST_TLS_CERT" \
     RE_TLS_KEY="$INST_TLS_KEY" \
     RE_TLS_CA="$INST_TLS_CA" \
@@ -1583,6 +1591,8 @@ spawn_cpp_instance() {
     PE_INSTANCE_UUID="$pe_uuid" \
     MQTT_CLIENT_ID="$(mqtt_client_id "$id" "$instance_uuid")" \
     INSTANCE_CLOCK_DIR="$INSTANCE_CLOCK_DIR" \
+    INSTANCE_KLINE_DIR="$INSTANCE_KLINE_DIR" \
+    INSTANCE_ISRE_DIR="$INSTANCE_ISRE_DIR" \
     RE_TLS_CERT="$INST_TLS_CERT" \
     RE_TLS_KEY="$INST_TLS_KEY" \
     RE_TLS_CA="$INST_TLS_CA" \
@@ -1643,6 +1653,8 @@ spawn_lsp_instance() {
     PE_INSTANCE_UUID="$pe_uuid" \
     MQTT_CLIENT_ID="$(mqtt_client_id "$id" "$instance_uuid")" \
     INSTANCE_CLOCK_DIR="$INSTANCE_CLOCK_DIR" \
+    INSTANCE_KLINE_DIR="$INSTANCE_KLINE_DIR" \
+    INSTANCE_ISRE_DIR="$INSTANCE_ISRE_DIR" \
     RE_TLS_CERT="$INST_TLS_CERT" \
     RE_TLS_KEY="$INST_TLS_KEY" \
     RE_TLS_CA="$INST_TLS_CA" \

@@ -42,7 +42,10 @@ x-engine-corpus: &engine-corpus
 # allocates one per instance and writes it to <state>/docker/<id>.env, loaded
 # below, so any tool that recreates a container presents the same UUID; absent
 # the file, the engine mints its own. Each RE keeps its Lamport clock on the
-# <state>/clock-docker bind mount, so the clock survives the container.
+# <state>/clock-docker bind mount, so the clock survives the container. Each RE
+# keeps its K-line store on <state>/klines-docker and each PE its ISRE
+# composition store on <state>/isre-docker (#603), named by INSTANCE_KLINE_DIR
+# and INSTANCE_ISRE_DIR in the same env files.
 # Lane TLS (RealityEngine_CI#668, #732). Each instance's RE and PE mount its
 # own certificate from the docker lane's PKI, never the CA directory (it holds
 # the CA key): <state>/docker/tls/<id> links to the PKI's issued/<id>, and
@@ -242,6 +245,7 @@ services:
       - ${MACHINE_CORPUS_DIR:-${MACHINES_DIR:?MACHINES_DIR must be set — run via startUniverse.sh}}/machines:/app/machines:ro
       - ${MACHINE_CORPUS_DIR:-${MACHINES_DIR:?MACHINES_DIR must be set — run via startUniverse.sh}}/semantics:/app/semantics:ro
       - ${RE_INSTANCE_STATE_DIR:-${HOME}/.reality-engine}/clock-docker:/var/lib/reality-engine/clock
+      - ${RE_INSTANCE_STATE_DIR:-${HOME}/.reality-engine}/klines-docker:/var/lib/reality-engine/klines
       - ${RE_INSTANCE_STATE_DIR:-${HOME}/.reality-engine}/docker/tls/scala-1:/run/re-tls/instance:ro
       - ${RE_INSTANCE_STATE_DIR:-${HOME}/.reality-engine}/docker/tls/ca.crt:/run/re-tls/ca.crt:ro
       - ${RE_INSTANCE_STATE_DIR:-${HOME}/.reality-engine}/docker/tls/ca.crl:/run/re-tls/ca.crl:ro
@@ -302,6 +306,7 @@ services:
         required: false
     volumes:
       - ${RE_INSTANCE_STATE_DIR:-${HOME}/.reality-engine}/clock-docker:/var/lib/reality-engine/clock
+      - ${RE_INSTANCE_STATE_DIR:-${HOME}/.reality-engine}/isre-docker:/var/lib/reality-engine/isre
       - ${MACHINE_CORPUS_DIR:-${MACHINES_DIR:?MACHINES_DIR must be set — run via startUniverse.sh}}/machines:/app/machines:ro
       - ${MACHINE_CORPUS_DIR:-${MACHINES_DIR:?MACHINES_DIR must be set — run via startUniverse.sh}}/semantics:/app/semantics:ro
       - ./config:/app/config:ro
@@ -339,6 +344,7 @@ services:
       - ${MACHINE_CORPUS_DIR:-${MACHINES_DIR:?MACHINES_DIR must be set — run via startUniverse.sh}}/machines:/app/machines:ro
       - ${MACHINE_CORPUS_DIR:-${MACHINES_DIR:?MACHINES_DIR must be set — run via startUniverse.sh}}/semantics:/app/semantics:ro
       - ${RE_INSTANCE_STATE_DIR:-${HOME}/.reality-engine}/clock-docker:/var/lib/reality-engine/clock
+      - ${RE_INSTANCE_STATE_DIR:-${HOME}/.reality-engine}/klines-docker:/var/lib/reality-engine/klines
       - ${RE_INSTANCE_STATE_DIR:-${HOME}/.reality-engine}/docker/tls/cpp-1:/run/re-tls/instance:ro
       - ${RE_INSTANCE_STATE_DIR:-${HOME}/.reality-engine}/docker/tls/ca.crt:/run/re-tls/ca.crt:ro
       - ${RE_INSTANCE_STATE_DIR:-${HOME}/.reality-engine}/docker/tls/ca.crl:/run/re-tls/ca.crl:ro
@@ -398,6 +404,7 @@ services:
         required: false
     volumes:
       - ${RE_INSTANCE_STATE_DIR:-${HOME}/.reality-engine}/clock-docker:/var/lib/reality-engine/clock
+      - ${RE_INSTANCE_STATE_DIR:-${HOME}/.reality-engine}/isre-docker:/var/lib/reality-engine/isre
       - ${MACHINE_CORPUS_DIR:-${MACHINES_DIR:?MACHINES_DIR must be set — run via startUniverse.sh}}/machines:/app/machines:ro
       - ${MACHINE_CORPUS_DIR:-${MACHINES_DIR:?MACHINES_DIR must be set — run via startUniverse.sh}}/semantics:/app/semantics:ro
       - ./config:/app/config:ro
@@ -436,6 +443,7 @@ services:
       - ${MACHINE_CORPUS_DIR:-${MACHINES_DIR:?MACHINES_DIR must be set — run via startUniverse.sh}}/machines:/app/machines:ro
       - ${MACHINE_CORPUS_DIR:-${MACHINES_DIR:?MACHINES_DIR must be set — run via startUniverse.sh}}/semantics:/app/semantics:ro
       - ${RE_INSTANCE_STATE_DIR:-${HOME}/.reality-engine}/clock-docker:/var/lib/reality-engine/clock
+      - ${RE_INSTANCE_STATE_DIR:-${HOME}/.reality-engine}/klines-docker:/var/lib/reality-engine/klines
       - ${RE_INSTANCE_STATE_DIR:-${HOME}/.reality-engine}/docker/tls/lsp-1:/run/re-tls/instance:ro
       - ${RE_INSTANCE_STATE_DIR:-${HOME}/.reality-engine}/docker/tls/ca.crt:/run/re-tls/ca.crt:ro
       - ${RE_INSTANCE_STATE_DIR:-${HOME}/.reality-engine}/docker/tls/ca.crl:/run/re-tls/ca.crl:ro
@@ -496,6 +504,7 @@ services:
         required: false
     volumes:
       - ${RE_INSTANCE_STATE_DIR:-${HOME}/.reality-engine}/clock-docker:/var/lib/reality-engine/clock
+      - ${RE_INSTANCE_STATE_DIR:-${HOME}/.reality-engine}/isre-docker:/var/lib/reality-engine/isre
       - ${MACHINE_CORPUS_DIR:-${MACHINES_DIR:?MACHINES_DIR must be set — run via startUniverse.sh}}/machines:/app/machines:ro
       - ${MACHINE_CORPUS_DIR:-${MACHINES_DIR:?MACHINES_DIR must be set — run via startUniverse.sh}}/semantics:/app/semantics:ro
       - ./config:/app/config:ro
@@ -536,6 +545,7 @@ services:
       - ${MACHINE_CORPUS_DIR:-${MACHINES_DIR:?MACHINES_DIR must be set — run via startUniverse.sh}}/machines:/app/machines:ro
       - ${MACHINE_CORPUS_DIR:-${MACHINES_DIR:?MACHINES_DIR must be set — run via startUniverse.sh}}/semantics:/app/semantics:ro
       - ${RE_INSTANCE_STATE_DIR:-${HOME}/.reality-engine}/clock-docker:/var/lib/reality-engine/clock
+      - ${RE_INSTANCE_STATE_DIR:-${HOME}/.reality-engine}/klines-docker:/var/lib/reality-engine/klines
       - ${RE_INSTANCE_STATE_DIR:-${HOME}/.reality-engine}/docker/tls/rust-1:/run/re-tls/instance:ro
       - ${RE_INSTANCE_STATE_DIR:-${HOME}/.reality-engine}/docker/tls/ca.crt:/run/re-tls/ca.crt:ro
       - ${RE_INSTANCE_STATE_DIR:-${HOME}/.reality-engine}/docker/tls/ca.crl:/run/re-tls/ca.crl:ro
@@ -586,6 +596,7 @@ services:
         required: false
     volumes:
       - ${RE_INSTANCE_STATE_DIR:-${HOME}/.reality-engine}/clock-docker:/var/lib/reality-engine/clock
+      - ${RE_INSTANCE_STATE_DIR:-${HOME}/.reality-engine}/isre-docker:/var/lib/reality-engine/isre
       - ${MACHINE_CORPUS_DIR:-${MACHINES_DIR:?MACHINES_DIR must be set — run via startUniverse.sh}}/machines:/app/machines:ro
       - ./config:/app/config:ro
       - ../localAIStack/data/machines:/app/localai-machines:ro

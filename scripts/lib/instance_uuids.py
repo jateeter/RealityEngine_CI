@@ -258,6 +258,11 @@ def allocate(lane: str, instance_id: str, owner: int | None = None) -> str:
 
 
 DOCKER_CLOCK_DIR = "/var/lib/reality-engine/clock"
+# The stores' container paths (#603): the RE's K-line store parent and the PE's
+# ISRE composition store parent, the container side of <state>/klines-docker
+# and <state>/isre-docker.
+DOCKER_KLINE_DIR = "/var/lib/reality-engine/klines"
+DOCKER_ISRE_DIR = "/var/lib/reality-engine/isre"
 
 
 def docker_env(instance_id: str) -> str:
@@ -274,12 +279,15 @@ def docker_env(instance_id: str) -> str:
     base = instance_id[: -len("/pe")] if pe else instance_id
     path = state_dir() / "docker" / (f"{base}.pe.env" if pe else f"{base}.env")
     path.parent.mkdir(parents=True, exist_ok=True)
-    (state_dir() / "clock-docker").mkdir(parents=True, exist_ok=True)
-    # The container's user is not the host's; the clock must be writable by it
-    # or the engine (correctly) refuses to boot.
-    os.chmod(state_dir() / "clock-docker", 0o1777)
+    store = "isre-docker" if pe else "klines-docker"
+    for d in ("clock-docker", store):
+        (state_dir() / d).mkdir(parents=True, exist_ok=True)
+        # The container's user is not the host's; the clock and the store must
+        # be writable by it or the engine (correctly) refuses to boot.
+        os.chmod(state_dir() / d, 0o1777)
     variable = "PE_INSTANCE_UUID" if pe else "INSTANCE_UUID"
-    path.write_text(f"{variable}={uuid}\nINSTANCE_CLOCK_DIR={DOCKER_CLOCK_DIR}\n")
+    store_line = f"INSTANCE_ISRE_DIR={DOCKER_ISRE_DIR}" if pe else f"INSTANCE_KLINE_DIR={DOCKER_KLINE_DIR}"
+    path.write_text(f"{variable}={uuid}\nINSTANCE_CLOCK_DIR={DOCKER_CLOCK_DIR}\n{store_line}\n")
     return uuid
 
 

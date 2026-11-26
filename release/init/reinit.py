@@ -9,8 +9,8 @@ release compose needs there, so nothing is generated on the Mac itself:
       compose.yml           the fixed services (copied from this image)
       compose.engines.yml   one RE and one PE service per instance in the spec
       .env                  image references, host ports, secrets (0600)
-      engines/<id>.env      INSTANCE_UUID and INSTANCE_CLOCK_DIR per instance
-      engines/<id>.pe.env   PE_INSTANCE_UUID and INSTANCE_CLOCK_DIR: its PE's own (#600)
+      engines/<id>.env      INSTANCE_UUID, INSTANCE_CLOCK_DIR and INSTANCE_KLINE_DIR per instance
+      engines/<id>.pe.env   PE_INSTANCE_UUID, INSTANCE_CLOCK_DIR and INSTANCE_ISRE_DIR: its PE's own (#600, #603)
       state/                the instance UUID table (#296), kept across runs
       registry/             the instance registry, in two views of the same
                             instances: re-registry.json (host addresses, what
@@ -28,8 +28,8 @@ release compose needs there, so nothing is generated on the Mac itself:
   serve-registry            serve /install/registry over HTTP (the
                             instance-registry service of the compose)
 
-  prepare-volumes           make the shared clock volume writable by the
-                            engines' user
+  prepare-volumes           make the shared clock volume and the K-line and
+                            ISRE store volumes writable by the engines' user
 
   machines-sync [--ref R]   replace the Load Machines catalog with
                             RealityEngine_Machines at a ref (default main),
@@ -75,6 +75,11 @@ STRIDE = 10
 MAX_PER_RUNTIME = 20
 RE_PORT, PE_PORT = 3000, 3004          # inside every engine container
 CLOCK_DIR = "/var/lib/reality-engine/clock"
+# The REs' K-line stores and the PEs' ISRE composition stores (#603), each a
+# named volume holding one directory per participant UUID, kept across
+# upgrades; only `realityengine uninstall --purge` removes them.
+KLINE_DIR = "/var/lib/reality-engine/klines"
+ISRE_DIR = "/var/lib/reality-engine/isre"
 LANE = "release"
 
 # Host ports of the fixed services. Each can be overridden in the environment of
@@ -191,12 +196,13 @@ def allocate_uuids(install: pathlib.Path, insts: list[dict]) -> None:
         client_id = f"re-pe-{inst['id']}-{inst['instance_uuid'].replace('-', '')[-8:]}"
         write(install / "engines" / f"{inst['id']}.env",
               f"INSTANCE_UUID={inst['instance_uuid']}\nINSTANCE_CLOCK_DIR={CLOCK_DIR}\n"
-              f"MQTT_CLIENT_ID={client_id}\n")
+              f"INSTANCE_KLINE_DIR={KLINE_DIR}\nMQTT_CLIENT_ID={client_id}\n")
         # The PE is a participant of its own (RealityEngine_CI#600): its own
         # UUID (<id>/pe), lock and marks in the same clock volume.
         inst["pe_uuid"] = instance_uuids.allocate(LANE, f"{inst['id']}/pe")
         write(install / "engines" / f"{inst['id']}.pe.env",
-              f"PE_INSTANCE_UUID={inst['pe_uuid']}\nINSTANCE_CLOCK_DIR={CLOCK_DIR}\n")
+              f"PE_INSTANCE_UUID={inst['pe_uuid']}\nINSTANCE_CLOCK_DIR={CLOCK_DIR}\n"
+              f"INSTANCE_ISRE_DIR={ISRE_DIR}\n")
     # localAI is a clock participant of its own (localAIStack#140): <lane>/localai,
     # its lock and marks in its state volume (/app/state/clock).
     localai_uuid = instance_uuids.allocate(LANE, "localai")
@@ -238,7 +244,7 @@ def engine_services(insts: list[dict], tls: bool = False) -> dict:
             **common,
             "image": f"${{RE_IMAGE_{rt.upper()}}}",
             "environment": dict(corpus_env),
-            "volumes": ["corpus-boot:/app/corpus:ro", f"engine-clock:{CLOCK_DIR}"],
+            "volumes": ["corpus-boot:/app/corpus:ro", f"engine-clock:{CLOCK_DIR}", f"engine-klines:{KLINE_DIR}"],
             "ports": [f"{inst['re_port']}:{RE_PORT}"],
             "depends_on": {"corpus": {"condition": "service_completed_successfully"},
                            "prepare": {"condition": "service_completed_successfully"},
@@ -273,7 +279,7 @@ def engine_services(insts: list[dict], tls: bool = False) -> dict:
             "environment": pe_env,
             "env_file": [*common["env_file"], {"path": f"./engines/{iid}.pe.env", "required": True}],
             "volumes": ["corpus-boot:/app/corpus:ro", "localai-machines:/app/localai-machines:ro",
-                        f"engine-clock:{CLOCK_DIR}",
+                        f"engine-clock:{CLOCK_DIR}", f"pe-isre:{ISRE_DIR}",
                         "./config/integrations.json:/app/config/integrations.json:ro"],
             "ports": [f"{inst['pe_port']}:{PE_PORT}"],
             # restart: a PE must restart when its RE is recreated (an image
@@ -1258,13 +1264,16 @@ def cmd_serve_registry(args) -> int:
 
 
 def cmd_prepare_volumes(args) -> int:
-    clock = pathlib.Path(args.clock)
-    clock.mkdir(parents=True, exist_ok=True)
-    # Each engine runs as its image's own user; the clock must be writable by
-    # all of them or the engine (correctly) refuses to boot. As instance_uuids.py
-    # docker_env does for the Docker lane.
-    os.chmod(clock, 0o1777)
-    log(f"clock volume ready at {clock}")
+    # Each engine runs as its image's own user; the clock and the stores must be
+    # writable by all of them or the engine (correctly) refuses to boot. As
+    # instance_uuids.py docker_env does for the Docker lane.
+    for label, path in (("clock", args.clock), ("K-line store", args.klines), ("ISRE store", args.isre)):
+        if not path:
+            continue
+        d = pathlib.Path(path)
+        d.mkdir(parents=True, exist_ok=True)
+        os.chmod(d, 0o1777)
+        log(f"{label} volume ready at {d}")
     return 0
 
 
@@ -1461,6 +1470,8 @@ def main(argv: list[str]) -> int:
     s.add_argument("--port", type=int, default=8000)
     p = sub.add_parser("prepare-volumes")
     p.add_argument("--clock", default=CLOCK_DIR)
+    p.add_argument("--klines", default=None, help="the K-line store volume (#603)")
+    p.add_argument("--isre", default=None, help="the ISRE composition store volume (#603)")
     ms = sub.add_parser("machines-sync")
     ms.add_argument("--ref", default="main")
     ms.add_argument("--catalog", default="/volumes/catalog")
