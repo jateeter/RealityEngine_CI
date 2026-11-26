@@ -2142,6 +2142,8 @@ run_clock_causality() {
     fi
     marks=(--clock-volume "${project}_engine-clock")
   fi
+  # localAI's fan-out, received + 1 on every engine (localAIStack#140).
+  [ "$LOCAL_AI" = true ] && marks+=(--localai-url "$LOCAL_AI_URL")
   # After escalation-dispatch, whose drive leaves dispatch records in every
   # ledger: the completion's causedBy is checked against one of them.
   run_cmd "clock-causality" python3 "$ci/scripts/regression-clock-causality.py" \
