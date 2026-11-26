@@ -3424,6 +3424,22 @@ A bundle (`re-kline-bundle/1`) holds:
 - the source instance UUID;
 - a sha256 over the records.
 
+**A bundle is JSON Lines** (owner, 2026-11-26), `application/x-ndjson`, the
+same layout for `re-kline-bundle/1` and the PE's `re-isre-bundle/1`:
+- **Line 1, the header**, one compact JSON object:
+  `{"format": "re-kline-bundle/1", "source": {"instance": "<uuid>"},
+  "corpus": {algorithm, fingerprint}, "controls": {klineFeedbackHops, …},
+  "count": n, "sha256": "<hex>"}`.
+- **Lines 2 to n + 1, the records**, each exactly as its segment stored it: the
+  bytes of the stored line, never re-serialized. `re-kline-event/1` lines for
+  the selected K-lines are included after the record they name.
+- **`sha256`** is the lower-case hex SHA-256 of the record lines as they appear
+  in the bundle, each followed by `\n`: everything after the header line. An
+  importer verifies those bytes as received, so no runtime needs a JSON
+  canonicalizer, and a mismatch refuses the import.
+- Every line, the last included, ends in `\n`. `count` is the number of record
+  and event lines.
+
 The routes stay out of the RE route tables until all three runtimes serve them.
 
 ### The PE half: ISRE composition
@@ -3464,7 +3480,7 @@ what kind. They are joined on the RE's `(instance, commit)`.
   "re": { "instance": "<RE uuid>", "lamport": …, "commit": c, "step": k },
   "pe": { "instance": "<PE uuid>", "lamport": … },
   "sources": [ { "cells": [a, b], "kind": "sensor", "provider": "healthkit",
-                 "class": "deterministic", "id": "<source id>",
+                 "class": "measured", "id": "<source id>",
                  "causedBy": null | { "instance": "<uuid>", "lamport": n } }, … ],
   "folds": [ <fold record>, … ],
   "delta": true | false }
@@ -3504,7 +3520,11 @@ POST /api/isre-composition/export {"from", "to"}               → a re-isre-bun
 with every record complete, so a reader never applies deltas itself.
 A `re-isre-bundle/1` holds the selected records (complete), the taxonomy
 version, the PE's instance UUID, its RE's instance UUID, and a sha256 over the
-records.
+records. It is JSON Lines as a `re-kline-bundle/1` is ("Routes", above): its
+header is `{"format": "re-isre-bundle/1", "source": {"instance": "<PE uuid>"},
+"re": {"instance": "<RE uuid>"}, "taxonomy": "re-source-kinds/<N>", "count": n,
+"sha256": "<hex>"}`. Its records are complete, so a record that was stored as a
+delta is written expanded; `sha256` covers the lines as the bundle carries them.
 
 **The join.** A K-line's ISRE side is the PE records whose `re.instance` is the
 K-line's instance and whose `re.commit` lies in its span. An export or an
