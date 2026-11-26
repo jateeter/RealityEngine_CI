@@ -1523,7 +1523,9 @@ followers implement it too: Rust and Go agree with the voters on every
 follower-lane stage (RealityEngine_Rust#82, RealityEngine_GO#38), and the
 TypeScript PE (RealityEngine_Manager#367) runs a minted, unpersisted clock,
 because CI allocates it no participant UUID and Node takes no POSIX record
-lock: a deviation for the owner to decide, as its deviations are.
+lock. The owner accepted that deviation on 2026-11-25: each boot mints a
+new `instance` and starts `lamport` and `commit` at zero, and the comparison
+excludes all three.
 
 ##### The controls and the two worlds
 
