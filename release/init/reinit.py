@@ -197,7 +197,11 @@ def allocate_uuids(install: pathlib.Path, insts: list[dict]) -> None:
         inst["pe_uuid"] = instance_uuids.allocate(LANE, f"{inst['id']}/pe")
         write(install / "engines" / f"{inst['id']}.pe.env",
               f"PE_INSTANCE_UUID={inst['pe_uuid']}\nINSTANCE_CLOCK_DIR={CLOCK_DIR}\n")
-    held: dict[str, list[str]] = {}
+    # localAI is a clock participant of its own (localAIStack#140): <lane>/localai,
+    # its lock and marks in its state volume (/app/state/clock).
+    localai_uuid = instance_uuids.allocate(LANE, "localai")
+    write(install / "engines" / "localai.env", f"LOCALAI_INSTANCE_UUID={localai_uuid}\n")
+    held: dict[str, list[str]] = {localai_uuid: ["localai"]}
     for inst in insts:
         held.setdefault(inst["instance_uuid"], []).append(inst["id"])
         held.setdefault(inst["pe_uuid"], []).append(f"{inst['id']}/pe")
@@ -318,7 +322,9 @@ def engine_services(insts: list[dict], tls: bool = False) -> dict:
     # restart: likewise localAI restarts whenever a PE is recreated, so it
     # registers again with the new one; otherwise the new PE lacked its sensors.
     services["localai-api"] = {"depends_on": {i["pe_service"]: {"condition": "service_healthy", "restart": True}
-                                              for i in insts}}
+                                              for i in insts},
+                               # Its Lamport clock participant UUID (localAIStack#140).
+                               "env_file": [{"path": "./engines/localai.env", "required": True}]}
     return services
 
 

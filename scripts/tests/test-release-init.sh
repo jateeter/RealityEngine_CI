@@ -93,6 +93,12 @@ assert_contains "$(cat "$INSTALL/engines/cpp-2.pe.env")" "PE_INSTANCE_UUID=$CPP2
 assert_eq "$(json "$INSTALL/registry/re-registry.json" "len(set([i['instance_uuid'] for i in d['instances']] + [i['pe_uuid'] for i in d['instances']]))")" 8 "four REs and four PEs, eight UUIDs"
 assert_eq "$(python3 "$CI_DIR/scripts/lib/instance_uuids.py" check-registry "$INSTALL/registry/re-registry.json" >/dev/null 2>&1; echo $?)" 0 "the instance registry passes check-registry"
 assert_contains "$(cat "$INSTALL/compose.engines.yml")" "cpp-2.pe.env" "the PE service loads its env file"
+LOCALAI_UUID="$(sed -n 's/^LOCALAI_INSTANCE_UUID=//p' "$INSTALL/engines/localai.env")"
+assert_eq "$(python3 -c "import uuid,sys; print(str(uuid.UUID(sys.argv[1])) == sys.argv[1])" "$LOCALAI_UUID" 2>/dev/null)" "True" \
+  "localAI gets its clock participant UUID (localAIStack#140)"
+assert_eq "$(json "$INSTALL/registry/re-registry.json" "'$LOCALAI_UUID' in [i['instance_uuid'] for i in d['instances']] + [i['pe_uuid'] for i in d['instances']]")" \
+  "False" "localAI's UUID is no engine participant's"
+assert_contains "$(cat "$INSTALL/compose.engines.yml")" "localai.env" "the localAI service loads its env file"
 reinit configure --install "$INSTALL" --engines cpp:2,lsp:1,scala:1 --version dev --skip-openclaw
 assert_eq "$(json "$INSTALL/registry/re-registry.json" "[i['instance_uuid'] for i in d['instances']]")" "$U1" "a re-run keeps every UUID"
 reinit configure --install "$INSTALL" --engines cpp:1 --version dev --skip-openclaw
