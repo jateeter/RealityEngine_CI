@@ -3197,6 +3197,40 @@ ones that took the path.
   event that emits output is a milestone, never a boundary. The 24
   intermediate events with `outputEvents` in today's corpus are these.
 
+#### Paths that dwell, fork or merge
+
+*Owner, 2026-11-26.* An event can list more than one successor, and an event
+can be reached from more than one predecessor. The corpus has every case: 53
+initial events list themselves, 9 non-initial events dwell (list themselves and
+a successor, `dc-net-esc-elevated → [dc-net-esc-elevated, dc-net-esc-burst]`), 4
+fork into two successors and 4 events have two predecessors (all 8 in
+`KleeneStar`). **A departure is one K-line, and a K-line holds a set of events.**
+
+- **Held events.** At open, the K-line holds every successor the initial event
+  activated. At each later step, for each event it holds, in event id order:
+  - it **matches and is intermediate**: it is cleared, and each successor it
+    activates is held from the next step. A dwell re-activates the event
+    itself, so it stays held and the path records it again. Each match is a
+    `path` entry; entries of one step are in event id order.
+  - it **matches and is final**: the K-line closes `completed` at the first such
+    match. Its other held events are released, and no K-line holds them;
+    sustain follows the final event that completed it.
+  - it **fails to match**: it is cleared and released.
+- **An initial event that lists itself** changes nothing: it is always active,
+  so its activation is refused. It never subsumes a K-line.
+- **Close.** A K-line that holds nothing after a step, and did not complete,
+  closes at that step:
+  - `subsumed` when a successor it activated was refused because another
+    K-line already held it, with `subsumedBy` that K-line's id;
+  - `abandoned` otherwise, with `difference` taken from its first held event,
+    in event id order, that failed at that step.
+- **Merge.** Two K-lines that activate the same successor on the same step:
+  the **older** holds it, the one with the smaller `open.step`, then the smaller
+  id of the event that activated it. The younger counts that successor as
+  refused. Who holds an event is K-line bookkeeping, decided the same on every
+  runtime, and independent of which activator's provenance chain the engine
+  stamps on the event.
+
 #### Scope: the focal machine plus its feedback
 
 **A K-line's scope `M` is its focal machine plus every machine whose output fed
@@ -3235,6 +3269,15 @@ in "The PE half: ISRE composition" below. The RE's K-line record carries no
 
 #### Identity, clock and parity
 
+- **Each boundary is a Lamport event of its own** (owner, 2026-11-26). Every
+  open, milestone, close and `sustain-end` ticks `lamport` once, after the
+  step's own commit tick, so no two K-lines share a lamport even when many open
+  on one step. Within a step the K-lines are taken in record order,
+  `(focal.machine, focal.sequence, open.step)`, and each K-line's boundaries in
+  causal order (open, milestones, close, `sustain-end`); a one-event K-line
+  therefore opens and completes on two consecutive ticks. `commit` and `step`
+  do not move: every boundary of a step carries that step's `commit` and
+  `step`. The ticks are reserved and persisted like any other ("Persistence").
 - **`id`** is `<instance>:<lamport at open>`. It is unique per instance, and
   stays unique across restarts.
 - **Clock.** Every boundary (open, each milestone, close, `sustain-end`) is
