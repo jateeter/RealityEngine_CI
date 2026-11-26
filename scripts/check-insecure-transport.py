@@ -21,9 +21,18 @@ occurrences it needs in `deficiency.sources`: `{"file": "<repo>/<path>",
 by count, and never written into it: the occurrence lives exactly as long as
 the deficiency does. Nothing else is exempted.
 
+A negative test may name a plaintext URL it expects to be refused (owner,
+2026-11-25). One line is exempt when all of these hold: the file is a test file
+(a `test`/`tests` directory, or a `test_*`, `*_test.*`, `*.test.*` or `*.spec.*`
+name); the line carries the marker `insecure-transport: negative-test`; and
+every `http://` / `ws://` URL on it names a host under `.invalid` (RFC 2606,
+which never resolves, so nothing can connect). Only plaintext-url and
+plaintext-ws are exempt; a disabled certificate check never is. The check
+reports how many lines the marker exempted.
+
 Not transport, never counted: XML/RDF/JSON-Schema namespace URIs and license
 URLs (w3.org, json-schema.org, purl.org, xmlns.com, schema.org, apache.org
-licenses, Apple plist DTDs), which are identifiers that no client connects to.
+licenses, Apple plist DTDs, OPC UA namespace URIs), which are identifiers that no client connects to.
 
 Usage:
   python3 scripts/check-insecure-transport.py            # check
@@ -57,7 +66,8 @@ NAMES = {"Dockerfile", ".env.example", "Makefile"}
 SKIP_PARTS = {"node_modules", "vendor", "openapi", "dist", "build", "target", ".git", "quicklisp"}
 NAMESPACES = re.compile(
     r"http://(www\.w3\.org|json-schema\.org|purl\.org|xmlns\.com|schema\.org|www\.apache\.org/licenses"
-    r"|www\.opengis\.net|ns\.adobe\.com|www\.iana\.org/assignments|www\.apple\.com/DTDs)\b")
+    r"|www\.opengis\.net|ns\.adobe\.com|www\.iana\.org/assignments|www\.apple\.com/DTDs"
+    r"|opcfoundation\.org/UA/)")
 # Files whose occurrences define or exercise the check and open no connection:
 # the checker's own patterns, and its test's fixtures (the profile's "named test
 # fixture" exception). Nothing else is ever added here.
@@ -73,6 +83,27 @@ PATTERNS: dict[str, re.Pattern[str]] = {
 }
 
 
+NEGATIVE_TEST_MARKER = "insecure-transport: negative-test"
+NEGATIVE_TEST_PATTERNS = {"plaintext-url", "plaintext-ws"}
+PLAINTEXT_HOST = re.compile(r"\b(?:http|ws)://([^/\s'\"`:?#\]\[)]*)")
+INVALID_HOST = re.compile(r"^(?:[a-z0-9-]+\.)*invalid\.?$", re.IGNORECASE)
+
+
+def is_test_file(path: str) -> bool:
+    p = Path(path)
+    name = p.name
+    return (any(part in {"test", "tests"} for part in p.parts[:-1])
+            or name.startswith("test_") or "_test." in name or ".test." in name or ".spec." in name)
+
+
+def negative_test_line(line: str) -> bool:
+    """The marker is on the line and every plaintext URL on it names a .invalid host."""
+    if NEGATIVE_TEST_MARKER not in line:
+        return False
+    hosts = PLAINTEXT_HOST.findall(line)
+    return bool(hosts) and all(INVALID_HOST.match(h) for h in hosts)
+
+
 def scanned(path: str) -> bool:
     p = Path(path)
     if any(part in SKIP_PARTS for part in p.parts):
@@ -80,11 +111,20 @@ def scanned(path: str) -> bool:
     return p.suffix in SUFFIXES or p.name in NAMES
 
 
-def count_file(text: str) -> Counter[str]:
+NEGATIVE_TEST_LINES: list[str] = []
+
+
+def count_file(text: str, path: str = "") -> Counter[str]:
     counts: Counter[str] = Counter()
-    for line in text.splitlines():
+    test_file = is_test_file(path)
+    for number, line in enumerate(text.splitlines(), 1):
         cleaned = NAMESPACES.sub("", line)
+        exempt = test_file and negative_test_line(cleaned)
+        if exempt:
+            NEGATIVE_TEST_LINES.append(f"{path}:{number}")
         for name, pattern in PATTERNS.items():
+            if exempt and name in NEGATIVE_TEST_PATTERNS:
+                continue
             counts[name] += len(pattern.findall(cleaned))
     return Counter({k: v for k, v in counts.items() if v})
 
@@ -141,7 +181,7 @@ def scan(root: Path, ref: str | None = None) -> tuple[dict[str, dict[str, int]],
         for rel, text in texts.items():
             if repo == "RealityEngine_CI" and rel in NAMED_FIXTURES:
                 continue
-            counts = count_file(text)
+            counts = count_file(text, f"{repo}/{rel}")
             if counts:
                 found[f"{repo}/{rel}"] = dict(sorted(counts.items()))
     return dict(sorted(found.items())), missing
@@ -231,6 +271,8 @@ def main() -> int:
     note = f"; {shrunk} retired since the baseline: run with --write to record it" if shrunk else ""
     if by_deficiency:
         note += f"; {by_deficiency} allowed by accepted deficiencies (config/transport-inventory.json)"
+    if NEGATIVE_TEST_LINES:
+        note += f"; {len(NEGATIVE_TEST_LINES)} negative-test line(s) exempt ({', '.join(NEGATIVE_TEST_LINES)})"
     print(f"insecure-transport: OK: {total} recorded occurrence(s) in {len(found)} file(s), none new{note}")
     return 0
 
