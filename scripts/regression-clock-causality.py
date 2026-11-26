@@ -29,9 +29,14 @@ identical across cpp, lsp and scala and every check must hold
 (docs/QUORUM_CONTRACT.md: no reference member). A check one runtime cannot
 take part in is "not-evaluable" with its reason, never agreement.
 
-Not evaluable until its integration lands: a localAI fan-out write showing
-`received + 1` on every engine needs localAI to stamp `RE-Clock`
-(localAIStack#140). The stage reports it as such.
+and, with --localai-url, on localAI (localAIStack#140):
+
+  localai      one broadcast (`POST /rag/retrieve`, no LLM) is one origin event
+               of localAI's clock; its writes reach every voter after the
+               origin, and each engine answers past `sent + 1` (its receive,
+               then its send), read from localAI's `engine_parity.causal`. A
+               localAI that reports no `clock` on `/health` predates #140 and
+               is "not-evaluable", as is a run without localAI.
 
 Where the marks are:
   --clock-dir DIR       a native lane's INSTANCE_CLOCK_DIR (default: what
@@ -72,8 +77,7 @@ MALFORMED = (
     "instance={U}; lamport=1",
 )
 ERROR_BODY = {"error": "malformed RE-Clock header"}
-NOT_EVALUABLE_LOCALAI = ("a localAI fan-out write showing received + 1 on every engine needs localAI to "
-                         "stamp RE-Clock (localAIStack#140)")
+NOT_EVALUABLE_LOCALAI = "no --localai-url: localAI's fan-out received + 1 was not checked"
 
 
 class Reply:
@@ -274,6 +278,40 @@ def check_caused_by(pe: str, runtime: str) -> dict[str, Any]:
     return {"pass": not problems, "dispatchPath": dispatch_path, "detail": problems or notes}
 
 
+def check_localai(base: str, voter_ids: dict[str, str]) -> dict[str, Any]:
+    """One broadcast from localAI; every voter answers each of its writes past sent + 1."""
+    health = call("GET", f"{base}/health", timeout=60)
+    if health.status != 200 or not isinstance(health.body, dict):
+        return {"verdict": "not-evaluable", "detail": [f"localAI /health: HTTP {health.status}"]}
+    if not isinstance(health.body.get("clock"), dict):
+        return {"verdict": "not-evaluable", "detail": ["localAI reports no clock: it predates localAIStack#140"]}
+    before = len((health.body.get("engine_parity") or {}).get("causal") or [])
+    r = call("POST", f"{base}/rag/retrieve", {"question": "clock causality: resting heart rate"}, timeout=120)
+    if r.status != 200:
+        return {"verdict": "fail", "detail": [f"POST /rag/retrieve: HTTP {r.status} {str(r.body)[:120]}"]}
+    after = call("GET", f"{base}/health", timeout=60)
+    causal = ((after.body or {}).get("engine_parity") or {}).get("causal") or [] if isinstance(after.body, dict) else []
+    if len(causal) <= min(before, 9):
+        return {"verdict": "fail", "detail": ["the broadcast recorded no origin in engine_parity.causal"]}
+    record = causal[-1]
+    origin = (record.get("origin") or {}).get("lamport") or 0
+    problems: list[str] = []
+    per_engine: dict[str, list[str]] = {}
+    for rt, rid in voter_ids.items():
+        sends = [x for x in record.get("sends", []) if x.get("engine") == rid]
+        if not sends:
+            problems.append(f"{rid}: no write in the broadcast")
+        for x in sends:
+            reply = (x.get("reply") or {}).get("lamport")
+            per_engine.setdefault(rt, []).append("ok" if reply is not None and reply >= (x.get("sent") or 0) + 2 else "short")
+            if not (x.get("sent") or 0) > origin:
+                problems.append(f"{rid}: sent {x.get('sent')} does not follow the origin {origin}")
+            if reply is None or reply < (x.get("sent") or 0) + 2:
+                problems.append(f"{rid}: reply {reply} is not past sent {x.get('sent')} + 1")
+    return {"verdict": "pass" if not problems else "fail", "origin": record.get("origin"),
+            "perEngine": per_engine, "detail": problems}
+
+
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     parser.add_argument("--registry", type=Path, required=True)
@@ -281,6 +319,7 @@ def main() -> int:
     parser.add_argument("--clock-dir", type=Path)
     parser.add_argument("--clock-volume")
     parser.add_argument("--clock-mount", default="/var/lib/reality-engine/clock")
+    parser.add_argument("--localai-url", help="localAI's base URL; omitted, its check is not evaluated")
     args = parser.parse_args()
 
     clock_dir = args.clock_dir
@@ -299,7 +338,7 @@ def main() -> int:
 
     report: dict[str, Any] = {"stage": "clock-causality", "issue": "RealityEngine_CI#600",
                               "marks": marks.where(), "runtimes": {},
-                              "notEvaluable": [NOT_EVALUABLE_LOCALAI]}
+                              "notEvaluable": [] if args.localai_url else [NOT_EVALUABLE_LOCALAI]}
     if missing:
         report["result"] = "not-applicable"
         report["reason"] = f"3-of-3 needs cpp, lsp and scala; this deployment lacks {', '.join(missing)}"
@@ -323,12 +362,20 @@ def main() -> int:
             "causedBy": [result["causedBy"]["pass"], result["causedBy"]["dispatchPath"]],
         }, sort_keys=True)
 
+    if args.localai_url:
+        localai = check_localai(args.localai_url.rstrip("/"), {rt: by_runtime[rt]["id"] for rt in VOTERS})
+        report["localai"] = localai
+        if localai["verdict"] == "not-evaluable":
+            report["notEvaluable"].append("; ".join(localai["detail"]))
+
     unanimous = len(set(signatures.values())) == 1
     failures = [f"{rid} {half} {check}: {'; '.join(v['detail'])}"
                 for rid, r in report["runtimes"].items()
                 for half in ("re", "pe") for check, v in r[half].items() if not v["pass"]]
     failures += [f"{rid} causedBy: {'; '.join(r['causedBy']['detail'])}"
                  for rid, r in report["runtimes"].items() if not r["causedBy"]["pass"]]
+    if report.get("localai", {}).get("verdict") == "fail":
+        failures.append(f"localai: {'; '.join(report['localai']['detail'])}")
     report["signatures"] = signatures
     report["unanimous"] = unanimous
     report["failures"] = failures
@@ -346,7 +393,10 @@ def main() -> int:
             print(f"  {rt:5} {sig}")
     for f in failures:
         print(f"  FAIL {f}")
-    print(f"  not evaluable: {NOT_EVALUABLE_LOCALAI}")
+    if "localai" in report:
+        print(f"  localai   {report['localai']['verdict']} {report['localai'].get('perEngine', '')}")
+    for why in report["notEvaluable"]:
+        print(f"  not evaluable: {why}")
     print(f"clock-causality: {report['result'].upper()}")
     return 0 if report["result"] == "pass" else 1
 

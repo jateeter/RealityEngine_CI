@@ -285,8 +285,16 @@ the full Lamport clock of #600 on every voter RE and PE, 3-of-3.
 - **`causedBy`:** a completion naming a ledger record has that record's clock as
   `causedBy`, a well-formed echo is kept, and a malformed one is nulled. The
   dispatch path needs `escalation-dispatch`'s records in the ledger first.
-- **Not evaluable yet:** localAI's fan-out `received + 1` waits for
-  localAIStack#140.
+- **localAI** (`--localai-url`, given when localAI is on):
+  - one `POST /rag/retrieve` broadcast (no LLM) is one origin event of
+    localAI's clock;
+  - every voter gets a write after that origin and answers it past `sent + 1`,
+    read from localAI's `engine_parity.causal`;
+  - a localAI with no `clock` on `/health` predates localAIStack#140 and is
+    reported "not evaluable".
+
+  `startUniverse.sh` allocates localAI's UUID as `<lane>/localai` and passes it
+  as `LOCALAI_INSTANCE_UUID` to every localAIStack compose call.
 - **Not in the follower lane yet.**
 
 ## Push response shape
