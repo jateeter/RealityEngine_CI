@@ -2,6 +2,7 @@
 .env
 .env~
 .universe-engine-selection
+.universe-engine-selection.prev
 .universe-registry-url
 .universe-assets
 nginx/conf.d/

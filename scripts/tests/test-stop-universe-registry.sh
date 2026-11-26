@@ -39,6 +39,7 @@ mkdir -p "$SANDBOX/scripts/lib" "$TMP/registry"
 cp "$CI_DIR/stopUniverse.sh" "$SANDBOX/"
 cp "$CI_DIR/scripts/registry.sh" "$SANDBOX/scripts/"
 cp "$CI_DIR/scripts/lib/stack-owner.sh" "$SANDBOX/scripts/lib/"
+cp "$CI_DIR/scripts/lib/universe-stamp.sh" "$SANDBOX/scripts/lib/"
 cp "$CI_DIR/scripts/lib/instance_uuids.py" "$SANDBOX/scripts/lib/"
 # Instance locks are read from here, never from the operator's ~/.reality-engine.
 STATE="$TMP/instance-state"; mkdir -p "$STATE/clock"
@@ -64,7 +65,7 @@ alive() { kill -0 "$1" 2>/dev/null && echo yes || echo no; }
 REG="$TMP/registry/re-registry.json"
 run_stop_with() {  # [stopUniverse.sh args...]
   env RE_REGISTRY_FILE="$REG" RE_REGISTRY_PID_FILE="$TMP/registry-server.pid" \
-      RE_INSTANCE_STATE_DIR="$STATE" INSTANCE_CLOCK_DIR="$STATE/clock" \
+      UNIVERSE_MANIFEST="$TMP/universe-manifest.json" RE_INSTANCE_STATE_DIR="$STATE" INSTANCE_CLOCK_DIR="$STATE/clock" \
       RE_REGISTRY_PORT="$(free_port)" \
       CPP_PE_BASE="$(free_port)" LSP_PE_BASE="$(free_port)" SCALA_PE_BASE="$(free_port)" \
       MCP_HTTP_PID_FILE="$TMP/mcp.pid" OPENAPI_SWAGGER_PID_FILE="$TMP/swagger.pid" \

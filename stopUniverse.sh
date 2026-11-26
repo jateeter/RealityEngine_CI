@@ -118,6 +118,15 @@ if [ -f "$CI_DIR/.universe-engine-selection" ]; then
     esac
   done < "$CI_DIR/.universe-engine-selection"
 fi
+# The stamp can say OPENCLAW=no over a universe that started OpenClaw: a start
+# refused before its preflight passed used to leave its own stamp behind
+# (scripts/lib/universe-stamp.sh). The universe manifest is written only by a
+# start that finished, so it wins when it records OpenClaw as started.
+source "$CI_DIR/scripts/lib/universe-stamp.sh"
+_stamped_openclaw="$STAMPED_OPENCLAW"
+STAMPED_OPENCLAW="$(universe_openclaw_stamp "$STAMPED_OPENCLAW" "${UNIVERSE_MANIFEST:-/tmp/universe-manifest.json}")"
+[ "$_stamped_openclaw" = "$STAMPED_OPENCLAW" ] || \
+  info "OpenClaw: the stamp says it was not started, the universe manifest says it was — stopping it"
 RE_ENGINE="${RE_ENGINE:-${STAMPED_RE_ENGINE:-ai}}"
 PE_ENGINE="${PE_ENGINE:-${STAMPED_PE_ENGINE:-ai}}"
 
@@ -589,15 +598,18 @@ stop_host_ollama() {
 }
 
 # ── Manifest cross-check (Phase 6 observability) ──────────────────────────────
-MANIFEST="/tmp/universe-manifest.json"
+MANIFEST="${UNIVERSE_MANIFEST:-/tmp/universe-manifest.json}"
 if [ -f "$MANIFEST" ]; then
   _m_started=$(python3 -c "import json; print(json.load(open('$MANIFEST')).get('started_at','?'))" 2>/dev/null || echo "?")
   _m_ollama=$(python3 -c "import json; print(json.load(open('$MANIFEST')).get('ollama_started_by_universe', False))" 2>/dev/null || echo "False")
   info "Manifest: universe started at $_m_started"
   # Warn if manifest shows openclaw_started but container is gone
   _m_ocs=$(python3 -c "import json; print(json.load(open('$MANIFEST')).get('openclaw_started', False))" 2>/dev/null || echo "False")
-  if [ "$_m_ocs" = "True" ] && ! docker ps --format "{{.Names}}" 2>/dev/null | grep -q "openclaw-gateway"; then
-    info "Manifest: openclaw_started=True but container not running (may already be stopped)"
+  # The gateway is the LaunchAgent by default (#592), so no container is named
+  # for it; the stack's own containers are what may still be up.
+  if [ "$_m_ocs" = "True" ] && ! docker ps --format "{{.Names}}" 2>/dev/null | grep -q "openclaw" \
+     && ! launchctl print "gui/$(id -u)/org.realityengine.openclaw-gateway" >/dev/null 2>&1; then
+    info "Manifest: openclaw_started=True; its gateway and containers are already stopped"
   fi
 fi
 
