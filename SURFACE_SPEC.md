@@ -3330,6 +3330,11 @@ does (RealityEngine_CI#296).
   bind-mount it next to the clock dir. A release install keeps it in a named
   volume. An instance restarted under the same UUID therefore resumes its
   population, and a different instance never shares one.
+  - **The engine reads it from `INSTANCE_KLINE_DIR`**, the parent of the
+    per-UUID directories, as it reads `INSTANCE_CLOCK_DIR`; the PE reads its
+    ISRE store's parent from `INSTANCE_ISRE_DIR`. Unset, each is the sibling
+    of `INSTANCE_CLOCK_DIR` (`<clock>/../klines`, `<clock>/../isre`), so the
+    native default is the location above. CI sets both on every lane.
 - **Format.** Append-only segments, the same on every runtime:
   - `segment-<first commit>.jsonl` holds one record per line: `re-kline/1`
     records, and `re-kline-event/1` entries for `sustain-end`.
