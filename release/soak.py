@@ -22,10 +22,22 @@ engine target not up at the end, or a container that restarted. Writes a JSON
 report with the measurements, and prints a summary.
 
     release/soak.py --minutes 10 --report soak.json
+
+On a TLS install (RE_TLS=on) it reaches the instance registry, the engines and
+Prometheus over TLS 1.3 with the lane CA and the harness certificate
+(RE_HARNESS_TLS_CA, RE_HARNESS_TLS_CERT, RE_HARNESS_TLS_KEY; scripts/lib/re_tls.py),
+as the regression stages do, and Prometheus defaults to https:
+
+    RE_TLS=on RE_HARNESS_TLS_CA=<install>/pki/ca/ca.crt \
+    RE_HARNESS_TLS_CERT=<install>/pki/issued/harness/cert.pem \
+    RE_HARNESS_TLS_KEY=<install>/pki/issued/harness/key.pem \
+    RE_REGISTRY_URL=<the install's registry URL, https> \
+      release/soak.py --project re-regression --minutes 10
 """
 from __future__ import annotations
 
 import argparse
+import os
 import json
 import statistics
 import subprocess
@@ -37,8 +49,11 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "scripts" / "lib"))
 from registry_url import registry_url  # noqa: E402
+import re_tls  # noqa: E402
 
-PROMETHEUS = "http://localhost:9090"
+# The lane CA and harness certificate when RE_TLS=on (#732); a no-op otherwise.
+re_tls.install_lane_opener()
+PROMETHEUS = "https://localhost:9090" if os.environ.get("RE_TLS", "off") == "on" else "http://localhost:9090"
 
 
 def get(url: str, timeout: float = 10):
@@ -94,7 +109,11 @@ def docker_state(project: str) -> dict[str, dict]:
     for c in info:
         svc = c["Config"]["Labels"].get("com.docker.compose.service", c["Name"])
         out[svc] = {"restarts": c.get("RestartCount", 0), "running": c["State"]["Running"],
-                    "started": c["State"]["StartedAt"]}
+                    "started": c["State"]["StartedAt"],
+                    # A one-shot (restart "no") that exited 0 did its job: corpus,
+                    # prepare, pim-bootstrap, assets-grant.
+                    "done": (not c["State"]["Running"] and c["State"].get("ExitCode") == 0
+                             and c["HostConfig"].get("RestartPolicy", {}).get("Name") in ("no", ""))}
     return out
 
 
@@ -147,6 +166,8 @@ def main() -> int:
     ap.add_argument("--project", default="realityengine")
     ap.add_argument("--max-stream-gap", type=float, default=30.0)
     ap.add_argument("--report", default=None)
+    ap.add_argument("--prometheus", default=PROMETHEUS,
+                    help="Prometheus base URL (default: localhost:9090, https when RE_TLS=on)")
     args = ap.parse_args()
 
     _, reg = get(args.registry or registry_url())
@@ -215,10 +236,10 @@ def main() -> int:
         before = start_state.get(svc, {})
         if st["restarts"] > before.get("restarts", 0) or (before and st["started"] != before.get("started")):
             problems.append(f"{svc}: restarted during the soak")
-        if not st["running"] and svc not in ("corpus", "prepare", "pim-bootstrap"):
+        if not st["running"] and not st["done"]:
             problems.append(f"{svc}: not running")
     try:
-        _, t = get(f"{PROMETHEUS}/api/v1/targets")
+        _, t = get(f"{args.prometheus}/api/v1/targets")
         eng = [x for x in t["data"]["activeTargets"] if x["labels"].get("job", "").endswith("-registry")]
         down = [f"{x['labels'].get('instance')}/{x['labels'].get('component')}" for x in eng if x["health"] != "up"]
         if down:
