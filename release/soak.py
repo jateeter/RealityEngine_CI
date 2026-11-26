@@ -31,7 +31,7 @@ as the regression stages do, and Prometheus defaults to https:
     RE_TLS=on RE_HARNESS_TLS_CA=<install>/pki/ca/ca.crt \
     RE_HARNESS_TLS_CERT=<install>/pki/issued/harness/cert.pem \
     RE_HARNESS_TLS_KEY=<install>/pki/issued/harness/key.pem \
-    RE_REGISTRY_URL=https://localhost:5999/re-registry.json \
+    RE_REGISTRY_URL=<the install's registry URL, https> \
       release/soak.py --project re-regression --minutes 10
 """
 from __future__ import annotations
