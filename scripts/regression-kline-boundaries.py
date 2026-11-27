@@ -9,6 +9,11 @@ record the same ISRE composition for the same drive. No runtime is a reference
 On each voter, from its own reset, with `klineCapture` (RE, /api/engine/config)
 and `isreCapture` (PE, /api/config) turned on for the stage and restored after:
 
+  stimulus   after the reset, no PE holds a sensor value inside its TTL: a value
+             an earlier stage wrote (localAI's broadcast, a HealthKit sample)
+             lapses at a different step on each engine, because the voters are
+             driven one after another, so the stage waits until every such
+             value has expired (at most --sensor-quiesce-s) before it drives;
   drive      --steps pushes through the PE (`POST /api/push`), each observed at
              its completion point (lib/step_observer.py);
   reset      the K-lines open after the drive close `interrupted`
@@ -21,7 +26,10 @@ and `isreCapture` (PE, /api/config) turned on for the stage and restored after:
              re-isre-composition/1 (RealityEngine_Machines schemas/, with its
              ajv), when --machines names a checkout that has them installed;
   corpus     every record agrees with the corpus the universe booted from
-             (--corpus, its declared files): the focal sequence is the machine's,
+             (--corpus, repeatable: its declared files, and localAIStack's
+             data/machines for the localai/* machines; a machine no file
+             declares, such as localAI's runtime topology machines, against
+             its registration, GET /api/machines/:id): the focal sequence is the machine's,
              every path event is one of its events, the path starts at an
              initial event, its steps never decrease, a completed path ends at
              an event with no successors, and `open.step`/`close.step` bound it;
@@ -50,6 +58,7 @@ import json
 import subprocess
 import sys
 import tempfile
+import time
 from pathlib import Path
 from typing import Any
 from urllib import error, parse, request
@@ -186,6 +195,32 @@ class Voter:
             self.check(False, f"exclusivity: {v}")
         return steps
 
+    def registered(self, name: str) -> dict | None:
+        """A machine no corpus file declares (localAI's topology machines are built
+        at runtime), as this RE registered it: GET /api/machines/:id, in full."""
+        if not hasattr(self, "_registered"):
+            self._registered: dict[str, dict] = {}
+            status, body = http("GET", f"{self.re}/api/machines")
+            self._ids = {m.get("name"): m.get("id") for m in (body.get("machines", []) if isinstance(body, dict) else [])}
+        if name not in self._registered and self._ids.get(name):
+            status, body = http("GET", f"{self.re}/api/machines/{parse.quote(self._ids[name])}")
+            if status == 200 and isinstance(body, dict) and isinstance(body.get("machine"), dict):
+                self._registered[name] = body["machine"]
+        return self._registered.get(name)
+
+    def live_sensor_expiry(self) -> tuple[float, list[str]]:
+        """The latest wall-clock ms at which a sensor value this PE holds lapses, and the sensors."""
+        status, body = http("GET", f"{self.pe}/api/sources")
+        sources = body.get("sources", body) if isinstance(body, dict) else body
+        latest, names = 0.0, []
+        for src in sources if isinstance(sources, list) else []:
+            updated, ttl = src.get("lastUpdated"), src.get("ttlMs")
+            if src.get("type") == "sensor" and isinstance(updated, (int, float)) and isinstance(ttl, (int, float)):
+                if updated + ttl > time.time() * 1000:
+                    latest = max(latest, float(updated + ttl))
+                    names.append(src.get("sensorId") or src.get("id") or "?")
+        return latest, names
+
     def open_table(self) -> list[dict]:
         status, body = http("GET", f"{self.re}/api/klines/open")
         self.check(status == 200 and isinstance(body, dict), f"GET /api/klines/open -> {status}")
@@ -214,13 +249,14 @@ class Voter:
             cursor = body["next"]
 
 
-def load_corpus(machines: Path | None) -> dict[str, dict] | None:
+def load_corpus(roots: list[Path] | None) -> dict[str, dict] | None:
     """The booted corpus by machine name, read from its files: the declared form,
     the same for every voter (machine-set-parity), never an engine's served copy."""
-    if machines is None or not machines.is_dir():
+    roots = [r for r in roots or [] if r.is_dir()]
+    if not roots:
         return None
     out: dict[str, dict] = {}
-    for f in sorted(machines.rglob("*.json")):
+    for f in sorted(p for r in roots for p in r.rglob("*.json")):
         try:
             doc = json.loads(f.read_text(encoding="utf-8"))
         except (OSError, json.JSONDecodeError):
@@ -231,11 +267,28 @@ def load_corpus(machines: Path | None) -> dict[str, dict] | None:
     return out
 
 
-def corpus_check(corpus: dict[str, dict], k: dict) -> str | None:
-    """Why K-line K disagrees with the booted corpus, or None."""
+def differing_paths(a: Any, b: Any, pre: str = ""):
+    """The paths at which A and B differ; list indexes collapsed to []."""
+    if isinstance(a, dict) and isinstance(b, dict):
+        for k in sorted(set(a) | set(b)):
+            if a.get(k) != b.get(k):
+                yield from differing_paths(a.get(k), b.get(k), f"{pre}.{k}")
+    elif isinstance(a, list) and isinstance(b, list) and len(a) == len(b):
+        for x, y in zip(a, b):
+            if x != y:
+                yield from differing_paths(x, y, f"{pre}[]")
+    else:
+        yield pre or "."
+
+
+def corpus_check(corpus: dict[str, dict], k: dict, registered=None) -> str | None:
+    """Why K-line K disagrees with the corpus, or None. A machine no corpus file
+    declares is checked against REGISTERED(name), the engine's registration."""
     m = corpus.get(k["focal"]["machine"])
+    if m is None and registered is not None:
+        m = registered(k["focal"]["machine"])
     if m is None:
-        return f"focal machine {k['focal']['machine']!r} is not in the corpus"
+        return f"focal machine {k['focal']['machine']!r} is neither in the corpus nor registered"
     seq = next((s for s in m.get("sequences", []) if s.get("id") == k["focal"]["sequence"]), None)
     if seq is None:
         return f"{k['focal']['machine']!r} has no sequence {k['focal']['sequence']!r}"
@@ -273,11 +326,33 @@ def validate(machines: Path | None, kl: list[dict], comp: list[dict]) -> dict:
     return json.loads(done.stdout)
 
 
-def run(voters_: list[Voter], steps: int, machines: Path | None, corpus: dict[str, dict] | None) -> dict:
+def quiesce(voters_: list[Voter], limit_s: float) -> dict:
+    """Wait until no PE holds a live sensor value, so every voter is driven alike."""
+    deadline = time.time() + limit_s
+    waited: dict[str, list[str]] = {}
+    while True:
+        live = {v.id: v.live_sensor_expiry() for v in voters_}
+        for vid, (_, names) in live.items():
+            if names:
+                waited.setdefault(vid, sorted(set(names)))
+        latest = max(t for t, _ in live.values())
+        if latest == 0.0:
+            return {"waitedFor": waited, "quiet": True}
+        if latest / 1000 > deadline:
+            for v in voters_:
+                v.check(not live[v.id][1], f"stimulus: sensor value(s) {live[v.id][1]} stay live past "
+                                           f"--sensor-quiesce-s {limit_s:g}; the voters would be driven unequally")
+            return {"waitedFor": waited, "quiet": False}
+        time.sleep(min(5.0, max(0.25, latest / 1000 - time.time() + 0.25)))
+
+
+def run(voters_: list[Voter], steps: int, machines: Path | None, corpus: dict[str, dict] | None,
+        quiesce_s: float = 120.0) -> dict:
     report: dict[str, Any] = {"runtimes": {}, "corpusMachines": len(corpus) if corpus is not None else None}
     for v in voters_:
         v.capture(True)
         v.reset()
+    report["stimulus"] = quiesce(voters_, quiesce_s)
     since = {v.id: v.commit() + 1 for v in voters_}
 
     # The drive, then a reset with K-lines open.
@@ -324,7 +399,9 @@ def run(voters_: list[Voter], steps: int, machines: Path | None, corpus: dict[st
                       for k in by_reason.get("shutdown", []))
         v.check(toggled == shut,
                 f"capture on closed {len(shut)} K-lines interrupted/shutdown; the checkpoint held {len(toggled)}")
-        bad = [(k["focal"], why) for k in kl for why in [corpus_check(corpus, k)] if why] if corpus is not None else []
+        bad = [(k["focal"], why) for k in kl for why in [corpus_check(corpus, k, v.registered)] if why] \
+            if corpus is not None else []
+        by_registration = sum(1 for k in kl if corpus is not None and k["focal"]["machine"] not in corpus)
         for focal, why in bad[:5]:
             v.check(False, f"corpus: {focal['machine']}/{focal['sequence']}: {why}")
         v.check(not bad, f"corpus: {len(bad)} K-line(s) disagree with the booted corpus")
@@ -346,6 +423,7 @@ def run(voters_: list[Voter], steps: int, machines: Path | None, corpus: dict[st
             label = k["outcome"] + (f"/{k['reason']}" if k.get("reason") else "")
             outcomes[label] = outcomes.get(label, 0) + 1
         report["runtimes"][v.id] = {"klines": len(kl), "outcomes": outcomes, "compositions": len(comp),
+                                    "checkedAgainstRegistration": by_registration,
                                     "openAtReset": len(opened), "openAtToggle": len(toggled),
                                     "schema": schema, "failures": v.failures}
 
@@ -355,8 +433,14 @@ def run(voters_: list[Voter], steps: int, machines: Path | None, corpus: dict[st
         key_diff = sorted(set(keys[base]) ^ set(keys[rt]))
         rec_diff = sum(1 for a, b in zip(views[base], views[rt]) if a != b) + abs(len(views[base]) - len(views[rt]))
         comp_diff = sum(1 for a, b in zip(comps[base], comps[rt]) if a != b) + abs(len(comps[base]) - len(comps[rt]))
+        first_records = [{"focal": a.get("focal"), "open": (a.get("open") or {}).get("step"),
+                          "paths": sorted(set(differing_paths(a, b)))[:4]}
+                         for a, b in zip(views[base], views[rt]) if a != b][:3]
+        first_comps = [{"step": a["step"], "paths": sorted(set(differing_paths(a, b)))[:4]}
+                       for a, b in zip(comps[base], comps[rt]) if a != b][:3]
         agreement[f"{base}-{rt}"] = {"parityKeyDiffer": len(key_diff), "recordsDiffer": rec_diff,
-                                     "compositionsDiffer": comp_diff, "firstKeys": key_diff[:3]}
+                                     "compositionsDiffer": comp_diff, "firstKeys": key_diff[:3],
+                                     "firstRecords": first_records, "firstCompositions": first_comps}
     report["agreement"] = agreement
     return report
 
@@ -367,7 +451,10 @@ def main() -> int:
     parser.add_argument("--out", type=Path, required=True)
     parser.add_argument("--steps", type=int, default=120)
     parser.add_argument("--machines", type=Path, help="a RealityEngine_Machines checkout with node_modules (schemas)")
-    parser.add_argument("--corpus", type=Path, help="the machines/ directory the universe booted from")
+    parser.add_argument("--corpus", type=Path, action="append",
+                        help="a machines/ directory the universe loaded from; repeat for each root")
+    parser.add_argument("--sensor-quiesce-s", type=float, default=120.0,
+                        help="how long to wait for live sensor values to lapse before the drive")
     parser.add_argument("--step-window-ms", type=int, default=DEFAULT_WINDOW_MS)
     args = parser.parse_args()
 
@@ -393,7 +480,7 @@ def main() -> int:
         corpus = load_corpus(args.corpus)
         if corpus is None:
             report["notEvaluated"] = NOT_EVALUATED + ["corpus: no --corpus directory"]
-        report.update(run(vs, args.steps, args.machines, corpus))
+        report.update(run(vs, args.steps, args.machines, corpus, args.sensor_quiesce_s))
     finally:
         for v in vs:
             v.restore()
@@ -409,9 +496,13 @@ def main() -> int:
     for rid, r in report.get("runtimes", {}).items():
         print(f"  {rid:8} klines={r['klines']} {r['outcomes']} compositions={r['compositions']} "
               f"openAtReset={r['openAtReset']} openAtToggle={r['openAtToggle']}")
+    if report.get("stimulus", {}).get("waitedFor"):
+        print(f"  stimulus: waited for live sensor values to lapse: {report['stimulus']['waitedFor']}")
     for pair, a in report.get("agreement", {}).items():
         print(f"  {pair}: parity keys {a['parityKeyDiffer']}, records {a['recordsDiffer']}, "
               f"compositions {a['compositionsDiffer']} differ")
+        for d in a.get("firstRecords", []) + a.get("firstCompositions", []):
+            print(f"    e.g. {d}")
     for f in failures:
         print(f"  FAIL {f}")
     for why in report["notEvaluated"]:

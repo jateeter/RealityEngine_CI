@@ -2173,6 +2173,7 @@ run_kline_boundaries() {
     --registry "$REGISTRY_FILE" \
     --machines "$machines" \
     --corpus "$(active_machines_dir)" \
+    --corpus "$(repo_root localAIStack)/data/machines" \
     --out "$REPORT_DIR/kline-boundaries.json"
 }
 
