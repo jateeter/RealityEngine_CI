@@ -3518,6 +3518,34 @@ same layout for `re-kline-bundle/1` and the PE's `re-isre-bundle/1`:
 All three runtimes serve the routes (RealityEngine_CPP#209, RealityEngine_LSP#203,
 RealityEngine_Scala#224), so they are in the RE route table.
 
+### The historical archive *(owner, 2026-11-27)*
+
+An engine's store is bounded, and a sealed segment may be evicted once it is
+exported. History is kept in an archive outside every repository and every
+install: `$RE_KLINE_ARCHIVE_DIR`, else `$RE_INSTANCE_STATE_DIR/kline-archive`,
+default `~/.reality-engine/kline-archive` (RealityEngine_CI
+`scripts/lib/kline_archive.py`).
+- **Layout:** `<participant uuid>/klines/` (`re-kline-bundle/1`) and
+  `<participant uuid>/isre/` (`re-isre-bundle/1`), one file per export, named
+  `<first commit>-<last commit>-<sha8>.jsonl`, and `catalog.jsonl`, one line per
+  bundle.
+- **Integrity:** a bundle is kept exactly as its engine exported it. It is
+  written only after its header's `sha256` is verified against its body,
+  atomically, and is then read-only. `verify` re-checks every bundle against
+  the catalog.
+- **Incremental:** each export starts one commit after the newest one the
+  catalog holds for that participant and kind (`since` by `close.commit`,
+  `from` by `re.commit`), so nothing is archived twice. The participant is read
+  from its clock route, never from an export, because an export marks
+  segments exported.
+- **Persistent:** no stop, uninstall or purge removes the archive. Archive a
+  release install before `uninstall --purge`, which removes the engines' own
+  store volumes.
+- **Known gap:** a `re-kline-event/1` sustain-end travels with its K-line, so
+  one recorded after its K-line was archived is not archived again.
+
+Manager's K-line panel (RealityEngine_Manager#372) exports into it.
+
 ### The PE half: ISRE composition
 
 *Owner, 2026-11-24.* A K-line is two streams joined by step. The RE records

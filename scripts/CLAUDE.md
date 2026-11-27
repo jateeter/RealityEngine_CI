@@ -333,6 +333,20 @@ checks both halves of a K-line on every voter, 3-of-3 (#603):
 - Measured on main builds, 2026-11-27: 2,935 K-lines and 151 compositions per
   voter, 0 differences, in 43 s.
 
+`lib/kline_archive.py` is the K-line historical archive (SURFACE_SPEC "The
+historical archive"; owner, 2026-11-27):
+- `export --registry <file|url> [--instance ID] [--kind klines|isre]` archives
+  each participant's records since the newest it holds, one bundle per export,
+  sha256-verified and read-only, with a `catalog.jsonl` line each. It goes
+  through the lane opener, so it works with `RE_TLS=on`.
+- `list` prints the catalog, `verify` re-checks every bundle, and `root` prints
+  where it is.
+- It reads the participant UUID from the clock route and never probes with an
+  export: an export marks the engine's segments exported, which lets its
+  budget evict them.
+- `tests/test-kline-archive.sh` replaces its two HTTP calls with a stub engine
+  in-process, so no plaintext listener is needed.
+
 ## Push response shape
 
 `regression-pe-step-contract.py` probes the push response at three levels, not
