@@ -4,7 +4,8 @@
 # The regression corpus, then the machine-factory candidates above the corpus
 # vector budget (16944) that the shared extension corpus carries
 # (RealityEngine_Machines GOV-SD-12, MACHINE_CONCEPT section 9.3).
-# Boot it with --machine-corpus=extension.
+# Boot it with --machine-corpus=extension: the harness composes this list
+# afresh at boot, so a candidate boots as it stands in its package.
 
 # --- regression-corpus.txt ---
 domains/digital-logic/DLX011_req-ack-handshake.json

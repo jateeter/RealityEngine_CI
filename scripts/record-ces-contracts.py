@@ -144,7 +144,8 @@ def load_corpus(include_localai: bool = False) -> dict[str, Json]:
             mapping = machine.get("perceptualMapping") or {}
             if isinstance(machine.get("name"), str) and isinstance(mapping.get("output"), dict):
                 corpus[machine["name"]] = {"domain": path.parent.parent.name, "output": mapping["output"],
-                                           "input": mapping.get("input"), "relFile": path.name}
+                                           "input": mapping.get("input"), "relFile": path.name,
+                                           "candidate": True}
     if include_localai and LOCAL_AI_MACHINES.is_dir():
         for path in sorted(LOCAL_AI_MACHINES.glob("*.json")):
             try:
@@ -351,6 +352,16 @@ def build_shards(report: Json, corpus: dict[str, Json], resident: set[str],
     return shards
 
 
+def split_candidates(shards: dict[str, Json], corpus: dict[str, Json]) -> tuple[Json, Json]:
+    """(admitted machines, machine-factory candidates) across every projected shard."""
+    admitted: Json = {}
+    candidates: Json = {}
+    for shard in shards.values():
+        for name, entry in shard["machines"].items():
+            (candidates if corpus.get(name, {}).get("candidate") else admitted)[name] = entry
+    return admitted, candidates
+
+
 def compare_shard(label: str, doc: Json, machines: dict[str, Json],
                   stimulus_now: dict[str, Any]) -> tuple[int, list[str], str | None]:
     """Compare one recorded shard with what this run committed.
@@ -468,7 +479,12 @@ def main() -> int:
             print(f"FAIL --corpus={args.corpus} names {len(unresolved)} entr(ies) no corpus root resolves: "
                   f"{', '.join(unresolved[:4])}")
             return 1
-        absent = sorted(n for n in scoped if n not in resident)
+        absent_cand = sorted(n for n in scoped if n not in resident and corpus[n].get("candidate"))
+        if absent_cand:
+            # A candidate the engines did not load is reported, not gating.
+            print(f"  note: {len(absent_cand)} machine-factory candidate(s) not resident, not gating: "
+                  f"{', '.join(absent_cand[:4])}")
+        absent = sorted(n for n in scoped if n not in resident and not corpus[n].get("candidate"))
         if absent:
             # Recording silence for a machine the engines never loaded is
             # indistinguishable from a machine that genuinely does nothing.
@@ -543,9 +559,7 @@ def main() -> int:
                              f"(record with --corpus {args.corpus} --write)")
             else:
                 doc = json.loads(path.read_text(encoding="utf-8"))
-                committed: Json = {}
-                for shard in shards.values():
-                    committed.update(shard["machines"])
+                committed, cand_now = split_candidates(shards, corpus)
                 drift += corpus_membership_drift(
                     label, doc, corpus_fingerprint([scope_files[n] for n in committed
                                                     if n in scope_files]))
@@ -555,6 +569,18 @@ def main() -> int:
                     drift += lines
                     if why:
                         incomparable.append(why)
+                    else:
+                        # Candidates are compared and reported, never gating: a
+                        # machine-factory work in progress cannot fail this gate
+                        # until it is admitted (it then moves into `machines`).
+                        _, cand_lines, _ = compare_shard(f"{label} candidate", {
+                            "stimulus": doc.get("stimulus"), "machines": doc.get("candidates", {})},
+                            cand_now, stimulus_now)
+                        if cand_lines:
+                            print(f"\n  candidate drift, not gating ({len(cand_lines)}): "
+                                  "re-record when the package is settled")
+                            for line in cand_lines[:12]:
+                                print(f"    {line}")
         else:
             for domain, shard in sorted(shards.items()):
                 path = SHARD_DIR / f"domain-{domain}.json"
@@ -590,12 +616,13 @@ def main() -> int:
 
     if args.write and args.corpus:
         SHARD_DIR.mkdir(parents=True, exist_ok=True)
-        machines: Json = {}
+        machines, candidates = split_candidates(shards, corpus)
         counts: dict[str, int] = {}
-        for shard in shards.values():
-            machines.update(shard["machines"])
-            for verdict, n in shard["counts"].items():
-                counts[verdict] = counts.get(verdict, 0) + n
+        for entry in machines.values():
+            counts[entry["verdict"]] = counts.get(entry["verdict"], 0) + 1
+        cand_counts: dict[str, int] = {}
+        for entry in candidates.values():
+            cand_counts[entry["verdict"]] = cand_counts.get(entry["verdict"], 0) + 1
         doc = {
             "schemaVersion": "2.0.0", "scope": f"corpus:{args.corpus}", "quorum": "3-of-3",
             "generatedBy": "scripts/record-ces-contracts.py",
@@ -612,9 +639,17 @@ def main() -> int:
             "instances": order,
             "counts": counts, "machines": machines,
         }
+        if candidates:
+            doc["candidates"] = candidates
+            doc["candidateCounts"] = cand_counts
+            doc["candidatePolicy"] = ("machine-factory candidates: recorded, outside corpusFingerprint and counts, "
+                                      "and compared non-gating by --check until admitted")
         (SHARD_DIR / f"corpus-{args.corpus}.json").write_text(
             json.dumps(doc, indent=2, sort_keys=True) + "\n", encoding="utf-8")
-        print(f"  wrote corpus-{args.corpus}.json ({len(machines)} machines)")
+        print(f"  wrote corpus-{args.corpus}.json ({len(machines)} machines"
+              + (f", {len(candidates)} candidates" if candidates else "") + ")")
+        if cand_counts.get("disagreement"):
+            print(f"  candidate disagreement ({cand_counts['disagreement']}), not gating: see `candidates`")
         return 1 if counts.get("disagreement") else 0
 
     if args.write:

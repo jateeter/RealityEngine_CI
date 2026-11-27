@@ -490,6 +490,9 @@ case "$MACHINE_CORPUS" in
     fi
     # Materialisation is what --machine-corpus=standard-deployment triggers in
     # startUniverse.sh, so any manifest-backed corpus rides the same path.
+    # The extension manifest's candidates are composed from their packages at
+    # boot (startUniverse.sh, for the committed extension-corpus.txt path), so
+    # machine-factory work in progress boots as it stands.
     MACHINE_CORPUS_BOOT="standard-deployment" ;;
 esac
 MACHINE_CORPUS_BOOT="${MACHINE_CORPUS_BOOT:-$MACHINE_CORPUS}"
