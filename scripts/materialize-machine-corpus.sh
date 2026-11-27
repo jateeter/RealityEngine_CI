@@ -89,6 +89,19 @@ else
   echo "         carries no arbitration or semantic-bus registry" >&2
 fi
 
+# The source-kind taxonomy travels with the corpus too (owner, 2026-11-27;
+# RealityEngine_CI#603): a Perception Engine reads
+# MACHINES_DIR/../schemas/source-kinds/re-source-kinds-<N>.json, and with
+# isreCapture on refuses to boot without its version. Every version is copied,
+# never filtered: a version is never edited, and the PE names the one it uses.
+if [ -d "$source_root/schemas/source-kinds" ]; then
+  mkdir -p "$output_root/schemas/source-kinds"
+  cp "$source_root"/schemas/source-kinds/*.json "$output_root/schemas/source-kinds/"
+else
+  echo "warning: $source_root/schemas/source-kinds not found — the materialized" >&2
+  echo "         corpus carries no source-kind taxonomy" >&2
+fi
+
 count=0
 missing=""
 ambiguous=""
