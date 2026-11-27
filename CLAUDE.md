@@ -72,6 +72,14 @@ npm run test:deployment
   --execute` has moved every repo and the local nvm with it (see
   `scripts/CLAUDE.md`).
 - Keep OpenClaw defaults aligned with `ACP_ENABLED=true`, `ACP_GATEWAY_URL` or `OPENCLAW_GATEWAY_URL`, `ACP_SESSION_KEY`, `ACP_TARGET_AGENT`, and `ACP_COMPLETION_SOURCE_MAPPING_ID=acp-openclaw-completion`.
+- **K-line history has one home** (owner, 2026-11-27): the archive at
+  `$RE_KLINE_ARCHIVE_DIR`, default `~/.reality-engine/kline-archive`, outside
+  every repository and install, never removed by a stop or purge.
+  `scripts/lib/kline_archive.py export --registry <file|url>` archives each
+  participant's new K-lines and ISRE compositions, sha256-verified and
+  read-only; `list` and `verify` read it (SURFACE_SPEC "The historical archive").
+  K-line capture itself is off at boot unless configured (`--kline-capture`) and
+  switched at runtime.
 - **Instance identity (#296).** A UUID belongs to an instance, never an engine
   type or image, and no two instances of any engine type may share one.
   - `scripts/lib/instance_uuids.py` allocates a v7 UUID per `<lane>/<id>`
