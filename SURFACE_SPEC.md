@@ -3529,8 +3529,24 @@ what kind. They are joined on the RE's `(instance, commit)`.
   - `feedback`: the fold kept the `OSRE(k-1)` term for the cell;
   - `none`: nothing wrote the cell that step.
 - **Changing the taxonomy means a new version**, never an edit. Each version
-  after the first ships a mapping from the previous one. A PE refuses to boot
-  when its taxonomy version is not present in `RealityEngine_Machines`.
+  after the first ships a mapping from the previous one.
+- **The corpus carries the taxonomy** (owner, 2026-11-27). Corpus
+  materialization (`RealityEngine_CI scripts/materialize-machine-corpus.sh`,
+  which also builds the release corpus image) copies `schemas/source-kinds/`
+  beside `machines/`, and a PE reads
+  `<MACHINES_DIR>/../schemas/source-kinds/re-source-kinds-<N>.json`. With
+  `isreCapture` on, a PE whose version is not there refuses to boot; with it
+  off, the PE boots and reports the missing version in its stats.
+- **The PEs record `re-source-kinds/2`** (owner, 2026-11-27), which adds the
+  `simulated` kind (class `measured`, as §4.4b maps `simulated` to `synthetic`)
+  and the `openai` sensor provider (`generated`) to version 1.
+- **Deriving an entry.** `kind` is the source's kind (`test`, `sensor`,
+  `simulated`). A `sensor`'s `provider` is the first `.`-separated segment of
+  its `origin`, lowercased and mapped through `providerMapping`; an empty
+  `origin` is `signal`; a provider the version does not list is recorded as
+  `unattributed`, `generated`. `class` is the version's class for that kind and
+  provider. A cell the fold kept for the `OSRE(k-1)` term is `feedback`, with
+  no `provider` and no `id`.
 - Version 1 is `schemas/source-kinds/re-source-kinds-1.json`, validated by
   `schemas/source-kinds.schema.json` and pinned by
   `tests/contracts/source_kinds_test.py` (RealityEngine_Machines#290).
@@ -3550,17 +3566,29 @@ what kind. They are joined on the RE's `(instance, commit)`.
 ```
 
 - `re` is the step response's `clock`; `pe` is the PE's own clock when it
-  recorded the step.
+  recorded the step. Recording is a stored message, so it is a tick of its own
+  (the "Storing is an event" rule), taken after the push's RE response is
+  received.
 - `sources` covers every input cell some source or the feedback term wrote,
   as runs of consecutive cells with one winner, ascending by `cells[0]`. Cells
-  nobody wrote are `none` by omission.
+  nobody wrote are `none` by omission. `cells` is `[first, last]`, inclusive.
+  A run ends where the winner's `kind`, `provider`, `class`, `id` or
+  `causedBy` changes.
+- **Who won a folded cell** (owner, 2026-11-27): where the Source-vs-OSRE fold
+  ran, `kept: "source"`, `"both"` and `"combined"` all record the source; only
+  `kept: "osre"` records `feedback`. The fold record in `folds` keeps both
+  sides. Where two sources contended, the STT winner (`cells` of
+  `GET /api/sources/contention`) is the source.
 - `causedBy` is the `RE-Clock` of the external write that delivered the
   winning value, when the writer sent one.
 - `folds` are the step's Source-vs-OSRE fold records, as
   `GET /api/sources/contention` reports them (§4.4b), in their canonical order.
 - `delta: true` means `sources` lists only the runs that changed since the
   previous record. The first record after boot, a reset, or a new segment is
-  complete (`delta: false`).
+  complete (`delta: false`). A delta has no way to say that a run went away
+  (`none` is recorded by omission), so all three runtimes write every record
+  complete, `delta: false`, and `true` is reserved until a removal is
+  encodable.
 
 **The store, per PE instance.** `$RE_INSTANCE_STATE_DIR/isre/<pe_uuid>/`,
 `~/.reality-engine/isre/<pe_uuid>/` natively, in the K-line store's format:
@@ -3570,8 +3598,23 @@ lifetime lock on its UUID (#600) covers it. `isreStoreMaxBytes` (default 2 GiB)
 bounds it as `klineStoreMaxBytes` does the K-line store: an unexported segment
 is never evicted.
 
-**PE controls**, through `PATCH /api/config`: `isreCapture` (default `true` once
-all three runtimes implement it) and `isreStoreMaxBytes`.
+**PE controls**, through `PATCH /api/config`: `isreCapture` and
+`isreStoreMaxBytes`.
+- `isreCapture` defaults to `false`, as `klineCapture` does, until the
+  `kline-boundaries` regression stage checks both halves (owner, 2026-11-26).
+  It behaves as `klineCapture` does: off stops capture and leaves the store
+  untouched; on starts afresh; the store opens at boot whatever it says.
+  `RE_ISRE_CAPTURE=1` sets its initial value.
+- `isreStoreMaxBytes` defaults to `2147483648`, a whole number in
+  `[0, 9007199254740991]`.
+- `PATCH /api/config` takes either as an optional body field beside
+  `matchAlgorithm` and answers `{"success": true, "matchAlgorithm",
+  "isreCapture", "isreStoreMaxBytes"}`, the values now in force. A field of the
+  wrong type or out of range is `400 {"error": "<field> requires a boolean"}`
+  or `"<field> requires a whole number in [0, 9007199254740991]"`, and changes
+  nothing.
+- `GET /api/isre-composition/stats` reports both, with the taxonomy version
+  in use (`"taxonomy": "re-source-kinds/2"`, or `null` when it is missing).
 
 **Routes (PE):**
 ```
@@ -3580,7 +3623,10 @@ GET  /api/isre-composition/stats                               segments, bytes, 
 POST /api/isre-composition/export {"from", "to"}               → a re-isre-bundle/1, and marks the segments exported
 ```
 `GET /api/isre-composition` answers `{"records": [...], "next": <commit> | null}`
-with every record complete, so a reader never applies deltas itself.
+with every record complete, so a reader never applies deltas itself. `from` and
+`to` bound `re.commit`, inclusive (default: everything); records ascend by
+`re.commit`; `limit` defaults to 100 and is capped at 1000, and `next` is the
+`from` of the following page.
 A `re-isre-bundle/1` holds the selected records (complete), the taxonomy
 version, the PE's instance UUID, its RE's instance UUID, and a sha256 over the
 records. It is JSON Lines as a `re-kline-bundle/1` is ("Routes", above): its
