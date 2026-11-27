@@ -301,6 +301,13 @@ the full Lamport clock of #600 on every voter RE and PE, 3-of-3.
 checks both halves of a K-line on every voter, 3-of-3 (#603):
 - **Capture** (`klineCapture` on the RE, `isreCapture` on the PE) is turned on
   for the stage's own drive and restored after it. Both default to `false`.
+- **Stimulus:** after the reset it waits (at most `--sensor-quiesce-s`, 120 s)
+  until no PE holds a sensor value inside its TTL. The voters are driven one
+  after another, so a value an earlier stage wrote lapses at a different step on
+  each. In run 20261127T211524Z, `clock-causality`'s localAI broadcast left
+  `localai_rag_retrieval` (30 s) live on all three: C++ was driven inside it and
+  LSP and Scala as it lapsed, which read as 74 composition and 227 K-line
+  records differing.
 - **The drive:** `--steps` pushes (default 120) through the PE, each read at its
   completion point.
 - **Reset:** the K-lines open after the drive close `interrupted/reset`, every
@@ -312,9 +319,15 @@ checks both halves of a K-line on every voter, 3-of-3 (#603):
   removed; the same composition records by `re.step`.
 - **Schemas:** `re-kline/1` and `re-isre-composition/1`, from the run's
   Machines worktree with its ajv (`--machines`).
-- **Corpus:** every record against the booted corpus's declared files
-  (`--corpus`, `active_machines_dir`), never an engine's served copy, which
-  carries run state and, under `machineJsonSummary`, no `events` (#886).
+- **Corpus:** every record against the declared files (`--corpus`, repeatable:
+  `active_machines_dir` and `localAIStack/data/machines`), never an engine's
+  served copy, which carries run state and, under `machineJsonSummary`, no
+  `events` (#886). A machine no file declares (localAI's topology builder
+  registers `localai/agent_topology` and `localai/rag_topology` at runtime) is
+  checked against its registration, `GET /api/machines/:id` in full, and the
+  report counts those (`checkedAgainstRegistration`).
+- **Diagnosis:** a split names its first differing records and paths
+  (`firstRecords`, `firstCompositions`).
 - **Not evaluated:** the self-verification replay (no route restores
   `activeBefore` yet) and a process restart (the toggle takes the boot's path).
 - Measured on main builds, 2026-11-27: 2,935 K-lines and 151 compositions per
