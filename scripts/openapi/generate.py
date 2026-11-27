@@ -93,6 +93,12 @@ SUMMARIES: dict[str, str] = {
     "GET:/api/engine/steps/{n}/pair":                          "The (ISRE, OSRE) pair for step n, waiting up to timeoutMs at its completion point",
     "GET:/api/engine/clock":                                   "The instance clock {instance, lamport, step} for the newest committed step",
     "GET:/api/arbitration":                                    "Arbitration records: the legacy latest-step object, or retained steps keyed by step (?step=N)",
+    # K-lines (RealityEngine_CI#603): the instance's stored population, re-kline/1.
+    "GET:/api/klines":                                         "Stored K-lines, oldest first by close.commit (?outcome=&machine=&sequence=&since=&limit=)",
+    "GET:/api/klines/open":                                    "The open K-line table, now",
+    "GET:/api/klines/stats":                                   "K-line counts by outcome and machine; segments, bytes, budget, warnings",
+    "GET:/api/klines/{id}":                                    "One stored K-line (re-kline/1)",
+    "POST:/api/klines/export":                                 "Export a re-kline-bundle/1 (JSON Lines) and mark its segments exported",
     "POST:/api/engine/process":                                "Process input vector across all machines",
     "POST:/api/engine/reset":                                  "Reset machine, engine, and perception state",
     # RE — Cloneable machines (localAssetStorageStack#8)
