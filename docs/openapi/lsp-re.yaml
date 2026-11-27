@@ -693,6 +693,92 @@ paths:
         '500':
           $ref: '#/components/responses/InternalError'
       operationId: get_api_arbitration
+  /api/klines:
+    get:
+      tags:
+      - Engine
+      summary: Stored K-lines, oldest first by close.commit (?outcome=&machine=&sequence=&since=&limit=)
+      responses:
+        '200':
+          description: Success
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Object'
+        '500':
+          $ref: '#/components/responses/InternalError'
+      operationId: get_api_klines
+  /api/klines/open:
+    get:
+      tags:
+      - Engine
+      summary: The open K-line table, now
+      responses:
+        '200':
+          description: Success
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Object'
+        '500':
+          $ref: '#/components/responses/InternalError'
+      operationId: get_api_klines_open
+  /api/klines/stats:
+    get:
+      tags:
+      - Engine
+      summary: K-line counts by outcome and machine; segments, bytes, budget, warnings
+      responses:
+        '200':
+          description: Success
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Object'
+        '500':
+          $ref: '#/components/responses/InternalError'
+      operationId: get_api_klines_stats
+  /api/klines/{id}:
+    get:
+      tags:
+      - Engine
+      summary: One stored K-line (re-kline/1)
+      parameters:
+      - *id002
+      responses:
+        '200':
+          description: Success
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Object'
+        '500':
+          $ref: '#/components/responses/InternalError'
+        '404':
+          $ref: '#/components/responses/NotFound'
+      operationId: get_api_klines_id
+  /api/klines/export:
+    post:
+      tags:
+      - Engine
+      summary: Export a re-kline-bundle/1 (JSON Lines) and mark its segments exported
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: true
+      responses:
+        '200':
+          description: Success
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Success'
+        '500':
+          $ref: '#/components/responses/InternalError'
+      operationId: post_api_klines_export
   /api/engine/process:
     post:
       tags:
