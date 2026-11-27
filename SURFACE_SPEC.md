@@ -792,6 +792,7 @@ default is wrong rather than different.
 | `klineCapture` | `engine` | `false` | `true` | K-line capture at each committed step ("Managing K-lines during operation"); `false` until the PE half lands (owner, 2026-11-26) |
 | `klineFeedbackHops` | `engine` | `3` | `true` | contributor hops a closing K-line follows; a whole number in `[0, 16]` |
 | `klineStoreMaxBytes` | `engine` | `2147483648` | `true` | the K-line store's sealed-segment budget, in bytes; a whole number in `[0, 9007199254740991]` |
+| `machineJsonSummary` | `engine` | `false` | `true` | `GET /api/machines/json/:name` answers the machine's list form instead of its full form (below; #886) |
 | `phaseDetail` | `engine` | `false` | `true` | step phase timing: when on, `/api/metrics` reports the five declared step phases (below) |
 | `transitionsInhibited` | `machine` | `false` | `true` | whether a machine passes its Reality Event forward |
 
@@ -4167,6 +4168,31 @@ contract.
 
 `/api/vectors` is a **JSON document store**, not a Reality Event constructor.
 Settled here for RealityEngine_CI#288, where Scala did the other thing.
+
+#### `GET /api/machines/json/:name` — the full form, or the list form on request *(owner, 2026-11-27; #886)*
+
+The route loads a corpus file by basename into the running system and answers
+`{"success": true, "machine": …, "message": "Machine loaded successfully"}`.
+Which `machine` it answers was never stated, and five engines answered it three
+ways: C++ and LSP the full form, Scala the list form (per sequence `id`, `name`,
+`initialEventIds`), and Rust and Go a load summary with no `sequences`.
+
+**Settled:**
+- By default `machine` is the machine **in full**, exactly as
+  `GET /api/machines/:id` serves it: every sequence with its `events`,
+  `initialEventIds`, `outputEventIds` and `metadata`.
+- With the universal control `machineJsonSummary` on, `machine` is the
+  machine's **list form**, exactly as `GET /api/machines` lists it: the sequence
+  summary above.
+- `message` is `Machine loaded successfully` on every engine.
+
+In regression both forms are compared across the voters. In the full form,
+`outputEvents[].timestamp` is set aside: it is each engine's load time, an
+instance fact. Settling the full form also aligned Scala's event serialization,
+which `GET /api/machines/:id` and export share: an output event always carries
+`provenance` (empty until a transition stamps it), and an element that declares
+no `comparatorType` or `threshold` omits the keys rather than writing them as
+`null`.
 
 #### `POST /api/vectors`
 

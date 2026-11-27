@@ -313,8 +313,8 @@ checks both halves of a K-line on every voter, 3-of-3 (#603):
 - **Schemas:** `re-kline/1` and `re-isre-composition/1`, from the run's
   Machines worktree with its ajv (`--machines`).
 - **Corpus:** every record against the booted corpus's declared files
-  (`--corpus`, `active_machines_dir`), never an engine's served copy: Scala's
-  `GET /api/machines/json/:name` serves sequences without their `events`.
+  (`--corpus`, `active_machines_dir`), never an engine's served copy, which
+  carries run state and, under `machineJsonSummary`, no `events` (#886).
 - **Not evaluated:** the self-verification replay (no route restores
   `activeBefore` yet) and a process restart (the toggle takes the boot's path).
 - Measured on main builds, 2026-11-27: 2,935 K-lines and 151 compositions per
