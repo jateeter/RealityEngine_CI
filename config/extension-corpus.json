@@ -6,6 +6,34 @@
   ],
   "candidates": [
     {
+      "package": "ai-governance-regime",
+      "source": "RealityEngine_Machines/machine_factory/domains/ai-governance-regime/machines",
+      "status": "candidate-not-admitted",
+      "band": "[16960:17429]",
+      "why": "Driven by its 145 simulated-Source simulations (GOV-SD-16). Live run 2026-11-27: 145/145 3-of-3, followers agree (RealityEngine_Machines#328). Its 16 agents run as A2A skills (localLangChainStack#14) and carry no OpenClaw agent as candidates (localOpenClawStack#107).",
+      "machines": "every machines/*.json in the package as it stands, composed at boot (scripts/write-extension-corpus.py)",
+      "lastKnown": [
+        "GOV00_governance-verdict-aggregator.json",
+        "GOV01_impact-dossier-lifecycle.json",
+        "GOV02_task-sufficiency-gate.json",
+        "GOV03_socio-technical-bias-audit.json",
+        "GOV04_rule-epoch-promotion.json",
+        "GOV05_aibom-provenance-pin.json",
+        "GOV06_quorum-consensus-monitor.json",
+        "GOV07_exposure-budget-watchdog.json",
+        "GOV08_latency-gate-sentinel.json",
+        "GOV09_near-miss-backlog-enforcer.json",
+        "GOV10_synthetic-transparency-gate.json",
+        "GOV11_human-review-anti-bias-gate.json",
+        "GOV12_serious-incident-responder.json",
+        "GOV13_control-crosswalk-assembler.json",
+        "GOV14_periodic-recertification-timer.json",
+        "GOV15_break-glass-emergency-override.json",
+        "GOV16_cross-domain-delegation-cap.json",
+        "GOV17_quorum-key-revocation-lifecycle.json"
+      ]
+    },
+    {
       "package": "threat-dynamics",
       "source": "RealityEngine_Machines/machine_factory/domains/threat-dynamics/machines",
       "status": "candidate-not-admitted",
@@ -25,12 +53,6 @@
         "THR10_cross-domain-exposure.json"
       ],
       "machines": "every machines/*.json in the package as it stands, composed at boot (scripts/write-extension-corpus.py)"
-    }
-  ],
-  "deferred": [
-    {
-      "package": "ai-governance-regime",
-      "why": "Its 16 agents have no runtime behaviors in the agent stack yet, and no governance signal has its simulated-Source definition (GOV-SD-16, step 3). It joins when both exist."
     }
   ]
 }
