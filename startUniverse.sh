@@ -272,6 +272,17 @@ fi
 if [ "$MACHINE_CORPUS" = "extension" ] && [ "$MACHINE_CORPUS_MANIFEST" = "$CI_DIR/config/standard-deployment-corpus.txt" ]; then
     MACHINE_CORPUS_MANIFEST="$CI_DIR/config/extension-corpus.txt"
 fi
+# The extension manifest is composed afresh at boot, so a machine-factory
+# candidate boots as it stands in its package: work in progress never needs the
+# committed snapshot refreshed first, and never fails a gate (owner, 2026-11-27).
+if [ "$MACHINE_CORPUS_MANIFEST" = "$CI_DIR/config/extension-corpus.txt" ]; then
+    _ext_manifest="${TMPDIR:-/tmp}/realityengine-extension-corpus.txt"
+    python3 "$CI_DIR/scripts/write-extension-corpus.py" --out "$_ext_manifest" >/dev/null || {
+        echo "FATAL: the extension corpus could not be composed (scripts/write-extension-corpus.py --out)" >&2
+        exit 1
+    }
+    MACHINE_CORPUS_MANIFEST="$_ext_manifest"
+fi
 
 # OpenClaw loads the agents of the corpus the engines load, unless the caller
 # overrode it (owner rule 2026-10-06). A bounded corpus hands OpenClaw the very
