@@ -334,7 +334,16 @@ json.dump({"instances": [{"id": fid, "runtime": runtime, "role": "follower",
 PY
   docker cp "$OUT/localai-follower-registry.json" "$LOCALAI_CONTAINER:/tmp/$RUNTIME-follower-registry.json" >/dev/null
   # main.py's lifespan sequence (localAIStack services/api/main.py).
+  # LOCALAI_INSTANCE_UUID is cleared for this process only. Since localAIStack#140
+  # localAI is a clock participant that holds an exclusive lock on <uuid>.lock
+  # for the life of its API process, so a second process with the same UUID is
+  # refused at every write ("lock is held by another live process") and the
+  # follower got no localai/* slice. Cleared, the process mints a clock of its
+  # own, not persisted. The slice's writes then carry that participant, not the
+  # universe localAI's, which no follower stage measures yet (clock-causality
+  # is voters-only).
   if ! docker exec -w /app -e "RE_REGISTRY_URL=file:///tmp/$RUNTIME-follower-registry.json" \
+      -e LOCALAI_INSTANCE_UUID= \
       "$LOCALAI_CONTAINER" python -c '
 import json
 from core import reality_bridge as r
