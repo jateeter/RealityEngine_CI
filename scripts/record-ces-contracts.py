@@ -129,6 +129,22 @@ def load_corpus(include_localai: bool = False) -> dict[str, Json]:
     """
     root = MACHINES_ROOT / "machines"
     corpus: dict[str, Json] = {}
+    if include_localai:
+        # Machine-factory candidates, which a --corpus scope may name
+        # (config/extension-corpus.txt). Keyed by basename, as the cesgen registry
+        # keys a file outside the corpus root, and labelled with their package.
+        # Read first so an admitted machine of the same name replaces one.
+        for path in factory_machine_files():
+            try:
+                machine = json.loads(path.read_text(encoding="utf-8")).get("machine")
+            except Exception:  # noqa: BLE001
+                continue
+            if not isinstance(machine, dict):
+                continue
+            mapping = machine.get("perceptualMapping") or {}
+            if isinstance(machine.get("name"), str) and isinstance(mapping.get("output"), dict):
+                corpus[machine["name"]] = {"domain": path.parent.parent.name, "output": mapping["output"],
+                                           "input": mapping.get("input"), "relFile": path.name}
     if include_localai and LOCAL_AI_MACHINES.is_dir():
         for path in sorted(LOCAL_AI_MACHINES.glob("*.json")):
             try:
@@ -161,6 +177,25 @@ def load_corpus(include_localai: bool = False) -> dict[str, Json]:
     return corpus
 
 
+def factory_machine_files() -> list[Path]:
+    """Each machine-factory package's machines/*.json (RealityEngine_Machines
+    machine_factory/domains/<package>/machines/), as the cesgen registry builder
+    resolves a selection's candidates."""
+    factory = MACHINES_ROOT / "machine_factory" / "domains"
+    if not factory.is_dir():
+        return []
+    return sorted(factory.glob("*/machines/*.json"))
+
+
+def _outside_root(rel: str) -> Path:
+    """A basename-keyed file outside the corpus root: localAIStack's, else a factory candidate's."""
+    local = LOCAL_AI_MACHINES / rel
+    if local.exists():
+        return local
+    hits = [p for p in factory_machine_files() if p.name == rel]
+    return hits[0] if len(hits) == 1 else local
+
+
 def corpus_fingerprint(rel_files: Iterable[str] | None = None) -> Json:
     """Fingerprint over the scope's own machines, not the whole corpus.
 
@@ -179,7 +214,7 @@ def corpus_fingerprint(rel_files: Iterable[str] | None = None) -> Json:
     root = MACHINES_ROOT / "machines"
     # A localAIStack machine's relFile is its basename, and fingerprint_paths
     # keys a file outside the corpus root by basename -- as the builder does.
-    paths = ([root / rel if (root / rel).exists() else LOCAL_AI_MACHINES / rel
+    paths = ([root / rel if (root / rel).exists() else _outside_root(rel)
               for rel in sorted(rel_files)] if rel_files is not None
              else sorted(root.rglob("*.json")))
     return fp.fingerprint_paths(paths, root)
@@ -420,8 +455,19 @@ def main() -> int:
             return 1
         wanted = {line.strip() for line in manifest.read_text(encoding="utf-8").splitlines()
                   if line.strip() and not line.strip().startswith("#")}
+        # An entry is a corpus-relative path or a basename, as
+        # materialize-machine-corpus.sh resolves it: localAIStack and factory
+        # machines are keyed by basename, and the extension manifest names its
+        # candidates domains/<package>/<file>. An entry that resolves to nothing
+        # fails: dropping it silently recorded a scope narrower than its name.
         by_rel = {facts["relFile"]: name for name, facts in corpus.items()}
-        scoped = {by_rel[rel] for rel in wanted if rel in by_rel}
+        by_base = {Path(rel).name: name for rel, name in by_rel.items()}
+        scoped = {by_rel.get(rel) or by_base.get(Path(rel).name) for rel in wanted} - {None}
+        unresolved = sorted(rel for rel in wanted if rel not in by_rel and Path(rel).name not in by_base)
+        if unresolved:
+            print(f"FAIL --corpus={args.corpus} names {len(unresolved)} entr(ies) no corpus root resolves: "
+                  f"{', '.join(unresolved[:4])}")
+            return 1
         absent = sorted(n for n in scoped if n not in resident)
         if absent:
             # Recording silence for a machine the engines never loaded is
