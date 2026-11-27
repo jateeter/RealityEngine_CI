@@ -37,6 +37,26 @@ session_agent_context.json
 domains/ifrs-accounting/IFRS_Sec01_GeneralPurposeFS_Verifier.json
 domains/ifrs-accounting/IFRS_Sec03_Compliance_Assertion_Arbiter.json
 
+# --- candidates: ai-governance-regime (candidate-not-admitted, band [16960:17429]) ---
+domains/ai-governance-regime/GOV00_governance-verdict-aggregator.json
+domains/ai-governance-regime/GOV01_impact-dossier-lifecycle.json
+domains/ai-governance-regime/GOV02_task-sufficiency-gate.json
+domains/ai-governance-regime/GOV03_socio-technical-bias-audit.json
+domains/ai-governance-regime/GOV04_rule-epoch-promotion.json
+domains/ai-governance-regime/GOV05_aibom-provenance-pin.json
+domains/ai-governance-regime/GOV06_quorum-consensus-monitor.json
+domains/ai-governance-regime/GOV07_exposure-budget-watchdog.json
+domains/ai-governance-regime/GOV08_latency-gate-sentinel.json
+domains/ai-governance-regime/GOV09_near-miss-backlog-enforcer.json
+domains/ai-governance-regime/GOV10_synthetic-transparency-gate.json
+domains/ai-governance-regime/GOV11_human-review-anti-bias-gate.json
+domains/ai-governance-regime/GOV12_serious-incident-responder.json
+domains/ai-governance-regime/GOV13_control-crosswalk-assembler.json
+domains/ai-governance-regime/GOV14_periodic-recertification-timer.json
+domains/ai-governance-regime/GOV15_break-glass-emergency-override.json
+domains/ai-governance-regime/GOV16_cross-domain-delegation-cap.json
+domains/ai-governance-regime/GOV17_quorum-key-revocation-lifecycle.json
+
 # --- candidates: threat-dynamics (candidate-not-admitted, band [17440:17759]) ---
 domains/threat-dynamics/THR00_threat-level-rollup.json
 domains/threat-dynamics/THR01_agent-hijacking-detector.json
@@ -49,5 +69,3 @@ domains/threat-dynamics/THR07_decomposition-detector.json
 domains/threat-dynamics/THR08_red-team-result-gate.json
 domains/threat-dynamics/THR09_vendor-canary-drift.json
 domains/threat-dynamics/THR10_cross-domain-exposure.json
-
-# deferred: ai-governance-regime: Its 16 agents have no runtime behaviors in the agent stack yet, and no governance signal has its simulated-Source definition (GOV-SD-16, step 3). It joins when both exist.
