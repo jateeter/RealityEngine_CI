@@ -45,7 +45,7 @@ import sys
 import time
 from pathlib import Path
 from typing import Any
-from urllib import error, request
+from urllib import error, parse, request
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 
@@ -128,7 +128,7 @@ def post_text(url: str, payload: dict, timeout: int = 300) -> tuple[int, str]:
 
 
 def load_registry(source: str) -> dict:
-    if source.startswith(("http://", "https://")):
+    if parse.urlsplit(source).scheme in ("https", "http"):  # an instance registry URL, else a file
         with request.urlopen(source, timeout=30) as response:
             return json.loads(response.read())
     return json.loads(Path(source).read_text(encoding="utf-8"))
