@@ -59,6 +59,8 @@ import subprocess
 import sys
 
 OPT = pathlib.Path(os.environ.get("REINIT_OPT", "/opt"))
+# K-line capture at boot (#603; owner, 2026-11-27: off unless configured).
+KLINE_CAPTURE = False
 RELEASE = OPT / "release"          # compose.yml and release config templates
 CI = OPT / "ci"                    # RealityEngine_CI files the install needs
 ASSETS = OPT / "assets"            # localAssetStorageStack: its provisioning scripts and CSS config
@@ -194,15 +196,18 @@ def allocate_uuids(install: pathlib.Path, insts: list[dict]) -> None:
         # A unique MQTT client id per instance (scripts/lib/pe-env.sh
         # mqtt_client_id): two PEs sharing one evict each other on a broker.
         client_id = f"re-pe-{inst['id']}-{inst['instance_uuid'].replace('-', '')[-8:]}"
+        # K-line capture at boot (#603): off unless the install is configured
+        # with --kline-capture on; switched at runtime through the engine's API.
         write(install / "engines" / f"{inst['id']}.env",
               f"INSTANCE_UUID={inst['instance_uuid']}\nINSTANCE_CLOCK_DIR={CLOCK_DIR}\n"
-              f"INSTANCE_KLINE_DIR={KLINE_DIR}\nMQTT_CLIENT_ID={client_id}\n")
+              f"INSTANCE_KLINE_DIR={KLINE_DIR}\nMQTT_CLIENT_ID={client_id}\n"
+              f"RE_KLINE_CAPTURE={1 if KLINE_CAPTURE else 0}\n")
         # The PE is a participant of its own (RealityEngine_CI#600): its own
         # UUID (<id>/pe), lock and marks in the same clock volume.
         inst["pe_uuid"] = instance_uuids.allocate(LANE, f"{inst['id']}/pe")
         write(install / "engines" / f"{inst['id']}.pe.env",
               f"PE_INSTANCE_UUID={inst['pe_uuid']}\nINSTANCE_CLOCK_DIR={CLOCK_DIR}\n"
-              f"INSTANCE_ISRE_DIR={ISRE_DIR}\n")
+              f"INSTANCE_ISRE_DIR={ISRE_DIR}\nRE_ISRE_CAPTURE={1 if KLINE_CAPTURE else 0}\n")
     # localAI is a clock participant of its own (localAIStack#140): <lane>/localai,
     # its lock and marks in its state volume (/app/state/clock).
     localai_uuid = instance_uuids.allocate(LANE, "localai")
@@ -1101,6 +1106,8 @@ def cmd_configure(args) -> int:
     ip = host_ip()
     ports = {k: int(os.environ.get(f"RE_PORT_{k}", v)) for k, v in HOST_PORTS.items()}
 
+    global KLINE_CAPTURE
+    KLINE_CAPTURE = args.kline_capture == "on"  # before the env files are written
     allocate_uuids(install, insts)
     tls = args.tls == "on"
     pki(install, insts, ip)
@@ -1201,6 +1208,7 @@ def cmd_configure(args) -> int:
         f"COMPOSE_PROJECT_NAME={args.project}",
         "COMPOSE_FILE=" + ":".join(compose_files),
         f"RE_TLS={'on' if tls else 'off'}",
+        f"RE_KLINE_CAPTURE={'on' if KLINE_CAPTURE else 'off'}",
         f"RE_VERSION={args.version}",
         f"RE_ENGINES={args.engines}",
         f"HOST_IP={ip}",
@@ -1462,6 +1470,8 @@ def main(argv: list[str]) -> int:
     c.add_argument("--registry", default="ghcr.io/jateeter")
     c.add_argument("--project", default="realityengine")
     c.add_argument("--skip-openclaw", action="store_true")
+    c.add_argument("--kline-capture", choices=("on", "off"), default=os.environ.get("RE_KLINE_CAPTURE", "off"),
+                   help="boot every engine with K-line capture on, both halves (#603); off by default")
     c.add_argument("--tls", choices=("on", "off"), default=os.environ.get("RE_TLS", "on"),
                    help="every service on TLS 1.3, with mTLS between services (#729, #668); on by "
                         "default. Ollama and Open WebUI stay plain http (owner, 2026-11-12)")
