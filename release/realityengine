@@ -699,6 +699,12 @@ configure() {
   tls="${RE_TLS:-}"
   [ -z "$tls" ] && [ -f "$DIR/.env" ] && tls="$(sed -n 's/^RE_TLS=//p' "$DIR/.env" | tail -1)"
   set -- "$@" --tls "${tls:-on}"
+  # K-line capture at boot (#603): RE_KLINE_CAPTURE from the environment, else
+  # what this install was configured with; off by default. Switched at runtime
+  # through each engine's API whatever the install says.
+  kcap="${RE_KLINE_CAPTURE:-}"
+  [ -z "$kcap" ] && [ -f "$DIR/.env" ] && kcap="$(sed -n 's/^RE_KLINE_CAPTURE=//p' "$DIR/.env" | tail -1)"
+  set -- "$@" --kline-capture "${kcap:-off}"
   "$@"
   provision_assets
   save_conf

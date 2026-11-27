@@ -99,6 +99,10 @@ PE_SOURCE_BOOTSTRAP="auto"   # auto | off
 VALIDATE_CORPUS="once"       # once | off
 MANAGER_NATIVE=false
 ASSETS=no            # --assets: the dokieli asset storage stack and workflow instantiation
+# K-line capture at boot, both halves (RE klineCapture, PE isreCapture; #603).
+# Off unless configured (owner, 2026-11-27); turned on and off at runtime through
+# /api/engine/config and PATCH /api/config whatever it was booted with.
+KLINE_CAPTURE="${RE_KLINE_CAPTURE:-off}"
 HEALTHKIT_TOKEN_ENABLED=true   # PE HealthKit ingest requires a bridge token by default
 DRY_RUN=false
 RE_ENGINE="${RE_ENGINE:-ai}"       # ai | cpp | lsp
@@ -195,6 +199,10 @@ startUniverse.sh — engine-selectable CI orchestrator
   --no-mcp-http                 Skip RealityEngine MCP Streamable HTTP service startup
   --no-openapi-swagger          Skip OpenAPI/Swagger portal startup
   --warn-only                   Warn on sibling repo version mismatch instead of failing startup
+  --kline-capture[=on|off]      Boot every engine with K-line capture on, both halves
+                                (RE klineCapture, PE isreCapture). Default off, or
+                                RE_KLINE_CAPTURE. Either way it is switched at runtime
+                                through /api/engine/config and PATCH /api/config (#603).
   --free-ports                  Claim ports the OS reports free instead of computing
                                 them from a base. Default: deterministic (#278).
   --dry-run                     Run all pre-flight checks and print the startup plan,
@@ -240,6 +248,8 @@ for arg in "$@"; do
     # RealityEngine_CI#278 step 4. Off by default: the universe starts the way
     # it always has unless this is passed.
     --free-ports)          RE_FREE_PORTS=true ;;
+    --kline-capture)       KLINE_CAPTURE=on ;;
+    --kline-capture=*)     KLINE_CAPTURE="${arg#*=}" ;;
     --dry-run)             DRY_RUN=true ;;
     --help|-h)             print_usage; exit 0 ;;
     *)                     echo "Unknown argument: $arg"; print_usage; exit 2 ;;
@@ -421,6 +431,14 @@ refuse_live_instance_registry() {
     die "$REGISTRY_FILE lists engines that are still running:\n$(printf '%s\n' "$live" | sed 's/^/    /')\n  Starting would delete the only record of them and leave them running (RealityEngine_CI#637).\n  Stop that universe first: ./stopUniverse.sh --engines-only"
 }
 export INSTANCE_CLOCK_DIR INSTANCE_KLINE_DIR INSTANCE_ISRE_DIR
+# Every engine reads RE_KLINE_CAPTURE (RE) and RE_ISRE_CAPTURE (PE) at boot as
+# its control's initial value; the Docker lane's compose file interpolates them.
+case "$KLINE_CAPTURE" in
+    on|1|true)   RE_KLINE_CAPTURE=1; RE_ISRE_CAPTURE=1 ;;
+    off|0|false) RE_KLINE_CAPTURE=0; RE_ISRE_CAPTURE=0 ;;
+    *) die "--kline-capture takes on or off, not '$KLINE_CAPTURE'" ;;
+esac
+export RE_KLINE_CAPTURE RE_ISRE_CAPTURE
 [ "$DRY_RUN" = true ] || mkdir -p "$INSTANCE_KLINE_DIR" "$INSTANCE_ISRE_DIR"
 # shellcheck source=scripts/allocate-ports.sh
 source "$CI_DIR/scripts/allocate-ports.sh"

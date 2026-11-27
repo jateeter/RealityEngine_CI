@@ -62,6 +62,8 @@ x-engine-re-env: &engine-re-env
   VECTOR_DIMENSION: ${VECTOR_DIMENSION:-7680}
   QDRANT_URL: ${RE_LANE_SCHEME:-http}://host.docker.internal:4333
   SEMANTICS_MANIFEST: /app/semantics/abox-manifest.json
+  # K-line capture at boot (#603): off unless startUniverse.sh --kline-capture.
+  RE_KLINE_CAPTURE: ${RE_KLINE_CAPTURE:-0}
 
 services:
   # Loki - Log Aggregation (TLS enabled)
@@ -267,6 +269,7 @@ services:
     environment:
       # One MQTT client id per PE: two sharing one evict each other on a broker.
       - MQTT_CLIENT_ID=re-pe-docker-scala-1
+      - RE_ISRE_CAPTURE=${RE_ISRE_CAPTURE:-0}
       - PORT=3004
       - PERCEPTION_ENGINE_PORT=3004
       - REALITY_ENGINE_URL=${RE_LANE_SCHEME:-http}://engine-scala-re:3000
@@ -369,6 +372,7 @@ services:
     environment:
       # One MQTT client id per PE: two sharing one evict each other on a broker.
       - MQTT_CLIENT_ID=re-pe-docker-cpp-1
+      - RE_ISRE_CAPTURE=${RE_ISRE_CAPTURE:-0}
       - MACHINES_DIR=/app/machines
       - VECTOR_DIMENSION=${VECTOR_DIMENSION:-7680}
       - QDRANT_URL=${RE_LANE_SCHEME:-http}://host.docker.internal:4333
@@ -468,6 +472,7 @@ services:
     environment:
       # One MQTT client id per PE: two sharing one evict each other on a broker.
       - MQTT_CLIENT_ID=re-pe-docker-lsp-1
+      - RE_ISRE_CAPTURE=${RE_ISRE_CAPTURE:-0}
       - PERCEPTION_ENGINE_PORT=3004
       - REALITY_ENGINE_URL=${RE_LANE_SCHEME:-http}://engine-lsp-re:3000
       - MACHINES_DIR=/app/machines

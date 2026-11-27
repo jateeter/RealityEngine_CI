@@ -789,7 +789,7 @@ default is wrong rather than different.
 | `includeActiveRegions` | `engine` | `true` | `true` | the active-region list in a step response |
 | `includeMachineResults` | `engine` | `true` | `true` | per-machine results in a step response |
 | `includePerceptualSpace` | `engine` | `true` | `true` | the perceptual-space vector in a step response |
-| `klineCapture` | `engine` | `false` | `true` | K-line capture at each committed step ("Managing K-lines during operation"); `false` until the PE half lands (owner, 2026-11-26) |
+| `klineCapture` | `engine` | `false` | `true` | K-line capture at each committed step ("Managing K-lines during operation"); `false`: capture is off at boot unless configured, and switched at runtime (owner, 2026-11-27) |
 | `klineFeedbackHops` | `engine` | `3` | `true` | contributor hops a closing K-line follows; a whole number in `[0, 16]` |
 | `klineStoreMaxBytes` | `engine` | `2147483648` | `true` | the K-line store's sealed-segment budget, in bytes; a whole number in `[0, 9007199254740991]` |
 | `machineJsonSummary` | `engine` | `false` | `true` | `GET /api/machines/json/:name` answers the machine's list form instead of its full form (below; #886) |
@@ -3364,10 +3364,22 @@ reconstruct it afterwards.
     checkpoint is closed `interrupted` (`reason: "shutdown"`) at that step.
   - A record that was only half written is truncated.
 - **Controls.**
-  - `klineCapture` (engine scope). Its default is `false` until the PE half
-    (ISRE composition) lands and the `kline-boundaries` regression stage checks
-    both halves, although all three runtimes capture the RE half 3-of-3 (owner,
-    2026-11-26). `false` stops capture and leaves the store and its checkpoint
+  - `klineCapture` (engine scope). **K-lines are not captured from the start**
+    (owner, 2026-11-27): the default stays `false`, now that both halves are
+    checked 3-of-3. Capture is **configurable** at boot and **dynamic** at
+    runtime:
+    - at boot, `RE_KLINE_CAPTURE=1` (RE) and `RE_ISRE_CAPTURE=1` (PE) set the
+      controls' initial values. `startUniverse.sh --kline-capture` sets both on
+      the native and Docker lanes, and an install configured with
+      `RE_KLINE_CAPTURE=on` (`realityengine`, `reinit --kline-capture on`)
+      writes them into every instance's env files and keeps the choice across
+      `up` and `upgrade`;
+    - at runtime, `PUT /api/engine/config/klineCapture` and
+      `PATCH /api/config {"isreCapture"}` turn capture on and off, without a
+      restart, whatever the engine booted with. Manager's K-line panel is the
+      operator surface for this (RealityEngine_Manager, release-v0.0.3).
+
+    `false` stops capture and leaves the store and its checkpoint
     untouched. Turning it on starts capture afresh: the K-lines the checkpoint
     holds are first closed `interrupted` (`reason: "shutdown"`) at their step,
     as at boot. The store is opened at boot whatever the control says, so the
@@ -3601,8 +3613,8 @@ is never evicted.
 
 **PE controls**, through `PATCH /api/config`: `isreCapture` and
 `isreStoreMaxBytes`.
-- `isreCapture` defaults to `false`, as `klineCapture` does, until the
-  `kline-boundaries` regression stage checks both halves (owner, 2026-11-26).
+- `isreCapture` defaults to `false`, as `klineCapture` does: off at boot unless
+  configured, switched at runtime (owner, 2026-11-27).
   It behaves as `klineCapture` does: off stops capture and leaves the store
   untouched; on starts afresh; the store opens at boot whatever it says.
   `RE_ISRE_CAPTURE=1` sets its initial value.

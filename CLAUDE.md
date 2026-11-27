@@ -18,6 +18,9 @@ npm run test:deployment
 ./startUniverse.sh --engines=cpp:1,lsp:1,scala:1 --openclaw --machine-load=runtime --pe-source-bootstrap=auto --warn-only
 # With the dokieli asset storage stack and Manager's workflow instantiation:
 ./startUniverse.sh --engines=cpp:1,lsp:1,scala:1 --assets --machine-load=runtime --warn-only
+# K-lines off at boot unless configured (owner, 2026-11-27); this boots both
+# halves capturing. Either way they switch at runtime through each engine's API.
+./startUniverse.sh --engines=cpp:1,lsp:1,scala:1 --kline-capture --machine-load=runtime --warn-only
 ./stopUniverse.sh   # everything the universe uses: engines, Docker stacks, gateway,
                     # re-regression, host Ollama; --keep-docker / --keep-ollama opt out
 

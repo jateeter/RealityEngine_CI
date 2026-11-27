@@ -98,6 +98,16 @@ assert_contains "$(cat "$INSTALL/engines/cpp-2.env")" "INSTANCE_KLINE_DIR=/var/l
 assert_contains "$(cat "$INSTALL/engines/cpp-2.pe.env")" "INSTANCE_ISRE_DIR=/var/lib/reality-engine/isre" "the PE env file names the ISRE store"
 assert_eq "$(grep -c 'engine-klines:/var/lib/reality-engine/klines' "$INSTALL/compose.engines.yml")" 4 "every RE mounts the K-line store volume"
 assert_eq "$(grep -c 'pe-isre:/var/lib/reality-engine/isre' "$INSTALL/compose.engines.yml")" 4 "every PE mounts the ISRE store volume"
+# K-line capture at boot (#603): off unless configured, both halves together.
+assert_contains "$(cat "$INSTALL/engines/cpp-2.env")" "RE_KLINE_CAPTURE=0" "K-line capture is off at boot by default (RE)"
+assert_contains "$(cat "$INSTALL/engines/cpp-2.pe.env")" "RE_ISRE_CAPTURE=0" "K-line capture is off at boot by default (PE)"
+assert_contains "$(cat "$INSTALL/.env")" "RE_KLINE_CAPTURE=off" "the install records capture off"
+reinit configure --install "$INSTALL" --engines cpp:2,lsp:1,scala:1 --version dev --skip-openclaw --kline-capture on >/dev/null
+assert_contains "$(cat "$INSTALL/engines/lsp-1.env")" "RE_KLINE_CAPTURE=1" "--kline-capture on boots the REs capturing"
+assert_contains "$(cat "$INSTALL/engines/lsp-1.pe.env")" "RE_ISRE_CAPTURE=1" "--kline-capture on boots the PEs capturing"
+assert_contains "$(cat "$INSTALL/.env")" "RE_KLINE_CAPTURE=on" "the install records capture on, so up and upgrade keep it"
+reinit configure --install "$INSTALL" --engines cpp:2,lsp:1,scala:1 --version dev --skip-openclaw >/dev/null
+assert_contains "$(cat "$INSTALL/engines/lsp-1.env")" "RE_KLINE_CAPTURE=0" "reconfiguring without the flag returns to off"
 assert_contains "$(cat "$INSTALL/compose.yml")" "--klines" "prepare makes the K-line store writable"
 LOCALAI_UUID="$(sed -n 's/^LOCALAI_INSTANCE_UUID=//p' "$INSTALL/engines/localai.env")"
 assert_eq "$(python3 -c "import uuid,sys; print(str(uuid.UUID(sys.argv[1])) == sys.argv[1])" "$LOCALAI_UUID" 2>/dev/null)" "True" \
