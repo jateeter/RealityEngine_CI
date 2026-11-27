@@ -789,6 +789,9 @@ default is wrong rather than different.
 | `includeActiveRegions` | `engine` | `true` | `true` | the active-region list in a step response |
 | `includeMachineResults` | `engine` | `true` | `true` | per-machine results in a step response |
 | `includePerceptualSpace` | `engine` | `true` | `true` | the perceptual-space vector in a step response |
+| `klineCapture` | `engine` | `false` | `true` | K-line capture at each committed step ("Managing K-lines during operation"); `false` until the PE half lands (owner, 2026-11-26) |
+| `klineFeedbackHops` | `engine` | `3` | `true` | contributor hops a closing K-line follows; a whole number in `[0, 16]` |
+| `klineStoreMaxBytes` | `engine` | `2147483648` | `true` | the K-line store's sealed-segment budget, in bytes; a whole number in `[0, 9007199254740991]` |
 | `phaseDetail` | `engine` | `false` | `true` | step phase timing: when on, `/api/metrics` reports the five declared step phases (below) |
 | `transitionsInhibited` | `machine` | `false` | `true` | whether a machine passes its Reality Event forward |
 
@@ -988,6 +991,11 @@ the drift this issue exists to prevent visible on the first run.
 | GET | `/api/engine/steps/:n/pair` | ✓ | ✓ | ✓ |
 | GET | `/api/engine/clock` | ✓ | ✓ | ✓ |
 | GET | `/api/arbitration` | ✓ | ✓ | ✓ |
+| GET | `/api/klines` | ✓ | ✓ | ✓ |
+| GET | `/api/klines/open` | ✓ | ✓ | ✓ |
+| GET | `/api/klines/stats` | ✓ | ✓ | ✓ |
+| GET | `/api/klines/:id` | ✓ | ✓ | ✓ |
+| POST | `/api/klines/export` | ✓ | ✓ | ✓ |
 | POST | `/api/engine/process` | ✓ | ✓ | ✓ |
 | POST | `/api/engine/reset` | ✓ | ✓ | ✓ |
 
@@ -3355,8 +3363,14 @@ reconstruct it afterwards.
     checkpoint is closed `interrupted` (`reason: "shutdown"`) at that step.
   - A record that was only half written is truncated.
 - **Controls.**
-  - `klineCapture` (engine scope, default `true` once all three runtimes
-    implement it). `false` stops capture and leaves the store untouched.
+  - `klineCapture` (engine scope). Its default is `false` until the PE half
+    (ISRE composition) lands and the `kline-boundaries` regression stage checks
+    both halves, although all three runtimes capture the RE half 3-of-3 (owner,
+    2026-11-26). `false` stops capture and leaves the store and its checkpoint
+    untouched. Turning it on starts capture afresh: the K-lines the checkpoint
+    holds are first closed `interrupted` (`reason: "shutdown"`) at their step,
+    as at boot. The store is opened at boot whatever the control says, so the
+    routes always answer from it.
   - `klineFeedbackHops` (default 3).
   - `klineStoreMaxBytes` (see below).
 
@@ -3488,7 +3502,8 @@ same layout for `re-kline-bundle/1` and the PE's `re-isre-bundle/1`:
 - Every line, the last included, ends in `\n`. `count` is the number of record
   and event lines.
 
-The routes stay out of the RE route tables until all three runtimes serve them.
+All three runtimes serve the routes (RealityEngine_CPP#209, RealityEngine_LSP#203,
+RealityEngine_Scala#224), so they are in the RE route table.
 
 ### The PE half: ISRE composition
 
