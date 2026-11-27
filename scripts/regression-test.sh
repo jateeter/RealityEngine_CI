@@ -2155,6 +2155,27 @@ run_clock_causality() {
     "${marks[@]}"
 }
 
+run_kline_boundaries() {
+  step "K-lines, both halves, 3-of-3 (#603)"
+  local ci machines; ci="$(repo_root RealityEngine_CI)"; machines="$(repo_root RealityEngine_Machines)"
+  # The boundaries are the corpus's, so it needs one with sequences longer than
+  # a single event; the regression corpus has paths up to 6 events.
+  case "$MACHINE_CORPUS" in
+    regression|extension|full) ;;
+    *)
+      write_skip_report "kline-boundaries-skipped.json" \
+        "corpus '$MACHINE_CORPUS' is not a K-line corpus; run --machine-corpus=regression"
+      log "SKIP kline-boundaries: corpus '$MACHINE_CORPUS'"
+      return 0 ;;
+  esac
+  # Schemas from the run's Machines worktree, with its ajv, when it is installed.
+  run_cmd "kline-boundaries" python3 "$ci/scripts/regression-kline-boundaries.py" \
+    --registry "$REGISTRY_FILE" \
+    --machines "$machines" \
+    --corpus "$(active_machines_dir)" \
+    --out "$REPORT_DIR/kline-boundaries.json"
+}
+
 run_engine_process_parity() {
   step "POST /api/engine/process parity across runtimes"
   local ci status=0; ci="$(repo_root RealityEngine_CI)"
@@ -2931,6 +2952,9 @@ if [ "$LIVE_TESTS" = true ]; then
   # Beside retention, which checks the clock on retained steps: the full
   # clock on every RE and PE, the receive rule, the marks and causedBy (#600).
   run_stage "clock-causality"   run_clock_causality
+  # After the clock: both halves of a K-line carry it. It turns klineCapture
+  # and isreCapture on for its own drive and restores them (#603).
+  run_stage "kline-boundaries"  run_kline_boundaries
   # Beside the arbiter: both are conformance gates that need the engines up and
   # a corpus that can exercise them, and both compare across runtimes rather
   # than checking one. This one drives /api/engine/process and resets both

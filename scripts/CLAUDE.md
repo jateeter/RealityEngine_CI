@@ -297,6 +297,29 @@ the full Lamport clock of #600 on every voter RE and PE, 3-of-3.
   as `LOCALAI_INSTANCE_UUID` to every localAIStack compose call.
 - **Not in the follower lane yet.**
 
+`regression-kline-boundaries.py` (stage `kline-boundaries`, after clock-causality)
+checks both halves of a K-line on every voter, 3-of-3 (#603):
+- **Capture** (`klineCapture` on the RE, `isreCapture` on the PE) is turned on
+  for the stage's own drive and restored after it. Both default to `false`.
+- **The drive:** `--steps` pushes (default 120) through the PE, each read at its
+  completion point.
+- **Reset:** the K-lines open after the drive close `interrupted/reset`, every
+  one of them.
+- **Recovery:** a capture off/on toggle closes what the checkpoint holds
+  `interrupted/shutdown`, as a boot does; an off capture writes nothing.
+- **Across voters:** the same K-lines by the parity key and the same records
+  once `id`, `instance`, `lamport`, `commit`, `kline` and `subsumedBy` are
+  removed; the same composition records by `re.step`.
+- **Schemas:** `re-kline/1` and `re-isre-composition/1`, from the run's
+  Machines worktree with its ajv (`--machines`).
+- **Corpus:** every record against the booted corpus's declared files
+  (`--corpus`, `active_machines_dir`), never an engine's served copy: Scala's
+  `GET /api/machines/json/:name` serves sequences without their `events`.
+- **Not evaluated:** the self-verification replay (no route restores
+  `activeBefore` yet) and a process restart (the toggle takes the boot's path).
+- Measured on main builds, 2026-11-27: 2,935 K-lines and 151 compositions per
+  voter, 0 differences, in 43 s.
+
 ## Push response shape
 
 `regression-pe-step-contract.py` probes the push response at three levels, not
