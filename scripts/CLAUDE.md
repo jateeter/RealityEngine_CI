@@ -358,6 +358,26 @@ historical archive"; owner, 2026-11-27):
 - `tests/test-kline-archive.sh` replaces its two HTTP calls with a stub engine
   in-process, so no plaintext listener is needed.
 
+`regression-snapshots.py` (stage `snapshots`, beside arbitration-retention)
+checks runtime snapshots on every voter, 3-of-3 (#287, phase 2):
+- **The drive:** each RE is reset and driven with the same explicit vectors
+  through `POST /api/perceive`, each step read at its completion point.
+- **Digest:** the same state has the same digest on every runtime, for one step,
+  a 10-step span and a narrowed scope.
+- **Round trip and cross-runtime:** every voter's snapshot restores into every
+  voter, all nine pairs, and the target then commits the source's next steps
+  exactly.
+- **Self-verification:** restore a narrowed snapshot one step before a span, so
+  that its `activeAfter` is the span's `activeBefore`. Present the span's ISREs:
+  the OSREs outside `sharedCells` and the final active list must match.
+- **Refusals:** an evicted span is 410, a tampered digest 422, and a real corpus
+  mismatch 409. The mismatch is made by POSTing a copy of a machine, which the
+  engine versions, and the copy is deleted again.
+- **Cleanup:** it deletes every snapshot it made and resets every voter.
+- **Not evaluated:** `RE_SNAPSHOT_STORE=off`, a boot setting covered by each
+  engine's unit tests.
+- Measured on the snapshot branches, 2026-11-27: PASS in 7 s.
+
 ## Push response shape
 
 `regression-pe-step-contract.py` probes the push response at three levels, not
