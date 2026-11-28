@@ -31,6 +31,9 @@ cp "$CI_DIR/scripts/lib/instance_uuids.py" "$CI_DIR/scripts/lib/re_pki.py" "$CI_
 cp "$CI_DIR"/config/{transport-profile.json,prometheus-web.lane.yml,prometheus-health.lane.yml,grafana-datasources.lane.yml} "$OPT/ci/config/"
 mkdir -p "$OPT/ci/mcp/src" && cp "$CI_DIR/mcp/src/lane-tls.js" "$OPT/ci/mcp/src/"
 cp "$CI_DIR/scripts/bridge-metrics-exporter.mjs" "$OPT/ci/scripts/"
+# realityengine sandbox (#605): CI's sandbox code and its imports.
+cp "$CI_DIR/scripts/sandbox.py" "$OPT/ci/scripts/"
+cp "$CI_DIR"/scripts/lib/{jcs.py,kline_archive.py,kline_restart.py,re_tls.py} "$OPT/ci/scripts/lib/"
 cp "$CI_DIR"/config/{integrations.example.json,loki-config.yml,grafana-datasources.yml,grafana-dashboards.yml} "$OPT/ci/config/"
 cp -R "$CI_DIR/config/dashboards" "$OPT/ci/config/dashboards"
 # localAssetStorageStack's files (the init image's `assets` build context).
@@ -312,6 +315,51 @@ reinit configure --install "$INSTALL" --engines cpp:2,lsp:1,scala:1 --version de
 [ ! -f "$INSTALL/compose.tls.yml" ]; assert_eq "$?" 0 "turning TLS off removes the overlay"
 reinit configure --install "$TMP/fresh-tls" --engines cpp:1 --version dev --skip-openclaw --tls on
 assert_eq "$RC" 0 "a fresh install configures with --tls on"
+
+echo "realityengine sandbox (#605): prepare a replica of cpp-1"
+TLSI="$TMP/fresh-tls"
+SRC_UUID="$(json "$TLSI/registry/re-registry.internal.json" "d['instances'][0]['instance_uuid']")"
+# A sealed re-kline-bundle/1 from cpp-1: one abandoned K-line.
+bundle() { # file source-uuid
+  python3 - "$1" "$2" <<'PY'
+import hashlib, json, sys
+rec = json.dumps({"format": "re-kline/1", "id": "k1", "outcome": "abandoned", "focal": {"machine": "M", "sequence": "s"},
+                  "open": {"step": 1}, "scope": ["M"], "activeBefore": [], "pairs": [], "difference": {"cell": 3}})
+body = rec + "\n"
+head = {"format": "re-kline-bundle/1", "source": {"instance": sys.argv[2]}, "count": 1,
+        "corpus": {"algorithm": "sha256/resident-declared-v1", "fingerprint": "f" * 64},
+        "controls": {"klineCapture": True}, "sha256": hashlib.sha256(body.encode()).hexdigest()}
+open(sys.argv[1], "w").write(json.dumps(head) + "\n" + body)
+PY
+}
+mkdir -p "$TLSI/state/sandbox/incoming"
+bundle "$TLSI/state/sandbox/incoming/b.jsonl" "$SRC_UUID"
+REINIT_INSTALL="$TLSI" reinit sandbox-prepare --from cpp-1 --bundle "$TLSI/state/sandbox/incoming/b.jsonl" --name t1
+assert_eq "$RC" 0 "sandbox-prepare accepts cpp-1's own bundle"
+assert_contains "$OUT" "NAME=t1" "and prints the replica's name for the CLI"
+SB="$TLSI/state/sandbox/t1"
+RENV="$(cat "$SB/replica.env" 2>/dev/null)"
+REPLICA="$(sed -n 's/^INSTANCE_UUID=//p' "$SB/replica.env" 2>/dev/null)"
+[ -n "$REPLICA" ] && [ "$REPLICA" != "$SRC_UUID" ]; assert_eq "$?" 0 "the replica has a UUID of its own, never cpp-1's"
+assert_contains "$(cat "$TLSI/state/instance-uuids.json")" "sandbox/t1/cpp-1" "allocated in the sandbox lane"
+assert_contains "$RENV" "RE_KLINE_CAPTURE=1" "it captures K-lines"
+assert_contains "$RENV" "RE_TLS_CERT=/run/re-tls/instance/chain.pem" "and serves TLS with its own certificate"
+assert_contains "$RENV" "MACHINES_DIR=/app/corpus/machines" "it boots the install's corpus"
+assert_eq "$(grep -c 'QDRANT_URL\|ACP_\|OPENCLAW_\|LOCAL_AI\|OLLAMA\|HEALTHKIT\|MQTT' "$SB/replica.env")" 0 "and is wired to no provider"
+assert_eq "$(grep -c '\${' "$SB/replica.env" "$SB/replica.args" | awk -F: '{s+=$2} END {print s}')" 0 "every compose variable is resolved"
+assert_eq "$(head -1 "$SB/replica.args")" "/app/bin/reality_engine_server" "it runs the runtime's own RE command"
+assert_eq "$(sed -n 's/^IMAGE=//p' "$SB/replica.launch")" "$(sed -n 's/^RE_IMAGE_CPP=//p' "$TLSI/.env")" "from the instance's own image"
+[ -f "$TLSI/pki/issued/sandbox-t1/chain.pem" ]; assert_eq "$?" 0 "its certificate is issued from the install's CA"
+assert_contains "$(openssl x509 -in "$TLSI/pki/issued/sandbox-t1/cert.pem" -noout -ext subjectAltName 2>/dev/null)" "sandbox-t1" "naming the replica's container"
+bundle "$TLSI/state/sandbox/incoming/other.jsonl" "01a2aaaa-0000-7000-8000-00000000dead"
+REINIT_INSTALL="$TLSI" reinit sandbox-prepare --from cpp-1 --bundle "$TLSI/state/sandbox/incoming/other.jsonl" --name t2
+assert_eq "$RC" 1 "a bundle from another instance is refused"
+assert_contains "$OUT" "not cpp-1" "naming the instance"
+REINIT_INSTALL="$TLSI" reinit sandbox-prepare --from cpp-1 --bundle "$TLSI/state/sandbox/incoming/b.jsonl" --name "../x"
+assert_eq "$RC" 1 "a replica name is never a path"
+REINIT_INSTALL="$INSTALL" reinit sandbox-prepare --from cpp-1 --bundle "$TLSI/state/sandbox/incoming/b.jsonl" --name t3
+assert_eq "$RC" 1 "an install with TLS off has no replicas"
+assert_contains "$OUT" "TLS only" "and says why"
 
 echo "$PASS passed, $FAIL failed"
 [ "$FAIL" -eq 0 ]

@@ -3157,7 +3157,7 @@ apply the same rule to every critical event sequence: C++
 `RealityEvent::transition`, Lisp `transition-vector` and Scala
 `RealityEvent.transition`.
 
-- Every **initial** event is always active. A sequence may have more than one.
+- The **initial** event is always active.
 - A **non-initial** event that fails to match is cleared, together with its
   predecessor chain.
 - An **intermediate** event (no `outputEvents`) that matches activates its
@@ -3167,17 +3167,13 @@ apply the same rule to every critical event sequence: C++
   **stays active**. It keeps asserting for as long as it keeps matching.
 - A successor is activated only if it is not already active. The path that
   reaches an event first holds it.
-- Every asserted output carries the provenance chain, from the initial event the
-  path departed from to the one that fired.
+- Every asserted output carries the provenance chain, from the initial event to
+  the one that fired.
 
-**Every critical event sequence is a regular expression** over Reality Events
-(owner, 2026-11-27). Its events are linked by their next-active lists, and the
-sequence is closed: no entry references an event in another sequence, of the
-same or another machine. Alternation may sit anywhere, so a sequence may have
-**several initial events**, as R = (a+b)c has two, and **several final
-events**, as R = a(b+c) has two. A runtime, harness or verifier must not assume
-one of each. The longest path from an initial to a final event, measured on
-2026-10-24, is 7 events in the full corpus and 6 in the regression corpus.
+Measured on the corpus (2026-10-24), every one of the 5,075 sequences has
+exactly one initial event and exactly one event without successors. The
+longest path from initial to final is 7 events in the full corpus, and 6 in the
+regression corpus.
 
 #### The K-line is the episode
 
@@ -3187,7 +3183,7 @@ ones that took the path.
 
 | boundary | when | at step |
 |---|---|---|
-| **open** (departure) | an initial event matches and at least one successor is activated | `m` |
+| **open** (departure) | the initial event matches and at least one successor is activated | `m` |
 | **milestone** | an intermediate event on the path that also declares `outputEvents` matches. Its outputs are recorded on the K-line, and the episode continues | inside `m..n` |
 | **close: `completed`** | the path's final event matches **for the first time** | `n` |
 | **close: `abandoned`** | the path's active event fails to match before the final event fires | `n`, the step that failed |
@@ -3225,8 +3221,8 @@ a successor, `dc-net-esc-elevated → [dc-net-esc-elevated, dc-net-esc-burst]`),
 fork into two successors and 4 events have two predecessors (all 8 in
 `KleeneStar`). **A departure is one K-line, and a K-line holds a set of events.**
 
-- **Held events.** At open, the K-line holds every successor the departing
-  initial event activated. At each later step, for each event it holds, in event id order:
+- **Held events.** At open, the K-line holds every successor the initial event
+  activated. At each later step, for each event it holds, in event id order:
   - it **matches and is intermediate**: it is cleared, and each successor it
     activates is held from the next step. A dwell re-activates the event
     itself, so it stays held and the path records it again. Each match is a
@@ -3755,8 +3751,10 @@ its own: `scripts/sandbox.py` (`export`, `up`, `replay`, `down`) and
 - **`causedBy`.** The engines' K-line records have no `causedBy` field. The link
   from a replica's K-lines to the imported one they re-establish is kept in the
   replica's `experiments.jsonl`, one entry per experiment.
-- **Not built:** the release command `realityengine sandbox`, a containerized
-  replica on a release install (RealityEngine_CI#898, release-v0.0.3).
+- **On a release install**, `realityengine sandbox export|up|replay|down|list`
+  does the same through the `re-init` image, which carries `scripts/sandbox.py`.
+  The replica is a container from the instance's own image, on a network of
+  its own, with a certificate from the install's CA. TLS installs only.
 
 ### The snapshot body
 

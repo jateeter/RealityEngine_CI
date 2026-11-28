@@ -137,23 +137,112 @@ def cmd_export(args: argparse.Namespace) -> int:
 
 
 # ── up ───────────────────────────────────────────────────────────────────────
+# A replica comes up in three steps, so the native lane (a process, here) and a
+# release install (a container, realityengine sandbox through re-init) share
+# everything but the launch: prepare (checks, a state directory, a sandbox UUID),
+# the caller's launch, then admit (the same corpus or refused, the bundle's
+# controls, the bundle imported read-only, a sandbox registry, replica.json).
 
-def cmd_up(args: argparse.Namespace) -> int:
+def prepare(registry: str, source_id: str, bundle: Path, name: str | None) -> dict:
+    """Checks made before anything starts; the replica's state directory and UUID."""
     if os.environ.get("RE_TLS", "off") != "on":
         raise SystemExit("a replica runs on the TLS lane only (RE_TLS=on); it is never plaintext")
-    import re_tls  # noqa: E402
-    re_tls.install_lane_opener()
-    source = instance_of(load_registry(args.registry), args.source)
-    header, records = read_bundle(Path(args.bundle))
+    source = instance_of(load_registry(registry), source_id)
+    header, records = read_bundle(bundle)
     src_uuid = str(header["source"]["instance"]).lower()
     if src_uuid != str(source.get("instance_uuid", "")).lower():
-        raise SystemExit(f"the bundle came from {src_uuid}, not {args.source} ({source.get('instance_uuid')})")
-    runtime = source["runtime"]
-    name = args.name or f"{args.source}-{header['sha256'][:8]}"
+        raise SystemExit(f"the bundle came from {src_uuid}, not {source_id} ({source.get('instance_uuid')})")
+    name = name or f"{source_id}-{header['sha256'][:8]}"
+    if not all(c.isalnum() or c in "-_." for c in name):
+        raise SystemExit(f"a replica name is letters, digits, '-', '_' and '.' only: {name!r}")
     state = state_of(name)
     if (state / "replica.json").exists():
-        raise SystemExit(f"replica {name} exists ({state}); `sandbox.py down --name {name}` first, or name another")
+        raise SystemExit(f"replica {name} exists ({state}); stop it first (down --name {name}), or name another")
     state.mkdir(parents=True, exist_ok=True)
+    replica = instance_uuids.allocate("sandbox", f"{name}/{source_id}", os.getpid())
+    return {"name": name, "state": state, "runtime": source["runtime"], "source": source, "sourceId": source_id,
+            "sourceUuid": src_uuid, "header": header, "records": len(records), "replica": replica}
+
+
+def wait_up(url: str, alive: Any, seconds: int) -> bool:
+    """True once URL answers /api/engine/clock; False if ALIVE() turns false or time runs out."""
+    deadline = time.time() + seconds
+    while time.time() < deadline and alive():
+        if http("GET", f"{url}/api/engine/clock")[0] == 200:
+            return True
+        time.sleep(2)
+    return http("GET", f"{url}/api/engine/clock")[0] == 200
+
+
+def admit(plan: dict, url: str, bundle: Path, extra: dict) -> dict:
+    """The replica answers at URL: refuse it on another corpus, else seed it and record it.
+
+    Raises SystemExit on a refusal; the caller stops what it launched and calls discard(plan).
+    """
+    header, state, replica = plan["header"], plan["state"], plan["replica"]
+    # The same corpus, or nothing: the replica's own fingerprint, from an empty export. An
+    # engine computes it with its first step, so the replica commits one empty input first;
+    # every replay restores the state it needs, so that step leaves nothing behind.
+    width = int(http("GET", f"{url}/api/config")[1]["eventDimension"])
+    http("POST", f"{url}/api/perceive", {"vector": [0.0] * width, "compact": True})
+    probe = request.Request(f"{url}/api/klines/export", method="POST", data=json.dumps({"since": 10 ** 15}).encode(),
+                            headers={"content-type": "application/json"})
+    with request.urlopen(probe, timeout=60) as r:
+        mine_fp = json.loads(r.read().decode("utf-8").split("\n", 1)[0])["corpus"]["fingerprint"]
+    if mine_fp != header["corpus"]["fingerprint"]:
+        raise SystemExit(f"corpus mismatch: the bundle was captured on {header['corpus']['fingerprint']}, "
+                         f"the replica holds {mine_fp}")
+    # The bundle's controls; capture stays on, so the replica records what it does.
+    for control, value in (header.get("controls") or {}).items():
+        if control != "klineCapture":
+            http("PUT", f"{url}/api/engine/config/{control}", {"value": value})
+    # The bundle, read-only context beside the replica's own store.
+    imported = state / "klines" / replica / "imported" / plan["sourceUuid"]
+    imported.mkdir(parents=True, exist_ok=True)
+    target = imported / f"bundle-{header['sha256'][:8]}.jsonl"
+    shutil.copyfile(bundle, target)
+    os.chmod(target, 0o444)
+    # Its own instance registry, a sandbox one.
+    entry = {"id": f"sandbox-{plan['name']}", "runtime": plan["runtime"], "re_url": url, "pe_url": None,
+             "status": "running", "instance_uuid": replica, "lane": "sandbox",
+             "replicaOf": {"id": plan["sourceId"], "instance_uuid": plan["sourceUuid"]}}
+    if extra.get("hostUrl"):
+        entry["host_re_url"] = extra["hostUrl"]
+    (state / "registry.json").write_text(json.dumps({"host": "127.0.0.1", "services": {}, "instances": [entry]},
+                                                    indent=2) + "\n")
+    check = subprocess.run([sys.executable, str(LIB / "instance_uuids.py"), "check-registry",
+                            str(state / "registry.json"), "--sandbox"], capture_output=True, text=True)
+    if check.returncode != 0:
+        raise SystemExit(f"the replica's registry failed check-registry --sandbox: {check.stderr.strip()}")
+    meta = {"name": plan["name"], "runtime": plan["runtime"], "url": url, "replica": replica,
+            "source": {"id": plan["sourceId"], "instance_uuid": plan["sourceUuid"]}, "bundle": str(target),
+            "bundleSha256": header["sha256"], "fingerprint": mine_fp, "records": plan["records"], **extra}
+    (state / "replica.json").write_text(json.dumps(meta, indent=2) + "\n")
+    return meta
+
+
+def discard(plan: dict) -> None:
+    """After a refusal: nothing of the replica's store is kept."""
+    shutil.rmtree(plan["state"] / "klines", ignore_errors=True)
+
+
+def mark_stopped(name: str) -> Path:
+    """The replica is gone: its registry says so and replica.json becomes replica.stopped.json."""
+    state = state_of(name)
+    registry = state / "registry.json"
+    if registry.exists():
+        doc = json.loads(registry.read_text())
+        for i in doc.get("instances", []):
+            i["status"] = "stopped"
+        registry.write_text(json.dumps(doc, indent=2) + "\n")
+    (state / "replica.json").rename(state / "replica.stopped.json")
+    return state
+
+
+def cmd_up(args: argparse.Namespace) -> int:
+    import re_tls  # noqa: E402
+    re_tls.install_lane_opener()
+    runtime = instance_of(load_registry(args.registry), args.source)["runtime"]
     repo = Path(args.repo) if args.repo else CI.parent / {"cpp": "RealityEngine_CPP", "lsp": "RealityEngine_LSP",
                                                           "scala": "RealityEngine_Scala"}[runtime]
     # No replica of a stale artifact (scripts/verify-build-provenance.py, as startUniverse.sh
@@ -163,13 +252,12 @@ def cmd_up(args: argparse.Namespace) -> int:
         gate = subprocess.run([sys.executable, str(CI / "scripts" / "verify-build-provenance.py"), "--repos", runtime,
                                "--lane", os.environ.get("RE_PROVENANCE_LANE", "local")])
         if gate.returncode != 0:
-            shutil.rmtree(state, ignore_errors=True)
             raise SystemExit(f"engine build provenance failed for {repo}: rebuild it, pass --repo, "
                              "or set RE_SKIP_PROVENANCE=1 to override deliberately")
-    replica = instance_uuids.allocate("sandbox", f"{name}/{args.source}", os.getpid())
-    _, cfg = http("GET", f"{source['re_url'].rstrip('/')}/api/config")
+    plan = prepare(args.registry, args.source, Path(args.bundle), args.name)
+    state, replica, name = plan["state"], plan["replica"], plan["name"]
+    _, cfg = http("GET", f"{plan['source']['re_url'].rstrip('/')}/api/config")
     dimension = int((cfg or {}).get("eventDimension") or 7680)
-
     cert_name = f"sandbox-{name}"
     kline_restart.pki("issue", cert_name, "--kind", "both", "--dns", "localhost", "--ip", "127.0.0.1",
                       "--instance-uuid", replica)
@@ -188,54 +276,15 @@ def cmd_up(args: argparse.Namespace) -> int:
     proc = subprocess.Popen(kline_restart.launch(runtime, repo, port, args.corpus, dimension), env=env, cwd=repo,
                             stdout=log, stderr=subprocess.STDOUT, start_new_session=True)
     url = f"https://127.0.0.1:{port}"
-    deadline = time.time() + kline_restart.BOOT_SECONDS
-    while time.time() < deadline and proc.poll() is None and http("GET", f"{url}/api/engine/clock")[0] != 200:
-        time.sleep(2)
-    if proc.poll() is not None or http("GET", f"{url}/api/engine/clock")[0] != 200:
+    if not wait_up(url, lambda: proc.poll() is None, kline_restart.BOOT_SECONDS):
         stop(proc.pid)
         raise SystemExit(f"the replica did not come up; see {state / 'replica.log'}")
-
-    def refuse(message: str) -> int:
+    try:
+        meta = admit(plan, url, Path(args.bundle), {"pid": proc.pid, "corpus": args.corpus, "certificate": cert_name})
+    except SystemExit:
         stop(proc.pid)
-        shutil.rmtree(state / "klines", ignore_errors=True)
-        raise SystemExit(message)
-
-    # The same corpus, or nothing: the replica's own fingerprint, from an empty export. An
-    # engine computes it with its first step, so the replica commits one empty input first;
-    # every replay restores the state it needs, so that step leaves nothing behind.
-    width = int(http("GET", f"{url}/api/config")[1]["eventDimension"])
-    http("POST", f"{url}/api/perceive", {"vector": [0.0] * width, "compact": True})
-    probe = request.Request(f"{url}/api/klines/export", method="POST", data=json.dumps({"since": 10 ** 15}).encode(),
-                            headers={"content-type": "application/json"})
-    with request.urlopen(probe, timeout=60) as r:
-        mine_fp = json.loads(r.read().decode("utf-8").split("\n", 1)[0])["corpus"]["fingerprint"]
-    if mine_fp != header["corpus"]["fingerprint"]:
-        refuse(f"corpus mismatch: the bundle was captured on {header['corpus']['fingerprint']}, "
-               f"the replica holds {mine_fp}")
-    # The bundle's controls; capture stays on, so the replica records what it does.
-    for control, value in (header.get("controls") or {}).items():
-        if control != "klineCapture":
-            http("PUT", f"{url}/api/engine/config/{control}", {"value": value})
-    # The bundle, read-only context beside the replica's own store.
-    imported = state / "klines" / replica / "imported" / src_uuid
-    imported.mkdir(parents=True, exist_ok=True)
-    target = imported / f"bundle-{header['sha256'][:8]}.jsonl"
-    shutil.copyfile(args.bundle, target)
-    os.chmod(target, 0o444)
-    # Its own instance registry, a sandbox one.
-    registry = {"host": "127.0.0.1", "services": {}, "instances": [{
-        "id": f"sandbox-{name}", "runtime": runtime, "re_url": url, "pe_url": None, "status": "running",
-        "instance_uuid": replica, "lane": "sandbox", "replicaOf": {"id": args.source, "instance_uuid": src_uuid}}]}
-    (state / "registry.json").write_text(json.dumps(registry, indent=2) + "\n")
-    check = subprocess.run([sys.executable, str(LIB / "instance_uuids.py"), "check-registry",
-                            str(state / "registry.json"), "--sandbox"], capture_output=True, text=True)
-    if check.returncode != 0:
-        refuse(f"the replica's registry failed check-registry --sandbox: {check.stderr.strip()}")
-    meta = {"name": name, "runtime": runtime, "url": url, "pid": proc.pid, "replica": replica,
-            "source": {"id": args.source, "instance_uuid": src_uuid}, "bundle": str(target),
-            "bundleSha256": header["sha256"], "corpus": args.corpus, "certificate": cert_name,
-            "fingerprint": mine_fp, "records": len(records)}
-    (state / "replica.json").write_text(json.dumps(meta, indent=2) + "\n")
+        discard(plan)
+        raise
     print(json.dumps({k: meta[k] for k in ("name", "runtime", "url", "replica", "source", "records")}))
     return 0
 
@@ -252,19 +301,11 @@ def stop(pid: int) -> None:
 
 
 def cmd_down(args: argparse.Namespace) -> int:
-    state = state_of(args.name)
-    meta_file = state / "replica.json"
+    meta_file = state_of(args.name) / "replica.json"
     if not meta_file.exists():
         raise SystemExit(f"no replica {args.name}")
-    meta = json.loads(meta_file.read_text())
-    stop(meta["pid"])
-    registry = state / "registry.json"
-    if registry.exists():
-        doc = json.loads(registry.read_text())
-        for i in doc.get("instances", []):
-            i["status"] = "stopped"
-        registry.write_text(json.dumps(doc, indent=2) + "\n")
-    meta_file.rename(state / "replica.stopped.json")
+    stop(json.loads(meta_file.read_text())["pid"])
+    state = mark_stopped(args.name)
     print(json.dumps({"stopped": args.name, "results": str(state)}))
     return 0
 

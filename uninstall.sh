@@ -111,7 +111,7 @@ if command -v docker >/dev/null 2>&1; then
   fi
   docker info >/dev/null 2>&1 && DOCKER=true
 fi
-containers=""; volumes=""; networks=""; sandboxes=""; images=""
+containers=""; volumes=""; networks=""; sandboxes=""; replicas=""; images=""
 if $DOCKER; then
   containers="$(docker ps -aq --filter "label=com.docker.compose.project=$PROJECT" 2>/dev/null || true)"
   # By name and label: <project>_* whose compose project is this one, or which
@@ -130,6 +130,12 @@ if $DOCKER; then
     case "$(docker network inspect -f '{{index .Labels "com.docker.compose.project"}}' "$v" 2>/dev/null)" in
       "$PROJECT"|"") networks="$networks $v" ;;
     esac
+  done
+  # Near-miss replicas (`realityengine sandbox`, #605): a container and a network
+  # each, labelled with the install's project, outside the compose project.
+  replicas="$(docker ps -aq --filter "label=org.realityengine.sandbox.project=$PROJECT" 2>/dev/null || true)"
+  for v in $(docker network ls -q --filter "label=org.realityengine.sandbox.project=$PROJECT" 2>/dev/null || true); do
+    networks="$networks $v"
   done
   # The agents' sandboxes, by the install's OpenClaw home among their mounts.
   for c in $(docker ps -aq --filter name=openclaw-sbx 2>/dev/null); do
@@ -171,6 +177,7 @@ found=0
 [ -n "$volumes" ]    && { item "$(count "$(printf '%s\n' $volumes)") volume(s), with the install's data: $(printf '%s ' $volumes)"; found=1; }
 [ -n "$networks" ]   && { item "network(s): $(printf '%s ' $networks)"; found=1; }
 [ -n "$sandboxes" ]  && { item "$(count "$(printf '%s\n' $sandboxes)") OpenClaw sandbox container(s)"; found=1; }
+[ -n "$replicas" ]   && { item "$(count "$replicas") sandbox replica container(s)"; found=1; }
 $gateway             && { item "the OpenClaw gateway LaunchAgent ($GATEWAY_LABEL)"; found=1; }
 [ -n "$dir_entries" ] && { item "the install directory $RE_DIR:$dir_entries"; found=1; }
 [ -n "$cas" ]        && { item "$(count "$cas") \"$CA_NAME\" certificate(s) in the login keychain"; found=1; }
@@ -225,11 +232,12 @@ if launchctl print "gui/$(id -u)/$FRONT_LABEL" >/dev/null 2>&1 || [ -f "$HOME/Li
   ok "Ollama's TLS front stopped and its LaunchAgent removed"
 fi
 
-if $DOCKER && [ -n "$containers$volumes$networks$sandboxes" ]; then
+if $DOCKER && [ -n "$containers$volumes$networks$sandboxes$replicas" ]; then
   step "Containers and data ($PROJECT)"
   # shellcheck disable=SC2086  # the ids and names, split on purpose
   {
     [ -n "$sandboxes" ]  && quiet docker rm -f $sandboxes
+    [ -n "$replicas" ]   && quiet docker rm -f $replicas
     [ -n "$containers" ] && quiet docker rm -f $containers
     [ -n "$networks" ]   && quiet docker network rm $networks
     [ -n "$volumes" ]    && quiet docker volume rm $volumes
