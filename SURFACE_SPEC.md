@@ -3752,7 +3752,7 @@ its own: `scripts/sandbox.py` (`export`, `up`, `replay`, `down`) and
   from a replica's K-lines to the imported one they re-establish is kept in the
   replica's `experiments.jsonl`, one entry per experiment.
 - **Not built:** the release command `realityengine sandbox`, a containerized
-  replica on a release install (follow-up for release-v0.0.3).
+  replica on a release install (RealityEngine_CI#898, release-v0.0.3).
 
 ### The snapshot body
 
