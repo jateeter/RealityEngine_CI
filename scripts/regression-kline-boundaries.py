@@ -22,6 +22,14 @@ and `isreCapture` (PE, /api/config) turned on for the stage and restored after:
              closes what the checkpoint holds `interrupted` (`reason:
              "shutdown"`), as a boot does (SURFACE_SPEC "Controls"); an off
              capture leaves the store untouched;
+  restart    while capture is off, a fresh RE of each runtime is spawned on the
+             same corpus with a copy of its voter's store (a half-written record
+             planted at its end), so the store is applied at a real boot: every
+             stored K-line survives unchanged, every checkpointed one closes
+             interrupted/shutdown, the half record is truncated, and the three
+             spawned engines recover the same K-lines (lib/kline_restart.py).
+             The voters are never restarted; each fresh engine takes a sandbox
+             UUID and is brought down after (owner, 2026-11-27);
   schema     every record validates against re-kline/1 and
              re-isre-composition/1 (RealityEngine_Machines schemas/, with its
              ajv), when --machines names a checkout that has them installed;
@@ -69,13 +77,13 @@ re_tls.install_lane_opener()  # the lane CA and harness certificate when RE_TLS=
 from followers import voters  # noqa: E402
 from reset_contract import reset_pair  # noqa: E402
 from step_observer import DEFAULT_WINDOW_MS, StepNotResolved, StepNotRetained, StepObserver  # noqa: E402
+import kline_restart  # noqa: E402
 
 VOTERS = ("cpp", "lsp", "scala")
 TAXONOMY = "re-source-kinds/2"
 STRIPPED = ("id", "instance", "lamport", "commit", "kline", "subsumedBy")
 NOT_EVALUATED = [
-    "self-verification replay: no route restores a K-line's activeBefore yet (RealityEngine_Machines#222)",
-    "process restart: recovery is checked through the capture toggle, which takes the boot's path",
+    "self-verification replay: no route restores a K-line's activeBefore yet; it is the snapshot restore (#287)",
 ]
 VALIDATOR = r"""
 import { readFileSync, readdirSync } from "node:fs";
@@ -346,8 +354,33 @@ def quiesce(voters_: list[Voter], limit_s: float) -> dict:
         time.sleep(min(5.0, max(0.25, latest / 1000 - time.time() + 0.25)))
 
 
+def restart_checks(voters_: list[Voter], restart: dict | None, report: dict) -> None:
+    """The fresh-engine restart check per runtime, then the recovered K-lines 3-of-3."""
+    if not restart:
+        report["restartNotEvaluated"] = ["restart: no --repo for the runtimes"]
+        return
+    results = {}
+    for v in voters_:
+        repo = restart["repos"].get(v.runtime)
+        if repo is None:
+            results[v.runtime] = {"notEvaluable": f"no --repo {v.runtime}=..."}
+            continue
+        results[v.runtime] = kline_restart.check(v.runtime, repo, {"re_url": v.re}, restart["store"],
+                                                 restart["machines"], lambda url: http("GET", url), restart["logs"])
+        for f in results[v.runtime].get("failures", []):
+            v.check(False, f"restart: {f}")
+    report["restart"] = results
+    skipped = [f"{rt}: {r['notEvaluable']}" for rt, r in results.items() if r.get("notEvaluable")]
+    if skipped:
+        report["restartNotEvaluated"] = [f"restart: {s}" for s in skipped]
+    keys = {rt: [r.get("recoveredKeys"), r.get("sustainEnded")] for rt, r in results.items() if "recoveredKeys" in r}
+    if len(keys) == len(voters_) and len({json.dumps(k) for k in keys.values()}) != 1:
+        voters_[0].check(False, "restart: the fresh engines recovered different K-lines "
+                                + json.dumps({rt: len(k) for rt, k in keys.items()}))
+
+
 def run(voters_: list[Voter], steps: int, machines: Path | None, corpus: dict[str, dict] | None,
-        quiesce_s: float = 120.0) -> dict:
+        quiesce_s: float = 120.0, restart: dict | None = None) -> dict:
     report: dict[str, Any] = {"runtimes": {}, "corpusMachines": len(corpus) if corpus is not None else None}
     for v in voters_:
         v.capture(True)
@@ -375,6 +408,9 @@ def run(voters_: list[Voter], steps: int, machines: Path | None, corpus: dict[st
         v.observer.last_step = None
     for v in voters_:
         v.check(len(v.klines(since[v.id])) == stored_off[v.id], "capture off still wrote K-lines")
+    # With capture off every store is quiet: apply each to a fresh engine's boot.
+    restart_checks(voters_, restart, report)
+    for v in voters_:
         status, _ = http("PUT", f"{v.re}/api/engine/config/klineCapture", {"value": True})
         v.check(status == 200, f"PUT klineCapture true -> {status}")
 
@@ -453,6 +489,10 @@ def main() -> int:
     parser.add_argument("--machines", type=Path, help="a RealityEngine_Machines checkout with node_modules (schemas)")
     parser.add_argument("--corpus", type=Path, action="append",
                         help="a machines/ directory the universe loaded from; repeat for each root")
+    parser.add_argument("--repo", action="append", default=[], metavar="RUNTIME=DIR",
+                        help="a voter's repository, for the fresh-engine restart check (cpp=..., lsp=..., scala=...)")
+    parser.add_argument("--kline-store", type=Path,
+                        help="the voters' K-line store parent (default: beside the instance clock directory)")
     parser.add_argument("--sensor-quiesce-s", type=float, default=120.0,
                         help="how long to wait for live sensor values to lapse before the drive")
     parser.add_argument("--step-window-ms", type=int, default=DEFAULT_WINDOW_MS)
@@ -480,7 +520,13 @@ def main() -> int:
         corpus = load_corpus(args.corpus)
         if corpus is None:
             report["notEvaluated"] = NOT_EVALUATED + ["corpus: no --corpus directory"]
-        report.update(run(vs, args.steps, args.machines, corpus, args.sensor_quiesce_s))
+        restart = None
+        if args.repo:
+            store = args.kline_store or Path(kline_restart.instance_uuids.clock_dir()).parent / "klines"
+            restart = {"repos": {k: Path(v) for k, v in (r.split("=", 1) for r in args.repo)}, "store": store,
+                       "machines": str(args.corpus[0]) if args.corpus else "", "logs": args.out.parent}
+        report.update(run(vs, args.steps, args.machines, corpus, args.sensor_quiesce_s, restart))
+        report["notEvaluated"] = report.get("notEvaluated", NOT_EVALUATED) + report.pop("restartNotEvaluated", [])
     finally:
         for v in vs:
             v.restore()

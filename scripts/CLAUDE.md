@@ -328,8 +328,19 @@ checks both halves of a K-line on every voter, 3-of-3 (#603):
   report counts those (`checkedAgainstRegistration`).
 - **Diagnosis:** a split names its first differing records and paths
   (`firstRecords`, `firstCompositions`).
-- **Not evaluated:** the self-verification replay (no route restores
-  `activeBefore` yet) and a process restart (the toggle takes the boot's path).
+- **Restart** (`lib/kline_restart.py`; owner, 2026-11-27): the voters are never
+  restarted. While capture is off, each runtime gets a fresh RE on the same corpus
+  with a copy of its voter's store, plus a half-written record planted at the end of
+  the last segment, so the store is applied at a real boot. Every stored K-line must
+  survive, changed only by a sustain the restart ended (`sustain.ended`); every
+  checkpointed K-line closes `interrupted/shutdown`; the half record is truncated;
+  and the three fresh engines recover the same K-lines. Each fresh engine takes a
+  `sandbox` UUID, a certificate from the lane PKI and a scratch store, and is
+  stopped and removed afterwards. TLS lane only: with `RE_TLS` off it is "not
+  evaluable", never plaintext. Launch follows each repo's `start.sh`; the harness
+  passes `--repo cpp=… lsp=… scala=…`.
+- **Not evaluated:** the self-verification replay. No route restores
+  `activeBefore` yet; that is the snapshot restore (#287).
 - Measured on main builds, 2026-11-27: 2,935 K-lines and 151 compositions per
   voter, 0 differences, in 43 s.
 

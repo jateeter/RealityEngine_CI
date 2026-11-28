@@ -2174,6 +2174,9 @@ run_kline_boundaries() {
     --machines "$machines" \
     --corpus "$(active_machines_dir)" \
     --corpus "$(repo_root localAIStack)/data/machines" \
+    --repo "cpp=$(repo_root RealityEngine_CPP)" \
+    --repo "lsp=$(repo_root RealityEngine_LSP)" \
+    --repo "scala=$(repo_root RealityEngine_Scala)" \
     --out "$REPORT_DIR/kline-boundaries.json"
 }
 
