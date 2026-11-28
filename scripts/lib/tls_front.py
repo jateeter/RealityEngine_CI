@@ -15,9 +15,15 @@ the observability containers:
   the Go listener against the lane CA, its address and the CRL. The upstream
   must be a loopback address. Nothing is plaintext on either hop.
 
+The public side may listen on any address: loopback, a host address, or every
+interface (0.0.0.0), because it is the profile-compliant listener a peer reaches,
+on the lane where the peer is, such as localAI's containers at the host's LAN
+address (#892). Only the upstream, the Go listener whose TLS 1.3 suites cannot be
+restricted, has to stay on loopback.
+
 It relays bytes, not HTTP, so streams pass through as they are produced.
 
-    tls_front.py --listen 127.0.0.1:PORT --upstream 127.0.0.1:PORT [--pid-file PATH]
+    tls_front.py --listen HOST:PORT --upstream 127.0.0.1:PORT [--pid-file PATH]
 
 Material comes from the runtime contract, all of RE_TLS_CERT, RE_TLS_KEY and
 RE_TLS_CA required and RE_TLS_CRL checked when set: the front has no
@@ -96,16 +102,27 @@ def upstream_context(m: dict[str, str | None]) -> ssl.SSLContext:
     return ctx
 
 
-def loopback(spec: str) -> tuple[str, int]:
+def address(spec: str) -> tuple[str, int]:
+    """host:port for the public side: any IP address, or localhost."""
     host, sep, port = spec.rpartition(":")
     if not sep or not port.isdigit():
         raise FrontError(f"{spec!r} is not host:port")
     host = host.strip("[]")
     if host == "localhost":
         host = "127.0.0.1"
+    try:
+        ipaddress.ip_address(host)
+    except ValueError:
+        raise FrontError(f"{host!r} is not an IP address") from None
+    return host, int(port)
+
+
+def loopback(spec: str) -> tuple[str, int]:
+    """host:port for the upstream Go listener, which must stay on loopback."""
+    host, port = address(spec)
     if not ipaddress.ip_address(host).is_loopback:
         raise FrontError(f"{host} is not a loopback address; the Go listener stays on loopback")
-    return host, int(port)
+    return host, port
 
 
 async def _pipe(reader: asyncio.StreamReader, writer: asyncio.StreamWriter) -> None:
@@ -147,12 +164,12 @@ async def serve(listen: tuple[str, int], upstream: tuple[str, int], pid_file: st
 
 def main(argv: list[str] | None = None) -> int:
     ap = argparse.ArgumentParser(description=(__doc__ or "tls_front").splitlines()[0])
-    ap.add_argument("--listen", required=True, help="host:port to serve the profile on (loopback)")
+    ap.add_argument("--listen", required=True, help="host:port to serve the profile on (any address; 0.0.0.0 for every interface)")
     ap.add_argument("--upstream", required=True, help="the Go listener's host:port (loopback)")
     ap.add_argument("--pid-file")
     args = ap.parse_args(argv)
     try:
-        asyncio.run(serve(loopback(args.listen), loopback(args.upstream), args.pid_file))
+        asyncio.run(serve(address(args.listen), loopback(args.upstream), args.pid_file))
     except FrontError as exc:
         print(f"tls_front: {exc}", file=sys.stderr)
         return 1

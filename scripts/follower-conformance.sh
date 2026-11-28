@@ -227,7 +227,10 @@ if lane_tls_enabled && [ "$FRONTED" = true ]; then
   RE_LISTEN="$(free_port)"; PE_LISTEN="$(free_port)"
 fi
 front() {  # front PUBLIC UPSTREAM LOG: the profile on PUBLIC, relayed to UPSTREAM
-  env "${TLS_ENV[@]}" python3 "$LIB/tls_front.py" --listen "127.0.0.1:$1" --upstream "127.0.0.1:$2" > "$3" 2>&1 &
+  # The front serves every interface, as rust-1 does: localAI's containers reach
+  # the follower at HOST_IP, which its certificate names (#892). The Go listener
+  # behind it stays on loopback.
+  env "${TLS_ENV[@]}" python3 "$LIB/tls_front.py" --listen "0.0.0.0:$1" --upstream "127.0.0.1:$2" > "$3" 2>&1 &
   FRONT_PIDS+=("$!")
 }
 env ${TLS_ENV[@]+"${TLS_ENV[@]}"} INSTANCE_UUID="$UUID" INSTANCE_CLOCK_DIR="$CLOCK_DIR" INSTANCE_KLINE_DIR="$KLINE_DIR" MACHINES_DIR="$CORPUS" \

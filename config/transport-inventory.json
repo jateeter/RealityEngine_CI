@@ -837,9 +837,9 @@
       "issue": "RealityEngine_GO#6",
       "status": "tls",
       "mtls": true,
-      "note": "Go's crypto/tls cannot restrict a server's TLS 1.3 suites, so each Go RE/PE listener stays on the host's loopback and scripts/lib/tls_front.py serves its public port at the profile (RealityEngine_GO#6; the Loki/Prometheus/Grafana front pattern on a native host). The front offers only the profile's suites on this hop, so what is negotiated is within the profile.",
+      "note": "Go's crypto/tls cannot restrict a server's TLS 1.3 suites, so each Go RE/PE listener stays on the host's loopback and scripts/lib/tls_front.py serves its public port at the profile (RealityEngine_GO#6; the Loki/Prometheus/Grafana front pattern on a native host). The front offers only the profile's suites on this hop, so what is negotiated is within the profile. The front's public side serves every interface (0.0.0.0), as rust-1 does, so localAI's containers reach the follower at the host address its certificate names (RealityEngine_CI#892); the Go listener behind it stays on loopback.",
       "deficiency": {
-        "accepted": "owner, 2026-11-24 (RealityEngine_CI#853), on the terms of loki-front-to-loki",
+        "accepted": "owner, 2026-11-24 (RealityEngine_CI#853), on the terms of loki-front-to-loki; reaffirmed for release-v0.0.3 by the owner, 2026-11-27, after RealityEngine_CI#854 route 1 was ruled out: Go 1.27.3's crypto/tls still documents \"TLS 1.3 ciphersuites are not configurable\". The Go listener stays on loopback behind the front.",
         "what": "The Go RE/PE listener is Go: it also accepts TLS_AES_128_GCM_SHA256.",
         "compensation": "It listens on 127.0.0.1 only and requires a lane client certificate (mTLS) with the CRL checked; its front offers the profile's suites alone, verifies it against the lane CA and its address, and requires the lane client certificate of every caller.",
         "remedy": "RealityEngine_CI#854 (stretch for release-v0.0.3): TLS 1.3 suite configuration in Go, or a hop the front alone can reach; then the front is removed or the hop leaves the network.",

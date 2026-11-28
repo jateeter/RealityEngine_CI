@@ -134,6 +134,14 @@ def main() -> int:
     except tls_front.FrontError:
         check("an upstream off loopback is refused", True)
     check("localhost reads as 127.0.0.1", tls_front.loopback("localhost:1") == ("127.0.0.1", 1))
+    # The public side is reachable where the peer is (#892): any IP address.
+    check("the public side may listen on every interface", tls_front.address("0.0.0.0:8443") == ("0.0.0.0", 8443))
+    check("the public side may listen on a host address", tls_front.address("192.0.2.1:8443") == ("192.0.2.1", 8443))
+    try:
+        tls_front.address("not-an-address:8443")
+        check("a public side that is not an IP address is refused", False)
+    except tls_front.FrontError:
+        check("a public side that is not an IP address is refused", True)
     if not hasattr(ssl.SSLContext, "set_ciphersuites"):
         print("skip: this Python cannot set TLS 1.3 suites (needs 3.15+)")
         return 0 if not FAILURES else 1
