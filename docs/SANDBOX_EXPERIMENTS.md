@@ -119,4 +119,4 @@ each, 240 replica K-lines each, the sources unchanged, about 100 s.
 
 `realityengine sandbox`, the release-install equivalent: a containerized
 replica beside a release install, with a certificate from the install's CA.
-It is a follow-up for release-v0.0.3.
+It is RealityEngine_CI#898, for release-v0.0.3.
