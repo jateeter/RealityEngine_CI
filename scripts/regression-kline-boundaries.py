@@ -51,9 +51,9 @@ Across voters:
   composition  the same records by re.step, on sources (cells, kind, provider,
                class) and folds (source id removed).
 
-Not covered here, and reported as not evaluated: the self-verification replay
-(restore `activeBefore`, replay the pairs; no route restores an active list
-yet), and a process restart (the toggle above takes the same recovery path).
+Covered elsewhere: the self-verification replay (restore `activeBefore`, replay
+the pairs) is the `snapshots` stage (#287), and the replay of near-misses on a
+sandboxed replica is the `sandbox` stage (#605).
 
 Usage:
   regression-kline-boundaries.py --registry FILE --out REPORT [--steps N] [--machines DIR] [--corpus DIR]
@@ -82,9 +82,9 @@ import kline_restart  # noqa: E402
 VOTERS = ("cpp", "lsp", "scala")
 TAXONOMY = "re-source-kinds/2"
 STRIPPED = ("id", "instance", "lamport", "commit", "kline", "subsumedBy")
-NOT_EVALUATED = [
-    "self-verification replay: no route restores a K-line's activeBefore yet; it is the snapshot restore (#287)",
-]
+# The self-verification replay is the `snapshots` stage (#287); near-misses
+# replayed on a replica are the `sandbox` stage (#605).
+NOT_EVALUATED: list[str] = []
 VALIDATOR = r"""
 import { readFileSync, readdirSync } from "node:fs";
 import { createRequire } from "node:module";

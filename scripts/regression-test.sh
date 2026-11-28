@@ -2166,6 +2166,31 @@ run_clock_causality() {
     "${marks[@]}"
 }
 
+run_sandbox() {
+  step "Sandboxed replicas seeded from near-misses, 3-of-3 (#605)"
+  local ci; ci="$(repo_root RealityEngine_CI)"
+  # After kline-boundaries, which leaves each voter's store holding abandoned
+  # K-lines. Per voter: export its near-misses, boot a replica (a sandbox lane
+  # UUID, its own state and registry), replay a spread of them, stop it, and
+  # check the source's store and the instance registry are byte-identical.
+  # TLS lane only; the script reports not-evaluable without it.
+  case "$MACHINE_CORPUS" in
+    regression|extension|full) ;;
+    *)
+      write_skip_report "sandbox-skipped.json" \
+        "corpus '$MACHINE_CORPUS' is not a K-line corpus; run --machine-corpus=regression"
+      log "SKIP sandbox: corpus '$MACHINE_CORPUS'"
+      return 0 ;;
+  esac
+  run_cmd "sandbox" python3 "$ci/scripts/regression-sandbox.py" \
+    --registry "$REGISTRY_FILE" \
+    --corpus "$(active_machines_dir)" \
+    --repo "cpp=$(repo_root RealityEngine_CPP)" \
+    --repo "lsp=$(repo_root RealityEngine_LSP)" \
+    --repo "scala=$(repo_root RealityEngine_Scala)" \
+    --out "$REPORT_DIR/sandbox.json"
+}
+
 run_kline_boundaries() {
   step "K-lines, both halves, 3-of-3 (#603)"
   local ci machines; ci="$(repo_root RealityEngine_CI)"; machines="$(repo_root RealityEngine_Machines)"
@@ -2973,6 +2998,8 @@ if [ "$LIVE_TESTS" = true ]; then
   # After the clock: both halves of a K-line carry it. It turns klineCapture
   # and isreCapture on for its own drive and restores them (#603).
   run_stage "kline-boundaries"  run_kline_boundaries
+  # Its near-misses seed a sandboxed replica of each voter (#605).
+  run_stage "sandbox"           run_sandbox
   # Beside the arbiter: both are conformance gates that need the engines up and
   # a corpus that can exercise them, and both compare across runtimes rather
   # than checking one. This one drives /api/engine/process and resets both

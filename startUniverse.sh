@@ -199,6 +199,10 @@ startUniverse.sh — engine-selectable CI orchestrator
   --no-mcp-http                 Skip RealityEngine MCP Streamable HTTP service startup
   --no-openapi-swagger          Skip OpenAPI/Swagger portal startup
   --warn-only                   Warn on sibling repo version mismatch instead of failing startup
+  --sandbox-from=<id> --bundle=<file>
+                                Start nothing; boot a sandboxed replica of instance <id>
+                                of the running universe from a re-kline-bundle/1 of its
+                                near-misses (scripts/sandbox.py up; TLS lane; #605).
   --kline-capture[=on|off]      Boot every engine with K-line capture on, both halves
                                 (RE klineCapture, PE isreCapture). Default off, or
                                 RE_KLINE_CAPTURE. Either way it is switched at runtime
@@ -250,11 +254,34 @@ for arg in "$@"; do
     --free-ports)          RE_FREE_PORTS=true ;;
     --kline-capture)       KLINE_CAPTURE=on ;;
     --kline-capture=*)     KLINE_CAPTURE="${arg#*=}" ;;
+    --sandbox-from=*)      SANDBOX_FROM="${arg#*=}" ;;
+    --bundle=*)            SANDBOX_BUNDLE="${arg#*=}" ;;
     --dry-run)             DRY_RUN=true ;;
     --help|-h)             print_usage; exit 0 ;;
     *)                     echo "Unknown argument: $arg"; print_usage; exit 2 ;;
   esac
 done
+
+# A sandboxed replica of one instance of the running universe (#605): no universe
+# is started or touched. The replica is an RE of the source's runtime with a
+# sandbox lane UUID, its own state and registry, the same corpus and the
+# bundle's near-misses imported read-only (scripts/sandbox.py).
+if [ -n "${SANDBOX_FROM:-}" ]; then
+    [ -n "${SANDBOX_BUNDLE:-}" ] || { echo "--sandbox-from needs --bundle=<re-kline-bundle/1 file>" >&2; exit 2; }
+    [ "${RE_TLS:-off}" = on ] || { echo "a replica runs on the TLS lane only: RE_TLS=on" >&2; exit 2; }
+    _sel="$CI_DIR/.universe-engine-selection"
+    [ -f "$_sel" ] || { echo "no running universe ($_sel)" >&2; exit 2; }
+    _corpus="$(sed -n 's/^MACHINE_CORPUS_ACTIVE_DIR=//p' "$_sel" | tail -1)"
+    _registry="${RE_REGISTRY_URL:-$(cat "$CI_DIR/.universe-registry-url" 2>/dev/null)}"
+    [ -n "$_registry" ] || { echo "no instance registry for the running universe" >&2; exit 2; }
+    _pki() { python3 "$CI_DIR/scripts/lib/re_pki.py" paths harness | python3 -c 'import json,sys;print(json.load(sys.stdin)[sys.argv[1]])' "$1"; }
+    export RE_PKI_LANE="${RE_PKI_LANE:-native}"
+    export RE_HARNESS_TLS_CA="${RE_HARNESS_TLS_CA:-$(_pki ca)}"
+    export RE_HARNESS_TLS_CERT="${RE_HARNESS_TLS_CERT:-$(_pki chain)}"
+    export RE_HARNESS_TLS_KEY="${RE_HARNESS_TLS_KEY:-$(_pki key)}"
+    exec python3 "$CI_DIR/scripts/sandbox.py" up --registry "$_registry" --from "$SANDBOX_FROM" \
+        --bundle "$SANDBOX_BUNDLE" --corpus "$_corpus/machines"
+fi
 
 case "$RE_ENGINE"          in ai|cpp|lsp)              ;; *) echo "Bad --re-engine=$RE_ENGINE"; exit 2 ;; esac
 case "$PE_ENGINE"          in ai|cpp|lsp)              ;; *) echo "Bad --pe-engine=$PE_ENGINE"; exit 2 ;; esac

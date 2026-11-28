@@ -3725,6 +3725,35 @@ instance used for experimentation (owner decision 2).
   store or instance registry entry, and never to a live provider.
   Replica lanes are excluded from production instance registries.
 
+**Implemented 2026-11-27 (RealityEngine_CI#605)** in CI, with no engine route of
+its own: `scripts/sandbox.py` (`export`, `up`, `replay`, `down`) and
+`startUniverse.sh --sandbox-from=<id> --bundle=<file>`. How to run an experiment:
+`docs/SANDBOX_EXPERIMENTS.md`. The regression stage `sandbox` checks it 3-of-3.
+- **The bundle** is one `POST /api/klines/export` of
+  `{"outcome": ["abandoned", "completed"], "machines": [...]}` for the focal
+  machines of the source's abandoned K-lines. The contrast set is therefore
+  every completed K-line of those machines, a superset of the ones sharing a
+  focal sequence. The bundle is kept exactly as the engine sealed it.
+- **A replica** is an RE of the source's runtime on the TLS lane:
+  - a `sandbox/<name>/<source id>` UUID;
+  - its own state directory (`$RE_INSTANCE_STATE_DIR/sandbox/<name>/`), store,
+    port and certificate;
+  - an instance registry written as a sandbox one and checked with
+    `check-registry --sandbox`.
+
+  It has no PE, and no provider variable reaches it. It compares its fingerprint
+  with the bundle's after its first, empty step, because an engine computes the
+  fingerprint with its first step, and refuses to start on a mismatch.
+- **Re-establishing a near-miss** restores a narrowed `re-snapshot/1` built from
+  the record: its `scope`, and its `activeBefore` as `activeAfter`, with a
+  digest computed by `scripts/lib/jcs.py`. It then presents the record's ISRE
+  pairs, faithfully and then varied at the failing step.
+- **`causedBy`.** The engines' K-line records have no `causedBy` field. The link
+  from a replica's K-lines to the imported one they re-establish is kept in the
+  replica's `experiments.jsonl`, one entry per experiment.
+- **Not built:** the release command `realityengine sandbox`, a containerized
+  replica on a release install (follow-up for release-v0.0.3).
+
 ### The snapshot body
 
 A snapshot is a K-line with what it takes to re-establish it on an engine
