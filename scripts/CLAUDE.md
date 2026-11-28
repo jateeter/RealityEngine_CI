@@ -377,6 +377,27 @@ checks runtime snapshots on every voter, 3-of-3 (#287, phase 2):
 - **Not evaluated:** `RE_SNAPSHOT_STORE=off`, a boot setting covered by each
   engine's unit tests.
 - Measured on the snapshot branches, 2026-11-27: PASS in 7 s.
+`regression-sandbox.py` (stage `sandbox`, after kline-boundaries) checks the
+sandboxed learning deployment on every voter, 3-of-3 (#605). How to run an
+experiment by hand: `docs/SANDBOX_EXPERIMENTS.md`.
+- **Per voter:** `sandbox.py export` its near-misses, then `up` a replica.
+  - The replica has a `sandbox` lane UUID, its own state, store, registry,
+    port and certificate.
+  - It runs only after a fingerprint check made after its first, empty step.
+  - The bundle is imported read-only.
+- **Replay:** a spread of 8 near-misses, the earliest of each focal sequence
+  taken a machine at a time, each faithfully and then with the failing cell
+  flipped. Then `down`.
+- **Pass needs:**
+  - every faithful replay reproduces its OSREs and is abandoned again;
+  - the replica recorded K-lines of its own;
+  - the source's K-line store and the instance registry are byte-identical;
+  - the voters agree on every outcome.
+- **TLS lane only:** without `RE_TLS=on` it reports not-evaluable.
+- `scripts/lib/jcs.py` is RFC 8785 plus the `re-snapshot/1` digest, for a
+  restore body the harness builds itself.
+- Measured 2026-11-27 on the regression corpus: PASS, about 100 s, with 8 of 8
+  reproduced and 240 replica K-lines per runtime.
 
 ## Push response shape
 

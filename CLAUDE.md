@@ -21,6 +21,10 @@ npm run test:deployment
 # K-lines off at boot unless configured (owner, 2026-11-27); this boots both
 # halves capturing. Either way they switch at runtime through each engine's API.
 ./startUniverse.sh --engines=cpp:1,lsp:1,scala:1 --kline-capture --machine-load=runtime --warn-only
+# A sandboxed replica of one instance, seeded from its near-miss K-lines (#605;
+# TLS lane; starts nothing else): docs/SANDBOX_EXPERIMENTS.md.
+python3 scripts/sandbox.py export --registry "$(cat .universe-registry-url)" --from cpp-1 --out near.jsonl
+./startUniverse.sh --sandbox-from=cpp-1 --bundle=near.jsonl
 ./stopUniverse.sh   # everything the universe uses: engines, Docker stacks, gateway,
                     # re-regression, host Ollama; --keep-docker / --keep-ollama opt out
 
