@@ -117,12 +117,23 @@ with no checkout (`docs/ReleaseRoadmap.md`, decisions A1–A11; `RELEASE.md`;
   `down`, `upgrade` and `uninstall` stop it first. Containers reach it at
   `host.docker.internal`. The images are 12.
 
+- **Sandbox replicas** (`realityengine sandbox`, #605) are not compose services.
+  - **Logic:** re-init's `sandbox-*` jobs run RealityEngine_CI's
+    `scripts/sandbox.py`, copied into the image with its four libraries.
+  - **Launch:** the CLI starts each replica container from the instance's own
+    image, on a network of its own, `<project>-sandbox-<name>`.
+  - **Labels:** both the container and the network carry
+    `org.realityengine.sandbox.project=<project>`. `uninstall` and
+    `uninstall.sh` find replicas by that label.
+  - **State:** `<install>/state/sandbox/<name>/`.
+  - **TLS installs only**, with a certificate issued by the install's CA.
+
 ## Testing
 
 - `scripts/tests/test-host-preflight.sh`: the host preflight against stubbed
   curl/ollama/openclaw/node/gh, under `/bin/bash`.
-- `scripts/tests/test-release-init.sh`: `configure` against a scratch install;
-  no Docker.
+- `scripts/tests/test-release-init.sh`: `configure` and `sandbox-prepare`
+  against a scratch install; no Docker.
 - `scripts/tests/test-release-images.sh`: the catalog check's refusals.
 - A live install builds the images locally and runs
   `release/realityengine install --local --dir <scratch>`. It starts the whole

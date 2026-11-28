@@ -39,6 +39,12 @@ release compose needs there, so nothing is generated on the Mac itself:
                             PE's sources; recorded, so a restart reloads them
   machines-list             the catalog, by domain
 
+  sandbox-export|prepare|check|replay|down
+                            `realityengine sandbox` (#605): a replica of an
+                            engine instance seeded from its near-miss K-lines,
+                            through RealityEngine_CI's scripts/sandbox.py; state
+                            in /install/state/sandbox/<name>/
+
 The instance UUID table and the secrets are written once and kept: an instance
 keeps its UUID, and its Lamport clock, across restarts, spec changes and
 upgrades; an instance dropped from the spec keeps its UUID for when it returns.
@@ -1297,7 +1303,7 @@ def internal_registry_url() -> str:
 
 def install_tls() -> bool:
     """Whether the install at /install has its TLS switch on (.env RE_TLS=on)."""
-    env = pathlib.Path("/install/.env")
+    env = pathlib.Path(os.environ.get("REINIT_INSTALL", "/install")) / ".env"
     return env.is_file() and "\nRE_TLS=on\n" in "\n" + env.read_text() + "\n"
 
 
@@ -1458,6 +1464,147 @@ def cmd_machines_list(args) -> int:
     return 0
 
 
+# ── sandboxed replicas (#605) ────────────────────────────────────────────────
+# `realityengine sandbox`: a replica of one engine instance, seeded from its
+# near-miss K-lines, as RealityEngine_CI's scripts/sandbox.py runs one natively.
+# The checks, the admission and the replays are that script's own code (copied
+# into this image unchanged); only the launch differs. The CLI runs the replica
+# container from the instance's own image on a network of its own, so nothing
+# of the install reaches it and it reaches nothing; these jobs run on that
+# network (check, replay) or on the install's (export), as root, like machines-*.
+
+# The install, as these jobs see it: mounted at /install (REINIT_INSTALL, for the unit tests).
+INSTALL = pathlib.Path(os.environ.get("REINIT_INSTALL", "/install"))
+INTERNAL_REGISTRY = INSTALL / "registry" / "re-registry.internal.json"
+# A replica's env carries none of these: it is wired to no live provider (#605).
+# The rest is the source's own boot (the corpus, its semantics, the TLS paths).
+SANDBOX_DROPPED = ("QDRANT_URL",)
+
+
+def sandbox_module():
+    """scripts/sandbox.py, on the install's state, CA and harness certificate."""
+    import importlib.util
+    os.environ["RE_INSTANCE_STATE_DIR"] = str(INSTALL / "state")
+    os.environ["RE_TLS"] = "on" if install_tls() else "off"
+    os.environ["RE_HARNESS_TLS_CA"] = str(INSTALL / "pki" / "ca" / "ca.crt")
+    os.environ["RE_HARNESS_TLS_CERT"] = str(INSTALL / "pki" / "issued" / "harness" / "cert.pem")
+    os.environ["RE_HARNESS_TLS_KEY"] = str(INSTALL / "pki" / "issued" / "harness" / "key.pem")
+    if not install_tls():
+        raise SystemExit("a sandbox replica runs on TLS only, and this install is configured with RE_TLS=off")
+    spec = importlib.util.spec_from_file_location("sandbox", CI / "scripts" / "sandbox.py")
+    mod = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(mod)
+    import re_tls  # noqa: E402 -- sandbox.py put scripts/lib on the path
+    re_tls.install_lane_opener()
+    return mod
+
+
+def install_env() -> dict[str, str]:
+    env: dict[str, str] = {}
+    for line in (INSTALL / ".env").read_text().splitlines():
+        if "=" in line and not line.lstrip().startswith("#"):
+            k, v = line.split("=", 1)
+            env[k.strip()] = v
+    return env
+
+
+def resolve(value: str, env: dict[str, str]) -> str:
+    """Compose's ${VAR}, ${VAR:-default} and ${VAR-default}, from the install's .env."""
+    def sub(m: "re.Match[str]") -> str:
+        name, op, default = m.group(1), m.group(2), m.group(3) or ""
+        got = env.get(name)
+        if op == ":-":
+            return got if got else default
+        if op == "-":
+            return got if got is not None else default
+        return got or ""
+    return re.sub(r"\$\{(\w+)(:-|-)?([^}]*)\}", sub, value)
+
+
+def sandbox_state(name: str) -> pathlib.Path:
+    return INSTALL / "state" / "sandbox" / name
+
+
+def cmd_sandbox_export(args) -> int:
+    sb = sandbox_module()
+    pathlib.Path(args.out).parent.mkdir(parents=True, exist_ok=True)
+    return sb.cmd_export(argparse.Namespace(registry=str(INTERNAL_REGISTRY), source=args.source, out=args.out))
+
+
+def cmd_sandbox_prepare(args) -> int:
+    """Checks, a sandbox UUID, a certificate from the install's CA, and the launch the CLI runs."""
+    sb = sandbox_module()
+    plan = sb.prepare(str(INTERNAL_REGISTRY), args.source, pathlib.Path(args.bundle), args.name)
+    name, replica, rt = plan["name"], plan["replica"], plan["runtime"]
+    if rt not in ("cpp", "lsp", "scala", "rust"):
+        raise SystemExit(f"no replica launch for runtime {rt}")
+    env = install_env()
+    # The runtime's RE service as configure defines it, named for the replica.
+    inst = {"runtime": rt, "id": f"sandbox-{name}", "re_service": f"sandbox-{name}", "pe_service": "-",
+            "re_port": 0, "pe_port": 0}
+    re_def = engine_services([inst], tls=True)[f"sandbox-{name}"]
+    image = resolve(re_def["image"], env)
+    if not image:
+        raise SystemExit(f"the install names no image for {rt} ({re_def['image']})")
+    renv = {k: resolve(str(v), env) for k, v in re_def["environment"].items() if k not in SANDBOX_DROPPED}
+    renv.update({"INSTANCE_UUID": replica, "INSTANCE_ID": f"sandbox-{name}", "INSTANCE_CLOCK_DIR": CLOCK_DIR,
+                 "INSTANCE_KLINE_DIR": KLINE_DIR, "RE_KLINE_CAPTURE": "1", "RE_SNAPSHOT_STORE": "memory"})
+    state = plan["state"]
+    for d in ("klines", "clock"):
+        (state / d).mkdir(parents=True, exist_ok=True)
+        os.chmod(state / d, 0o1777)  # the engine's own user writes them
+    subprocess.run([sys.executable, str(RE_PKI), "issue", f"sandbox-{name}", "--kind", "both",
+                    "--dns", f"sandbox-{name}", "--dns", "localhost", "--ip", "127.0.0.1",
+                    "--instance-uuid", replica],
+                   check=True, capture_output=True, env={**os.environ, "RE_PKI_DIR": str(INSTALL / "pki")})
+    write(state / "replica.env", "".join(f"{k}={v}\n" for k, v in sorted(renv.items())))
+    write(state / "replica.args", "".join(f"{resolve(str(a), env)}\n" for a in re_def.get("command", [])))
+    write(state / "replica.launch", f"IMAGE={image}\nRUNTIME={rt}\nPORT={RE_PORT}\n")
+    write_json(state / "plan.json", {k: plan[k] for k in ("name", "runtime", "sourceId", "sourceUuid", "records",
+                                                           "replica")} | {"bundle": args.bundle})
+    print(f"NAME={name}")
+    return 0
+
+
+def sandbox_plan(sb, name: str) -> tuple[dict, pathlib.Path]:
+    state = sandbox_state(name)
+    saved = json.loads((state / "plan.json").read_text())
+    bundle = pathlib.Path(saved.pop("bundle"))
+    header, _ = sb.read_bundle(bundle)
+    return {**saved, "state": state, "header": header}, bundle
+
+
+def cmd_sandbox_check(args) -> int:
+    """On the replica's network: it comes up, and is admitted or refused."""
+    sb = sandbox_module()
+    plan, bundle = sandbox_plan(sb, args.name)
+    url = f"https://sandbox-{args.name}:{RE_PORT}"
+    if not sb.wait_up(url, lambda: True, args.boot_seconds):
+        raise SystemExit(f"the replica did not answer at {url} within {args.boot_seconds}s")
+    try:
+        meta = sb.admit(plan, url, bundle, {"hostUrl": args.host_url, "container": args.container,
+                                            "certificate": f"sandbox-{args.name}"})
+    except SystemExit:
+        sb.discard(plan)
+        raise
+    print(json.dumps({k: meta[k] for k in ("name", "runtime", "replica", "source", "records", "hostUrl")}))
+    return 0
+
+
+def cmd_sandbox_replay(args) -> int:
+    sb = sandbox_module()
+    return sb.cmd_replay(argparse.Namespace(name=args.name, kline=args.kline, sample=args.sample, vary=args.vary))
+
+
+def cmd_sandbox_down(args) -> int:
+    sb = sandbox_module()
+    if not (sandbox_state(args.name) / "replica.json").exists():
+        raise SystemExit(f"no running replica {args.name}")
+    state = sb.mark_stopped(args.name)
+    print(json.dumps({"stopped": args.name, "results": str(state)}))
+    return 0
+
+
 def main(argv: list[str]) -> int:
     ap = argparse.ArgumentParser(prog="reinit", description=__doc__,
                                  formatter_class=argparse.RawDescriptionHelpFormatter)
@@ -1495,8 +1642,30 @@ def main(argv: list[str]) -> int:
     mls = sub.add_parser("machines-list")
     mls.add_argument("--manager", default="https://visualizer-backend:3001")
     mls.add_argument("--catalog", default="/volumes/catalog")
+    se = sub.add_parser("sandbox-export")
+    se.add_argument("--from", dest="source", required=True)
+    se.add_argument("--out", required=True)
+    sp = sub.add_parser("sandbox-prepare")
+    sp.add_argument("--from", dest="source", required=True)
+    sp.add_argument("--bundle", required=True)
+    sp.add_argument("--name", default=None)
+    sc = sub.add_parser("sandbox-check")
+    sc.add_argument("--name", required=True)
+    sc.add_argument("--host-url", default=None)
+    sc.add_argument("--container", default=None)
+    sc.add_argument("--boot-seconds", type=int, default=600)
+    sr = sub.add_parser("sandbox-replay")
+    sr.add_argument("--name", required=True)
+    sr.add_argument("--kline", action="append")
+    sr.add_argument("--sample", type=int, default=8)
+    sr.add_argument("--vary", action="append")
+    sd = sub.add_parser("sandbox-down")
+    sd.add_argument("--name", required=True)
     args = ap.parse_args(argv)
-    return {"configure": cmd_configure, "serve-registry": cmd_serve_registry,
+    return {"sandbox-export": cmd_sandbox_export, "sandbox-prepare": cmd_sandbox_prepare,
+            "sandbox-check": cmd_sandbox_check, "sandbox-replay": cmd_sandbox_replay,
+            "sandbox-down": cmd_sandbox_down,
+            "configure": cmd_configure, "serve-registry": cmd_serve_registry,
             "prepare-volumes": cmd_prepare_volumes, "machines-sync": cmd_machines_sync,
             "machines-load": cmd_machines_load, "machines-list": cmd_machines_list}[args.cmd](args)
 

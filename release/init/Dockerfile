@@ -27,6 +27,10 @@ COPY scripts/lib/instance_uuids.py scripts/lib/re_pki.py scripts/lib/re_tls_serv
 COPY config/transport-profile.json config/prometheus-web.lane.yml config/prometheus-health.lane.yml \
      config/grafana-datasources.lane.yml /opt/ci/config/
 COPY scripts/bridge-metrics-exporter.mjs /opt/ci/scripts/
+# `realityengine sandbox` (#605): CI's own sandbox code, unchanged, and what it imports.
+COPY scripts/sandbox.py /opt/ci/scripts/
+COPY scripts/lib/jcs.py scripts/lib/kline_archive.py scripts/lib/kline_restart.py scripts/lib/re_tls.py \
+     /opt/ci/scripts/lib/
 COPY mcp/src/lane-tls.js /opt/ci/mcp/src/
 COPY config/integrations.example.json config/loki-config.yml config/grafana-datasources.yml \
      config/grafana-dashboards.yml config/regression-corpus.txt /opt/ci/config/

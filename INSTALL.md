@@ -318,6 +318,35 @@ failed sync leaves the catalog as it was.
 ./realityengine up          # start again (re-applies the configuration)
 ```
 
+## Experimenting with near-misses (sandbox replicas)
+
+With K-line capture on, an engine keeps its **near-misses**: paths that got
+partway through a machine's sequence and then failed at one step. A **sandbox
+replica** is a copy of one engine instance where those near-misses can be put
+back, replayed and varied. Nothing a replica does reaches the install.
+
+```bash
+./realityengine sandbox export --from cpp-1 --out near.jsonl   # cpp-1's near-misses
+./realityengine sandbox up --from cpp-1 --bundle near.jsonl    # prints the replica's name
+./realityengine sandbox replay --name <name>                   # 8 near-misses, as recorded, then varied
+./realityengine sandbox replay --name <name> --kline <id> --vary 928=0.4
+./realityengine sandbox list
+./realityengine sandbox down --name <name>                     # results are kept
+```
+
+- **The replica** runs from the instance's own image, on a network of its own.
+  - It has a UUID and a certificate of its own, issued by the install's CA.
+  - It holds no provider settings (no localAI, OpenClaw, Ollama, MQTT or
+    HealthKit).
+  - It boots the install's corpus, and is refused if that is not the corpus
+    the bundle was captured on.
+- **Results** are kept in `<install>/state/sandbox/<name>/`: the replica's
+  K-lines, the bundle (read-only), and `experiments.jsonl`, one line per replay.
+- **Requirements:** the install must have TLS on. `uninstall` removes every
+  replica.
+
+How to read the results: `docs/SANDBOX_EXPERIMENTS.md`.
+
 ## Upgrading and rolling back
 
 ```bash

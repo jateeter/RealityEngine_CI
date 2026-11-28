@@ -41,6 +41,10 @@ python3 scripts/sandbox.py replay --name cpp-1-c19b7152 --kline <id> --vary 928=
 python3 scripts/sandbox.py down --name cpp-1-c19b7152
 ```
 
+**When to hash the source.** `export` is the source's own write: it marks the
+segments it exported. A check that the source store is untouched therefore
+hashes it after the export.
+
 `sandbox.py up` does the same as step 2 without `startUniverse.sh`. It takes
 `--registry`, `--from`, `--bundle` and `--corpus <machines dir>`, and also
 `--repo <engine checkout>` and `--name`.
@@ -115,8 +119,40 @@ The voters must agree on every replay's outcome. Measured 2026-11-27 on the
 regression corpus: 8 of 8 reproduced on each runtime, 2 completed when varied on
 each, 240 replica K-lines each, the sources unchanged, about 100 s.
 
-## Not built yet
+## On a release install
 
-`realityengine sandbox`, the release-install equivalent: a containerized
-replica beside a release install, with a certificate from the install's CA.
-It is RealityEngine_CI#898, for release-v0.0.3.
+`realityengine sandbox` does the same, beside a release install (INSTALL.md,
+"Experimenting with near-misses"):
+
+```bash
+./realityengine sandbox export --from cpp-1 --out near.jsonl
+./realityengine sandbox up --from cpp-1 --bundle near.jsonl [--name NAME]
+./realityengine sandbox replay --name NAME [--kline ID] [--sample N] [--vary CELL=VALUE]
+./realityengine sandbox down --name NAME
+./realityengine sandbox list
+```
+
+- **The work.** The checks, admission and replays are `scripts/sandbox.py`
+  itself, carried unchanged in the `re-init` image and run as its
+  `sandbox-export`, `sandbox-prepare`, `sandbox-check`, `sandbox-replay` and
+  `sandbox-down` jobs.
+- **The launch.** The replica is a container started from the instance's own
+  image, with the env and command `re-init configure` gives that runtime's RE,
+  less `QDRANT_URL`. It has:
+  - the install's `corpus-boot` volume, read-only;
+  - a certificate from the install's CA, naming its container;
+  - its own store and clock, under `<install>/state/sandbox/<name>/`.
+- **Its network** is its own (`<project>-sandbox-<name>`). The install's
+  services do not resolve from it, and it does not resolve from theirs. `check`
+  and `replay` run there; `export` runs on the install's network.
+- **TLS on only.** `uninstall` removes every replica's container and network,
+  and `--purge` removes the results with the install.
+
+Measured 2026-11-27 on a release install (images from main, TLS on, capture on),
+cpp-1, lsp-1 and scala-1 each:
+- 6 of 6 near-misses reproduced, and the same 4 of 6 completed when varied;
+- 171 replica K-lines;
+- the bundle imported read-only;
+- the source's store in the `engine-klines` volume, and the instance registry,
+  byte-identical before and after;
+- no container or network left after `down`.
