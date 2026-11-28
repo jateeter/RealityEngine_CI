@@ -99,6 +99,11 @@ SUMMARIES: dict[str, str] = {
     "GET:/api/klines/stats":                                   "K-line counts by outcome and machine; segments, bytes, budget, warnings",
     "GET:/api/klines/{id}":                                    "One stored K-line (re-kline/1)",
     "POST:/api/klines/export":                                 "Export a re-kline-bundle/1 (JSON Lines) and mark its segments exported",
+    "POST:/api/runtime/snapshot":                              "Capture a re-snapshot/1 over retained steps ({scope?, from?, to?}); stored under its digest",
+    "GET:/api/runtime/snapshots":                              "Stored snapshots {id, digest, scope, span, machines}, oldest first by clocks.to.lamport",
+    "GET:/api/runtime/snapshot/{id}":                          "One snapshot body, in full",
+    "DELETE:/api/runtime/snapshot/{id}":                       "Drop one snapshot",
+    "POST:/api/runtime/restore":                               "Re-establish a snapshot ({id} or {snapshot}); 409 on a corpus mismatch",
     "POST:/api/engine/process":                                "Process input vector across all machines",
     "POST:/api/engine/reset":                                  "Reset machine, engine, and perception state",
     # RE — Cloneable machines (localAssetStorageStack#8)

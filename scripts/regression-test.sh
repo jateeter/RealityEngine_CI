@@ -2129,6 +2129,17 @@ run_arbitration_retention() {
     --out "$REPORT_DIR/arbitration-retention.json"
 }
 
+run_snapshots() {
+  step "Runtime snapshots, 3-of-3 (#287)"
+  local ci; ci="$(repo_root RealityEngine_CI)"
+  # Drives each RE with explicit vectors from its own reset, and resets every
+  # voter when it ends, so it may sit anywhere after the stages that want an
+  # untouched universe.
+  run_cmd "snapshots" python3 "$ci/scripts/regression-snapshots.py" \
+    --registry "$REGISTRY_FILE" \
+    --out "$REPORT_DIR/snapshots.json"
+}
+
 run_clock_causality() {
   step "The full Lamport clock, 3-of-3 (#600)"
   local ci; ci="$(repo_root RealityEngine_CI)"
@@ -2953,6 +2964,9 @@ if [ "$LIVE_TESTS" = true ]; then
   # Beside the arbiter, on the same fixture: retention keyed by step, the legacy
   # escape byte for byte, and the instance clock, 3-of-3 (#296).
   run_stage "arbitration-retention" run_arbitration_retention
+  # Beside retention: snapshot, round trip, cross-runtime restore and
+  # self-verification, 3-of-3 (#287).
+  run_stage "snapshots"         run_snapshots
   # Beside retention, which checks the clock on retained steps: the full
   # clock on every RE and PE, the receive rule, the marks and causedBy (#600).
   run_stage "clock-causality"   run_clock_causality

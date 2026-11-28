@@ -997,6 +997,11 @@ the drift this issue exists to prevent visible on the first run.
 | GET | `/api/klines/stats` | ✓ | ✓ | ✓ |
 | GET | `/api/klines/:id` | ✓ | ✓ | ✓ |
 | POST | `/api/klines/export` | ✓ | ✓ | ✓ |
+| POST | `/api/runtime/snapshot` | ✓ | ✓ | ✓ |
+| GET | `/api/runtime/snapshots` | ✓ | ✓ | ✓ |
+| GET | `/api/runtime/snapshot/:id` | ✓ | ✓ | ✓ |
+| DELETE | `/api/runtime/snapshot/:id` | ✓ | ✓ | ✓ |
+| POST | `/api/runtime/restore` | ✓ | ✓ | ✓ |
 | POST | `/api/engine/process` | ✓ | ✓ | ✓ |
 | POST | `/api/engine/reset` | ✓ | ✓ | ✓ |
 
@@ -3026,10 +3031,11 @@ alias for the same handler.
 ## K-lines and runtime snapshots
 
 *Specified 2026-10-05 (RealityEngine_CI#287, phase 1); boundaries, operation and
-the per-instance K-line store added 2026-10-24 (RealityEngine_CI#603). The format and routes below
-are a contract with no implementation yet. The routes stay out of the RE route
-tables, which list only what all three runtimes serve, until phase 2 implements
-them on every runtime.*
+the per-instance K-line store added 2026-10-24 (RealityEngine_CI#603). K-lines are
+implemented on the three voters (#603). Snapshots, phase 2 of #287, are implemented
+on the three voters as of 2026-11-27 (RealityEngine_CPP#215, RealityEngine_LSP#208,
+RealityEngine_Scala#229) and checked by the `snapshots` regression stage; their
+routes are in the RE route table. The Qdrant store, phase 3, is not built.*
 
 *Readiness decisions, 2026-11-24 (owner; RealityEngine_CI#603, #287), settled
 before any runtime implements this section so the voters do not each guess:*
@@ -3816,8 +3822,34 @@ under "Retained step shape". Everything else is compared, the digest included.
 | POST | `/api/runtime/restore` | `{id}` or `{snapshot: <body>}`: re-establish it (below). Returns `{digest, step}` |
 | DELETE | `/api/runtime/snapshot/:id` | drop one |
 
-(Written outside the `| Method | Path | CPP | LSP | Scala |` tables on purpose:
-those declare what is implemented, and the OpenAPI generator reads them.)
+All five are in the RE route table, implemented on the three voters (2026-11-27).
+
+**Settled while implementing (2026-11-27):**
+- **Ids.** A snapshot's id is the hex of its digest, without `sha256:`. The same
+  state has the same id on every runtime, so a snapshot taken from one runtime is
+  found under the same id on another. An id is hex only, never a path. An
+  unknown id answers 404 `{"error": "no snapshot <id>"}` on `GET`, `DELETE` and
+  restore by `{id}`.
+- **Retention.** For every retained step (`historyLimit`) an engine keeps the
+  active list after it, its contributions and its clock, whether or not
+  `klineCapture` is on. The first step after boot or a reset starts from every
+  machine at its initial events.
+- **Restore** answers `step`: `span.to` for a corpus scope, and the newest
+  committed step for a narrowed one.
+  - Each scoped machine's events take exactly the listed state. Restored events
+    start a fresh predecessor chain: a snapshot carries no provenance, and OSRE
+    values do not depend on it.
+  - A restore is a reset for K-line capture: open K-lines close
+    `interrupted` (`reason: "reset"`).
+  - The overrides restored are the retunable ones, `outputMergeTransformation`
+    and `outputMergeLocked`. `arbiterRule` is declared, and is already covered by
+    the corpus fingerprint.
+- **Self-verification** needs no route of its own. A narrowed snapshot ending at
+  step `m-1` has `activeBefore(m)` as its `activeAfter`. Restore it, present the
+  span's ISREs through `POST /api/perceive`, then compare the committed OSREs
+  outside `sharedCells` and the final active list.
+- **`qdrant:<url>`** is phase 3 and is treated as `off` until it exists, never a
+  boot failure.
 
 **Restore re-establishes `activeAfter`**, the controls and the overrides.
 - For a corpus-scope snapshot it also replaces the trajectory history with the
