@@ -36,8 +36,11 @@ from one universe to the next.
     instance_uuids.py docker-env <id>        allocate docker/<id> and write the env
                                              file its compose service loads;
                                              <id>/pe for its PE (<id>.pe.env)
-    instance_uuids.py check-registry <file>  refuse an instance registry in which
-                                             two instances share a UUID
+    instance_uuids.py check-registry <file> [--sandbox]
+                                             refuse an instance registry in which
+                                             two instances share a UUID, or, unless
+                                             --sandbox names it a replica's, that
+                                             holds a sandbox/<id> UUID
 
 Allocation is a read-modify-write under an exclusive lock on the table, written
 by rename, and refuses a table that already maps two instances to one UUID --
@@ -55,7 +58,10 @@ import sys
 import time
 from pathlib import Path
 
-LANES = ("native", "docker")
+# `sandbox` is a replica's lane (#603, #605): a replica booted from another
+# instance's K-lines is a new instance with a UUID of its own, never the
+# source's, and its UUID is refused in every other (production) registry.
+LANES = ("native", "docker", "sandbox")
 
 # How long an allocation reserves a UUID for the universe that asked for it. It
 # covers the gap until that universe's engine takes the instance lock -- a boot
@@ -291,8 +297,18 @@ def docker_env(instance_id: str) -> str:
     return uuid
 
 
-def check_registry(registry_file: str) -> list[str]:
-    """Failures: two participants in one instance registry holding the same UUID.
+def sandbox_uuids() -> dict[str, str]:
+    """UUID -> sandbox/<id> key, for every UUID the table allocated to a replica."""
+    path = table_path()
+    if not path.exists():
+        return {}
+    instances = json.loads(path.read_text()).get("instances", {})
+    return {u: k for k, u in instances.items() if k.startswith("sandbox/")}
+
+
+def check_registry(registry_file: str, sandbox: bool = False) -> list[str]:
+    """Failures: two participants in one instance registry holding the same UUID,
+    and, in a production registry (not `sandbox`), a replica's UUID.
 
     Every participant counts: each instance's RE (`instance_uuid`) and, since
     RealityEngine_CI#600, its PE (`pe_uuid`, held as `<id>/pe`), so an RE and a
@@ -305,8 +321,13 @@ def check_registry(registry_file: str) -> list[str]:
             held[i.get("id", "?")] = i["instance_uuid"]
         if i.get("pe_uuid"):
             held[f"{i.get('id', '?')}/pe"] = i["pe_uuid"]
-    return [f"UUID {u} is held by {', '.join(ids)}: two participants may not share a UUID"
-            for u, ids in duplicates(held).items()]
+    failures = [f"UUID {u} is held by {', '.join(ids)}: two participants may not share a UUID"
+                for u, ids in duplicates(held).items()]
+    if not sandbox:
+        replicas = sandbox_uuids()
+        failures += [f"{who} holds {u}, allocated to the replica {replicas[u]}: a sandbox instance "
+                     f"never joins a production instance registry" for who, u in held.items() if u in replicas]
+    return failures
 
 
 def main(argv: list[str]) -> int:
@@ -329,8 +350,8 @@ def main(argv: list[str]) -> int:
     if len(argv) == 1 and argv[0] == "clock-dir":
         print(clock_dir())
         return 0
-    if len(argv) == 2 and argv[0] == "check-registry":
-        failures = check_registry(argv[1])
+    if len(argv) in (2, 3) and argv[0] == "check-registry" and argv[2:] in ([], ["--sandbox"]):
+        failures = check_registry(argv[1], sandbox=argv[2:] == ["--sandbox"])
         for failure in failures:
             print(failure, file=sys.stderr)
         return 1 if failures else 0

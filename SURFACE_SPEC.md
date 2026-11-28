@@ -3426,6 +3426,14 @@ does (RealityEngine_CI#296).
   - A segment that has not been exported is never evicted. The engine warns
     instead, on `/api/health` and in the stats, and keeps writing. A
     population is never silently dropped.
+  - On `/api/health` the warning is a `warnings` array beside `status`, present
+    only when there is one; `status` stays `healthy`, because the store still
+    writes. The RE carries its K-line store's warnings, the PE its ISRE
+    composition store's, and each names its own budget control
+    (`"klineStoreMaxBytes reached: <n> unexported sealed segment(s) are kept;
+    export them to free space"`, or `isreStoreMaxBytes`). Health is a liveness
+    probe, so it reads what the store last computed (at each budget check,
+    export, budget change and boot) and never waits on a step.
 
 #### Record
 

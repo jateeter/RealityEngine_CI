@@ -99,6 +99,11 @@ npm run test:deployment
     `realityengine uninstall --purge` and `uninstall.sh` do.
   - `registry_add` records `instance_uuid` and refuses a UUID another instance
     holds; `instance_uuids.py check-registry` checks a whole instance registry.
+  - A replica booted from another instance's K-lines (#603, #605) is allocated
+    in the `sandbox` lane (`sandbox/<replica>/<id>`): a UUID of its own, never
+    the source's. `registry_add` and `check-registry` refuse a sandbox UUID in
+    a production registry; a replica's own registry is written with
+    `RE_REGISTRY_SANDBOX=1` and checked with `check-registry --sandbox`.
   - The engine enforces it too: an instance holding an allocated UUID takes an
     exclusive lock for its life, so a second live process with the same UUID
     refuses to boot.
