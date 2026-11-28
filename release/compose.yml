@@ -301,10 +301,18 @@ services:
       VIZ_CACHE_TTL_MS: "500"
       VIZ_RATE_LIMIT_MAX: "5000"
       VIZ_MACHINES_RATE_LIMIT_MAX: "2000"
+      # The K-line panel (RealityEngine_Manager#372, #603): the install's boot
+      # capture setting, the host's K-line archive (outside the install, so an
+      # uninstall --purge keeps it), and its schedules in the install's state.
+      RE_KLINE_CAPTURE: ${RE_KLINE_CAPTURE:-off}
+      RE_KLINE_ARCHIVE_DIR: /var/lib/reality-engine/kline-archive
+      KLINE_PANEL_STATE: /var/lib/reality-engine/manager/kline-panel.json
     volumes:
       - ./certs:/etc/certs:ro
       - corpus-catalog:/app/corpus:ro
       - localai-machines:/app/catalog-extra:ro
+      - ${RE_KLINE_ARCHIVE_HOST:-${HOME}/.reality-engine/kline-archive}:/var/lib/reality-engine/kline-archive
+      - manager-state:/var/lib/reality-engine/manager
     depends_on:
       registry: {condition: service_healthy}
       corpus: {condition: service_completed_successfully}
@@ -449,6 +457,7 @@ volumes:
   engine-clock:
   engine-klines:
   pe-isre:
+  manager-state:
   qdrant-data:
   redis-data:
   localai-state:

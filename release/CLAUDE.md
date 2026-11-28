@@ -93,6 +93,17 @@ with no checkout (`docs/ReleaseRoadmap.md`, decisions A1–A11; `RELEASE.md`;
   the switch, and `configure` keeps an install's switch across `up`; the default flips once all have (the release gate,
   `--require-compliant`). With TLS off the legacy `certs/` RSA pair serves the
   proxy as before.
+- **K-lines** (#603, RealityEngine_Manager#372). Capture is off at boot unless the
+  install is configured with `RE_KLINE_CAPTURE=on` (`reinit --kline-capture on`,
+  kept in `.env`). Manager's K-line panel switches it at runtime, so
+  `visualizer-backend` gets `RE_KLINE_CAPTURE` (shown as the boot setting).
+  - The host's K-line archive (`${RE_KLINE_ARCHIVE_HOST:-~/.reality-engine/kline-archive}`)
+    is mounted as `RE_KLINE_ARCHIVE_DIR`. It lives outside the install, so
+    `uninstall --purge` keeps it; archive before purging, because the purge
+    removes the engines' store volumes.
+  - The panel's schedules live on the install's `manager-state` volume.
+  - This is the one host path an install mounts that is not the install
+    directory or the gateway's home. It is a host data directory, not a checkout.
 - **The OpenClaw gateway is the Mac's own `openclaw`, not an image** (#592).
   `re-init configure` (and `machines-load`) generate its home in
   `<install>/openclaw` with localOpenClawStack's scripts, in the `entries`
