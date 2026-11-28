@@ -265,6 +265,28 @@ assert_eq "$(tail -1 "$RE_INSTANCE_STATE_DIR/docker/dpe-1.pe.env")" "INSTANCE_IS
 assert_eq "$(python3 -c 'import os,sys; print(oct(os.stat(sys.argv[1]).st_mode & 0o7777)[2:])' "$RE_INSTANCE_STATE_DIR/klines-docker")" "1777" "D-st1: the K-line store bind dir is writable by the container user"
 assert_eq "$(python3 -c 'import os,sys; print(oct(os.stat(sys.argv[1]).st_mode & 0o7777)[2:])' "$RE_INSTANCE_STATE_DIR/isre-docker")" "1777" "D-st2: the ISRE store bind dir is writable by the container user"
 
+# ── The sandbox lane (#603, #605) ─────────────────────────────────────────────
+u_sb="$(python3 "$CI_DIR/scripts/lib/instance_uuids.py" allocate sandbox replica-a/cpp-1)"
+u_nat="$(python3 "$CI_DIR/scripts/lib/instance_uuids.py" allocate native cpp-1)"
+[ "$u_sb" != "$u_nat" ] && r=0 || r=1
+assert_exit "$r" 0 "S1: a replica of cpp-1 gets a UUID of its own, never the source's"
+assert_eq "$(python3 "$CI_DIR/scripts/lib/instance_uuids.py" allocate sandbox replica-a/cpp-1)" "$u_sb" "S2: the same replica keeps its UUID"
+rm -f "$REGISTRY_FILE"
+set +e; out="$(registry_add "cpp-9" "cpp" "https://h:1" "https://h:2" "" "" "$u_sb" 2>&1)"; code=$?; set -e
+assert_exit "$code" 1 "S3: registry_add refuses a replica's UUID in a production registry"
+case "$out" in *"replica sandbox/replica-a/cpp-1"*) r=0 ;; *) r=1 ;; esac
+assert_exit "$r" 0 "S4: and names the replica"
+RE_REGISTRY_SANDBOX=1 registry_add "cpp-1" "cpp" "https://h:1" "https://h:2" "" "" "$u_sb"
+assert_eq "$(registry_get cpp-1 | python3 -c 'import json,sys;print(json.load(sys.stdin)["instance_uuid"])')" "$u_sb" "S5: a replica's own registry takes it"
+set +e; python3 "$CI_DIR/scripts/lib/instance_uuids.py" check-registry "$REGISTRY_FILE" 2>/dev/null; code=$?; set -e
+assert_exit "$code" 1 "S6: check-registry refuses that registry as production"
+set +e; python3 "$CI_DIR/scripts/lib/instance_uuids.py" check-registry "$REGISTRY_FILE" --sandbox; code=$?; set -e
+assert_exit "$code" 0 "S7: and accepts it named --sandbox"
+rm -f "$REGISTRY_FILE"
+registry_add "cpp-1" "cpp" "https://h:1" "https://h:2" "" "" "$u_nat"
+set +e; python3 "$CI_DIR/scripts/lib/instance_uuids.py" check-registry "$REGISTRY_FILE"; code=$?; set -e
+assert_exit "$code" 0 "S8: a production registry of production UUIDs passes"
+
 # ── Summary ───────────────────────────────────────────────────────────────────
 echo ""
 echo "registry: $PASS passed, $FAIL failed"

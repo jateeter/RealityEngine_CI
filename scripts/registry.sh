@@ -195,6 +195,7 @@ registry_add() {
     # role: empty for a voter; `follower` for a conformance follower (Rust), which never votes.
     local id="$1" runtime="$2" re_url="$3" pe_url="$4" pid_re="${5:-}" pid_pe="${6:-}" instance_uuid="${7:-}" role="${8:-}" pe_uuid="${9:-}"
     _registry_init
+    RE_REGISTRY_LIB="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/lib" \
     python3 - "$REGISTRY_FILE" "$id" "$runtime" "$re_url" "$pe_url" "$pid_re" "$pid_pe" "$instance_uuid" "$role" "$pe_uuid" <<'EOF'
 import json, sys, datetime
 path, iid, runtime, re_url, pe_url, pid_re, pid_pe, instance_uuid, role, pe_uuid = sys.argv[1:]
@@ -211,6 +212,17 @@ for mine, what in ((instance_uuid, "instance"), (pe_uuid, "PE")):
     if holders:
         sys.exit(f"registry_add {iid}: {what} UUID {mine} is already held by "
                  f"{', '.join(holders)}; two participants may not share a UUID")
+# A replica's UUID never joins a production registry (#603, #605). A replica's
+# own registry is written with RE_REGISTRY_SANDBOX=1.
+import os
+if os.environ.get('RE_REGISTRY_SANDBOX') != '1':
+    sys.path.insert(0, os.environ['RE_REGISTRY_LIB'])
+    import instance_uuids
+    replicas = instance_uuids.sandbox_uuids()
+    for mine in (instance_uuid, pe_uuid):
+        if mine and mine in replicas:
+            sys.exit(f"registry_add {iid}: {mine} belongs to the replica {replicas[mine]}; "
+                     f"a sandbox instance never joins a production instance registry")
 def _port(url):
     try: return int(url.rsplit(':', 1)[-1])
     except: return 0
