@@ -1000,6 +1000,7 @@ the drift this issue exists to prevent visible on the first run.
 | POST | `/api/runtime/snapshot` | ✓ | ✓ | ✓ |
 | GET | `/api/runtime/snapshots` | ✓ | ✓ | ✓ |
 | GET | `/api/runtime/snapshot/:id` | ✓ | ✓ | ✓ |
+| POST | `/api/runtime/snapshots/nearest` | ✓ | ✓ | ✓ |
 | DELETE | `/api/runtime/snapshot/:id` | ✓ | ✓ | ✓ |
 | POST | `/api/runtime/restore` | ✓ | ✓ | ✓ |
 | POST | `/api/engine/process` | ✓ | ✓ | ✓ |
@@ -3035,7 +3036,8 @@ the per-instance K-line store added 2026-10-24 (RealityEngine_CI#603). K-lines a
 implemented on the three voters (#603). Snapshots, phase 2 of #287, are implemented
 on the three voters as of 2026-11-27 (RealityEngine_CPP#215, RealityEngine_LSP#208,
 RealityEngine_Scala#229) and checked by the `snapshots` regression stage; their
-routes are in the RE route table. The Qdrant store, phase 3, is not built.*
+routes are in the RE route table. The Qdrant store and the nearest-neighbour
+route, phase 3, are implemented on the three voters (RealityEngine_CI#900).*
 
 *Readiness decisions, 2026-11-24 (owner; RealityEngine_CI#603, #287), settled
 before any runtime implements this section so the voters do not each guess:*
@@ -3852,8 +3854,10 @@ under "Retained step shape". Everything else is compared, the digest included.
 | GET | `/api/runtime/snapshot/:id` | one snapshot body, in full |
 | POST | `/api/runtime/restore` | `{id}` or `{snapshot: <body>}`: re-establish it (below). Returns `{digest, step}` |
 | DELETE | `/api/runtime/snapshot/:id` | drop one |
+| POST | `/api/runtime/snapshots/nearest` | `{isre, limit?}`: the stored snapshots whose state is most like `isre` (below). Returns `{snapshots: [{id, score, scope, span, machines}]}` |
 
-All five are in the RE route table, implemented on the three voters (2026-11-27).
+All six are in the RE route table, implemented on the three voters (the first
+five 2026-11-27, `nearest` with phase 3, #900).
 
 **Settled while implementing (2026-11-27):**
 - **Ids.** A snapshot's id is the hex of its digest, without `sha256:`. The same
@@ -3879,8 +3883,7 @@ All five are in the RE route table, implemented on the three voters (2026-11-27)
   step `m-1` has `activeBefore(m)` as its `activeAfter`. Restore it, present the
   span's ISREs through `POST /api/perceive`, then compare the committed OSREs
   outside `sharedCells` and the final active list.
-- **`qdrant:<url>`** is phase 3 and is treated as `off` until it exists, never a
-  boot failure.
+- **`qdrant:<url>`** is the phase 3 store (#900, below).
 
 **Restore re-establishes `activeAfter`**, the controls and the overrides.
 - For a corpus-scope snapshot it also replaces the trajectory history with the
@@ -3901,9 +3904,65 @@ All five are in the RE route table, implemented on the three voters (2026-11-27)
 **The store is optional and never a startup requirement.** `RE_SNAPSHOT_STORE`
 is `memory` (default), `file:<dir>`, `qdrant:<url>` or `off`. With `off`, all
 five routes answer 503 and nothing else changes: no boot failure and no other
-route affected. Qdrant is the phase 3 adapter. It holds the snapshot's ISRE at
-`span.to` as the point and the rest as payload, which gives "find a past state
-like this one" as a nearest-neighbour query.
+route affected.
+
+**Nearest (phase 3, #900).** `POST /api/runtime/snapshots/nearest` answers
+"find a past state like this one" on every store, and the same way on each.
+- **The body** is `{"isre": {"length", "nonZero": [{"index", "value"}]}, "limit"?}`.
+  `limit` is 1 to 100, default 5. A missing or malformed `isre`, or a `limit`
+  out of range, is 422.
+- **A snapshot's state** is its ISRE at `span.to`: the `isre` of the pair whose
+  `stepNumber` is `span.to`. A snapshot with no such pair has an empty state.
+- **The score** is the sparse dot product of the query and that state,
+  Σ query[i]·state[i] over the cells both hold, in IEEE double, summed in
+  ascending cell order. The order is part of the contract: a different order
+  can move the last bit, and with it a ranking.
+- **The answer** lists only snapshots scoring above 0, ordered by score (highest
+  first), then by id (bytes), at most `limit` of them: `{"snapshots": [{"id",
+  "score", "scope", "span", "machines"}]}`. A score is compared as a number,
+  never as text.
+- **Stores:** `memory` and `file` compute it over the instance's own stored
+  snapshots. `qdrant` asks Qdrant for candidates (below), then scores and
+  orders them the same way. Ties at the `limit`-th place are the one point
+  where a Qdrant store may choose differently from a memory store holding the
+  same snapshots, because Qdrant breaks ties among its candidates by its own
+  order.
+
+**The Qdrant store (phase 3, #900).** `RE_SNAPSHOT_STORE=qdrant:<url>`.
+- **https only.** A `qdrant:http://…` URL leaves the store `off`, with the
+  reason in the engine's log: a snapshot store is never a plaintext link
+  (ENGINEERING_CONTRACT, data in motion). With the lane on, the engine presents
+  its lane certificate and trusts the lane CA alone, as on any internal link.
+  Qdrant verifies client certificates on the lane (transport inventory
+  `re-to-qdrant-snapshots`).
+- **The collection** is `RE_SNAPSHOT_COLLECTION`, default `re-snapshots`.
+  - It has one sparse vector, `isre`, and no dense one, so it never depends on
+    the space's width, which can grow.
+  - The engine creates it on first use when absent, and uses an existing one as
+    it is. Nothing happens at boot.
+- **A point** is one stored snapshot.
+  - **id:** the UUID formed from the first 16 bytes of
+    sha256(`<instance uuid>:<snapshot id>`), hex in 8-4-4-4-12 form.
+    `<instance uuid>` is `INSTANCE_UUID`, or `unidentified` without one.
+  - **vector:** `isre`, the snapshot's state (above), as indices and values.
+  - **payload:** `instance`, `id`, `digest`, `scope`, `span`, `machines`,
+    `lamport` (`clocks.to.lamport`) and `body`. `body` is the snapshot's JCS
+    serialization as a string, so `GET` returns exactly the bytes whose digest
+    was computed.
+- **One instance's points.** Every read and delete filters on `instance`, so
+  instances sharing a Qdrant, or a collection, never see each other's
+  snapshots. This is the parity hazard that once removed Qdrant from the
+  engines, a shared collection answering differently per engine; the filter is
+  what keeps it from returning.
+- **Reads:** `GET` retrieves by point id. `list` scrolls every page of the
+  instance's points, ordered as the memory store orders them
+  (`clocks.to.lamport`, then id). `nearest` is a Qdrant query on `isre` with the
+  instance filter and `limit`.
+- **Failure.** If Qdrant is unreachable or answers an error, that request
+  answers 503 `{"error": "snapshot store unavailable: <reason>"}`. Boot never
+  fails, and no other route is affected.
+- **The clock.** Qdrant is not a clock participant, so calls to it carry no
+  `RE-Clock`, and storing a snapshot never moves the engine's clock.
 
 ### Acceptance (phase 2)
 

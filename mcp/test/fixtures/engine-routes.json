@@ -82,6 +82,7 @@
     "POST /api/perceptual-simulation/stop",
     "POST /api/runtime/restore",
     "POST /api/runtime/snapshot",
+    "POST /api/runtime/snapshots/nearest",
     "POST /api/sampler/sample",
     "POST /api/sampler/start",
     "POST /api/sampler/stop",

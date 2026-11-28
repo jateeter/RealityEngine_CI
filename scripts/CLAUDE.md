@@ -373,10 +373,24 @@ checks runtime snapshots on every voter, 3-of-3 (#287, phase 2):
 - **Refusals:** an evicted span is 410, a tampered digest 422, and a real corpus
   mismatch 409. The mismatch is made by POSTing a copy of a machine, which the
   engine versions, and the copy is deleted again.
+- **Nearest (#900):** three snapshots in an otherwise empty store, and the
+  third's state as the query. Every runtime answers the same ids, in the same
+  order, with the same scores, and the queried state comes first.
+- **The Qdrant leg (#900)** runs when the run has an https Qdrant (the registry's
+  `qdrant` service on the TLS lane, or `--qdrant`).
+  - It boots a fresh RE per runtime (a `sandbox` lane UUID and its own
+    certificate) on `RE_SNAPSHOT_STORE=qdrant:<it>`, in a collection named for
+    the run.
+  - Each RE is driven as the voters were. Its ids, list, get (digest
+    re-verified), restore and nearest must match its memory-store voter's.
+  - Each must list only its own points, and the collection is deleted after.
+  - Without an https Qdrant, the lane TLS, or `--corpus` and `--repo`, the leg
+    is not evaluated, with the reason.
 - **Cleanup:** it deletes every snapshot it made and resets every voter.
 - **Not evaluated:** `RE_SNAPSHOT_STORE=off`, a boot setting covered by each
   engine's unit tests.
-- Measured on the snapshot branches, 2026-11-27: PASS in 7 s.
+- Measured on the snapshot branches, 2026-11-27: PASS in 7 s. With the Qdrant
+  leg, on a TLS Qdrant v1.20.0 verifying client certificates: PASS in 23 s.
 `regression-sandbox.py` (stage `sandbox`, after kline-boundaries) checks the
 sandboxed learning deployment on every voter, 3-of-3 (#605). How to run an
 experiment by hand: `docs/SANDBOX_EXPERIMENTS.md`.
