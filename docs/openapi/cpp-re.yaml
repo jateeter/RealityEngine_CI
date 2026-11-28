@@ -853,6 +853,29 @@ paths:
         '404':
           $ref: '#/components/responses/NotFound'
       operationId: delete_api_runtime_snapshot_id
+  /api/runtime/snapshots/nearest:
+    post:
+      tags:
+      - Engine
+      summary: 'The stored snapshots most like {isre}: sparse dot product of each state (the ISRE at span.to), above 0, highest
+        first, then id'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: true
+      responses:
+        '200':
+          description: Success
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Success'
+        '500':
+          $ref: '#/components/responses/InternalError'
+      operationId: post_api_runtime_snapshots_nearest
   /api/runtime/restore:
     post:
       tags:

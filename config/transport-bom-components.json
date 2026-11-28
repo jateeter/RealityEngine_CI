@@ -44,7 +44,8 @@
         "mqtt-yuma",
         "to-ollama",
         "release-to-ollama",
-        "pe-trigger-dispatch"
+        "pe-trigger-dispatch",
+        "re-to-qdrant-snapshots"
       ]
     },
     {
@@ -88,7 +89,8 @@
         "mqtt-yuma",
         "to-ollama",
         "release-to-ollama",
-        "pe-trigger-dispatch"
+        "pe-trigger-dispatch",
+        "re-to-qdrant-snapshots"
       ]
     },
     {
@@ -134,7 +136,8 @@
         "mqtt-yuma",
         "to-ollama",
         "release-to-ollama",
-        "pe-trigger-dispatch"
+        "pe-trigger-dispatch",
+        "re-to-qdrant-snapshots"
       ]
     },
     {
@@ -423,7 +426,8 @@
       },
       "links": [
         "localai-to-qdrant",
-        "bridge-metrics-to-services"
+        "bridge-metrics-to-services",
+        "re-to-qdrant-snapshots"
       ]
     },
     {

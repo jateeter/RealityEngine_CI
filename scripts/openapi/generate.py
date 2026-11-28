@@ -103,6 +103,7 @@ SUMMARIES: dict[str, str] = {
     "GET:/api/runtime/snapshots":                              "Stored snapshots {id, digest, scope, span, machines}, oldest first by clocks.to.lamport",
     "GET:/api/runtime/snapshot/{id}":                          "One snapshot body, in full",
     "DELETE:/api/runtime/snapshot/{id}":                       "Drop one snapshot",
+    "POST:/api/runtime/snapshots/nearest":                     "The stored snapshots most like {isre}: sparse dot product of each state (the ISRE at span.to), above 0, highest first, then id",
     "POST:/api/runtime/restore":                               "Re-establish a snapshot ({id} or {snapshot}); 409 on a corpus mismatch",
     "POST:/api/engine/process":                                "Process input vector across all machines",
     "POST:/api/engine/reset":                                  "Reset machine, engine, and perception state",

@@ -1873,7 +1873,7 @@
       "deficiency": {
         "accepted": "owner, 2026-11-08 (RealityEngine_CI#668, localAIStack#172)",
         "what": "Qdrant v1.20 (rustls) cannot be restricted: with client-certificate verification on it still accepts TLS 1.2 and TLS_AES_128_GCM_SHA256 and offers no post-quantum group, so the server side can never be verified compliant.",
-        "compensation": "Its only client, localai-api, offers TLS 1.3 and the profile's suites alone, so the connection it makes always meets the profile and cannot be downgraded; mTLS is required; the host ports bind 127.0.0.1 only.",
+        "compensation": "Its clients, localai-api and the engines' snapshot store (re-to-qdrant-snapshots, owner 2026-11-27, RealityEngine_CI#900), offer TLS 1.3 and the profile's suites alone, so every connection they make meets the profile and cannot be downgraded; mTLS is required; the host ports bind 127.0.0.1 only.",
         "remedy": "A Qdrant setting that restricts protocol versions and suites; then this deficiency is removed.",
         "allows": {
           "status": "tls"
@@ -1926,6 +1926,54 @@
           "profileId": "re-transport-2026.11",
           "at": "2026-11-13T17:17:58Z",
           "run": "gap5-docker-20261113",
+          "verdict": "tls",
+          "mtls": true,
+          "endpoints": [
+            {
+              "path": "/healthz",
+              "version": "TLSv1.3",
+              "cipher": "TLS_AES_256_GCM_SHA384",
+              "group": "X25519",
+              "mtls": "handshake",
+              "tls12": "accepted",
+              "nonProfileSuite": "accepted",
+              "plaintext": "refused"
+            }
+          ]
+        }
+      }
+    },
+    {
+      "id": "re-to-qdrant-snapshots",
+      "from": "Reality Engine (C++, LSP, Scala RE)",
+      "to": "Qdrant (the snapshot store)",
+      "protocol": "HTTP",
+      "lanes": [
+        "native"
+      ],
+      "owner": "RealityEngine_CI",
+      "issue": "RealityEngine_CI#900",
+      "status": "tls",
+      "mtls": true,
+      "note": "Only with RE_SNAPSHOT_STORE=qdrant:<url>, which is never a default. https only: an http: URL leaves the store off (SURFACE_SPEC \"The Qdrant store\"). The engines call it as an internal peer: TLS 1.3 and the profile's suites alone, the lane CA alone, and the engine's lane certificate. Verified by hand 2026-11-27 against Qdrant v1.20.0 with client-certificate verification, on C++, LSP and Scala: answered with the lane certificate, the handshake refused without one. The server is localai-to-qdrant's Qdrant. Native lane only: neither the docker lane's compose nor re-init passes RE_SNAPSHOT_STORE to an engine; a lane that does is added here, with its probe.",
+      "deficiency": {
+        "accepted": "owner, 2026-11-27 (RealityEngine_CI#900), on the terms of localai-to-qdrant",
+        "what": "Qdrant v1.20 (rustls) cannot be restricted: with client-certificate verification on it still accepts TLS 1.2 and TLS_AES_128_GCM_SHA256 and offers no post-quantum group, so the server side can never be verified compliant.",
+        "compensation": "Every client of this Qdrant, the engines here and localai-api, offers TLS 1.3 and the profile's suites alone, so the connection always meets the profile and cannot be downgraded; mTLS is required; the host ports bind 127.0.0.1 only.",
+        "remedy": "A Qdrant setting that restricts protocol versions and suites; then this deficiency is removed.",
+        "allows": {
+          "status": "tls"
+        },
+        "probeAccepts": [
+          "TLS 1.2 accepted",
+          "a suite outside the profile accepted"
+        ]
+      },
+      "probe": {
+        "native": {
+          "profileId": "re-transport-2026.11",
+          "at": "2026-11-28T06:54:42Z",
+          "run": "qdrant-snapshots-native-20261127",
           "verdict": "tls",
           "mtls": true,
           "endpoints": [

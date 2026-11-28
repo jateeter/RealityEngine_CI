@@ -23,7 +23,8 @@
         "mqtt-yuma",
         "to-ollama",
         "release-to-ollama",
-        "pe-trigger-dispatch"
+        "pe-trigger-dispatch",
+        "re-to-qdrant-snapshots"
       ],
       "lanes": {
         "native": {
@@ -79,7 +80,8 @@
         "mqtt-yuma",
         "to-ollama",
         "release-to-ollama",
-        "pe-trigger-dispatch"
+        "pe-trigger-dispatch",
+        "re-to-qdrant-snapshots"
       ],
       "lanes": {
         "native": {
@@ -134,7 +136,8 @@
         "mqtt-yuma",
         "to-ollama",
         "release-to-ollama",
-        "pe-trigger-dispatch"
+        "pe-trigger-dispatch",
+        "re-to-qdrant-snapshots"
       ],
       "lanes": {
         "native": {
@@ -506,7 +509,8 @@
       "kind": "datastore",
       "links": [
         "localai-to-qdrant",
-        "bridge-metrics-to-services"
+        "bridge-metrics-to-services",
+        "re-to-qdrant-snapshots"
       ],
       "lanes": {
         "native": {
@@ -1377,6 +1381,12 @@
     ],
     "localai-to-qdrant": [
       "localai-api",
+      "qdrant"
+    ],
+    "re-to-qdrant-snapshots": [
+      "cpp-engine",
+      "lsp-engine",
+      "scala-engine",
       "qdrant"
     ],
     "localai-to-redis": [

@@ -2135,8 +2135,14 @@ run_snapshots() {
   # Drives each RE with explicit vectors from its own reset, and resets every
   # voter when it ends, so it may sit anywhere after the stages that want an
   # untouched universe.
+  # --corpus and --repo are for its Qdrant leg (#900): a fresh RE per runtime
+  # on the run's own https Qdrant, when the lane has one; not evaluated otherwise.
   run_cmd "snapshots" python3 "$ci/scripts/regression-snapshots.py" \
     --registry "$REGISTRY_FILE" \
+    --corpus "$(active_machines_dir)" \
+    --repo "cpp=$(repo_root RealityEngine_CPP)" \
+    --repo "lsp=$(repo_root RealityEngine_LSP)" \
+    --repo "scala=$(repo_root RealityEngine_Scala)" \
     --out "$REPORT_DIR/snapshots.json"
 }
 
